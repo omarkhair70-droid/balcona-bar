@@ -1,0 +1,11 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// Phase 1 intentionally defines no product domain models yet.
+// Product modules such as menu, orders, AI waiter, admin, and Flutter UI are out of scope.
