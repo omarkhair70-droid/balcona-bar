@@ -38,6 +38,39 @@ enum StaffRole {
   menu_admin
 }
 
+enum MenuCategoryStatus {
+  active
+  inactive
+}
+
+enum MenuItemStatus {
+  active
+  inactive
+  archived
+}
+
+enum ModifierGroupStatus {
+  active
+  inactive
+}
+
+enum ModifierOptionStatus {
+  active
+  inactive
+}
+
+enum ModifierSelectionType {
+  single
+  multiple
+}
+
+enum PreparationStation {
+  barista
+  kitchen
+  dessert
+  cashier
+}
+
 model Company {
   id        String        @id @default(uuid())
   name      String
@@ -47,6 +80,9 @@ model Company {
   updatedAt DateTime      @updatedAt
 
   branches         Branch[]
+  menuCategories   MenuCategory[]
+  menuItems        MenuItem[]
+  modifierGroups   ModifierGroup[]
   staffMemberships StaffMembership[]
 }
 
@@ -60,10 +96,11 @@ model Branch {
   createdAt DateTime     @default(now())
   updatedAt DateTime     @updatedAt
 
-  company          Company           @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  floors           Floor[]
-  tables           CafeTable[]
-  staffMemberships StaffMembership[]
+  company               Company                  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  floors                Floor[]
+  menuItemOverrides     BranchMenuItemOverride[]
+  tables                CafeTable[]
+  staffMemberships      StaffMembership[]
 
   @@unique([companyId, slug])
   @@index([companyId])
@@ -136,4 +173,131 @@ model StaffMembership {
   @@index([companyId])
   @@index([branchId])
   @@index([companyId, branchId, role])
+}
+
+model MenuCategory {
+  id          String             @id @default(uuid())
+  companyId   String
+  name        String
+  slug        String
+  description String?
+  sortOrder   Int                @default(0)
+  status      MenuCategoryStatus @default(active)
+  createdAt   DateTime           @default(now())
+  updatedAt   DateTime           @updatedAt
+
+  company Company    @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  items   MenuItem[]
+
+  @@unique([companyId, slug])
+  @@index([companyId])
+  @@index([status])
+}
+
+model MenuItem {
+  id             String             @id @default(uuid())
+  companyId      String
+  categoryId     String
+  name           String
+  slug           String
+  description    String?
+  imageUrl       String?
+  basePriceMinor Int
+  currency       String             @default("EGP")
+  station        PreparationStation
+  status         MenuItemStatus     @default(active)
+  isFeatured     Boolean            @default(false)
+  sortOrder      Int                @default(0)
+  createdAt      DateTime           @default(now())
+  updatedAt      DateTime           @updatedAt
+
+  company        Company                  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  category       MenuCategory             @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+  modifierGroups MenuItemModifierGroup[]
+  branchOverrides BranchMenuItemOverride[]
+
+  @@unique([companyId, slug])
+  @@index([companyId])
+  @@index([categoryId])
+  @@index([status])
+  @@index([station])
+}
+
+model ModifierGroup {
+  id             String                @id @default(uuid())
+  companyId      String
+  name           String
+  slug           String
+  description    String?
+  selectionType  ModifierSelectionType
+  isRequired     Boolean               @default(false)
+  minSelections  Int                   @default(0)
+  maxSelections  Int                   @default(1)
+  sortOrder      Int                   @default(0)
+  status         ModifierGroupStatus   @default(active)
+  createdAt      DateTime              @default(now())
+  updatedAt      DateTime              @updatedAt
+
+  company   Company                 @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  options   ModifierOption[]
+  menuItems MenuItemModifierGroup[]
+
+  @@unique([companyId, slug])
+  @@index([companyId])
+  @@index([status])
+}
+
+model ModifierOption {
+  id              String               @id @default(uuid())
+  groupId         String
+  name            String
+  slug            String
+  priceDeltaMinor Int                  @default(0)
+  status          ModifierOptionStatus @default(active)
+  sortOrder       Int                  @default(0)
+  createdAt       DateTime             @default(now())
+  updatedAt       DateTime             @updatedAt
+
+  group ModifierGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
+
+  @@unique([groupId, slug])
+  @@index([groupId])
+  @@index([status])
+}
+
+model MenuItemModifierGroup {
+  id              String   @id @default(uuid())
+  menuItemId      String
+  modifierGroupId String
+  sortOrder       Int      @default(0)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  menuItem      MenuItem      @relation(fields: [menuItemId], references: [id], onDelete: Cascade)
+  modifierGroup ModifierGroup @relation(fields: [modifierGroupId], references: [id], onDelete: Cascade)
+
+  @@unique([menuItemId, modifierGroupId])
+  @@index([menuItemId])
+  @@index([modifierGroupId])
+}
+
+model BranchMenuItemOverride {
+  id                 String   @id @default(uuid())
+  branchId           String
+  menuItemId         String
+  priceOverrideMinor Int?
+  isAvailable        Boolean  @default(true)
+  isVisible          Boolean  @default(true)
+  sortOrder          Int?
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  branch   Branch   @relation(fields: [branchId], references: [id], onDelete: Cascade)
+  menuItem MenuItem @relation(fields: [menuItemId], references: [id], onDelete: Cascade)
+
+  @@unique([branchId, menuItemId])
+  @@index([branchId])
+  @@index([menuItemId])
+  @@index([isAvailable])
+  @@index([isVisible])
 }

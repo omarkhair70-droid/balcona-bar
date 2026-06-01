@@ -5,6 +5,7 @@ import { validateEnvironment } from './config/env.validation';
 import { BranchesModule } from './branches/branches.module';
 import { CompaniesModule } from './companies/companies.module';
 import { HealthModule } from './health/health.module';
+import { MenuModule } from './menu/menu.module';
 import { PrismaModule } from './prisma/prisma.module';
 import { RedisModule } from './redis/redis.module';
 import { StaffModule } from './staff/staff.module';
@@ -27,6 +28,7 @@ import { TablesModule } from './tables/tables.module';
     BranchesModule,
     TablesModule,
     StaffModule,
+    MenuModule,
   ],
 })
 export class AppModule {}
