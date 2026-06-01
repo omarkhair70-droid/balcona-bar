@@ -6,7 +6,9 @@ import { UpdateCartItemDto } from './dto/update-cart-item.dto';
 
 const DRAFT_CART_STATUS = 'draft';
 const ACTIVE_STATUS = 'active';
+const CLOSED_SESSION_STATUS = 'closed';
 const DEFAULT_CART_CURRENCY = 'EGP';
+const EXPIRED_SESSION_STATUS = 'expired';
 
 type PrismaExecutor = PrismaService | Prisma.TransactionClient;
 
@@ -229,8 +231,12 @@ export class CartService {
   }
 
   private assertSessionActive(session: any) {
-    if (session.status !== ACTIVE_STATUS) {
-      throw new BadRequestException('Table session is not active');
+    if (session.status === CLOSED_SESSION_STATUS) {
+      throw new BadRequestException('Table session is closed');
+    }
+
+    if (session.status === EXPIRED_SESSION_STATUS) {
+      throw new BadRequestException('Table session has expired');
     }
 
     if (session.expiresAt && session.expiresAt <= new Date()) {

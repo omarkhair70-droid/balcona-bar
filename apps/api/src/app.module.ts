@@ -11,6 +11,7 @@ import { PrismaModule } from './prisma/prisma.module';
 import { RedisModule } from './redis/redis.module';
 import { StaffModule } from './staff/staff.module';
 import { SystemModule } from './system/system.module';
+import { TableSessionsModule } from './table-sessions/table-sessions.module';
 import { TablesModule } from './tables/tables.module';
 
 @Module({
@@ -31,6 +32,7 @@ import { TablesModule } from './tables/tables.module';
     TablesModule,
     StaffModule,
     MenuModule,
+    TableSessionsModule,
   ],
 })
 export class AppModule {}

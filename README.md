@@ -1,6 +1,6 @@
 # balcona-bar
 
-Balcona Bar is organized as a monorepo for the Cafe AI Waiter App / Smart Café Operating System. Phase 5 adds the customer cart draft foundation on top of the menu, pricing, modifiers, branch availability, and table session backend foundations.
+Balcona Bar is organized as a monorepo for the Cafe AI Waiter App / Smart Café Operating System. Phase 5 adds the customer cart draft foundation on top of the multi-company, multi-branch, menu, and table session backend foundations.
 
 ## Layout
 
@@ -113,6 +113,42 @@ To resolve a seeded table QR token:
 curl http://localhost:3000/api/v1/tables/resolve/balcona-main-t01
 ```
 
+Phase 4 table session endpoints:
+
+Start or resume a table session from a QR token:
+
+```bash
+curl -X POST http://localhost:3000/api/v1/table-sessions/start \
+  -H "Content-Type: application/json" \
+  -d '{"qrToken":"balcona-main-t01","guestLabel":"Guest 1","partySize":2}'
+```
+
+Read a table session by id:
+
+```bash
+curl http://localhost:3000/api/v1/table-sessions/<sessionId>
+```
+
+Touch/view a table session and update `lastSeenAt`:
+
+```bash
+curl -X POST http://localhost:3000/api/v1/table-sessions/<sessionId>/view
+```
+
+Close a table session:
+
+```bash
+curl -X POST http://localhost:3000/api/v1/table-sessions/<sessionId>/close \
+  -H "Content-Type: application/json" \
+  -d '{"reason":"guest-left"}'
+```
+
+List active/idle sessions for a branch:
+
+```bash
+curl http://localhost:3000/api/v1/branches/<branchId>/table-sessions/active
+```
+
 Phase 5 customer cart draft endpoints use an active table session id:
 
 ```bash
@@ -177,4 +213,5 @@ curl http://localhost:3000/api/v1/staff
 - Phase 1 backend skeleton: `docs/architecture/phase-1-backend-skeleton.md`
 - Phase 2 multi-café foundation: `docs/architecture/phase-2-multi-cafe-foundation.md`
 - Phase 3 menu foundation: `docs/architecture/phase-3-menu-foundation.md`
+- Phase 4 table session foundation: `docs/architecture/phase-4-table-session-foundation.md`
 - Phase 5 customer cart draft foundation: `docs/architecture/phase-5-customer-cart-draft-foundation.md`

@@ -1,26 +1,5 @@
 -- CreateEnum
-CREATE TYPE "TableSessionStatus" AS ENUM ('active', 'closed', 'expired');
-
--- CreateEnum
 CREATE TYPE "CartStatus" AS ENUM ('draft', 'cleared', 'converted');
-
--- CreateTable
-CREATE TABLE "TableSession" (
-    "id" TEXT NOT NULL,
-    "companyId" TEXT NOT NULL,
-    "branchId" TEXT NOT NULL,
-    "tableId" TEXT NOT NULL,
-    "status" "TableSessionStatus" NOT NULL DEFAULT 'active',
-    "guestLabel" TEXT,
-    "startedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "lastSeenAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "expiresAt" TIMESTAMP(3),
-    "closedAt" TIMESTAMP(3),
-    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "updatedAt" TIMESTAMP(3) NOT NULL,
-
-    CONSTRAINT "TableSession_pkey" PRIMARY KEY ("id")
-);
 
 -- CreateTable
 CREATE TABLE "Cart" (
@@ -74,21 +53,6 @@ CREATE TABLE "CartItemModifierOption" (
 );
 
 -- CreateIndex
-CREATE INDEX "TableSession_companyId_idx" ON "TableSession"("companyId");
-
--- CreateIndex
-CREATE INDEX "TableSession_branchId_idx" ON "TableSession"("branchId");
-
--- CreateIndex
-CREATE INDEX "TableSession_tableId_idx" ON "TableSession"("tableId");
-
--- CreateIndex
-CREATE INDEX "TableSession_status_idx" ON "TableSession"("status");
-
--- CreateIndex
-CREATE INDEX "TableSession_expiresAt_idx" ON "TableSession"("expiresAt");
-
--- CreateIndex
 CREATE INDEX "Cart_tableSessionId_idx" ON "Cart"("tableSessionId");
 
 -- CreateIndex
@@ -117,15 +81,6 @@ CREATE INDEX "CartItemModifierOption_modifierGroupId_idx" ON "CartItemModifierOp
 
 -- CreateIndex
 CREATE INDEX "CartItemModifierOption_modifierOptionId_idx" ON "CartItemModifierOption"("modifierOptionId");
-
--- AddForeignKey
-ALTER TABLE "TableSession" ADD CONSTRAINT "TableSession_companyId_fkey" FOREIGN KEY ("companyId") REFERENCES "Company"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "TableSession" ADD CONSTRAINT "TableSession_branchId_fkey" FOREIGN KEY ("branchId") REFERENCES "Branch"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "TableSession" ADD CONSTRAINT "TableSession_tableId_fkey" FOREIGN KEY ("tableId") REFERENCES "CafeTable"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "Cart" ADD CONSTRAINT "Cart_tableSessionId_fkey" FOREIGN KEY ("tableSessionId") REFERENCES "TableSession"("id") ON DELETE CASCADE ON UPDATE CASCADE;
