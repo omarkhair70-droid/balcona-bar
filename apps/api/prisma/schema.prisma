@@ -561,6 +561,8 @@ model OrderItemModifierOption {
   modifierOption ModifierOption @relation(fields: [modifierOptionId], references: [id], onDelete: Restrict)
 
   @@index([orderItemId])
+  @@index([modifierGroupId])
+  @@index([modifierOptionId])
 }
 
 model OrderEvent {
