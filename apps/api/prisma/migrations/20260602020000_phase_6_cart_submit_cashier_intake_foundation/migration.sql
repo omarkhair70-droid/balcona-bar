@@ -123,6 +123,12 @@ CREATE INDEX "OrderItem_menuItemId_idx" ON "OrderItem"("menuItemId");
 CREATE INDEX "OrderItemModifierOption_orderItemId_idx" ON "OrderItemModifierOption"("orderItemId");
 
 -- CreateIndex
+CREATE INDEX "OrderItemModifierOption_modifierGroupId_idx" ON "OrderItemModifierOption"("modifierGroupId");
+
+-- CreateIndex
+CREATE INDEX "OrderItemModifierOption_modifierOptionId_idx" ON "OrderItemModifierOption"("modifierOptionId");
+
+-- CreateIndex
 CREATE INDEX "OrderEvent_orderId_idx" ON "OrderEvent"("orderId");
 
 -- CreateIndex
