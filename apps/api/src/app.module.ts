@@ -2,10 +2,14 @@ import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import configuration from './config/configuration';
 import { validateEnvironment } from './config/env.validation';
+import { BranchesModule } from './branches/branches.module';
+import { CompaniesModule } from './companies/companies.module';
 import { HealthModule } from './health/health.module';
 import { PrismaModule } from './prisma/prisma.module';
 import { RedisModule } from './redis/redis.module';
+import { StaffModule } from './staff/staff.module';
 import { SystemModule } from './system/system.module';
+import { TablesModule } from './tables/tables.module';
 
 @Module({
   imports: [
@@ -19,6 +23,10 @@ import { SystemModule } from './system/system.module';
     RedisModule,
     HealthModule,
     SystemModule,
+    CompaniesModule,
+    BranchesModule,
+    TablesModule,
+    StaffModule,
   ],
 })
 export class AppModule {}
