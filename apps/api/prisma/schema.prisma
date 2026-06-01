@@ -71,6 +71,27 @@ enum PreparationStation {
   cashier
 }
 
+enum TableSessionStatus {
+  active
+  idle
+  closed
+  expired
+}
+
+enum TableSessionSource {
+  qr
+  staff
+  dev
+}
+
+enum TableSessionEventType {
+  created
+  resumed
+  viewed
+  closed
+  expired
+}
+
 model Company {
   id        String        @id @default(uuid())
   name      String
@@ -84,6 +105,7 @@ model Company {
   menuItems        MenuItem[]
   modifierGroups   ModifierGroup[]
   staffMemberships StaffMembership[]
+  tableSessions    TableSession[]
 }
 
 model Branch {
@@ -101,6 +123,7 @@ model Branch {
   menuItemOverrides     BranchMenuItemOverride[]
   tables                CafeTable[]
   staffMemberships      StaffMembership[]
+  tableSessions         TableSession[]
 
   @@unique([companyId, slug])
   @@index([companyId])
@@ -132,8 +155,9 @@ model CafeTable {
   createdAt   DateTime    @default(now())
   updatedAt   DateTime    @updatedAt
 
-  branch Branch @relation(fields: [branchId], references: [id], onDelete: Cascade)
-  floor  Floor? @relation(fields: [floorId], references: [id], onDelete: SetNull)
+  branch        Branch         @relation(fields: [branchId], references: [id], onDelete: Cascade)
+  floor         Floor?         @relation(fields: [floorId], references: [id], onDelete: SetNull)
+  tableSessions TableSession[]
 
   @@unique([branchId, code])
   @@index([branchId])
@@ -300,4 +324,45 @@ model BranchMenuItemOverride {
   @@index([menuItemId])
   @@index([isAvailable])
   @@index([isVisible])
+}
+
+model TableSession {
+  id          String             @id @default(uuid())
+  companyId   String
+  branchId    String
+  tableId     String
+  status      TableSessionStatus @default(active)
+  source      TableSessionSource
+  guestLabel  String?
+  partySize   Int?
+  startedAt   DateTime           @default(now())
+  lastSeenAt  DateTime           @default(now())
+  expiresAt   DateTime?
+  closedAt    DateTime?
+  closeReason String?
+  createdAt   DateTime           @default(now())
+  updatedAt   DateTime           @updatedAt
+
+  company Company             @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  branch  Branch              @relation(fields: [branchId], references: [id], onDelete: Cascade)
+  table   CafeTable           @relation(fields: [tableId], references: [id], onDelete: Cascade)
+  events  TableSessionEvent[]
+
+  @@index([companyId])
+  @@index([branchId])
+  @@index([tableId])
+  @@index([status])
+  @@index([lastSeenAt])
+}
+
+model TableSessionEvent {
+  id             String                @id @default(uuid())
+  tableSessionId String
+  type           TableSessionEventType
+  metadata       Json?
+  createdAt      DateTime              @default(now())
+
+  tableSession TableSession @relation(fields: [tableSessionId], references: [id], onDelete: Cascade)
+
+  @@index([tableSessionId])
 }

@@ -1,7 +1,7 @@
 import { IsNotEmpty, IsUUID } from 'class-validator';
 
-export class BranchIdParamDto {
+export class SessionIdParamDto {
   @IsUUID()
   @IsNotEmpty()
-  branchId!: string;
+  sessionId!: string;
 }
