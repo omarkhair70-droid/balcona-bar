@@ -7,6 +7,7 @@ import { CartModule } from './cart/cart.module';
 import { CompaniesModule } from './companies/companies.module';
 import { HealthModule } from './health/health.module';
 import { MenuModule } from './menu/menu.module';
+import { OrdersModule } from './orders/orders.module';
 import { PrismaModule } from './prisma/prisma.module';
 import { RedisModule } from './redis/redis.module';
 import { StaffModule } from './staff/staff.module';
@@ -29,6 +30,7 @@ import { TablesModule } from './tables/tables.module';
     CompaniesModule,
     BranchesModule,
     CartModule,
+    OrdersModule,
     TablesModule,
     StaffModule,
     MenuModule,
