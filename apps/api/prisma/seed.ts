@@ -1,9 +1,22 @@
-import { PrismaClient, StaffRole } from '@prisma/client';
+import { PreparationStation, PrismaClient, StaffRole } from '@prisma/client';
 
 const prisma = new PrismaClient();
 
 const companySlug = 'balcona-bar';
 const branchSlug = 'main-branch';
+
+type MenuItemSeed = {
+  categorySlug: string;
+  name: string;
+  slug: string;
+  description?: string;
+  imageUrl?: string;
+  basePriceMinor: number;
+  station: PreparationStation;
+  sortOrder: number;
+  isFeatured?: boolean;
+  modifierGroupSlugs?: readonly string[];
+};
 
 const staffSeed: Array<{ email: string; name: string; role: StaffRole }> = [
   { email: 'owner@balcona.local', name: 'Balcona Owner', role: 'owner' },
@@ -21,7 +34,7 @@ const categorySeed = [
   { name: 'Bakery', slug: 'bakery', sortOrder: 4 },
 ];
 
-const itemSeed = [
+const itemSeed: readonly MenuItemSeed[] = [
   { categorySlug: 'coffee', name: 'Espresso', slug: 'espresso', basePriceMinor: 6500, station: 'barista', sortOrder: 1, isFeatured: true },
   { categorySlug: 'coffee', name: 'Americano', slug: 'americano', basePriceMinor: 7500, station: 'barista', sortOrder: 2 },
   { categorySlug: 'coffee', name: 'Cappuccino', slug: 'cappuccino', basePriceMinor: 9000, station: 'barista', sortOrder: 3, isFeatured: true },
@@ -36,7 +49,7 @@ const itemSeed = [
   { categorySlug: 'desserts', name: 'Brownie', slug: 'brownie', basePriceMinor: 8000, station: 'dessert', sortOrder: 3 },
   { categorySlug: 'bakery', name: 'Croissant', slug: 'croissant', basePriceMinor: 7000, station: 'kitchen', sortOrder: 1 },
   { categorySlug: 'bakery', name: 'Cheese Croissant', slug: 'cheese-croissant', basePriceMinor: 8500, station: 'kitchen', sortOrder: 2 },
-] as const;
+];
 
 const modifierGroupSeed = [
   {
