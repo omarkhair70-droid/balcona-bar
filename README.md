@@ -1,6 +1,6 @@
 # balcona-bar
 
-Balcona Bar is organized as a monorepo for the Cafe AI Waiter App / Smart Café Operating System. Phase 2 adds the reusable multi-company, multi-branch database foundation and minimal read APIs for local verification.
+Balcona Bar is organized as a monorepo for the Cafe AI Waiter App / Smart Café Operating System. Phase 3 adds the reusable menu, pricing, modifiers, and branch availability foundation on top of the multi-company, multi-branch backend.
 
 ## Layout
 
@@ -35,7 +35,7 @@ Balcona Bar is organized as a monorepo for the Cafe AI Waiter App / Smart Café 
    pnpm --filter @balcona-bar/api prisma:generate
    ```
 
-5. Apply the local development migration:
+5. Apply the local development migrations:
 
    ```bash
    pnpm --filter @balcona-bar/api prisma:migrate:dev
@@ -73,11 +73,32 @@ Service metadata remains available at:
 curl http://localhost:3000/api/v1/system/info
 ```
 
-Phase 2 read-only verification endpoints:
+Company and branch verification endpoints:
 
 ```bash
 curl http://localhost:3000/api/v1/companies
 curl http://localhost:3000/api/v1/companies/balcona-bar/branches
+```
+
+
+Phase 3 menu verification endpoints:
+
+```bash
+curl http://localhost:3000/api/v1/companies/balcona-bar/menu
+curl http://localhost:3000/api/v1/companies/balcona-bar/branches
+```
+
+To fetch the customer-facing menu for a branch, first get a branch id from the company branches endpoint, then run:
+
+```bash
+curl http://localhost:3000/api/v1/branches/<branchId>/menu
+curl http://localhost:3000/api/v1/branches/<branchId>/menu/unavailable
+```
+
+To fetch a detailed menu item, first get an item id from a menu endpoint, then run:
+
+```bash
+curl http://localhost:3000/api/v1/menu/items/<itemId>
 ```
 
 To list tables, first get a branch id from the company branches endpoint, then run:
@@ -102,3 +123,4 @@ curl http://localhost:3000/api/v1/staff
 
 - Phase 1 backend skeleton: `docs/architecture/phase-1-backend-skeleton.md`
 - Phase 2 multi-café foundation: `docs/architecture/phase-2-multi-cafe-foundation.md`
+- Phase 3 menu foundation: `docs/architecture/phase-3-menu-foundation.md`
