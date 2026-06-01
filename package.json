@@ -1,0 +1,21 @@
+{
+  "name": "balcona-bar",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Balcona Bar monorepo",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "api:dev": "pnpm --filter @balcona-bar/api start:dev",
+    "api:build": "pnpm --filter @balcona-bar/api build",
+    "api:test": "pnpm --filter @balcona-bar/api test",
+    "api:prisma": "pnpm --filter @balcona-bar/api prisma",
+    "api:prisma:generate": "pnpm --filter @balcona-bar/api prisma:generate"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "packageManager": "pnpm@10.28.1"
+}
