@@ -183,27 +183,36 @@ export class CartService {
       };
     }
 
-    const issues: any[] = [];
-    let subtotalMinor = 0;
-    let totalQuantity = 0;
+    const validation = await this.validateResolvedCart(session, cart, this.prisma);
 
-    for (const item of cart.items) {
-      const validation = await this.validateCartItem(session, cart.currency, item, this.prisma);
-      issues.push(...validation.issues);
-      subtotalMinor += validation.lineTotalMinor;
-      totalQuantity += item.quantity;
+    return {
+      ...validation,
+      cart: this.toCartResponse(cart),
+    };
+  }
+
+  async getValidatedDraftCartForSubmit(sessionId: string, tx: Prisma.TransactionClient) {
+    const session = await this.resolveActiveTableSession(sessionId, tx);
+    const cart = await this.findDraftCart(session.id, tx);
+
+    if (!cart || cart.items.length === 0) {
+      throw new BadRequestException('Cart is empty');
+    }
+
+    const validation = await this.validateResolvedCart(session, cart, tx);
+
+    if (!validation.isValid) {
+      throw new BadRequestException({
+        message: 'Cart is invalid',
+        issues: validation.issues,
+        recalculatedTotals: validation.recalculatedTotals,
+      });
     }
 
     return {
-      isValid: issues.length === 0,
-      issues,
-      recalculatedTotals: {
-        subtotalMinor,
-        totalQuantity,
-        itemCount: cart.items.length,
-        currency: cart.currency,
-      },
-      cart: this.toCartResponse(cart),
+      session,
+      cart,
+      totals: validation.recalculatedTotals,
     };
   }
 
@@ -368,12 +377,10 @@ export class CartService {
   }
 
   private async findOrCreateDraftCart(session: any, currency: string, tx: Prisma.TransactionClient) {
-    const existingCart = await tx.cart.findUnique({
+    const existingCart = await tx.cart.findFirst({
       where: {
-        tableSessionId_status: {
-          tableSessionId: session.id,
-          status: DRAFT_CART_STATUS,
-        },
+        tableSessionId: session.id,
+        status: DRAFT_CART_STATUS,
       },
     });
 
@@ -397,12 +404,10 @@ export class CartService {
   }
 
   private async findDraftCart(sessionId: string, tx: PrismaExecutor) {
-    return tx.cart.findUnique({
+    return tx.cart.findFirst({
       where: {
-        tableSessionId_status: {
-          tableSessionId: sessionId,
-          status: DRAFT_CART_STATUS,
-        },
+        tableSessionId: sessionId,
+        status: DRAFT_CART_STATUS,
       },
       include: this.cartInclude(),
     });
@@ -419,6 +424,30 @@ export class CartService {
     }
 
     return cart;
+  }
+
+  private async validateResolvedCart(session: any, cart: any, tx: PrismaExecutor) {
+    const issues: any[] = [];
+    let subtotalMinor = 0;
+    let totalQuantity = 0;
+
+    for (const item of cart.items) {
+      const validation = await this.validateCartItem(session, cart.currency, item, tx);
+      issues.push(...validation.issues);
+      subtotalMinor += validation.lineTotalMinor;
+      totalQuantity += item.quantity;
+    }
+
+    return {
+      isValid: issues.length === 0,
+      issues,
+      recalculatedTotals: {
+        subtotalMinor,
+        totalQuantity,
+        itemCount: cart.items.length,
+        currency: cart.currency,
+      },
+    };
   }
 
   private async validateCartItem(session: any, cartCurrency: string, cartItem: any, tx: PrismaExecutor) {

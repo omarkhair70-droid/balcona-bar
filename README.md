@@ -1,13 +1,13 @@
 # balcona-bar
 
-Balcona Bar is organized as a monorepo for the Cafe AI Waiter App / Smart Café Operating System. Phase 5 adds the customer cart draft foundation on top of the multi-company, multi-branch, menu, and table session backend foundations.
+Balcona Bar is organized as a monorepo for the Cafe AI Waiter App / Smart Café Operating System. Phase 6 adds cart submit and cashier intake on top of the multi-company, multi-branch, menu, table session, and customer cart foundations.
 
 ## Layout
 
-- `apps/api` — NestJS backend application.
-- `apps/api/prisma` — Prisma schema, migrations, and seed data.
-- `docker-compose.yml` — local PostgreSQL and Redis services.
-- `docs/architecture` — architecture decisions and phase notes.
+- `apps/api` - NestJS backend application.
+- `apps/api/prisma` - Prisma schema, migrations, and seed data.
+- `docker-compose.yml` - local PostgreSQL and Redis services.
+- `docs/architecture` - architecture decisions and phase notes.
 
 ## Local quick start
 
@@ -80,40 +80,26 @@ curl http://localhost:3000/api/v1/companies
 curl http://localhost:3000/api/v1/companies/balcona-bar/branches
 ```
 
-
-Phase 3 menu verification endpoints:
+Read the company menu and branch menu:
 
 ```bash
 curl http://localhost:3000/api/v1/companies/balcona-bar/menu
-curl http://localhost:3000/api/v1/companies/balcona-bar/branches
-```
-
-To fetch the customer-facing menu for a branch, first get a branch id from the company branches endpoint, then run:
-
-```bash
 curl http://localhost:3000/api/v1/branches/<branchId>/menu
 curl http://localhost:3000/api/v1/branches/<branchId>/menu/unavailable
 ```
 
-To fetch a detailed menu item, first get an item id from a menu endpoint, then run:
+Read a detailed menu item:
 
 ```bash
 curl http://localhost:3000/api/v1/menu/items/<itemId>
 ```
 
-To list tables, first get a branch id from the company branches endpoint, then run:
+List tables and resolve a seeded QR token:
 
 ```bash
 curl http://localhost:3000/api/v1/branches/<branchId>/tables
-```
-
-To resolve a seeded table QR token:
-
-```bash
 curl http://localhost:3000/api/v1/tables/resolve/balcona-main-t01
 ```
-
-Phase 4 table session endpoints:
 
 Start or resume a table session from a QR token:
 
@@ -123,39 +109,24 @@ curl -X POST http://localhost:3000/api/v1/table-sessions/start \
   -d '{"qrToken":"balcona-main-t01","guestLabel":"Guest 1","partySize":2}'
 ```
 
-Read a table session by id:
+Read, view, close, or list table sessions:
 
 ```bash
 curl http://localhost:3000/api/v1/table-sessions/<sessionId>
-```
-
-Touch/view a table session and update `lastSeenAt`:
-
-```bash
 curl -X POST http://localhost:3000/api/v1/table-sessions/<sessionId>/view
-```
-
-Close a table session:
-
-```bash
 curl -X POST http://localhost:3000/api/v1/table-sessions/<sessionId>/close \
   -H "Content-Type: application/json" \
   -d '{"reason":"guest-left"}'
-```
-
-List active/idle sessions for a branch:
-
-```bash
 curl http://localhost:3000/api/v1/branches/<branchId>/table-sessions/active
 ```
 
-Phase 5 customer cart draft endpoints use an active table session id:
+Read the active draft cart for a table session:
 
 ```bash
 curl http://localhost:3000/api/v1/table-sessions/<sessionId>/cart
 ```
 
-To add an item to the draft cart:
+Add an item to the draft cart:
 
 ```bash
 curl -X POST http://localhost:3000/api/v1/table-sessions/<sessionId>/cart/items \
@@ -173,33 +144,58 @@ curl -X POST http://localhost:3000/api/v1/table-sessions/<sessionId>/cart/items 
   }'
 ```
 
-To update a cart item quantity or notes:
+Update, remove, clear, or validate the draft cart:
 
 ```bash
 curl -X PATCH http://localhost:3000/api/v1/cart/items/<cartItemId> \
   -H "Content-Type: application/json" \
-  -d '{
-    "quantity": 2,
-    "notes": "No sugar"
-  }'
-```
+  -d '{"quantity":2,"notes":"No sugar"}'
 
-To remove a cart item:
-
-```bash
 curl -X DELETE http://localhost:3000/api/v1/cart/items/<cartItemId>
-```
 
-To clear a draft cart:
-
-```bash
 curl -X POST http://localhost:3000/api/v1/table-sessions/<sessionId>/cart/clear
+
+curl -X POST http://localhost:3000/api/v1/table-sessions/<sessionId>/cart/validate
 ```
 
-To validate a draft cart against the current menu and branch availability:
+Submit a valid draft cart with an idempotency key:
 
 ```bash
-curl -X POST http://localhost:3000/api/v1/table-sessions/<sessionId>/cart/validate
+curl -X POST http://localhost:3000/api/v1/table-sessions/<sessionId>/cart/submit \
+  -H "Content-Type: application/json" \
+  -H "Idempotency-Key: demo-session-<sessionId>-submit-1" \
+  -d '{"customerNote":"Please bring water too"}'
+```
+
+List cashier intake orders for a branch:
+
+```bash
+curl http://localhost:3000/api/v1/branches/<branchId>/cashier/orders
+curl http://localhost:3000/api/v1/branches/<branchId>/cashier/orders?status=all
+```
+
+Read an order:
+
+```bash
+curl http://localhost:3000/api/v1/orders/<orderId>
+```
+
+Accept or reject an order at cashier intake:
+
+```bash
+curl -X POST http://localhost:3000/api/v1/orders/<orderId>/cashier/accept \
+  -H "Content-Type: application/json" \
+  -d '{"staffUserId":"<optionalStaffUserId>"}'
+
+curl -X POST http://localhost:3000/api/v1/orders/<orderId>/cashier/reject \
+  -H "Content-Type: application/json" \
+  -d '{"reason":"Item unavailable","staffUserId":"<optionalStaffUserId>"}'
+```
+
+List orders for a table session:
+
+```bash
+curl http://localhost:3000/api/v1/table-sessions/<sessionId>/orders
 ```
 
 Development-only staff verification:
@@ -215,3 +211,4 @@ curl http://localhost:3000/api/v1/staff
 - Phase 3 menu foundation: `docs/architecture/phase-3-menu-foundation.md`
 - Phase 4 table session foundation: `docs/architecture/phase-4-table-session-foundation.md`
 - Phase 5 customer cart draft foundation: `docs/architecture/phase-5-customer-cart-draft-foundation.md`
+- Phase 6 cart submit and cashier intake foundation: `docs/architecture/phase-6-cart-submit-cashier-intake-foundation.md`
