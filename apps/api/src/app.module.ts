@@ -3,6 +3,7 @@ import { ConfigModule } from '@nestjs/config';
 import configuration from './config/configuration';
 import { validateEnvironment } from './config/env.validation';
 import { BranchesModule } from './branches/branches.module';
+import { CartModule } from './cart/cart.module';
 import { CompaniesModule } from './companies/companies.module';
 import { HealthModule } from './health/health.module';
 import { MenuModule } from './menu/menu.module';
@@ -26,6 +27,7 @@ import { TablesModule } from './tables/tables.module';
     SystemModule,
     CompaniesModule,
     BranchesModule,
+    CartModule,
     TablesModule,
     StaffModule,
     MenuModule,
