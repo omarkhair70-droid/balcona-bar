@@ -7,5 +7,133 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-// Phase 1 intentionally defines no product domain models yet.
-// Product modules such as menu, orders, AI waiter, admin, and Flutter UI are out of scope.
+enum CompanyStatus {
+  active
+  inactive
+}
+
+enum BranchStatus {
+  active
+  inactive
+}
+
+enum TableStatus {
+  active
+  inactive
+  maintenance
+}
+
+enum StaffStatus {
+  active
+  inactive
+}
+
+enum StaffRole {
+  owner
+  branch_manager
+  cashier
+  waiter
+  kitchen
+  barista
+  menu_admin
+}
+
+model Company {
+  id        String        @id @default(uuid())
+  name      String
+  slug      String        @unique
+  status    CompanyStatus @default(active)
+  createdAt DateTime      @default(now())
+  updatedAt DateTime      @updatedAt
+
+  branches         Branch[]
+  staffMemberships StaffMembership[]
+}
+
+model Branch {
+  id        String       @id @default(uuid())
+  companyId String
+  name      String
+  slug      String
+  address   String?
+  status    BranchStatus @default(active)
+  createdAt DateTime     @default(now())
+  updatedAt DateTime     @updatedAt
+
+  company          Company           @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  floors           Floor[]
+  tables           CafeTable[]
+  staffMemberships StaffMembership[]
+
+  @@unique([companyId, slug])
+  @@index([companyId])
+}
+
+model Floor {
+  id        String   @id @default(uuid())
+  branchId  String
+  name      String
+  sortOrder Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  branch Branch      @relation(fields: [branchId], references: [id], onDelete: Cascade)
+  tables CafeTable[]
+
+  @@index([branchId])
+}
+
+model CafeTable {
+  id          String      @id @default(uuid())
+  branchId    String
+  floorId     String?
+  code        String
+  displayName String
+  capacity    Int?
+  qrToken     String      @unique
+  status      TableStatus @default(active)
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+
+  branch Branch @relation(fields: [branchId], references: [id], onDelete: Cascade)
+  floor  Floor? @relation(fields: [floorId], references: [id], onDelete: SetNull)
+
+  @@unique([branchId, code])
+  @@index([branchId])
+  @@index([floorId])
+  @@index([qrToken])
+}
+
+model StaffUser {
+  id        String      @id @default(uuid())
+  email     String      @unique
+  name      String
+  status    StaffStatus @default(active)
+  createdAt DateTime    @default(now())
+  updatedAt DateTime    @updatedAt
+
+  memberships StaffMembership[]
+
+  @@index([email])
+}
+
+model StaffMembership {
+  id          String      @id @default(uuid())
+  staffUserId String
+  companyId   String
+  branchId    String?
+  role        StaffRole
+  status      StaffStatus @default(active)
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+
+  staffUser StaffUser @relation(fields: [staffUserId], references: [id], onDelete: Cascade)
+  company   Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  branch    Branch?   @relation(fields: [branchId], references: [id], onDelete: Cascade)
+
+  @@unique([staffUserId, companyId, branchId, role])
+  @@index([staffUserId])
+  @@index([companyId])
+  @@index([branchId])
+  @@index([companyId, branchId, role])
+}

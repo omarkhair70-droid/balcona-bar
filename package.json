@@ -12,7 +12,9 @@
     "api:build": "pnpm --filter @balcona-bar/api build",
     "api:test": "pnpm --filter @balcona-bar/api test",
     "api:prisma": "pnpm --filter @balcona-bar/api prisma",
-    "api:prisma:generate": "pnpm --filter @balcona-bar/api prisma:generate"
+    "api:prisma:generate": "pnpm --filter @balcona-bar/api prisma:generate",
+    "api:prisma:migrate:dev": "pnpm --filter @balcona-bar/api prisma:migrate:dev",
+    "api:prisma:seed": "pnpm --filter @balcona-bar/api prisma:seed"
   },
   "engines": {
     "node": ">=22"
