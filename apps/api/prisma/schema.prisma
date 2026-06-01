@@ -92,6 +92,12 @@ enum TableSessionEventType {
   expired
 }
 
+enum CartStatus {
+  draft
+  cleared
+  converted
+}
+
 model Company {
   id        String        @id @default(uuid())
   name      String
@@ -101,6 +107,7 @@ model Company {
   updatedAt DateTime      @updatedAt
 
   branches         Branch[]
+  carts            Cart[]
   menuCategories   MenuCategory[]
   menuItems        MenuItem[]
   modifierGroups   ModifierGroup[]
@@ -118,12 +125,13 @@ model Branch {
   createdAt DateTime     @default(now())
   updatedAt DateTime     @updatedAt
 
-  company               Company                  @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  floors                Floor[]
-  menuItemOverrides     BranchMenuItemOverride[]
-  tables                CafeTable[]
-  staffMemberships      StaffMembership[]
-  tableSessions         TableSession[]
+  company           Company                  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  carts             Cart[]
+  floors            Floor[]
+  menuItemOverrides BranchMenuItemOverride[]
+  tables            CafeTable[]
+  staffMemberships  StaffMembership[]
+  tableSessions     TableSession[]
 
   @@unique([companyId, slug])
   @@index([companyId])
@@ -235,10 +243,11 @@ model MenuItem {
   createdAt      DateTime           @default(now())
   updatedAt      DateTime           @updatedAt
 
-  company        Company                  @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  category       MenuCategory             @relation(fields: [categoryId], references: [id], onDelete: Restrict)
-  modifierGroups MenuItemModifierGroup[]
+  company         Company                  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  category        MenuCategory             @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+  modifierGroups  MenuItemModifierGroup[]
   branchOverrides BranchMenuItemOverride[]
+  cartItems       CartItem[]
 
   @@unique([companyId, slug])
   @@index([companyId])
@@ -248,23 +257,24 @@ model MenuItem {
 }
 
 model ModifierGroup {
-  id             String                @id @default(uuid())
-  companyId      String
-  name           String
-  slug           String
-  description    String?
-  selectionType  ModifierSelectionType
-  isRequired     Boolean               @default(false)
-  minSelections  Int                   @default(0)
-  maxSelections  Int                   @default(1)
-  sortOrder      Int                   @default(0)
-  status         ModifierGroupStatus   @default(active)
-  createdAt      DateTime              @default(now())
-  updatedAt      DateTime              @updatedAt
+  id            String                @id @default(uuid())
+  companyId     String
+  name          String
+  slug          String
+  description   String?
+  selectionType ModifierSelectionType
+  isRequired    Boolean               @default(false)
+  minSelections Int                   @default(0)
+  maxSelections Int                   @default(1)
+  sortOrder     Int                   @default(0)
+  status        ModifierGroupStatus   @default(active)
+  createdAt     DateTime              @default(now())
+  updatedAt     DateTime              @updatedAt
 
-  company   Company                 @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  options   ModifierOption[]
-  menuItems MenuItemModifierGroup[]
+  company                 Company                  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  options                 ModifierOption[]
+  menuItems               MenuItemModifierGroup[]
+  cartItemModifierOptions CartItemModifierOption[]
 
   @@unique([companyId, slug])
   @@index([companyId])
@@ -282,7 +292,8 @@ model ModifierOption {
   createdAt       DateTime             @default(now())
   updatedAt       DateTime             @updatedAt
 
-  group ModifierGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  group                   ModifierGroup            @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  cartItemModifierOptions CartItemModifierOption[]
 
   @@unique([groupId, slug])
   @@index([groupId])
@@ -346,6 +357,7 @@ model TableSession {
   company Company             @relation(fields: [companyId], references: [id], onDelete: Cascade)
   branch  Branch              @relation(fields: [branchId], references: [id], onDelete: Cascade)
   table   CafeTable           @relation(fields: [tableId], references: [id], onDelete: Cascade)
+  carts   Cart[]
   events  TableSessionEvent[]
 
   @@index([companyId])
@@ -365,4 +377,72 @@ model TableSessionEvent {
   tableSession TableSession @relation(fields: [tableSessionId], references: [id], onDelete: Cascade)
 
   @@index([tableSessionId])
+}
+
+model Cart {
+  id             String     @id @default(uuid())
+  tableSessionId String
+  companyId      String
+  branchId       String
+  status         CartStatus @default(draft)
+  currency       String     @default("EGP")
+  createdAt      DateTime   @default(now())
+  updatedAt      DateTime   @updatedAt
+
+  tableSession TableSession @relation(fields: [tableSessionId], references: [id], onDelete: Cascade)
+  company      Company      @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  branch       Branch       @relation(fields: [branchId], references: [id], onDelete: Cascade)
+  items        CartItem[]
+
+  @@unique([tableSessionId, status])
+  @@index([tableSessionId])
+  @@index([companyId])
+  @@index([branchId])
+  @@index([status])
+}
+
+model CartItem {
+  id                              String   @id @default(uuid())
+  cartId                          String
+  menuItemId                      String
+  quantity                        Int
+  notes                           String?
+  itemNameSnapshot                String
+  itemSlugSnapshot                String
+  basePriceMinorSnapshot          Int
+  effectiveBasePriceMinorSnapshot Int
+  modifiersTotalMinorSnapshot     Int
+  unitPriceMinorSnapshot          Int
+  lineTotalMinorSnapshot          Int
+  currency                        String
+  createdAt                       DateTime @default(now())
+  updatedAt                       DateTime @updatedAt
+
+  cart            Cart                     @relation(fields: [cartId], references: [id], onDelete: Cascade)
+  menuItem        MenuItem                 @relation(fields: [menuItemId], references: [id], onDelete: Restrict)
+  modifierOptions CartItemModifierOption[]
+
+  @@index([cartId])
+  @@index([menuItemId])
+}
+
+model CartItemModifierOption {
+  id                         String   @id @default(uuid())
+  cartItemId                 String
+  modifierGroupId            String
+  modifierOptionId           String
+  modifierGroupNameSnapshot  String
+  modifierGroupSlugSnapshot  String
+  modifierOptionNameSnapshot String
+  modifierOptionSlugSnapshot String
+  priceDeltaMinorSnapshot    Int
+  createdAt                  DateTime @default(now())
+
+  cartItem       CartItem       @relation(fields: [cartItemId], references: [id], onDelete: Cascade)
+  modifierGroup  ModifierGroup  @relation(fields: [modifierGroupId], references: [id], onDelete: Restrict)
+  modifierOption ModifierOption @relation(fields: [modifierOptionId], references: [id], onDelete: Restrict)
+
+  @@index([cartItemId])
+  @@index([modifierGroupId])
+  @@index([modifierOptionId])
 }

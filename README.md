@@ -1,6 +1,6 @@
 # balcona-bar
 
-Balcona Bar is organized as a monorepo for the Cafe AI Waiter App / Smart Café Operating System. Phase 4 adds table session lifecycle APIs on top of the multi-company, multi-branch, and menu foundations.
+Balcona Bar is organized as a monorepo for the Cafe AI Waiter App / Smart Café Operating System. Phase 5 adds the customer cart draft foundation on top of the multi-company, multi-branch, menu, and table session backend foundations.
 
 ## Layout
 
@@ -149,6 +149,59 @@ List active/idle sessions for a branch:
 curl http://localhost:3000/api/v1/branches/<branchId>/table-sessions/active
 ```
 
+Phase 5 customer cart draft endpoints use an active table session id:
+
+```bash
+curl http://localhost:3000/api/v1/table-sessions/<sessionId>/cart
+```
+
+To add an item to the draft cart:
+
+```bash
+curl -X POST http://localhost:3000/api/v1/table-sessions/<sessionId>/cart/items \
+  -H "Content-Type: application/json" \
+  -d '{
+    "menuItemId": "<menuItemId>",
+    "quantity": 1,
+    "notes": "Less ice",
+    "selectedModifiers": [
+      {
+        "modifierGroupId": "<modifierGroupId>",
+        "optionIds": ["<modifierOptionId>"]
+      }
+    ]
+  }'
+```
+
+To update a cart item quantity or notes:
+
+```bash
+curl -X PATCH http://localhost:3000/api/v1/cart/items/<cartItemId> \
+  -H "Content-Type: application/json" \
+  -d '{
+    "quantity": 2,
+    "notes": "No sugar"
+  }'
+```
+
+To remove a cart item:
+
+```bash
+curl -X DELETE http://localhost:3000/api/v1/cart/items/<cartItemId>
+```
+
+To clear a draft cart:
+
+```bash
+curl -X POST http://localhost:3000/api/v1/table-sessions/<sessionId>/cart/clear
+```
+
+To validate a draft cart against the current menu and branch availability:
+
+```bash
+curl -X POST http://localhost:3000/api/v1/table-sessions/<sessionId>/cart/validate
+```
+
 Development-only staff verification:
 
 ```bash
@@ -161,3 +214,4 @@ curl http://localhost:3000/api/v1/staff
 - Phase 2 multi-café foundation: `docs/architecture/phase-2-multi-cafe-foundation.md`
 - Phase 3 menu foundation: `docs/architecture/phase-3-menu-foundation.md`
 - Phase 4 table session foundation: `docs/architecture/phase-4-table-session-foundation.md`
+- Phase 5 customer cart draft foundation: `docs/architecture/phase-5-customer-cart-draft-foundation.md`
