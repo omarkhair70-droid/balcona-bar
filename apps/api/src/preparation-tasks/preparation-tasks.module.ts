@@ -1,11 +1,12 @@
 import { Module } from '@nestjs/common';
 import { PresenceNotificationsModule } from '../presence-notifications/presence-notifications.module';
 import { PrismaModule } from '../prisma/prisma.module';
+import { RealtimeEventsModule } from '../realtime-events/realtime-events.module';
 import { PreparationTasksController } from './preparation-tasks.controller';
 import { PreparationTasksService } from './preparation-tasks.service';
 
 @Module({
-  imports: [PrismaModule, PresenceNotificationsModule],
+  imports: [PrismaModule, PresenceNotificationsModule, RealtimeEventsModule],
   controllers: [PreparationTasksController],
   providers: [PreparationTasksService],
   exports: [PreparationTasksService],

@@ -215,6 +215,38 @@ enum NotificationDeliveryStatus {
   failed
 }
 
+enum RealtimeEventType {
+  connection_opened
+  table_session_started
+  table_session_resumed
+  notification_created
+  notification_read
+  notification_dismissed
+  order_submitted
+  order_accepted
+  order_rejected
+  preparation_task_created
+  preparation_task_started
+  preparation_task_ready
+  preparation_task_cancelled
+  waiter_call_created
+  waiter_call_acknowledged
+  waiter_call_resolved
+  waiter_call_cancelled
+  system
+}
+
+enum RealtimeEventChannel {
+  branch_orders
+  branch_preparation
+  branch_waiter_calls
+  branch_notifications
+  session_status
+  session_notifications
+  session_waiter_calls
+  system
+}
+
 enum DeviceSubscriptionStatus {
   active
   revoked
@@ -249,6 +281,7 @@ model Company {
   orders                    Order[]
   presenceEvents            PresenceEvent[]
   preparationTasks          PreparationTask[]
+  realtimeEvents            RealtimeEvent[]
   staffMemberships          StaffMembership[]
   tableSessions             TableSession[]
   customerSessionIdentities CustomerSessionIdentity[]
@@ -276,6 +309,7 @@ model Branch {
   orders                    Order[]
   presenceEvents            PresenceEvent[]
   preparationTasks          PreparationTask[]
+  realtimeEvents            RealtimeEvent[]
   tables                    CafeTable[]
   staffMemberships          StaffMembership[]
   tableSessions             TableSession[]
@@ -520,6 +554,7 @@ model TableSession {
   notifications             Notification[]
   orders                    Order[]
   presenceEvents            PresenceEvent[]
+  realtimeEvents            RealtimeEvent[]
   customerSessionIdentities CustomerSessionIdentity[]
   deviceSubscriptions       DeviceSubscription[]
   waiterCalls               WaiterCall[]
@@ -641,6 +676,7 @@ model Order {
   events           OrderEvent[]
   notifications    Notification[]
   preparationTasks PreparationTask[]
+  realtimeEvents   RealtimeEvent[]
   waiterCalls      WaiterCall[]
 
   @@unique([branchId, orderNumber])
@@ -734,12 +770,13 @@ model PreparationTask {
   createdAt        DateTime              @default(now())
   updatedAt        DateTime              @updatedAt
 
-  company       Company                @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  branch        Branch                 @relation(fields: [branchId], references: [id], onDelete: Cascade)
-  order         Order                  @relation(fields: [orderId], references: [id], onDelete: Cascade)
-  orderItem     OrderItem              @relation(fields: [orderItemId], references: [id], onDelete: Cascade)
-  events        PreparationTaskEvent[]
-  notifications Notification[]
+  company        Company                @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  branch         Branch                 @relation(fields: [branchId], references: [id], onDelete: Cascade)
+  order          Order                  @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  orderItem      OrderItem              @relation(fields: [orderItemId], references: [id], onDelete: Cascade)
+  events         PreparationTaskEvent[]
+  notifications  Notification[]
+  realtimeEvents RealtimeEvent[]
 
   @@unique([orderItemId])
   @@index([companyId])
@@ -768,28 +805,29 @@ model PreparationTaskEvent {
 }
 
 model WaiterCall {
-  id              String           @id @default(uuid())
-  companyId       String
-  branchId        String
-  tableSessionId  String
-  tableId         String
-  orderId         String?
-  type            WaiterCallType
-  status          WaiterCallStatus @default(open)
-  message         String?
-  priority        Int              @default(0)
-  createdAt       DateTime         @default(now())
-  acknowledgedAt  DateTime?
-  resolvedAt      DateTime?
-  cancelledAt     DateTime?
-  updatedAt       DateTime         @updatedAt
+  id             String           @id @default(uuid())
+  companyId      String
+  branchId       String
+  tableSessionId String
+  tableId        String
+  orderId        String?
+  type           WaiterCallType
+  status         WaiterCallStatus @default(open)
+  message        String?
+  priority       Int              @default(0)
+  createdAt      DateTime         @default(now())
+  acknowledgedAt DateTime?
+  resolvedAt     DateTime?
+  cancelledAt    DateTime?
+  updatedAt      DateTime         @updatedAt
 
-  company      Company           @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  branch       Branch            @relation(fields: [branchId], references: [id], onDelete: Cascade)
-  tableSession TableSession      @relation(fields: [tableSessionId], references: [id], onDelete: Cascade)
-  table        CafeTable         @relation(fields: [tableId], references: [id], onDelete: Cascade)
-  order        Order?            @relation(fields: [orderId], references: [id], onDelete: SetNull)
-  events       WaiterCallEvent[]
+  company        Company           @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  branch         Branch            @relation(fields: [branchId], references: [id], onDelete: Cascade)
+  tableSession   TableSession      @relation(fields: [tableSessionId], references: [id], onDelete: Cascade)
+  table          CafeTable         @relation(fields: [tableId], references: [id], onDelete: Cascade)
+  order          Order?            @relation(fields: [orderId], references: [id], onDelete: SetNull)
+  events         WaiterCallEvent[]
+  realtimeEvents RealtimeEvent[]
 
   @@index([companyId])
   @@index([branchId])
@@ -803,13 +841,13 @@ model WaiterCall {
 }
 
 model WaiterCallEvent {
-  id               String               @id @default(uuid())
+  id               String              @id @default(uuid())
   waiterCallId     String
   type             WaiterCallEventType
   actorType        WaiterCallActorType
   actorStaffUserId String?
   metadata         Json?
-  createdAt        DateTime             @default(now())
+  createdAt        DateTime            @default(now())
 
   waiterCall     WaiterCall @relation(fields: [waiterCallId], references: [id], onDelete: Cascade)
   actorStaffUser StaffUser? @relation(fields: [actorStaffUserId], references: [id], onDelete: SetNull)
@@ -989,6 +1027,7 @@ model Notification {
   template                NotificationTemplate?    @relation(fields: [templateId], references: [id], onDelete: SetNull)
   presenceEvent           PresenceEvent?           @relation(fields: [presenceEventId], references: [id], onDelete: SetNull)
   deliveries              NotificationDelivery[]
+  realtimeEvents          RealtimeEvent[]
 
   @@unique([dedupeKey])
   @@index([companyId])
@@ -1001,6 +1040,42 @@ model Notification {
   @@index([createdAt])
   @@index([orderId])
   @@index([preparationTaskId])
+}
+
+model RealtimeEvent {
+  id                String               @id @default(uuid())
+  companyId         String
+  branchId          String?
+  tableSessionId    String?
+  orderId           String?
+  preparationTaskId String?
+  waiterCallId      String?
+  notificationId    String?
+  type              RealtimeEventType
+  channel           RealtimeEventChannel
+  payload           Json
+  createdAt         DateTime             @default(now())
+
+  company         Company          @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  branch          Branch?          @relation(fields: [branchId], references: [id], onDelete: SetNull)
+  tableSession    TableSession?    @relation(fields: [tableSessionId], references: [id], onDelete: SetNull)
+  order           Order?           @relation(fields: [orderId], references: [id], onDelete: SetNull)
+  preparationTask PreparationTask? @relation(fields: [preparationTaskId], references: [id], onDelete: SetNull)
+  waiterCall      WaiterCall?      @relation(fields: [waiterCallId], references: [id], onDelete: SetNull)
+  notification    Notification?    @relation(fields: [notificationId], references: [id], onDelete: SetNull)
+
+  @@index([companyId])
+  @@index([branchId])
+  @@index([tableSessionId])
+  @@index([orderId])
+  @@index([preparationTaskId])
+  @@index([waiterCallId])
+  @@index([notificationId])
+  @@index([type])
+  @@index([channel])
+  @@index([createdAt])
+  @@index([branchId, channel, createdAt])
+  @@index([tableSessionId, channel, createdAt])
 }
 
 model NotificationDelivery {

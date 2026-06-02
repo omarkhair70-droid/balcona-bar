@@ -11,6 +11,7 @@ import {
 } from '@prisma/client';
 import { PresenceNotificationsService } from '../presence-notifications/presence-notifications.service';
 import { PrismaService } from '../prisma/prisma.service';
+import { RealtimeEventsService } from '../realtime-events/realtime-events.service';
 import { BranchPreparationTasksQueryDto } from './dto/branch-preparation-tasks-query.dto';
 import { CancelPreparationTaskDto } from './dto/cancel-preparation-task.dto';
 import { PreparationTaskActionDto } from './dto/preparation-task-action.dto';
@@ -28,6 +29,7 @@ export class PreparationTasksService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly presenceNotificationsService: PresenceNotificationsService,
+    private readonly realtimeEventsService: RealtimeEventsService,
   ) {}
 
   async createTasksForAcceptedOrder(
@@ -76,7 +78,7 @@ export class PreparationTasksService {
         continue;
       }
 
-      await tx.preparationTask.create({
+      const task = await tx.preparationTask.create({
         data: {
           companyId: order.companyId,
           branchId: order.branchId,
@@ -99,7 +101,13 @@ export class PreparationTasksService {
             },
           },
         },
+        select: { id: true },
       });
+
+      await this.realtimeEventsService.recordPreparationTaskCreated(
+        task.id,
+        tx,
+      );
     }
   }
 
@@ -198,6 +206,10 @@ export class PreparationTasksService {
         task.id,
         tx,
       );
+      await this.realtimeEventsService.recordPreparationTaskStarted(
+        task.id,
+        tx,
+      );
 
       return this.getTaskResponse(task.id, tx);
     });
@@ -238,6 +250,7 @@ export class PreparationTasksService {
         task.id,
         tx,
       );
+      await this.realtimeEventsService.recordPreparationTaskReady(task.id, tx);
 
       return this.getTaskResponse(task.id, tx);
     });
@@ -276,6 +289,11 @@ export class PreparationTasksService {
           metadata: reason ? { reason } : undefined,
         },
       });
+
+      await this.realtimeEventsService.recordPreparationTaskCancelled(
+        task.id,
+        tx,
+      );
 
       return this.getTaskResponse(task.id, tx);
     });

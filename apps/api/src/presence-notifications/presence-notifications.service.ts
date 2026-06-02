@@ -13,6 +13,7 @@ import {
   Prisma,
 } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
+import { RealtimeEventsService } from '../realtime-events/realtime-events.service';
 import { BranchNotificationsQueryDto } from './dto/branch-notifications-query.dto';
 import { BranchPresenceEventsQueryDto } from './dto/branch-presence-events-query.dto';
 import { CreatePresenceEventDto } from './dto/create-presence-event.dto';
@@ -66,7 +67,10 @@ type WaiterCallNotificationCopy = {
 
 @Injectable()
 export class PresenceNotificationsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly realtimeEventsService: RealtimeEventsService,
+  ) {}
 
   async recordQrTableSessionPresence(
     session: TableSessionForNotification,
@@ -438,6 +442,8 @@ export class PresenceNotificationsService {
       include: this.notificationInclude(),
     });
 
+    await this.realtimeEventsService.recordNotificationRead(notification);
+
     return this.toNotificationResponse(notification);
   }
 
@@ -452,6 +458,8 @@ export class PresenceNotificationsService {
       },
       include: this.notificationInclude(),
     });
+
+    await this.realtimeEventsService.recordNotificationDismissed(notification);
 
     return this.toNotificationResponse(notification);
   }
@@ -595,7 +603,7 @@ export class PresenceNotificationsService {
 
     const now = new Date();
 
-    return tx.notification.create({
+    const notification = await tx.notification.create({
       data: {
         companyId: input.companyId,
         branchId: input.branchId,
@@ -622,6 +630,13 @@ export class PresenceNotificationsService {
       },
       include: this.notificationInclude(),
     });
+
+    await this.realtimeEventsService.recordNotificationCreated(
+      notification,
+      tx,
+    );
+
+    return notification;
   }
 
   private async createWaiterCallNotification(

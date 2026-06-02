@@ -12,6 +12,7 @@ import { OrdersModule } from './orders/orders.module';
 import { PresenceNotificationsModule } from './presence-notifications/presence-notifications.module';
 import { PreparationTasksModule } from './preparation-tasks/preparation-tasks.module';
 import { PrismaModule } from './prisma/prisma.module';
+import { RealtimeEventsModule } from './realtime-events/realtime-events.module';
 import { RedisModule } from './redis/redis.module';
 import { StaffModule } from './staff/staff.module';
 import { SystemModule } from './system/system.module';
@@ -38,6 +39,7 @@ import { WaiterCallsModule } from './waiter-calls/waiter-calls.module';
     OrdersModule,
     PresenceNotificationsModule,
     PreparationTasksModule,
+    RealtimeEventsModule,
     TablesModule,
     StaffModule,
     MenuModule,
