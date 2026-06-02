@@ -71,6 +71,20 @@ enum PreparationStation {
   cashier
 }
 
+enum PreparationTaskStatus {
+  pending
+  preparing
+  ready
+  cancelled
+}
+
+enum PreparationTaskEventType {
+  created
+  started
+  marked_ready
+  cancelled
+}
+
 enum TableSessionStatus {
   active
   idle
@@ -139,6 +153,7 @@ model Company {
   menuItems        MenuItem[]
   modifierGroups   ModifierGroup[]
   orders           Order[]
+  preparationTasks PreparationTask[]
   staffMemberships StaffMembership[]
   tableSessions    TableSession[]
 }
@@ -158,6 +173,7 @@ model Branch {
   floors            Floor[]
   menuItemOverrides BranchMenuItemOverride[]
   orders            Order[]
+  preparationTasks  PreparationTask[]
   tables            CafeTable[]
   staffMemberships  StaffMembership[]
   tableSessions     TableSession[]
@@ -210,8 +226,9 @@ model StaffUser {
   createdAt DateTime    @default(now())
   updatedAt DateTime    @updatedAt
 
-  memberships StaffMembership[]
-  orderEvents OrderEvent[]
+  memberships           StaffMembership[]
+  orderEvents           OrderEvent[]
+  preparationTaskEvents PreparationTaskEvent[]
 
   @@index([email])
 }
@@ -288,19 +305,19 @@ model MenuItem {
 }
 
 model ModifierGroup {
-  id            String              @id @default(uuid())
+  id            String                @id @default(uuid())
   companyId     String
   name          String
   slug          String
   description   String?
   selectionType ModifierSelectionType
-  isRequired    Boolean             @default(false)
-  minSelections Int                 @default(0)
-  maxSelections Int                 @default(1)
-  sortOrder     Int                 @default(0)
-  status        ModifierGroupStatus @default(active)
-  createdAt     DateTime            @default(now())
-  updatedAt     DateTime            @updatedAt
+  isRequired    Boolean               @default(false)
+  minSelections Int                   @default(0)
+  maxSelections Int                   @default(1)
+  sortOrder     Int                   @default(0)
+  status        ModifierGroupStatus   @default(active)
+  createdAt     DateTime              @default(now())
+  updatedAt     DateTime              @updatedAt
 
   company                  Company                   @relation(fields: [companyId], references: [id], onDelete: Cascade)
   options                  ModifierOption[]
@@ -482,33 +499,34 @@ model CartItemModifierOption {
 }
 
 model Order {
-  id                 String       @id @default(uuid())
-  companyId          String
-  branchId           String
-  tableSessionId     String
-  cartId             String?
-  orderNumber        String
-  status             OrderStatus  @default(submitted)
-  source             OrderSource
-  currency           String       @default("EGP")
-  subtotalMinor      Int
-  totalQuantity      Int
-  itemCount          Int
-  customerNote       String?
-  idempotencyKey     String?
-  submittedAt        DateTime     @default(now())
-  cashierAcceptedAt  DateTime?
-  cashierRejectedAt  DateTime?
-  rejectionReason    String?
-  createdAt          DateTime     @default(now())
-  updatedAt          DateTime     @updatedAt
+  id                String      @id @default(uuid())
+  companyId         String
+  branchId          String
+  tableSessionId    String
+  cartId            String?
+  orderNumber       String
+  status            OrderStatus @default(submitted)
+  source            OrderSource
+  currency          String      @default("EGP")
+  subtotalMinor     Int
+  totalQuantity     Int
+  itemCount         Int
+  customerNote      String?
+  idempotencyKey    String?
+  submittedAt       DateTime    @default(now())
+  cashierAcceptedAt DateTime?
+  cashierRejectedAt DateTime?
+  rejectionReason   String?
+  createdAt         DateTime    @default(now())
+  updatedAt         DateTime    @updatedAt
 
-  company      Company       @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  branch       Branch        @relation(fields: [branchId], references: [id], onDelete: Cascade)
-  tableSession TableSession  @relation(fields: [tableSessionId], references: [id], onDelete: Cascade)
-  cart         Cart?         @relation(fields: [cartId], references: [id], onDelete: SetNull)
-  items        OrderItem[]
-  events       OrderEvent[]
+  company          Company           @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  branch           Branch            @relation(fields: [branchId], references: [id], onDelete: Cascade)
+  tableSession     TableSession      @relation(fields: [tableSessionId], references: [id], onDelete: Cascade)
+  cart             Cart?             @relation(fields: [cartId], references: [id], onDelete: SetNull)
+  items            OrderItem[]
+  events           OrderEvent[]
+  preparationTasks PreparationTask[]
 
   @@unique([branchId, orderNumber])
   @@unique([tableSessionId, idempotencyKey])
@@ -539,6 +557,7 @@ model OrderItem {
   order           Order                     @relation(fields: [orderId], references: [id], onDelete: Cascade)
   menuItem        MenuItem                  @relation(fields: [menuItemId], references: [id], onDelete: Restrict)
   modifierOptions OrderItemModifierOption[]
+  preparationTask PreparationTask?
 
   @@index([orderId])
   @@index([menuItemId])
@@ -578,6 +597,56 @@ model OrderEvent {
   actorStaffUser StaffUser? @relation(fields: [actorStaffUserId], references: [id], onDelete: SetNull)
 
   @@index([orderId])
+  @@index([type])
+  @@index([createdAt])
+}
+
+model PreparationTask {
+  id               String                @id @default(uuid())
+  companyId        String
+  branchId         String
+  orderId          String
+  orderItemId      String
+  station          PreparationStation
+  status           PreparationTaskStatus @default(pending)
+  quantity         Int
+  itemNameSnapshot String
+  itemSlugSnapshot String
+  notes            String?
+  startedAt        DateTime?
+  readyAt          DateTime?
+  cancelledAt      DateTime?
+  createdAt        DateTime              @default(now())
+  updatedAt        DateTime              @updatedAt
+
+  company   Company                @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  branch    Branch                 @relation(fields: [branchId], references: [id], onDelete: Cascade)
+  order     Order                  @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  orderItem OrderItem              @relation(fields: [orderItemId], references: [id], onDelete: Cascade)
+  events    PreparationTaskEvent[]
+
+  @@unique([orderItemId])
+  @@index([companyId])
+  @@index([branchId])
+  @@index([orderId])
+  @@index([orderItemId])
+  @@index([station])
+  @@index([status])
+  @@index([createdAt])
+}
+
+model PreparationTaskEvent {
+  id                String                   @id @default(uuid())
+  preparationTaskId String
+  type              PreparationTaskEventType
+  actorStaffUserId  String?
+  metadata          Json?
+  createdAt         DateTime                 @default(now())
+
+  preparationTask PreparationTask @relation(fields: [preparationTaskId], references: [id], onDelete: Cascade)
+  actorStaffUser  StaffUser?      @relation(fields: [actorStaffUserId], references: [id], onDelete: SetNull)
+
+  @@index([preparationTaskId])
   @@index([type])
   @@index([createdAt])
 }

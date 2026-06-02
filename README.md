@@ -1,6 +1,6 @@
 # balcona-bar
 
-Balcona Bar is organized as a monorepo for the Cafe AI Waiter App / Smart Café Operating System. Phase 6 adds cart submit and cashier intake on top of the multi-company, multi-branch, menu, table session, and customer cart foundations.
+Balcona Bar is organized as a monorepo for the Cafe AI Waiter App / Smart Café Operating System. Phase 7 adds kitchen, barista, and dessert preparation queues after cashier acceptance.
 
 ## Layout
 
@@ -180,7 +180,7 @@ Read an order:
 curl http://localhost:3000/api/v1/orders/<orderId>
 ```
 
-Accept or reject an order at cashier intake:
+Accept or reject an order at cashier intake. Accepting creates pending preparation tasks for order items routed to `barista`, `kitchen`, or `dessert` stations:
 
 ```bash
 curl -X POST http://localhost:3000/api/v1/orders/<orderId>/cashier/accept \
@@ -190,6 +190,42 @@ curl -X POST http://localhost:3000/api/v1/orders/<orderId>/cashier/accept \
 curl -X POST http://localhost:3000/api/v1/orders/<orderId>/cashier/reject \
   -H "Content-Type: application/json" \
   -d '{"reason":"Item unavailable","staffUserId":"<optionalStaffUserId>"}'
+```
+
+List pending preparation tasks for a branch:
+
+```bash
+curl http://localhost:3000/api/v1/branches/<branchId>/preparation-tasks
+```
+
+Filter preparation tasks by station or status:
+
+```bash
+curl http://localhost:3000/api/v1/branches/<branchId>/preparation-tasks?station=barista
+curl http://localhost:3000/api/v1/branches/<branchId>/preparation-tasks?station=kitchen&status=preparing
+curl http://localhost:3000/api/v1/branches/<branchId>/preparation-tasks?station=all&status=all
+```
+
+Start, mark ready, or cancel a preparation task:
+
+```bash
+curl -X POST http://localhost:3000/api/v1/preparation-tasks/<taskId>/start \
+  -H "Content-Type: application/json" \
+  -d '{"staffUserId":"<optionalStaffUserId>"}'
+
+curl -X POST http://localhost:3000/api/v1/preparation-tasks/<taskId>/ready \
+  -H "Content-Type: application/json" \
+  -d '{"staffUserId":"<optionalStaffUserId>"}'
+
+curl -X POST http://localhost:3000/api/v1/preparation-tasks/<taskId>/cancel \
+  -H "Content-Type: application/json" \
+  -d '{"reason":"Made by mistake","staffUserId":"<optionalStaffUserId>"}'
+```
+
+List preparation tasks for an order:
+
+```bash
+curl http://localhost:3000/api/v1/orders/<orderId>/preparation-tasks
 ```
 
 List orders for a table session:
@@ -212,3 +248,4 @@ curl http://localhost:3000/api/v1/staff
 - Phase 4 table session foundation: `docs/architecture/phase-4-table-session-foundation.md`
 - Phase 5 customer cart draft foundation: `docs/architecture/phase-5-customer-cart-draft-foundation.md`
 - Phase 6 cart submit and cashier intake foundation: `docs/architecture/phase-6-cart-submit-cashier-intake-foundation.md`
+- Phase 7 kitchen and barista queue foundation: `docs/architecture/phase-7-kitchen-barista-queue-foundation.md`
