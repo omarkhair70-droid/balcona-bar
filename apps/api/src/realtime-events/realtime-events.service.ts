@@ -1,0 +1,823 @@
+import { Injectable, MessageEvent, NotFoundException } from '@nestjs/common';
+import {
+  Prisma,
+  RealtimeEventChannel,
+  RealtimeEventType,
+} from '@prisma/client';
+import { interval, merge, Observable, of, Subject } from 'rxjs';
+import { filter, map } from 'rxjs/operators';
+import { PrismaService } from '../prisma/prisma.service';
+import { BranchRealtimeEventsQueryDto } from './dto/branch-realtime-events-query.dto';
+import { BranchRealtimeQueryDto } from './dto/branch-realtime-query.dto';
+import { SessionRealtimeEventsQueryDto } from './dto/session-realtime-events-query.dto';
+import { SessionRealtimeQueryDto } from './dto/session-realtime-query.dto';
+
+const HEARTBEAT_MS = 25_000;
+const DEFAULT_EVENT_LIMIT = 50;
+
+type PrismaExecutor = PrismaService | Prisma.TransactionClient;
+
+const realtimeEventSelect = {
+  id: true,
+  companyId: true,
+  branchId: true,
+  tableSessionId: true,
+  orderId: true,
+  preparationTaskId: true,
+  waiterCallId: true,
+  notificationId: true,
+  type: true,
+  channel: true,
+  payload: true,
+  createdAt: true,
+} satisfies Prisma.RealtimeEventSelect;
+
+type RealtimeEventRecord = Prisma.RealtimeEventGetPayload<{
+  select: typeof realtimeEventSelect;
+}>;
+
+export interface CreateRealtimeEventInput {
+  companyId: string;
+  branchId?: string | null;
+  tableSessionId?: string | null;
+  orderId?: string | null;
+  preparationTaskId?: string | null;
+  waiterCallId?: string | null;
+  notificationId?: string | null;
+  type: RealtimeEventType;
+  channel: RealtimeEventChannel;
+  payload?: unknown;
+}
+
+export interface RealtimeEventEnvelope {
+  id: string;
+  type: RealtimeEventType;
+  channel: RealtimeEventChannel;
+  scope: {
+    companyId: string;
+    branchId?: string;
+    tableSessionId?: string;
+  };
+  orderId?: string;
+  preparationTaskId?: string;
+  waiterCallId?: string;
+  notificationId?: string;
+  payload: Prisma.JsonValue;
+  createdAt: Date;
+}
+
+@Injectable()
+export class RealtimeEventsService {
+  private readonly events$ = new Subject<RealtimeEventEnvelope>();
+
+  constructor(private readonly prisma: PrismaService) {}
+
+  async createRealtimeEvent(
+    input: CreateRealtimeEventInput,
+    tx: PrismaExecutor = this.prisma,
+  ) {
+    const event = await tx.realtimeEvent.create({
+      data: {
+        companyId: input.companyId,
+        branchId: input.branchId ?? undefined,
+        tableSessionId: input.tableSessionId ?? undefined,
+        orderId: input.orderId ?? undefined,
+        preparationTaskId: input.preparationTaskId ?? undefined,
+        waiterCallId: input.waiterCallId ?? undefined,
+        notificationId: input.notificationId ?? undefined,
+        type: input.type,
+        channel: input.channel,
+        payload: this.toJsonPayload(input.payload),
+      },
+      select: realtimeEventSelect,
+    });
+    const envelope = this.toEnvelope(event);
+
+    this.events$.next(envelope);
+
+    return envelope;
+  }
+
+  async streamBranch(branchId: string, query: BranchRealtimeQueryDto = {}) {
+    const branch = await this.prisma.branch.findUnique({
+      where: { id: branchId },
+      select: { id: true, companyId: true },
+    });
+
+    if (!branch) {
+      throw new NotFoundException('Branch not found');
+    }
+
+    const requestedChannel = query.channel ?? 'all';
+    const channelFilter = this.branchChannelsFor(requestedChannel);
+    const connection = await this.createRealtimeEvent({
+      companyId: branch.companyId,
+      branchId: branch.id,
+      type: RealtimeEventType.connection_opened,
+      channel: RealtimeEventChannel.system,
+      payload: {
+        scope: 'branch',
+        branchId: branch.id,
+        requestedChannel,
+      },
+    });
+
+    return merge(
+      of(this.toSseMessage(connection)),
+      this.events$.pipe(
+        filter((event) => event.scope.branchId === branch.id),
+        filter((event) => this.matchesChannel(event.channel, channelFilter)),
+        map((event) => this.toSseMessage(event)),
+      ),
+      interval(HEARTBEAT_MS).pipe(
+        map(() =>
+          this.toSseMessage(
+            this.createHeartbeatEnvelope({
+              companyId: branch.companyId,
+              branchId: branch.id,
+              stream: 'branch',
+              requestedChannel,
+            }),
+          ),
+        ),
+      ),
+    );
+  }
+
+  async streamTableSession(
+    sessionId: string,
+    query: SessionRealtimeQueryDto = {},
+  ) {
+    const session = await this.prisma.tableSession.findUnique({
+      where: { id: sessionId },
+      select: { id: true, companyId: true, branchId: true },
+    });
+
+    if (!session) {
+      throw new NotFoundException('Table session not found');
+    }
+
+    const requestedChannel = query.channel ?? 'all';
+    const channelFilter = this.sessionChannelsFor(requestedChannel);
+    const connection = await this.createRealtimeEvent({
+      companyId: session.companyId,
+      branchId: session.branchId,
+      tableSessionId: session.id,
+      type: RealtimeEventType.connection_opened,
+      channel: RealtimeEventChannel.system,
+      payload: {
+        scope: 'table_session',
+        tableSessionId: session.id,
+        requestedChannel,
+      },
+    });
+
+    return merge(
+      of(this.toSseMessage(connection)),
+      this.events$.pipe(
+        filter((event) => event.scope.tableSessionId === session.id),
+        filter((event) => this.matchesChannel(event.channel, channelFilter)),
+        map((event) => this.toSseMessage(event)),
+      ),
+      interval(HEARTBEAT_MS).pipe(
+        map(() =>
+          this.toSseMessage(
+            this.createHeartbeatEnvelope({
+              companyId: session.companyId,
+              branchId: session.branchId,
+              tableSessionId: session.id,
+              stream: 'table_session',
+              requestedChannel,
+            }),
+          ),
+        ),
+      ),
+    );
+  }
+
+  async findBranchEvents(
+    branchId: string,
+    query: BranchRealtimeEventsQueryDto = {},
+  ) {
+    const branch = await this.prisma.branch.findUnique({
+      where: { id: branchId },
+      select: { id: true, companyId: true },
+    });
+
+    if (!branch) {
+      throw new NotFoundException('Branch not found');
+    }
+
+    const channels = this.branchChannelsFor(query.channel ?? 'all');
+    const events = await this.prisma.realtimeEvent.findMany({
+      where: {
+        branchId,
+        ...(channels ? { channel: { in: channels } } : {}),
+        ...(query.type ? { type: query.type as RealtimeEventType } : {}),
+      },
+      orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+      take: this.normalizeLimit(query.limit),
+      select: realtimeEventSelect,
+    });
+
+    return {
+      branch,
+      filters: {
+        channel: query.channel ?? 'all',
+        type: query.type ?? 'all',
+        limit: this.normalizeLimit(query.limit),
+      },
+      events: events.map((event) => this.toEnvelope(event)),
+    };
+  }
+
+  async findTableSessionEvents(
+    sessionId: string,
+    query: SessionRealtimeEventsQueryDto = {},
+  ) {
+    const session = await this.prisma.tableSession.findUnique({
+      where: { id: sessionId },
+      select: { id: true, companyId: true, branchId: true },
+    });
+
+    if (!session) {
+      throw new NotFoundException('Table session not found');
+    }
+
+    const channels = this.sessionChannelsFor(query.channel ?? 'all');
+    const events = await this.prisma.realtimeEvent.findMany({
+      where: {
+        tableSessionId: sessionId,
+        ...(channels ? { channel: { in: channels } } : {}),
+        ...(query.type ? { type: query.type as RealtimeEventType } : {}),
+      },
+      orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+      take: this.normalizeLimit(query.limit),
+      select: realtimeEventSelect,
+    });
+
+    return {
+      tableSession: session,
+      filters: {
+        channel: query.channel ?? 'all',
+        type: query.type ?? 'all',
+        limit: this.normalizeLimit(query.limit),
+      },
+      events: events.map((event) => this.toEnvelope(event)),
+    };
+  }
+
+  async recordTableSessionStarted(
+    session: TableSessionRealtimeContext,
+    tx: PrismaExecutor,
+  ) {
+    return this.createRealtimeEvent(
+      {
+        companyId: session.companyId,
+        branchId: session.branchId,
+        tableSessionId: session.id,
+        type: RealtimeEventType.table_session_started,
+        channel: RealtimeEventChannel.session_status,
+        payload: this.tableSessionPayload(session),
+      },
+      tx,
+    );
+  }
+
+  async recordTableSessionResumed(
+    session: TableSessionRealtimeContext,
+    tx: PrismaExecutor,
+  ) {
+    return this.createRealtimeEvent(
+      {
+        companyId: session.companyId,
+        branchId: session.branchId,
+        tableSessionId: session.id,
+        type: RealtimeEventType.table_session_resumed,
+        channel: RealtimeEventChannel.session_status,
+        payload: this.tableSessionPayload(session),
+      },
+      tx,
+    );
+  }
+
+  async recordNotificationCreated(
+    notification: NotificationRealtimeContext,
+    tx: PrismaExecutor,
+  ) {
+    const payload = this.notificationPayload(notification);
+    const events: RealtimeEventEnvelope[] = [];
+
+    events.push(
+      await this.createRealtimeEvent(
+        {
+          companyId: notification.companyId,
+          branchId: notification.branchId,
+          tableSessionId: notification.tableSessionId,
+          orderId: notification.orderId,
+          preparationTaskId: notification.preparationTaskId,
+          notificationId: notification.id,
+          type: RealtimeEventType.notification_created,
+          channel: RealtimeEventChannel.branch_notifications,
+          payload,
+        },
+        tx,
+      ),
+    );
+
+    if (notification.tableSessionId) {
+      events.push(
+        await this.createRealtimeEvent(
+          {
+            companyId: notification.companyId,
+            branchId: notification.branchId,
+            tableSessionId: notification.tableSessionId,
+            orderId: notification.orderId,
+            preparationTaskId: notification.preparationTaskId,
+            notificationId: notification.id,
+            type: RealtimeEventType.notification_created,
+            channel: RealtimeEventChannel.session_notifications,
+            payload,
+          },
+          tx,
+        ),
+      );
+    }
+
+    return events;
+  }
+
+  async recordNotificationRead(
+    notification: NotificationRealtimeContext,
+    tx: PrismaExecutor = this.prisma,
+  ) {
+    return this.recordNotificationStateChange(
+      notification,
+      RealtimeEventType.notification_read,
+      tx,
+    );
+  }
+
+  async recordNotificationDismissed(
+    notification: NotificationRealtimeContext,
+    tx: PrismaExecutor = this.prisma,
+  ) {
+    return this.recordNotificationStateChange(
+      notification,
+      RealtimeEventType.notification_dismissed,
+      tx,
+    );
+  }
+
+  async recordOrderSubmitted(orderId: string, tx: PrismaExecutor) {
+    return this.recordOrderEvent(
+      orderId,
+      RealtimeEventType.order_submitted,
+      tx,
+    );
+  }
+
+  async recordOrderAccepted(orderId: string, tx: PrismaExecutor) {
+    return this.recordOrderEvent(orderId, RealtimeEventType.order_accepted, tx);
+  }
+
+  async recordOrderRejected(orderId: string, tx: PrismaExecutor) {
+    return this.recordOrderEvent(orderId, RealtimeEventType.order_rejected, tx);
+  }
+
+  async recordPreparationTaskCreated(taskId: string, tx: PrismaExecutor) {
+    return this.recordPreparationTaskEvent(
+      taskId,
+      RealtimeEventType.preparation_task_created,
+      false,
+      tx,
+    );
+  }
+
+  async recordPreparationTaskStarted(taskId: string, tx: PrismaExecutor) {
+    return this.recordPreparationTaskEvent(
+      taskId,
+      RealtimeEventType.preparation_task_started,
+      true,
+      tx,
+    );
+  }
+
+  async recordPreparationTaskReady(taskId: string, tx: PrismaExecutor) {
+    return this.recordPreparationTaskEvent(
+      taskId,
+      RealtimeEventType.preparation_task_ready,
+      true,
+      tx,
+    );
+  }
+
+  async recordPreparationTaskCancelled(taskId: string, tx: PrismaExecutor) {
+    return this.recordPreparationTaskEvent(
+      taskId,
+      RealtimeEventType.preparation_task_cancelled,
+      true,
+      tx,
+    );
+  }
+
+  async recordWaiterCallCreated(waiterCallId: string, tx: PrismaExecutor) {
+    return this.recordWaiterCallEvent(
+      waiterCallId,
+      RealtimeEventType.waiter_call_created,
+      tx,
+    );
+  }
+
+  async recordWaiterCallAcknowledged(waiterCallId: string, tx: PrismaExecutor) {
+    return this.recordWaiterCallEvent(
+      waiterCallId,
+      RealtimeEventType.waiter_call_acknowledged,
+      tx,
+    );
+  }
+
+  async recordWaiterCallResolved(waiterCallId: string, tx: PrismaExecutor) {
+    return this.recordWaiterCallEvent(
+      waiterCallId,
+      RealtimeEventType.waiter_call_resolved,
+      tx,
+    );
+  }
+
+  async recordWaiterCallCancelled(waiterCallId: string, tx: PrismaExecutor) {
+    return this.recordWaiterCallEvent(
+      waiterCallId,
+      RealtimeEventType.waiter_call_cancelled,
+      tx,
+    );
+  }
+
+  private async recordNotificationStateChange(
+    notification: NotificationRealtimeContext,
+    type: RealtimeEventType,
+    tx: PrismaExecutor,
+  ) {
+    if (!notification.tableSessionId) {
+      return null;
+    }
+
+    return this.createRealtimeEvent(
+      {
+        companyId: notification.companyId,
+        branchId: notification.branchId,
+        tableSessionId: notification.tableSessionId,
+        orderId: notification.orderId,
+        preparationTaskId: notification.preparationTaskId,
+        notificationId: notification.id,
+        type,
+        channel: RealtimeEventChannel.session_notifications,
+        payload: this.notificationPayload(notification),
+      },
+      tx,
+    );
+  }
+
+  private async recordOrderEvent(
+    orderId: string,
+    type: RealtimeEventType,
+    tx: PrismaExecutor,
+  ) {
+    const order = await tx.order.findUnique({
+      where: { id: orderId },
+      select: {
+        id: true,
+        companyId: true,
+        branchId: true,
+        tableSessionId: true,
+        orderNumber: true,
+        status: true,
+        subtotalMinor: true,
+        totalQuantity: true,
+        itemCount: true,
+        currency: true,
+      },
+    });
+
+    if (!order) {
+      throw new NotFoundException('Order not found');
+    }
+
+    const payload = {
+      orderId: order.id,
+      orderNumber: order.orderNumber,
+      status: order.status,
+      subtotalMinor: order.subtotalMinor,
+      totalQuantity: order.totalQuantity,
+      itemCount: order.itemCount,
+      currency: order.currency,
+    };
+    const branchEvent = await this.createRealtimeEvent(
+      {
+        companyId: order.companyId,
+        branchId: order.branchId,
+        tableSessionId: order.tableSessionId,
+        orderId: order.id,
+        type,
+        channel: RealtimeEventChannel.branch_orders,
+        payload,
+      },
+      tx,
+    );
+    const sessionEvent = await this.createRealtimeEvent(
+      {
+        companyId: order.companyId,
+        branchId: order.branchId,
+        tableSessionId: order.tableSessionId,
+        orderId: order.id,
+        type,
+        channel: RealtimeEventChannel.session_status,
+        payload,
+      },
+      tx,
+    );
+
+    return [branchEvent, sessionEvent];
+  }
+
+  private async recordPreparationTaskEvent(
+    taskId: string,
+    type: RealtimeEventType,
+    includeSessionStatus: boolean,
+    tx: PrismaExecutor,
+  ) {
+    const task = await tx.preparationTask.findUnique({
+      where: { id: taskId },
+      select: {
+        id: true,
+        companyId: true,
+        branchId: true,
+        orderId: true,
+        station: true,
+        status: true,
+        quantity: true,
+        itemNameSnapshot: true,
+        order: {
+          select: {
+            orderNumber: true,
+            tableSessionId: true,
+          },
+        },
+      },
+    });
+
+    if (!task) {
+      throw new NotFoundException('Preparation task not found');
+    }
+
+    const payload = {
+      preparationTaskId: task.id,
+      orderId: task.orderId,
+      orderNumber: task.order.orderNumber,
+      station: task.station,
+      status: task.status,
+      quantity: task.quantity,
+      itemNameSnapshot: task.itemNameSnapshot,
+    };
+    const events = [
+      await this.createRealtimeEvent(
+        {
+          companyId: task.companyId,
+          branchId: task.branchId,
+          tableSessionId: task.order.tableSessionId,
+          orderId: task.orderId,
+          preparationTaskId: task.id,
+          type,
+          channel: RealtimeEventChannel.branch_preparation,
+          payload,
+        },
+        tx,
+      ),
+    ];
+
+    if (includeSessionStatus) {
+      events.push(
+        await this.createRealtimeEvent(
+          {
+            companyId: task.companyId,
+            branchId: task.branchId,
+            tableSessionId: task.order.tableSessionId,
+            orderId: task.orderId,
+            preparationTaskId: task.id,
+            type,
+            channel: RealtimeEventChannel.session_status,
+            payload,
+          },
+          tx,
+        ),
+      );
+    }
+
+    return events;
+  }
+
+  private async recordWaiterCallEvent(
+    waiterCallId: string,
+    type: RealtimeEventType,
+    tx: PrismaExecutor,
+  ) {
+    const waiterCall = await tx.waiterCall.findUnique({
+      where: { id: waiterCallId },
+      select: {
+        id: true,
+        companyId: true,
+        branchId: true,
+        tableSessionId: true,
+        orderId: true,
+        type: true,
+        status: true,
+        priority: true,
+      },
+    });
+
+    if (!waiterCall) {
+      throw new NotFoundException('Waiter call not found');
+    }
+
+    const payload = {
+      waiterCallId: waiterCall.id,
+      orderId: waiterCall.orderId,
+      type: waiterCall.type,
+      status: waiterCall.status,
+      priority: waiterCall.priority,
+    };
+    const branchEvent = await this.createRealtimeEvent(
+      {
+        companyId: waiterCall.companyId,
+        branchId: waiterCall.branchId,
+        tableSessionId: waiterCall.tableSessionId,
+        orderId: waiterCall.orderId,
+        waiterCallId: waiterCall.id,
+        type,
+        channel: RealtimeEventChannel.branch_waiter_calls,
+        payload,
+      },
+      tx,
+    );
+    const sessionEvent = await this.createRealtimeEvent(
+      {
+        companyId: waiterCall.companyId,
+        branchId: waiterCall.branchId,
+        tableSessionId: waiterCall.tableSessionId,
+        orderId: waiterCall.orderId,
+        waiterCallId: waiterCall.id,
+        type,
+        channel: RealtimeEventChannel.session_waiter_calls,
+        payload,
+      },
+      tx,
+    );
+
+    return [branchEvent, sessionEvent];
+  }
+
+  private branchChannelsFor(channel: BranchRealtimeQueryDto['channel']) {
+    switch (channel) {
+      case 'orders':
+        return [RealtimeEventChannel.branch_orders];
+      case 'preparation':
+        return [RealtimeEventChannel.branch_preparation];
+      case 'waiter_calls':
+        return [RealtimeEventChannel.branch_waiter_calls];
+      case 'notifications':
+        return [RealtimeEventChannel.branch_notifications];
+      default:
+        return undefined;
+    }
+  }
+
+  private sessionChannelsFor(channel: SessionRealtimeQueryDto['channel']) {
+    switch (channel) {
+      case 'status':
+        return [RealtimeEventChannel.session_status];
+      case 'notifications':
+        return [RealtimeEventChannel.session_notifications];
+      case 'waiter_calls':
+        return [RealtimeEventChannel.session_waiter_calls];
+      default:
+        return undefined;
+    }
+  }
+
+  private matchesChannel(
+    channel: RealtimeEventChannel,
+    channelFilter: RealtimeEventChannel[] | undefined,
+  ) {
+    return !channelFilter || channelFilter.includes(channel);
+  }
+
+  private normalizeLimit(limit?: number) {
+    return Math.min(Math.max(limit ?? DEFAULT_EVENT_LIMIT, 1), 100);
+  }
+
+  private tableSessionPayload(session: TableSessionRealtimeContext) {
+    return {
+      tableSessionId: session.id,
+      branchId: session.branchId,
+      tableId: session.tableId,
+      status: session.status,
+      guestLabel: session.guestLabel,
+      partySize: session.partySize,
+    };
+  }
+
+  private notificationPayload(notification: NotificationRealtimeContext) {
+    return {
+      notificationId: notification.id,
+      kind: notification.kind,
+      status: notification.status,
+      title: notification.title,
+      body: notification.body,
+      orderId: notification.orderId,
+      preparationTaskId: notification.preparationTaskId,
+      presenceEventId: notification.presenceEventId,
+    };
+  }
+
+  private createHeartbeatEnvelope(input: {
+    companyId: string;
+    branchId?: string;
+    tableSessionId?: string;
+    stream: 'branch' | 'table_session';
+    requestedChannel: string;
+  }): RealtimeEventEnvelope {
+    const now = new Date();
+
+    return {
+      id: `heartbeat:${input.stream}:${input.branchId ?? input.tableSessionId}:${now.getTime()}`,
+      type: RealtimeEventType.system,
+      channel: RealtimeEventChannel.system,
+      scope: {
+        companyId: input.companyId,
+        branchId: input.branchId,
+        tableSessionId: input.tableSessionId,
+      },
+      payload: {
+        kind: 'heartbeat',
+        stream: input.stream,
+        requestedChannel: input.requestedChannel,
+      },
+      createdAt: now,
+    };
+  }
+
+  private toSseMessage(event: RealtimeEventEnvelope): MessageEvent {
+    return {
+      id: event.id,
+      type: event.type,
+      data: event,
+    };
+  }
+
+  private toEnvelope(event: RealtimeEventRecord): RealtimeEventEnvelope {
+    return {
+      id: event.id,
+      type: event.type,
+      channel: event.channel,
+      scope: {
+        companyId: event.companyId,
+        branchId: event.branchId ?? undefined,
+        tableSessionId: event.tableSessionId ?? undefined,
+      },
+      orderId: event.orderId ?? undefined,
+      preparationTaskId: event.preparationTaskId ?? undefined,
+      waiterCallId: event.waiterCallId ?? undefined,
+      notificationId: event.notificationId ?? undefined,
+      payload: event.payload,
+      createdAt: event.createdAt,
+    };
+  }
+
+  private toJsonPayload(payload: unknown): Prisma.InputJsonValue {
+    return JSON.parse(JSON.stringify(payload ?? {})) as Prisma.InputJsonValue;
+  }
+}
+
+interface TableSessionRealtimeContext {
+  id: string;
+  companyId: string;
+  branchId: string;
+  tableId: string;
+  status: string;
+  guestLabel?: string | null;
+  partySize?: number | null;
+}
+
+interface NotificationRealtimeContext {
+  id: string;
+  companyId: string;
+  branchId: string;
+  tableSessionId?: string | null;
+  orderId?: string | null;
+  preparationTaskId?: string | null;
+  presenceEventId?: string | null;
+  kind: string;
+  status: string;
+  title: string;
+  body: string;
+}

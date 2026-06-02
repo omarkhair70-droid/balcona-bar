@@ -13,6 +13,7 @@ import {
 } from '@prisma/client';
 import { PresenceNotificationsService } from '../presence-notifications/presence-notifications.service';
 import { PrismaService } from '../prisma/prisma.service';
+import { RealtimeEventsService } from '../realtime-events/realtime-events.service';
 import { CancelWaiterCallDto } from './dto/cancel-waiter-call.dto';
 import { CreateWaiterCallDto } from './dto/create-waiter-call.dto';
 import { ResolveWaiterCallDto } from './dto/resolve-waiter-call.dto';
@@ -26,12 +27,10 @@ export class WaiterCallsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly presenceNotificationsService: PresenceNotificationsService,
+    private readonly realtimeEventsService: RealtimeEventsService,
   ) {}
 
-  async createForTableSession(
-    sessionId: string,
-    body: CreateWaiterCallDto,
-  ) {
+  async createForTableSession(sessionId: string, body: CreateWaiterCallDto) {
     return this.prisma.$transaction(async (tx) => {
       const session = await this.findOpenTableSession(sessionId, tx);
       const order = await this.findOwnedOrder(body.orderId, session.id, tx);
@@ -68,6 +67,10 @@ export class WaiterCallsService {
         waiterCall.id,
         tx,
       );
+      await this.realtimeEventsService.recordWaiterCallCreated(
+        waiterCall.id,
+        tx,
+      );
 
       return this.getWaiterCallResponse(waiterCall.id, tx);
     });
@@ -95,11 +98,7 @@ export class WaiterCallsService {
         ]),
         ...this.typeFilter(query.type),
       },
-      orderBy: [
-        { priority: 'desc' },
-        { createdAt: 'desc' },
-        { id: 'desc' },
-      ],
+      orderBy: [{ priority: 'desc' }, { createdAt: 'desc' }, { id: 'desc' }],
       include: this.waiterCallInclude(),
     });
 
@@ -151,10 +150,7 @@ export class WaiterCallsService {
     return this.getWaiterCallResponse(waiterCallId, this.prisma);
   }
 
-  async acknowledge(
-    waiterCallId: string,
-    body: WaiterCallStaffActionDto = {},
-  ) {
+  async acknowledge(waiterCallId: string, body: WaiterCallStaffActionDto = {}) {
     return this.prisma.$transaction(async (tx) => {
       await this.assertStaffUserExists(body.staffUserId, tx);
 
@@ -186,6 +182,10 @@ export class WaiterCallsService {
       });
 
       await this.presenceNotificationsService.createWaiterCallAcknowledgedNotification(
+        waiterCall.id,
+        tx,
+      );
+      await this.realtimeEventsService.recordWaiterCallAcknowledged(
         waiterCall.id,
         tx,
       );
@@ -234,6 +234,10 @@ export class WaiterCallsService {
         waiterCall.id,
         tx,
       );
+      await this.realtimeEventsService.recordWaiterCallResolved(
+        waiterCall.id,
+        tx,
+      );
 
       return this.getWaiterCallResponse(waiterCall.id, tx);
     });
@@ -271,6 +275,11 @@ export class WaiterCallsService {
           metadata: reason ? { reason } : undefined,
         },
       });
+
+      await this.realtimeEventsService.recordWaiterCallCancelled(
+        waiterCall.id,
+        tx,
+      );
 
       return this.getWaiterCallResponse(waiterCall.id, tx);
     });
@@ -329,10 +338,7 @@ export class WaiterCallsService {
     return order;
   }
 
-  private async findWaiterCallStatus(
-    waiterCallId: string,
-    tx: PrismaExecutor,
-  ) {
+  private async findWaiterCallStatus(waiterCallId: string, tx: PrismaExecutor) {
     const waiterCall = await tx.waiterCall.findUnique({
       where: { id: waiterCallId },
       select: { id: true, status: true },

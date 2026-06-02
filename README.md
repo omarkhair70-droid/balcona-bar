@@ -1,6 +1,6 @@
 # balcona-bar
 
-Balcona Bar is organized as a monorepo for the Cafe AI Waiter App / Smart Café Operating System. Phase 11 adds the backend foundation for staff roles, permissions, and internal access checks.
+Balcona Bar is organized as a monorepo for the Cafe AI Waiter App / Smart Café Operating System. Phase 12 adds the backend foundation for stored realtime events and Server-Sent Events streams.
 
 ## Layout
 
@@ -358,6 +358,31 @@ Check branch-level access with explicit company and branch scope:
 curl "http://localhost:3000/api/v1/staff/<staffUserId>/can?permission=branches.read&companyId=<companyId>&branchId=<branchId>"
 ```
 
+Open realtime branch streams. These SSE endpoints are future-browser `EventSource('/api/v1/realtime/...')` friendly. PowerShell or curl can open them, but the connection stays open for future events and heartbeats:
+
+```bash
+curl http://localhost:3000/api/v1/realtime/branches/<branchId>/stream?channel=orders
+curl http://localhost:3000/api/v1/realtime/branches/<branchId>/stream?channel=preparation
+curl http://localhost:3000/api/v1/realtime/branches/<branchId>/stream?channel=waiter_calls
+```
+
+Open realtime table-session streams:
+
+```bash
+curl http://localhost:3000/api/v1/realtime/table-sessions/<sessionId>/stream?channel=status
+curl http://localhost:3000/api/v1/realtime/table-sessions/<sessionId>/stream?channel=notifications
+```
+
+List recent stored realtime events:
+
+```bash
+curl http://localhost:3000/api/v1/realtime/branches/<branchId>/events
+curl http://localhost:3000/api/v1/realtime/branches/<branchId>/events?channel=orders&limit=25
+
+curl http://localhost:3000/api/v1/realtime/table-sessions/<sessionId>/events
+curl http://localhost:3000/api/v1/realtime/table-sessions/<sessionId>/events?channel=status&limit=25
+```
+
 ## Phase notes
 
 - Phase 1 backend skeleton: `docs/architecture/phase-1-backend-skeleton.md`
@@ -371,3 +396,4 @@ curl "http://localhost:3000/api/v1/staff/<staffUserId>/can?permission=branches.r
 - Phase 9 customer order status foundation: `docs/architecture/phase-9-customer-order-status-foundation.md`
 - Phase 10 waiter call system foundation: `docs/architecture/phase-10-waiter-call-system-foundation.md`
 - Phase 11 staff roles and permissions foundation: `docs/architecture/phase-11-staff-roles-permissions-foundation.md`
+- Phase 12 realtime events foundation: `docs/architecture/phase-12-realtime-events-foundation.md`

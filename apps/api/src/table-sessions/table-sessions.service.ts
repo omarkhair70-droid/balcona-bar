@@ -12,6 +12,7 @@ import {
 } from '@prisma/client';
 import { PresenceNotificationsService } from '../presence-notifications/presence-notifications.service';
 import { PrismaService } from '../prisma/prisma.service';
+import { RealtimeEventsService } from '../realtime-events/realtime-events.service';
 import { StartTableSessionDto } from './dto/start-table-session.dto';
 
 const OPEN_SESSION_STATUSES: TableSessionStatus[] = [
@@ -80,6 +81,7 @@ export class TableSessionsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly presenceNotificationsService: PresenceNotificationsService,
+    private readonly realtimeEventsService: RealtimeEventsService,
   ) {}
 
   async start(body: StartTableSessionDto) {
@@ -159,6 +161,8 @@ export class TableSessionsService {
           tx,
         );
 
+        await this.realtimeEventsService.recordTableSessionResumed(session, tx);
+
         return { session, wasResumed: true };
       }
 
@@ -188,6 +192,8 @@ export class TableSessionsService {
         PresenceTriggerType.qr_session_started,
         tx,
       );
+
+      await this.realtimeEventsService.recordTableSessionStarted(session, tx);
 
       return { session, wasResumed: false };
     });
