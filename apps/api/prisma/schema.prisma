@@ -139,6 +139,67 @@ enum OrderEventActorType {
   dev
 }
 
+enum PresenceTriggerType {
+  qr_session_started
+  qr_session_resumed
+  wifi_portal_entered
+  beacon_detected
+  geofence_entered
+  app_opened_near_venue
+  manual_staff_trigger
+}
+
+enum NotificationChannel {
+  in_app
+  web_push
+  whatsapp
+  sms
+  wifi_portal
+  beacon
+  geofence
+}
+
+enum NotificationKind {
+  welcome
+  order_submitted
+  order_accepted
+  order_rejected
+  preparation_started
+  preparation_ready
+  waiter_call
+  system
+}
+
+enum NotificationStatus {
+  pending
+  sent
+  failed
+  read
+  dismissed
+}
+
+enum NotificationDeliveryStatus {
+  pending
+  sent
+  failed
+}
+
+enum DeviceSubscriptionStatus {
+  active
+  revoked
+  expired
+}
+
+enum VenueZoneType {
+  branch
+  entrance
+  seating_area
+  cashier
+  kitchen
+  outdoor
+  custom
+}
+
 model Company {
   id        String        @id @default(uuid())
   name      String
@@ -147,15 +208,21 @@ model Company {
   createdAt DateTime      @default(now())
   updatedAt DateTime      @updatedAt
 
-  branches         Branch[]
-  carts            Cart[]
-  menuCategories   MenuCategory[]
-  menuItems        MenuItem[]
-  modifierGroups   ModifierGroup[]
-  orders           Order[]
-  preparationTasks PreparationTask[]
-  staffMemberships StaffMembership[]
-  tableSessions    TableSession[]
+  branches                  Branch[]
+  carts                     Cart[]
+  menuCategories            MenuCategory[]
+  menuItems                 MenuItem[]
+  modifierGroups            ModifierGroup[]
+  notificationTemplates     NotificationTemplate[]
+  notifications             Notification[]
+  orders                    Order[]
+  presenceEvents            PresenceEvent[]
+  preparationTasks          PreparationTask[]
+  staffMemberships          StaffMembership[]
+  tableSessions             TableSession[]
+  customerSessionIdentities CustomerSessionIdentity[]
+  deviceSubscriptions       DeviceSubscription[]
+  venueZones                VenueZone[]
 }
 
 model Branch {
@@ -168,15 +235,21 @@ model Branch {
   createdAt DateTime     @default(now())
   updatedAt DateTime     @updatedAt
 
-  company           Company                  @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  carts             Cart[]
-  floors            Floor[]
-  menuItemOverrides BranchMenuItemOverride[]
-  orders            Order[]
-  preparationTasks  PreparationTask[]
-  tables            CafeTable[]
-  staffMemberships  StaffMembership[]
-  tableSessions     TableSession[]
+  company                   Company                   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  carts                     Cart[]
+  floors                    Floor[]
+  menuItemOverrides         BranchMenuItemOverride[]
+  notificationTemplates     NotificationTemplate[]
+  notifications             Notification[]
+  orders                    Order[]
+  presenceEvents            PresenceEvent[]
+  preparationTasks          PreparationTask[]
+  tables                    CafeTable[]
+  staffMemberships          StaffMembership[]
+  tableSessions             TableSession[]
+  customerSessionIdentities CustomerSessionIdentity[]
+  deviceSubscriptions       DeviceSubscription[]
+  venueZones                VenueZone[]
 
   @@unique([companyId, slug])
   @@index([companyId])
@@ -404,12 +477,16 @@ model TableSession {
   createdAt   DateTime           @default(now())
   updatedAt   DateTime           @updatedAt
 
-  company Company             @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  branch  Branch              @relation(fields: [branchId], references: [id], onDelete: Cascade)
-  table   CafeTable           @relation(fields: [tableId], references: [id], onDelete: Cascade)
-  carts   Cart[]
-  events  TableSessionEvent[]
-  orders  Order[]
+  company                   Company                   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  branch                    Branch                    @relation(fields: [branchId], references: [id], onDelete: Cascade)
+  table                     CafeTable                 @relation(fields: [tableId], references: [id], onDelete: Cascade)
+  carts                     Cart[]
+  events                    TableSessionEvent[]
+  notifications             Notification[]
+  orders                    Order[]
+  presenceEvents            PresenceEvent[]
+  customerSessionIdentities CustomerSessionIdentity[]
+  deviceSubscriptions       DeviceSubscription[]
 
   @@index([companyId])
   @@index([branchId])
@@ -526,6 +603,7 @@ model Order {
   cart             Cart?             @relation(fields: [cartId], references: [id], onDelete: SetNull)
   items            OrderItem[]
   events           OrderEvent[]
+  notifications    Notification[]
   preparationTasks PreparationTask[]
 
   @@unique([branchId, orderNumber])
@@ -619,11 +697,12 @@ model PreparationTask {
   createdAt        DateTime              @default(now())
   updatedAt        DateTime              @updatedAt
 
-  company   Company                @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  branch    Branch                 @relation(fields: [branchId], references: [id], onDelete: Cascade)
-  order     Order                  @relation(fields: [orderId], references: [id], onDelete: Cascade)
-  orderItem OrderItem              @relation(fields: [orderItemId], references: [id], onDelete: Cascade)
-  events    PreparationTaskEvent[]
+  company       Company                @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  branch        Branch                 @relation(fields: [branchId], references: [id], onDelete: Cascade)
+  order         Order                  @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  orderItem     OrderItem              @relation(fields: [orderItemId], references: [id], onDelete: Cascade)
+  events        PreparationTaskEvent[]
+  notifications Notification[]
 
   @@unique([orderItemId])
   @@index([companyId])
@@ -648,5 +727,211 @@ model PreparationTaskEvent {
 
   @@index([preparationTaskId])
   @@index([type])
+  @@index([createdAt])
+}
+
+model VenueZone {
+  id          String        @id @default(uuid())
+  companyId   String
+  branchId    String
+  name        String
+  slug        String
+  type        VenueZoneType
+  description String?
+  metadata    Json?
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+
+  company        Company         @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  branch         Branch          @relation(fields: [branchId], references: [id], onDelete: Cascade)
+  presenceEvents PresenceEvent[]
+
+  @@unique([branchId, slug])
+  @@index([companyId])
+  @@index([branchId])
+  @@index([type])
+}
+
+model CustomerSessionIdentity {
+  id                 String   @id @default(uuid())
+  companyId          String
+  branchId           String
+  tableSessionId     String?
+  displayName        String?
+  phone              String?
+  locale             String   @default("ar-EG")
+  marketingOptIn     Boolean  @default(false)
+  notificationsOptIn Boolean  @default(false)
+  metadata           Json?
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  company             Company              @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  branch              Branch               @relation(fields: [branchId], references: [id], onDelete: Cascade)
+  tableSession        TableSession?        @relation(fields: [tableSessionId], references: [id], onDelete: SetNull)
+  deviceSubscriptions DeviceSubscription[]
+  notifications       Notification[]
+  presenceEvents      PresenceEvent[]
+
+  @@index([companyId])
+  @@index([branchId])
+  @@index([tableSessionId])
+  @@index([phone])
+}
+
+model DeviceSubscription {
+  id                        String                   @id @default(uuid())
+  companyId                 String
+  branchId                  String?
+  customerSessionIdentityId String?
+  tableSessionId            String?
+  channel                   NotificationChannel
+  status                    DeviceSubscriptionStatus @default(active)
+  endpoint                  String?
+  token                     String?
+  userAgent                 String?
+  metadata                  Json?
+  lastSeenAt                DateTime?
+  createdAt                 DateTime                 @default(now())
+  updatedAt                 DateTime                 @updatedAt
+
+  company                 Company                  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  branch                  Branch?                  @relation(fields: [branchId], references: [id], onDelete: SetNull)
+  customerSessionIdentity CustomerSessionIdentity? @relation(fields: [customerSessionIdentityId], references: [id], onDelete: SetNull)
+  tableSession            TableSession?            @relation(fields: [tableSessionId], references: [id], onDelete: SetNull)
+  deliveries              NotificationDelivery[]
+  presenceEvents          PresenceEvent[]
+
+  @@index([companyId])
+  @@index([branchId])
+  @@index([customerSessionIdentityId])
+  @@index([tableSessionId])
+  @@index([channel])
+  @@index([status])
+}
+
+model PresenceEvent {
+  id                        String               @id @default(uuid())
+  companyId                 String
+  branchId                  String
+  tableSessionId            String?
+  venueZoneId               String?
+  customerSessionIdentityId String?
+  deviceSubscriptionId      String?
+  triggerType               PresenceTriggerType
+  sourceChannel             NotificationChannel?
+  metadata                  Json?
+  occurredAt                DateTime             @default(now())
+  createdAt                 DateTime             @default(now())
+
+  company                 Company                  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  branch                  Branch                   @relation(fields: [branchId], references: [id], onDelete: Cascade)
+  tableSession            TableSession?            @relation(fields: [tableSessionId], references: [id], onDelete: SetNull)
+  venueZone               VenueZone?               @relation(fields: [venueZoneId], references: [id], onDelete: SetNull)
+  customerSessionIdentity CustomerSessionIdentity? @relation(fields: [customerSessionIdentityId], references: [id], onDelete: SetNull)
+  deviceSubscription      DeviceSubscription?      @relation(fields: [deviceSubscriptionId], references: [id], onDelete: SetNull)
+  notifications           Notification[]
+
+  @@index([companyId])
+  @@index([branchId])
+  @@index([tableSessionId])
+  @@index([triggerType])
+  @@index([occurredAt])
+  @@index([venueZoneId])
+}
+
+model NotificationTemplate {
+  id        String              @id @default(uuid())
+  companyId String
+  branchId  String?
+  key       String
+  kind      NotificationKind
+  channel   NotificationChannel
+  language  String              @default("ar-EG")
+  title     String
+  body      String
+  isActive  Boolean             @default(true)
+  metadata  Json?
+  createdAt DateTime            @default(now())
+  updatedAt DateTime            @updatedAt
+
+  company       Company        @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  branch        Branch?        @relation(fields: [branchId], references: [id], onDelete: Cascade)
+  notifications Notification[]
+
+  @@unique([companyId, branchId, key, channel, language], map: "NotificationTemplate_scope_key")
+  @@index([companyId])
+  @@index([branchId])
+  @@index([kind])
+  @@index([channel])
+  @@index([isActive])
+}
+
+model Notification {
+  id                        String              @id @default(uuid())
+  companyId                 String
+  branchId                  String
+  tableSessionId            String?
+  customerSessionIdentityId String?
+  orderId                   String?
+  preparationTaskId         String?
+  templateId                String?
+  presenceEventId           String?
+  kind                      NotificationKind
+  channel                   NotificationChannel
+  status                    NotificationStatus  @default(pending)
+  title                     String
+  body                      String
+  dedupeKey                 String?
+  metadata                  Json?
+  sentAt                    DateTime?
+  readAt                    DateTime?
+  dismissedAt               DateTime?
+  createdAt                 DateTime            @default(now())
+  updatedAt                 DateTime            @updatedAt
+
+  company                 Company                  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  branch                  Branch                   @relation(fields: [branchId], references: [id], onDelete: Cascade)
+  tableSession            TableSession?            @relation(fields: [tableSessionId], references: [id], onDelete: SetNull)
+  customerSessionIdentity CustomerSessionIdentity? @relation(fields: [customerSessionIdentityId], references: [id], onDelete: SetNull)
+  order                   Order?                   @relation(fields: [orderId], references: [id], onDelete: SetNull)
+  preparationTask         PreparationTask?         @relation(fields: [preparationTaskId], references: [id], onDelete: SetNull)
+  template                NotificationTemplate?    @relation(fields: [templateId], references: [id], onDelete: SetNull)
+  presenceEvent           PresenceEvent?           @relation(fields: [presenceEventId], references: [id], onDelete: SetNull)
+  deliveries              NotificationDelivery[]
+
+  @@unique([dedupeKey])
+  @@index([companyId])
+  @@index([branchId])
+  @@index([tableSessionId])
+  @@index([customerSessionIdentityId])
+  @@index([kind])
+  @@index([channel])
+  @@index([status])
+  @@index([createdAt])
+  @@index([orderId])
+  @@index([preparationTaskId])
+}
+
+model NotificationDelivery {
+  id                   String                     @id @default(uuid())
+  notificationId       String
+  deviceSubscriptionId String?
+  channel              NotificationChannel
+  status               NotificationDeliveryStatus @default(pending)
+  externalMessageId    String?
+  errorMessage         String?
+  sentAt               DateTime?
+  failedAt             DateTime?
+  createdAt            DateTime                   @default(now())
+  updatedAt            DateTime                   @updatedAt
+
+  notification       Notification        @relation(fields: [notificationId], references: [id], onDelete: Cascade)
+  deviceSubscription DeviceSubscription? @relation(fields: [deviceSubscriptionId], references: [id], onDelete: SetNull)
+
+  @@index([notificationId])
+  @@index([deviceSubscriptionId])
+  @@index([channel])
+  @@index([status])
   @@index([createdAt])
 }

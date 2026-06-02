@@ -12,6 +12,7 @@ import {
   Prisma,
 } from '@prisma/client';
 import { CartService } from '../cart/cart.service';
+import { PresenceNotificationsService } from '../presence-notifications/presence-notifications.service';
 import { PreparationTasksService } from '../preparation-tasks/preparation-tasks.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { CashierAcceptOrderDto } from './dto/cashier-accept-order.dto';
@@ -40,6 +41,7 @@ export class OrdersService {
     private readonly prisma: PrismaService,
     private readonly cartService: CartService,
     private readonly preparationTasksService: PreparationTasksService,
+    private readonly presenceNotificationsService: PresenceNotificationsService,
   ) {}
 
   async submitCart(
@@ -137,6 +139,11 @@ export class OrdersService {
         data: { status: CartStatus.converted },
       });
 
+      await this.presenceNotificationsService.createOrderSubmittedNotification(
+        order.id,
+        tx,
+      );
+
       return this.getOrderResponse(order.id, tx, {
         replayed: false,
         key: idempotencyKey,
@@ -218,6 +225,11 @@ export class OrdersService {
         tx,
       );
 
+      await this.presenceNotificationsService.createOrderAcceptedNotification(
+        order.id,
+        tx,
+      );
+
       return this.getOrderResponse(order.id, tx);
     });
   }
@@ -260,6 +272,12 @@ export class OrdersService {
           metadata: rejectionReason ? { reason: rejectionReason } : undefined,
         },
       });
+
+      await this.presenceNotificationsService.createOrderRejectedNotification(
+        order.id,
+        rejectionReason,
+        tx,
+      );
 
       return this.getOrderResponse(order.id, tx);
     });

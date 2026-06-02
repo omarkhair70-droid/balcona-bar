@@ -1,6 +1,6 @@
 # balcona-bar
 
-Balcona Bar is organized as a monorepo for the Cafe AI Waiter App / Smart Café Operating System. Phase 7 adds kitchen, barista, and dessert preparation queues after cashier acceptance.
+Balcona Bar is organized as a monorepo for the Cafe AI Waiter App / Smart Café Operating System. Phase 8 adds the backend foundation for presence events, stored notifications, in-app deliveries, and welcome triggers.
 
 ## Layout
 
@@ -234,6 +234,36 @@ List orders for a table session:
 curl http://localhost:3000/api/v1/table-sessions/<sessionId>/orders
 ```
 
+Read table-session notifications and mark a stored notification read or dismissed:
+
+```bash
+curl http://localhost:3000/api/v1/table-sessions/<sessionId>/notifications
+
+curl -X POST http://localhost:3000/api/v1/notifications/<notificationId>/read
+
+curl -X POST http://localhost:3000/api/v1/notifications/<notificationId>/dismiss
+```
+
+Create and inspect presence events:
+
+```bash
+curl -X POST http://localhost:3000/api/v1/presence/events \
+  -H "Content-Type: application/json" \
+  -d '{"branchId":"<branchId>","tableSessionId":"<sessionId>","triggerType":"manual_staff_trigger","sourceChannel":"in_app"}'
+
+curl http://localhost:3000/api/v1/branches/<branchId>/presence/events
+curl http://localhost:3000/api/v1/branches/<branchId>/presence/events?triggerType=manual_staff_trigger
+curl http://localhost:3000/api/v1/branches/<branchId>/presence/events?tableSessionId=<sessionId>
+```
+
+List branch notifications:
+
+```bash
+curl http://localhost:3000/api/v1/branches/<branchId>/notifications
+curl http://localhost:3000/api/v1/branches/<branchId>/notifications?status=sent
+curl http://localhost:3000/api/v1/branches/<branchId>/notifications?kind=welcome
+```
+
 Development-only staff verification:
 
 ```bash
@@ -249,3 +279,4 @@ curl http://localhost:3000/api/v1/staff
 - Phase 5 customer cart draft foundation: `docs/architecture/phase-5-customer-cart-draft-foundation.md`
 - Phase 6 cart submit and cashier intake foundation: `docs/architecture/phase-6-cart-submit-cashier-intake-foundation.md`
 - Phase 7 kitchen and barista queue foundation: `docs/architecture/phase-7-kitchen-barista-queue-foundation.md`
+- Phase 8 presence, notifications, and welcome trigger foundation: `docs/architecture/phase-8-presence-notifications-welcome-triggers-foundation.md`

@@ -8,6 +8,7 @@ import { CompaniesModule } from './companies/companies.module';
 import { HealthModule } from './health/health.module';
 import { MenuModule } from './menu/menu.module';
 import { OrdersModule } from './orders/orders.module';
+import { PresenceNotificationsModule } from './presence-notifications/presence-notifications.module';
 import { PreparationTasksModule } from './preparation-tasks/preparation-tasks.module';
 import { PrismaModule } from './prisma/prisma.module';
 import { RedisModule } from './redis/redis.module';
@@ -32,6 +33,7 @@ import { TablesModule } from './tables/tables.module';
     BranchesModule,
     CartModule,
     OrdersModule,
+    PresenceNotificationsModule,
     PreparationTasksModule,
     TablesModule,
     StaffModule,

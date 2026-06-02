@@ -9,6 +9,7 @@ import {
   PreparationTaskStatus,
   Prisma,
 } from '@prisma/client';
+import { PresenceNotificationsService } from '../presence-notifications/presence-notifications.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { BranchPreparationTasksQueryDto } from './dto/branch-preparation-tasks-query.dto';
 import { CancelPreparationTaskDto } from './dto/cancel-preparation-task.dto';
@@ -24,7 +25,10 @@ type PrismaExecutor = PrismaService | Prisma.TransactionClient;
 
 @Injectable()
 export class PreparationTasksService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly presenceNotificationsService: PresenceNotificationsService,
+  ) {}
 
   async createTasksForAcceptedOrder(
     orderId: string,
@@ -224,6 +228,11 @@ export class PreparationTasksService {
           actorStaffUserId: body.staffUserId,
         },
       });
+
+      await this.presenceNotificationsService.createPreparationReadyNotification(
+        task.id,
+        tx,
+      );
 
       return this.getTaskResponse(task.id, tx);
     });

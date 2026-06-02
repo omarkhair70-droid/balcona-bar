@@ -1,9 +1,23 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
-import { Prisma, TableSessionEventType, TableSessionSource, TableSessionStatus } from '@prisma/client';
+import {
+  BadRequestException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
+import {
+  PresenceTriggerType,
+  Prisma,
+  TableSessionEventType,
+  TableSessionSource,
+  TableSessionStatus,
+} from '@prisma/client';
+import { PresenceNotificationsService } from '../presence-notifications/presence-notifications.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { StartTableSessionDto } from './dto/start-table-session.dto';
 
-const OPEN_SESSION_STATUSES: TableSessionStatus[] = [TableSessionStatus.active, TableSessionStatus.idle];
+const OPEN_SESSION_STATUSES: TableSessionStatus[] = [
+  TableSessionStatus.active,
+  TableSessionStatus.idle,
+];
 
 const sessionSelect = {
   id: true,
@@ -63,7 +77,10 @@ const tableSessionContextSelect = {
 
 @Injectable()
 export class TableSessionsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly presenceNotificationsService: PresenceNotificationsService,
+  ) {}
 
   async start(body: StartTableSessionDto) {
     const result = await this.prisma.$transaction(async (tx) => {
@@ -99,7 +116,9 @@ export class TableSessionsService {
       }
 
       if (table.status !== 'active') {
-        throw new BadRequestException(`Table is not available for sessions because it is ${table.status}`);
+        throw new BadRequestException(
+          `Table is not available for sessions because it is ${table.status}`,
+        );
       }
 
       await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${table.id})::bigint)`;
@@ -134,6 +153,12 @@ export class TableSessionsService {
           },
         });
 
+        await this.presenceNotificationsService.recordQrTableSessionPresence(
+          session,
+          PresenceTriggerType.qr_session_resumed,
+          tx,
+        );
+
         return { session, wasResumed: true };
       }
 
@@ -157,6 +182,12 @@ export class TableSessionsService {
           metadata: { qrToken: body.qrToken },
         },
       });
+
+      await this.presenceNotificationsService.recordQrTableSessionPresence(
+        session,
+        PresenceTriggerType.qr_session_started,
+        tx,
+      );
 
       return { session, wasResumed: false };
     });
@@ -286,7 +317,12 @@ export class TableSessionsService {
     }
   }
 
-  private toContextResponse(session: Prisma.TableSessionGetPayload<{ select: typeof tableSessionContextSelect }>, wasResumed?: boolean) {
+  private toContextResponse(
+    session: Prisma.TableSessionGetPayload<{
+      select: typeof tableSessionContextSelect;
+    }>,
+    wasResumed?: boolean,
+  ) {
     const { company, branch, table, ...sessionFields } = session;
     const { floor, ...tableFields } = table;
 
@@ -300,7 +336,11 @@ export class TableSessionsService {
     };
   }
 
-  private getStatusInfo(session: Prisma.TableSessionGetPayload<{ select: typeof tableSessionContextSelect }>) {
+  private getStatusInfo(
+    session: Prisma.TableSessionGetPayload<{
+      select: typeof tableSessionContextSelect;
+    }>,
+  ) {
     return {
       isOpen: OPEN_SESSION_STATUSES.includes(session.status),
       isClosed: session.status === TableSessionStatus.closed,
