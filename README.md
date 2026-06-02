@@ -87,7 +87,7 @@ pnpm web:typecheck
 
 ## UI Phase 1 status
 
-UI Phase 1 adds `apps/web` with:
+UI Phase 1 adds `apps/web` with a premium design system and product shell:
 
 - Next.js App Router route groups for customer and staff shells
 - Tailwind CSS variables for dynamic theme tokens
@@ -95,7 +95,8 @@ UI Phase 1 adds `apps/web` with:
 - React Query provider
 - SSE client foundation using `@microsoft/fetch-event-source`
 - PWA manifest and static asset caching foundation using `@ducanh2912/next-pwa`
-- basic UI primitives, haptics, and sound utilities
+- reusable CustomerShell, StaffShell, DashboardShell, UI primitives, haptics, and sound utilities
+- polished static preview surfaces for customer and staff routes
 
 Full customer PWA screens, staff dashboards, AI waiter UI, production auth screens, payment, and backend behavior changes are intentionally outside this phase.
 

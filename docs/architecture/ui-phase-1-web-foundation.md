@@ -1,6 +1,6 @@
 # UI Phase 1 Web Foundation
 
-UI Phase 1 adds the first frontend package for the Cafe AI Waiter App / Smart Cafe Operating System. The scope is intentionally foundational: one Next.js App Router app, shared primitives, dynamic theme wiring, API helpers, realtime utilities, and a PWA shell.
+UI Phase 1 adds the first frontend package for the Cafe AI Waiter App / Smart Cafe Operating System. The scope is intentionally foundational, but the foundation is expected to feel like a premium product system: one Next.js App Router app, shared primitives, product shells, dynamic theme wiring, API helpers, realtime utilities, and a PWA shell.
 
 ## Why Next.js App Router
 
@@ -17,6 +17,16 @@ The web app uses route groups to keep product contexts separate without creating
 
 The root route `/` remains a small foundation entry point linking into the two shells.
 
+## Product Shells
+
+The design system includes reusable shells that future screens can build on without redesigning the app:
+
+- `CustomerShell` provides the mobile-first table experience frame.
+- `StaffShell` provides the operator workspace frame.
+- `DashboardShell` provides the reusable dashboard layout, sidebar, mobile navigation, header, actions, and supporting rail.
+
+Placeholder routes use polished preview states and realistic product density. They do not wire live flows, mutations, dashboard behavior, or backend state.
+
 ## Balkona-First, SaaS-Ready
 
 The default visual language is a warm dark premium cafe theme suitable for Balkona. It is not hardcoded as the only supported cafe. Theme values live behind CSS variables and can be replaced later by branch-specific `ExperienceProfile.designTokens`.
@@ -28,8 +38,9 @@ The default visual language is a warm dark premium cafe theme suitable for Balko
 The current token set includes:
 
 - core colors for background, foreground, surfaces, borders, status colors, primary, and accent
+- raised and overlay surfaces for premium cards and shells
 - radius values for cards and buttons
-- card and glow shadows
+- card, elevated, and glow shadows
 
 Later phases can call `GET /api/v1/branches/:branchId/experience/effective`, normalize its `designTokens`, and pass the result into `ThemeProvider`.
 
@@ -63,7 +74,7 @@ No staff dashboard is wired to realtime events in this phase.
 
 ## PWA Foundation
 
-The PWA setup includes a manifest, icon placeholder, app metadata, and `@ducanh2912/next-pwa` config. The service worker is disabled in development and only caches static Next.js assets. Live orders, table sessions, staff state, and other business data are intentionally not cached offline.
+The PWA setup includes a manifest, app icon, metadata, and `@ducanh2912/next-pwa` config. The service worker is disabled in development and only caches static Next.js assets. Live orders, table sessions, staff state, and other business data are intentionally not cached offline.
 
 ## Haptics And Sound
 
@@ -80,6 +91,8 @@ This phase does not add:
 - backend behavior changes
 - payment flows
 - kitchen or barista queue behavior
+
+The current screens are static preview surfaces. They establish visual hierarchy, spacing, density, shell composition, and reusable primitives without adding operational behavior.
 
 ## Next UI Phases
 

@@ -5,12 +5,16 @@ const colorVariableMap = {
   foreground: "--foreground",
   surface: "--surface",
   surface2: "--surface-2",
+  surfaceRaised: "--surface-raised",
+  surfaceOverlay: "--surface-overlay",
   primary: "--primary",
   primaryForeground: "--primary-foreground",
   accent: "--accent",
+  accentForeground: "--accent-foreground",
   muted: "--muted",
   mutedForeground: "--muted-foreground",
   border: "--border",
+  ring: "--ring",
   danger: "--danger",
   success: "--success",
   warning: "--warning"
@@ -30,5 +34,6 @@ export function applyThemeTokens(
   target.style.setProperty("--radius-card", tokens.radii.card);
   target.style.setProperty("--radius-button", tokens.radii.button);
   target.style.setProperty("--shadow-card", tokens.shadows.card);
+  target.style.setProperty("--shadow-elevated", tokens.shadows.elevated);
   target.style.setProperty("--shadow-glow", tokens.shadows.glow);
 }

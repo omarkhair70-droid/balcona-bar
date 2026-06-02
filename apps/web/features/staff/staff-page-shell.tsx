@@ -1,6 +1,5 @@
 import { type ReactNode } from "react";
-import { AppShell } from "@/components/ui/app-shell";
-import { staffNavItems } from "./staff-navigation";
+import { StaffShell } from "./staff-shell";
 
 type StaffPageShellProps = {
   title: string;
@@ -16,14 +15,12 @@ export function StaffPageShell({
   actions
 }: StaffPageShellProps) {
   return (
-    <AppShell
-      eyebrow="Staff operations foundation"
+    <StaffShell
       title={title}
       description={description}
-      navItems={staffNavItems}
       actions={actions}
     >
       {children}
-    </AppShell>
+    </StaffShell>
   );
 }

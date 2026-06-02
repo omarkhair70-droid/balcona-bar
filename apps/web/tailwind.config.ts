@@ -15,12 +15,16 @@ const config: Config = {
         foreground: "var(--foreground)",
         surface: "var(--surface)",
         "surface-2": "var(--surface-2)",
+        "surface-raised": "var(--surface-raised)",
+        "surface-overlay": "var(--surface-overlay)",
         primary: "var(--primary)",
         "primary-foreground": "var(--primary-foreground)",
         accent: "var(--accent)",
+        "accent-foreground": "var(--accent-foreground)",
         muted: "var(--muted)",
         "muted-foreground": "var(--muted-foreground)",
         border: "var(--border)",
+        ring: "var(--ring)",
         danger: "var(--danger)",
         success: "var(--success)",
         warning: "var(--warning)"
@@ -31,6 +35,7 @@ const config: Config = {
       },
       boxShadow: {
         card: "var(--shadow-card)",
+        elevated: "var(--shadow-elevated)",
         glow: "var(--shadow-glow)"
       }
     }
