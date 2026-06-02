@@ -261,6 +261,116 @@ export class PresenceNotificationsService {
     );
   }
 
+  async createOrderServedNotification(
+    orderId: string,
+    tx: Prisma.TransactionClient,
+  ) {
+    const order = await this.findOrderNotificationContext(orderId, tx);
+
+    return this.createInAppNotification(
+      {
+        companyId: order.companyId,
+        branchId: order.branchId,
+        tableSessionId: order.tableSessionId,
+        customerSessionIdentityId: await this.findCustomerIdentityId(
+          order.tableSessionId,
+          tx,
+        ),
+        orderId: order.id,
+        kind: NotificationKind.order_served,
+        title: 'طلبك وصل للترابيزة',
+        body: `طلبك ${order.orderNumber} وصل للترابيزة.`,
+        dedupeKey: `order-served:${order.id}`,
+        metadata: { orderNumber: order.orderNumber },
+      },
+      tx,
+    );
+  }
+
+  async createBillRequestedNotification(
+    billRequestId: string,
+    tx: Prisma.TransactionClient,
+  ) {
+    const billRequest = await this.findBillRequestNotificationContext(
+      billRequestId,
+      tx,
+    );
+
+    return this.createInAppNotification(
+      {
+        companyId: billRequest.companyId,
+        branchId: billRequest.branchId,
+        tableSessionId: billRequest.tableSessionId,
+        customerSessionIdentityId: await this.findCustomerIdentityId(
+          billRequest.tableSessionId,
+          tx,
+        ),
+        kind: NotificationKind.bill_requested,
+        title: 'طلب الحساب اتسجل',
+        body: `طلب الحساب اتسجل بإجمالي ${billRequest.subtotalMinor} ${billRequest.currency}.`,
+        dedupeKey: `bill-requested:${billRequest.id}`,
+        metadata: this.billRequestNotificationMetadata(billRequest),
+      },
+      tx,
+    );
+  }
+
+  async createBillPresentedNotification(
+    billRequestId: string,
+    tx: Prisma.TransactionClient,
+  ) {
+    const billRequest = await this.findBillRequestNotificationContext(
+      billRequestId,
+      tx,
+    );
+
+    return this.createInAppNotification(
+      {
+        companyId: billRequest.companyId,
+        branchId: billRequest.branchId,
+        tableSessionId: billRequest.tableSessionId,
+        customerSessionIdentityId: await this.findCustomerIdentityId(
+          billRequest.tableSessionId,
+          tx,
+        ),
+        kind: NotificationKind.bill_presented,
+        title: 'الحساب في الطريق',
+        body: 'تم تقديم الحساب تشغيلياً للفريق.',
+        dedupeKey: `bill-presented:${billRequest.id}`,
+        metadata: this.billRequestNotificationMetadata(billRequest),
+      },
+      tx,
+    );
+  }
+
+  async createBillClosedNotification(
+    billRequestId: string,
+    tx: Prisma.TransactionClient,
+  ) {
+    const billRequest = await this.findBillRequestNotificationContext(
+      billRequestId,
+      tx,
+    );
+
+    return this.createInAppNotification(
+      {
+        companyId: billRequest.companyId,
+        branchId: billRequest.branchId,
+        tableSessionId: billRequest.tableSessionId,
+        customerSessionIdentityId: await this.findCustomerIdentityId(
+          billRequest.tableSessionId,
+          tx,
+        ),
+        kind: NotificationKind.bill_closed,
+        title: 'تم إغلاق الحساب تشغيلياً',
+        body: 'تم إغلاق طلب الحساب تشغيلياً بدون معالجة دفع.',
+        dedupeKey: `bill-closed:${billRequest.id}`,
+        metadata: this.billRequestNotificationMetadata(billRequest),
+      },
+      tx,
+    );
+  }
+
   async createPreparationReadyNotification(
     preparationTaskId: string,
     tx: Prisma.TransactionClient,
@@ -882,6 +992,47 @@ export class PresenceNotificationsService {
     }
 
     return order;
+  }
+
+  private async findBillRequestNotificationContext(
+    billRequestId: string,
+    tx: PrismaExecutor,
+  ) {
+    const billRequest = await tx.billRequest.findUnique({
+      where: { id: billRequestId },
+      select: {
+        id: true,
+        companyId: true,
+        branchId: true,
+        tableSessionId: true,
+        status: true,
+        subtotalMinor: true,
+        orderCount: true,
+        currency: true,
+      },
+    });
+
+    if (!billRequest) {
+      throw new NotFoundException('Bill request not found');
+    }
+
+    return billRequest;
+  }
+
+  private billRequestNotificationMetadata(billRequest: {
+    id: string;
+    status: string;
+    subtotalMinor: number;
+    orderCount: number;
+    currency: string;
+  }) {
+    return {
+      billRequestId: billRequest.id,
+      status: billRequest.status,
+      subtotalMinor: billRequest.subtotalMinor,
+      orderCount: billRequest.orderCount,
+      currency: billRequest.currency,
+    };
   }
 
   private async findCustomerIdentityId(

@@ -25,6 +25,7 @@ const realtimeEventSelect = {
   orderId: true,
   preparationTaskId: true,
   waiterCallId: true,
+  billRequestId: true,
   notificationId: true,
   type: true,
   channel: true,
@@ -43,6 +44,7 @@ export interface CreateRealtimeEventInput {
   orderId?: string | null;
   preparationTaskId?: string | null;
   waiterCallId?: string | null;
+  billRequestId?: string | null;
   notificationId?: string | null;
   type: RealtimeEventType;
   channel: RealtimeEventChannel;
@@ -61,6 +63,7 @@ export interface RealtimeEventEnvelope {
   orderId?: string;
   preparationTaskId?: string;
   waiterCallId?: string;
+  billRequestId?: string;
   notificationId?: string;
   payload: Prisma.JsonValue;
   createdAt: Date;
@@ -84,6 +87,7 @@ export class RealtimeEventsService {
         orderId: input.orderId ?? undefined,
         preparationTaskId: input.preparationTaskId ?? undefined,
         waiterCallId: input.waiterCallId ?? undefined,
+        billRequestId: input.billRequestId ?? undefined,
         notificationId: input.notificationId ?? undefined,
         type: input.type,
         channel: input.channel,
@@ -385,6 +389,34 @@ export class RealtimeEventsService {
     return this.recordOrderEvent(orderId, RealtimeEventType.order_rejected, tx);
   }
 
+  async recordOrderPreparationStarted(orderId: string, tx: PrismaExecutor) {
+    return this.recordOrderEvent(
+      orderId,
+      RealtimeEventType.order_preparation_started,
+      tx,
+    );
+  }
+
+  async recordOrderPreparationReady(orderId: string, tx: PrismaExecutor) {
+    return this.recordOrderEvent(
+      orderId,
+      RealtimeEventType.order_preparation_ready,
+      tx,
+    );
+  }
+
+  async recordOrderServed(orderId: string, tx: PrismaExecutor) {
+    return this.recordOrderEvent(orderId, RealtimeEventType.order_served, tx);
+  }
+
+  async recordOrderCompleted(orderId: string, tx: PrismaExecutor) {
+    return this.recordOrderEvent(
+      orderId,
+      RealtimeEventType.order_completed,
+      tx,
+    );
+  }
+
   async recordSmartCashierEvaluated(
     orderId: string,
     payload: unknown,
@@ -488,6 +520,46 @@ export class RealtimeEventsService {
     return this.recordWaiterCallEvent(
       waiterCallId,
       RealtimeEventType.waiter_call_cancelled,
+      tx,
+    );
+  }
+
+  async recordBillRequested(billRequestId: string, tx: PrismaExecutor) {
+    return this.recordBillRequestEvent(
+      billRequestId,
+      RealtimeEventType.bill_requested,
+      tx,
+    );
+  }
+
+  async recordBillAcknowledged(billRequestId: string, tx: PrismaExecutor) {
+    return this.recordBillRequestEvent(
+      billRequestId,
+      RealtimeEventType.bill_acknowledged,
+      tx,
+    );
+  }
+
+  async recordBillPresented(billRequestId: string, tx: PrismaExecutor) {
+    return this.recordBillRequestEvent(
+      billRequestId,
+      RealtimeEventType.bill_presented,
+      tx,
+    );
+  }
+
+  async recordBillClosed(billRequestId: string, tx: PrismaExecutor) {
+    return this.recordBillRequestEvent(
+      billRequestId,
+      RealtimeEventType.bill_closed,
+      tx,
+    );
+  }
+
+  async recordBillCancelled(billRequestId: string, tx: PrismaExecutor) {
+    return this.recordBillRequestEvent(
+      billRequestId,
+      RealtimeEventType.bill_cancelled,
       tx,
     );
   }
@@ -777,6 +849,74 @@ export class RealtimeEventsService {
     return [branchEvent, sessionEvent];
   }
 
+  private async recordBillRequestEvent(
+    billRequestId: string,
+    type: RealtimeEventType,
+    tx: PrismaExecutor,
+  ) {
+    const billRequest = await tx.billRequest.findUnique({
+      where: { id: billRequestId },
+      select: {
+        id: true,
+        companyId: true,
+        branchId: true,
+        tableSessionId: true,
+        status: true,
+        subtotalMinor: true,
+        orderCount: true,
+        currency: true,
+        requestedAt: true,
+        acknowledgedAt: true,
+        presentedAt: true,
+        closedAt: true,
+        cancelledAt: true,
+      },
+    });
+
+    if (!billRequest) {
+      throw new NotFoundException('Bill request not found');
+    }
+
+    const payload = {
+      billRequestId: billRequest.id,
+      status: billRequest.status,
+      subtotalMinor: billRequest.subtotalMinor,
+      orderCount: billRequest.orderCount,
+      currency: billRequest.currency,
+      requestedAt: billRequest.requestedAt,
+      acknowledgedAt: billRequest.acknowledgedAt,
+      presentedAt: billRequest.presentedAt,
+      closedAt: billRequest.closedAt,
+      cancelledAt: billRequest.cancelledAt,
+    };
+    const branchEvent = await this.createRealtimeEvent(
+      {
+        companyId: billRequest.companyId,
+        branchId: billRequest.branchId,
+        tableSessionId: billRequest.tableSessionId,
+        billRequestId: billRequest.id,
+        type,
+        channel: RealtimeEventChannel.branch_orders,
+        payload,
+      },
+      tx,
+    );
+    const sessionEvent = await this.createRealtimeEvent(
+      {
+        companyId: billRequest.companyId,
+        branchId: billRequest.branchId,
+        tableSessionId: billRequest.tableSessionId,
+        billRequestId: billRequest.id,
+        type,
+        channel: RealtimeEventChannel.session_status,
+        payload,
+      },
+      tx,
+    );
+
+    return [branchEvent, sessionEvent];
+  }
+
   private branchChannelsFor(channel: BranchRealtimeQueryDto['channel']) {
     switch (channel) {
       case 'orders':
@@ -888,6 +1028,7 @@ export class RealtimeEventsService {
       orderId: event.orderId ?? undefined,
       preparationTaskId: event.preparationTaskId ?? undefined,
       waiterCallId: event.waiterCallId ?? undefined,
+      billRequestId: event.billRequestId ?? undefined,
       notificationId: event.notificationId ?? undefined,
       payload: event.payload,
       createdAt: event.createdAt,

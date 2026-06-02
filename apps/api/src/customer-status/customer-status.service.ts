@@ -1,5 +1,7 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import {
+  BillRequestEventType,
+  BillRequestStatus,
   CartStatus,
   NotificationKind,
   NotificationStatus,
@@ -22,6 +24,8 @@ export const CUSTOMER_ORDER_STATUSES = [
   'preparing',
   'partially_ready',
   'ready',
+  'served',
+  'completed',
   'rejected',
   'cancelled',
   'unknown',
@@ -36,6 +40,7 @@ type TimelineEvent = {
   orderId?: string;
   preparationTaskId?: string;
   waiterCallId?: string;
+  billRequestId?: string;
   notificationId?: string;
   station?: PreparationStation;
 };
@@ -43,6 +48,10 @@ type TimelineEvent = {
 const CUSTOMER_ORDER_STATUSES_FOR_SESSION = [
   OrderStatus.submitted,
   OrderStatus.cashier_accepted,
+  OrderStatus.preparing,
+  OrderStatus.ready,
+  OrderStatus.served,
+  OrderStatus.completed,
   OrderStatus.cashier_rejected,
   OrderStatus.cancelled,
 ];
@@ -141,6 +150,11 @@ export class CustomerStatusService {
           take: 10,
           select: this.notificationSelect(),
         },
+        billRequests: {
+          orderBy: [{ requestedAt: 'desc' }, { createdAt: 'desc' }],
+          take: 5,
+          select: this.billRequestSummarySelect(),
+        },
       },
     });
 
@@ -148,8 +162,15 @@ export class CustomerStatusService {
       throw new NotFoundException('Table session not found');
     }
 
-    const { branch, table, carts, orders, notifications, ...sessionFields } =
-      tableSession;
+    const {
+      branch,
+      table,
+      carts,
+      orders,
+      notifications,
+      billRequests,
+      ...sessionFields
+    } = tableSession;
     const { floor, ...tableFields } = table;
     const draftCartSummary = carts[0]
       ? this.toDraftCartSummary(carts[0])
@@ -169,6 +190,7 @@ export class CustomerStatusService {
       ),
       draftCartSummary,
       orders: orderSummaries,
+      billSummary: this.toBillSummary(billRequests),
       notificationsSummary: this.toNotificationsSummary(notifications),
     };
   }
@@ -212,6 +234,10 @@ export class CustomerStatusService {
           orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
           select: this.waiterCallTimelineSelect(),
         },
+        billRequests: {
+          orderBy: [{ requestedAt: 'asc' }, { createdAt: 'asc' }],
+          select: this.billRequestTimelineSelect(),
+        },
       },
     });
 
@@ -226,6 +252,7 @@ export class CustomerStatusService {
       orders,
       notifications,
       waiterCalls,
+      billRequests,
       ...sessionFields
     } = tableSession;
     const { floor, ...tableFields } = table;
@@ -240,6 +267,9 @@ export class CustomerStatusService {
         ...orders.flatMap((order) => this.toOrderTimelineEvents(order)),
         ...waiterCalls.flatMap((waiterCall) =>
           this.toWaiterCallTimelineEvents(waiterCall),
+        ),
+        ...billRequests.flatMap((billRequest) =>
+          this.toBillRequestTimelineEvents(billRequest),
         ),
         ...this.toNotificationTimelineEvents(notifications),
       ]),
@@ -278,6 +308,22 @@ export class CustomerStatusService {
 
     if (order.status === OrderStatus.cancelled) {
       return 'cancelled';
+    }
+
+    if (order.status === OrderStatus.preparing) {
+      return 'preparing';
+    }
+
+    if (order.status === OrderStatus.ready) {
+      return 'ready';
+    }
+
+    if (order.status === OrderStatus.served) {
+      return 'served';
+    }
+
+    if (order.status === OrderStatus.completed) {
+      return 'completed';
     }
 
     if (order.status === OrderStatus.cashier_accepted) {
@@ -412,6 +458,42 @@ export class CustomerStatusService {
       });
     }
 
+    if (order.preparingAt) {
+      events.push({
+        type: 'order-preparing',
+        label: `Order ${order.orderNumber} preparation started.`,
+        occurredAt: order.preparingAt,
+        orderId: order.id,
+      });
+    }
+
+    if (order.readyAt) {
+      events.push({
+        type: 'order-ready',
+        label: `Order ${order.orderNumber} is ready.`,
+        occurredAt: order.readyAt,
+        orderId: order.id,
+      });
+    }
+
+    if (order.servedAt) {
+      events.push({
+        type: 'order-served',
+        label: `Order ${order.orderNumber} was served to the table.`,
+        occurredAt: order.servedAt,
+        orderId: order.id,
+      });
+    }
+
+    if (order.completedAt) {
+      events.push({
+        type: 'order-completed',
+        label: `Order ${order.orderNumber} was completed.`,
+        occurredAt: order.completedAt,
+        orderId: order.id,
+      });
+    }
+
     for (const task of order.preparationTasks ?? []) {
       events.push({
         type: 'preparation-queued',
@@ -528,6 +610,49 @@ export class CustomerStatusService {
     }));
   }
 
+  private toBillRequestTimelineEvents(billRequest: any): TimelineEvent[] {
+    return billRequest.events.map((event: any) => ({
+      type: this.billRequestTimelineType(event.type),
+      label: this.billRequestTimelineLabel(event.type),
+      occurredAt: event.createdAt,
+      billRequestId: billRequest.id,
+    }));
+  }
+
+  private billRequestTimelineType(type: BillRequestEventType) {
+    switch (type) {
+      case BillRequestEventType.created:
+        return 'bill-requested';
+      case BillRequestEventType.acknowledged:
+        return 'bill-acknowledged';
+      case BillRequestEventType.presented:
+        return 'bill-presented';
+      case BillRequestEventType.closed:
+        return 'bill-closed';
+      case BillRequestEventType.cancelled:
+        return 'bill-cancelled';
+      default:
+        return 'bill-updated';
+    }
+  }
+
+  private billRequestTimelineLabel(type: BillRequestEventType) {
+    switch (type) {
+      case BillRequestEventType.created:
+        return 'Bill request was sent to staff.';
+      case BillRequestEventType.acknowledged:
+        return 'Bill request was acknowledged.';
+      case BillRequestEventType.presented:
+        return 'Bill was presented operationally.';
+      case BillRequestEventType.closed:
+        return 'Bill request was closed operationally.';
+      case BillRequestEventType.cancelled:
+        return 'Bill request was cancelled.';
+      default:
+        return 'Bill request was updated.';
+    }
+  }
+
   private waiterCallTimelineType(type: WaiterCallEventType) {
     switch (type) {
       case WaiterCallEventType.created:
@@ -586,6 +711,13 @@ export class CustomerStatusService {
       cashierAcceptedAt: order.cashierAcceptedAt,
       cashierRejectedAt: order.cashierRejectedAt,
       rejectionReason: order.rejectionReason,
+      preparingAt: order.preparingAt,
+      readyAt: order.readyAt,
+      servedAt: order.servedAt,
+      completedAt: order.completedAt,
+      servedByStaffUserId: order.servedByStaffUserId,
+      completedByStaffUserId: order.completedByStaffUserId,
+      completionNote: order.completionNote,
       createdAt: order.createdAt,
       updatedAt: order.updatedAt,
     };
@@ -652,6 +784,45 @@ export class CustomerStatusService {
     };
   }
 
+  private toBillSummary(billRequests: any[]) {
+    const activeBillRequest = billRequests.find((billRequest) =>
+      [
+        BillRequestStatus.open,
+        BillRequestStatus.acknowledged,
+        BillRequestStatus.presented,
+      ].includes(billRequest.status),
+    );
+
+    return {
+      activeBillRequest: activeBillRequest
+        ? this.toCustomerBillRequest(activeBillRequest)
+        : null,
+      latestBillRequests: billRequests.map((billRequest) =>
+        this.toCustomerBillRequest(billRequest),
+      ),
+    };
+  }
+
+  private toCustomerBillRequest(billRequest: any) {
+    return {
+      id: billRequest.id,
+      tableSessionId: billRequest.tableSessionId,
+      status: billRequest.status,
+      currency: billRequest.currency,
+      subtotalMinor: billRequest.subtotalMinor,
+      orderCount: billRequest.orderCount,
+      requestedAt: billRequest.requestedAt,
+      acknowledgedAt: billRequest.acknowledgedAt,
+      presentedAt: billRequest.presentedAt,
+      closedAt: billRequest.closedAt,
+      cancelledAt: billRequest.cancelledAt,
+      note: billRequest.note,
+      cancellationReason: billRequest.cancellationReason,
+      createdAt: billRequest.createdAt,
+      updatedAt: billRequest.updatedAt,
+    };
+  }
+
   private countNotifications(notifications: any[], status: NotificationStatus) {
     return notifications.filter(
       (notification) => notification.status === status,
@@ -700,6 +871,14 @@ export class CustomerStatusService {
         return 'Preparation started';
       case NotificationKind.preparation_ready:
         return 'Preparation ready';
+      case NotificationKind.order_served:
+        return 'Order served';
+      case NotificationKind.bill_requested:
+        return 'Bill requested';
+      case NotificationKind.bill_presented:
+        return 'Bill presented';
+      case NotificationKind.bill_closed:
+        return 'Bill closed';
       case NotificationKind.waiter_call:
         return 'Waiter call';
       default:
@@ -826,6 +1005,42 @@ export class CustomerStatusService {
         },
       },
     } satisfies Prisma.WaiterCallSelect;
+  }
+
+  private billRequestSummarySelect() {
+    return {
+      id: true,
+      tableSessionId: true,
+      status: true,
+      currency: true,
+      subtotalMinor: true,
+      orderCount: true,
+      requestedAt: true,
+      acknowledgedAt: true,
+      presentedAt: true,
+      closedAt: true,
+      cancelledAt: true,
+      note: true,
+      cancellationReason: true,
+      createdAt: true,
+      updatedAt: true,
+    } satisfies Prisma.BillRequestSelect;
+  }
+
+  private billRequestTimelineSelect() {
+    return {
+      id: true,
+      status: true,
+      events: {
+        orderBy: [{ createdAt: 'asc' as const }, { id: 'asc' as const }],
+        select: {
+          id: true,
+          type: true,
+          actorType: true,
+          createdAt: true,
+        },
+      },
+    } satisfies Prisma.BillRequestSelect;
   }
 
   private cartInclude() {

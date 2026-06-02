@@ -9,6 +9,7 @@ import {
   OrderEventType,
   OrderSource,
   OrderStatus,
+  PreparationTaskStatus,
   Prisma,
 } from '@prisma/client';
 import { CartService } from '../cart/cart.service';
@@ -20,14 +21,29 @@ import { SmartCashierService } from '../smart-cashier/smart-cashier.service';
 import { CashierAcceptOrderDto } from './dto/cashier-accept-order.dto';
 import { CashierOrdersQueryDto } from './dto/cashier-orders-query.dto';
 import { CashierRejectOrderDto } from './dto/cashier-reject-order.dto';
+import { OrderLifecycleActionDto } from './dto/order-lifecycle-action.dto';
 import { SubmitCartDto } from './dto/submit-cart.dto';
 
 const IDEMPOTENCY_KEY_MAX_LENGTH = 128;
 const ORDER_NUMBER_PREFIX = 'B';
-const SUBMITTED_SESSION_ORDER_STATUSES = [
+const SUBMITTED_SESSION_ORDER_STATUSES: OrderStatus[] = [
   OrderStatus.submitted,
   OrderStatus.cashier_accepted,
+  OrderStatus.preparing,
+  OrderStatus.ready,
+  OrderStatus.served,
+  OrderStatus.completed,
   OrderStatus.cashier_rejected,
+  OrderStatus.cancelled,
+];
+const SERVABLE_ORDER_STATUSES: OrderStatus[] = [
+  OrderStatus.cashier_accepted,
+  OrderStatus.preparing,
+  OrderStatus.ready,
+];
+const COMPLETABLE_ORDER_STATUSES: OrderStatus[] = [
+  OrderStatus.served,
+  OrderStatus.ready,
 ];
 
 type PrismaExecutor = PrismaService | Prisma.TransactionClient;
@@ -286,6 +302,127 @@ export class OrdersService {
         tx,
       );
       await this.realtimeEventsService.recordOrderRejected(order.id, tx);
+
+      return this.getOrderResponse(order.id, tx);
+    });
+  }
+
+  async serve(orderId: string, body: OrderLifecycleActionDto = {}) {
+    return this.prisma.$transaction(async (tx) => {
+      await this.assertStaffUserExists(body.staffUserId, tx);
+
+      const order = await tx.order.findUnique({
+        where: { id: orderId },
+        select: {
+          id: true,
+          status: true,
+          preparationTasks: {
+            where: { status: { not: PreparationTaskStatus.cancelled } },
+            select: { id: true, status: true },
+          },
+        },
+      });
+
+      if (!order) {
+        throw new NotFoundException('Order not found');
+      }
+
+      if (!SERVABLE_ORDER_STATUSES.includes(order.status)) {
+        throw new BadRequestException(
+          'Only accepted, preparing, or ready orders can be served',
+        );
+      }
+
+      if (
+        order.preparationTasks.length > 0 &&
+        order.preparationTasks.some(
+          (task) => task.status !== PreparationTaskStatus.ready,
+        )
+      ) {
+        throw new BadRequestException(
+          'Orders with preparation tasks can only be served after all active tasks are ready',
+        );
+      }
+
+      const note = this.normalizeOptionalText(body.note);
+      const now = new Date();
+
+      await tx.order.update({
+        where: { id: order.id },
+        data: {
+          status: OrderStatus.served,
+          servedAt: now,
+          servedByStaffUserId: body.staffUserId,
+        },
+      });
+
+      await tx.orderEvent.create({
+        data: {
+          orderId: order.id,
+          type: OrderEventType.served,
+          actorType: body.staffUserId
+            ? OrderEventActorType.staff
+            : OrderEventActorType.system,
+          actorStaffUserId: body.staffUserId,
+          metadata: note ? { note } : undefined,
+        },
+      });
+
+      await this.presenceNotificationsService.createOrderServedNotification(
+        order.id,
+        tx,
+      );
+      await this.realtimeEventsService.recordOrderServed(order.id, tx);
+
+      return this.getOrderResponse(order.id, tx);
+    });
+  }
+
+  async complete(orderId: string, body: OrderLifecycleActionDto = {}) {
+    return this.prisma.$transaction(async (tx) => {
+      await this.assertStaffUserExists(body.staffUserId, tx);
+
+      const order = await tx.order.findUnique({
+        where: { id: orderId },
+        select: { id: true, status: true },
+      });
+
+      if (!order) {
+        throw new NotFoundException('Order not found');
+      }
+
+      if (!COMPLETABLE_ORDER_STATUSES.includes(order.status)) {
+        throw new BadRequestException(
+          'Only served or ready orders can be completed',
+        );
+      }
+
+      const note = this.normalizeOptionalText(body.note);
+      const now = new Date();
+
+      await tx.order.update({
+        where: { id: order.id },
+        data: {
+          status: OrderStatus.completed,
+          completedAt: now,
+          completedByStaffUserId: body.staffUserId,
+          completionNote: note,
+        },
+      });
+
+      await tx.orderEvent.create({
+        data: {
+          orderId: order.id,
+          type: OrderEventType.completed,
+          actorType: body.staffUserId
+            ? OrderEventActorType.staff
+            : OrderEventActorType.system,
+          actorStaffUserId: body.staffUserId,
+          metadata: note ? { note } : undefined,
+        },
+      });
+
+      await this.realtimeEventsService.recordOrderCompleted(order.id, tx);
 
       return this.getOrderResponse(order.id, tx);
     });

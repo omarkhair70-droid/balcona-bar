@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import configuration from './config/configuration';
 import { validateEnvironment } from './config/env.validation';
+import { BillRequestsModule } from './bill-requests/bill-requests.module';
 import { BranchesModule } from './branches/branches.module';
 import { CartModule } from './cart/cart.module';
 import { CompaniesModule } from './companies/companies.module';
@@ -33,6 +34,7 @@ import { WaiterCallsModule } from './waiter-calls/waiter-calls.module';
     RedisModule,
     HealthModule,
     SystemModule,
+    BillRequestsModule,
     CompaniesModule,
     BranchesModule,
     CartModule,
