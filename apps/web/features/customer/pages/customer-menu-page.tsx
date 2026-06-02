@@ -1,8 +1,10 @@
 "use client";
 
+import Link from "next/link";
 import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { AlertTriangle } from "lucide-react";
+import { AlertTriangle, Sparkles } from "lucide-react";
+import { buttonVariants } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { LoadingState } from "@/components/ui/loading-state";
 import { addCartItem, getBranchMenu, getCart } from "@/lib/api/endpoints";
@@ -72,6 +74,28 @@ export function CustomerMenuPage({ sessionId }: CustomerMenuPageProps) {
       title="Choose for the table"
       description="Browse live branch menu categories, inspect modifiers, and add items to the backend cart."
     >
+      <div className="mb-5 rounded-card border border-primary/40 bg-primary/10 p-4">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="flex items-start gap-3">
+            <Sparkles className="mt-0.5 size-5 text-primary" aria-hidden="true" />
+            <div>
+              <h2 className="text-sm font-semibold text-foreground">
+                Need help choosing?
+              </h2>
+              <p className="mt-1 text-sm text-muted-foreground">
+                Ask the AI waiter for menu-grounded suggestions. You still
+                review the cart before ordering.
+              </p>
+            </div>
+          </div>
+          <Link
+            href={`/customer/session/${sessionId}/ai-waiter`}
+            className={buttonVariants({ variant: "secondary" })}
+          >
+            Ask AI waiter
+          </Link>
+        </div>
+      </div>
       {!branchId ? (
         <EmptyState
           title="Table branch is not loaded"

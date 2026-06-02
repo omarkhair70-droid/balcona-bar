@@ -300,6 +300,74 @@ export type BillResult = Record<string, unknown> & {
   totals?: CartTotals | Record<string, unknown>;
 };
 
+export type AiWaiterLanguage = "en" | "ar-EG";
+
+export type StartAiWaiterPayload = {
+  language?: string;
+};
+
+export type SendAiWaiterMessagePayload = {
+  message: string;
+  language?: string;
+};
+
+export type ListAiWaiterMessagesQuery = {
+  limit?: number;
+};
+
+export type RejectAiCartProposalPayload = {
+  reason?: string;
+};
+
+export type EscalateAiWaiterPayload = {
+  reason:
+    | "customer_requested_human"
+    | "unclear_request"
+    | "unavailable_item"
+    | "missing_required_options"
+    | "safety_or_policy"
+    | "system_error"
+    | "other";
+  message?: string;
+};
+
+export type AiWaiterStateResult = Record<string, unknown> & {
+  tableSession?: Record<string, unknown>;
+  session: Record<string, unknown> | null;
+  messages: Record<string, unknown>[];
+  latestCartProposal?: Record<string, unknown> | null;
+  cartSummary?: CartResponse;
+  effectiveExperience?: BranchEffectiveExperience | Record<string, unknown>;
+};
+
+export type AiWaiterMessagesResult = {
+  session: Record<string, unknown> | null;
+  filters?: Record<string, unknown>;
+  messages: Record<string, unknown>[];
+};
+
+export type SendAiWaiterMessageResult = Record<string, unknown> & {
+  session?: Record<string, unknown>;
+  customerMessage?: Record<string, unknown>;
+  assistantMessage?: Record<string, unknown>;
+  suggestedActions?: string[];
+  cartProposal?: Record<string, unknown> | null;
+};
+
+export type AiCartProposalActionResult = Record<string, unknown> & {
+  proposal?: Record<string, unknown>;
+  cart?: CartResponse | Record<string, unknown>;
+};
+
+export type AiWaiterEscalateResult = Record<string, unknown> & {
+  session?: Record<string, unknown>;
+  waiterCall?: Record<string, unknown>;
+};
+
+export type AiWaiterCloseResult = Record<string, unknown> & {
+  session?: Record<string, unknown>;
+};
+
 export type StaffLoginPayload = {
   email: string;
   password: string;
