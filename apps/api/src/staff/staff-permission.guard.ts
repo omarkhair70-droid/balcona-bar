@@ -44,13 +44,19 @@ export class StaffPermissionGuard implements CanActivate {
 
     await this.staffAccessService.assertCan(staffUserId, metadata.permission, {
       companyId: metadata.companyIdParam
-        ? request.params[metadata.companyIdParam]
+        ? this.getSingleParam(request.params[metadata.companyIdParam])
         : undefined,
       branchId: metadata.branchIdParam
-        ? request.params[metadata.branchIdParam]
+        ? this.getSingleParam(request.params[metadata.branchIdParam])
         : undefined,
     });
 
     return true;
+  }
+
+  private getSingleParam(
+    value: string | string[] | undefined,
+  ): string | undefined {
+    return Array.isArray(value) ? value[0] : value;
   }
 }

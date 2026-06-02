@@ -208,14 +208,16 @@ export class StaffAccessService {
     let branch: BranchSummary | undefined;
 
     if (scope.branchId) {
-      branch = await this.prisma.branch.findUnique({
+      const foundBranch = await this.prisma.branch.findUnique({
         where: { id: scope.branchId },
         select: branchSelect,
       });
 
-      if (!branch) {
+      if (!foundBranch) {
         throw new NotFoundException('Branch not found');
       }
+
+      branch = foundBranch;
 
       if (scope.companyId && branch.companyId !== scope.companyId) {
         throw new BadRequestException('Branch does not belong to company');
@@ -225,14 +227,16 @@ export class StaffAccessService {
     }
 
     if (scope.companyId && !company) {
-      company = await this.prisma.company.findUnique({
+      const foundCompany = await this.prisma.company.findUnique({
         where: { id: scope.companyId },
         select: companySelect,
       });
 
-      if (!company) {
+      if (!foundCompany) {
         throw new NotFoundException('Company not found');
       }
+
+      company = foundCompany;
     }
 
     return {
