@@ -1,6 +1,6 @@
 # balcona-bar
 
-Balcona Bar is organized as a monorepo for the Cafe AI Waiter App / Smart Cafe Operating System. The backend core is complete through Phase 24, and UI Phase 1 adds the first Next.js web foundation for customer and staff experiences.
+Balcona Bar is organized as a monorepo for the Cafe AI Waiter App / Smart Cafe Operating System. The backend core is complete through Phase 24, UI Phase 1 adds the first Next.js web foundation for customer and staff experiences, and UI Phase 2 adds the customer PWA core.
 
 ## Layout
 
@@ -76,6 +76,18 @@ Balcona Bar is organized as a monorepo for the Cafe AI Waiter App / Smart Cafe O
 
    The web app runs on port `3001` by default.
 
+11. Open the customer PWA demo:
+
+   ```text
+   http://localhost:3001/customer
+   ```
+
+   The seeded QR token is `balcona-main-t01`, which can also be opened directly at:
+
+   ```text
+   http://localhost:3001/customer/table/balcona-main-t01
+   ```
+
 Useful root scripts:
 
 ```bash
@@ -99,6 +111,21 @@ UI Phase 1 adds `apps/web` with a premium design system and product shell:
 - polished static preview surfaces for customer and staff routes
 
 Full customer PWA screens, staff dashboards, AI waiter UI, production auth screens, payment, and backend behavior changes are intentionally outside this phase.
+
+## UI Phase 2 status
+
+UI Phase 2 builds the customer PWA core on top of the Phase 1 foundation:
+
+- customer entry and table QR start/resume routes
+- persisted table session state with the returned customer access token context
+- session home, menu, cart, status, and service routes
+- branch menu browsing with item details, modifiers, notes, quantity, and add-to-cart
+- cart read, update, remove, clear, validate, and submit flows
+- order status, customer timeline, waiter calls, bill request, and bill state surfaces
+- table-session realtime invalidation through the existing SSE client
+- branch experience loading with compatible design-token application
+
+Kitchen or barista queues, staff dashboards, payment/POS, AI waiter chat UI, external AI, and backend behavior changes remain outside this phase.
 
 ## API verification
 
@@ -864,3 +891,5 @@ Backend core is now ready for UI Phase 1 planning. Remaining production work inc
 - Phases 19, 20, and 22 cafe autopilot brain: `docs/architecture/phase-19-20-22-cafe-autopilot-brain.md`
 - Phases 21, 23, and 24 security, scaling, and hardening: `docs/architecture/phase-21-23-24-security-scaling-hardening.md`
 - Backend core complete checklist: `docs/architecture/backend-core-complete-checklist.md`
+- UI Phase 1 web foundation: `docs/architecture/ui-phase-1-web-foundation.md`
+- UI Phase 2 customer PWA core: `docs/architecture/ui-phase-2-customer-pwa-core.md`
