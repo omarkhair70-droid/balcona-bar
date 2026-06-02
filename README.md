@@ -1,6 +1,6 @@
 # balcona-bar
 
-Balcona Bar is organized as a monorepo for the Cafe AI Waiter App / Smart Café Operating System. Phase 14 adds the backend order completion and operational bill flow foundation.
+Balcona Bar is organized as a monorepo for the Cafe AI Waiter App / Smart Café Operating System. Phase 15 adds the backend menu admin foundation.
 
 ## Layout
 
@@ -92,6 +92,82 @@ Read a detailed menu item:
 
 ```bash
 curl http://localhost:3000/api/v1/menu/items/<itemId>
+```
+
+List the admin menu overview:
+
+```bash
+curl http://localhost:3000/api/v1/companies/<companyId>/menu-admin/overview
+```
+
+Create a menu category:
+
+```bash
+curl -X POST http://localhost:3000/api/v1/companies/<companyId>/menu-admin/categories \
+  -H "Content-Type: application/json" \
+  -d '{"name":"Coffee","slug":"coffee","description":"Coffee drinks","sortOrder":10,"status":"active"}'
+```
+
+Create a menu item:
+
+```bash
+curl -X POST http://localhost:3000/api/v1/companies/<companyId>/menu-admin/items \
+  -H "Content-Type: application/json" \
+  -d '{
+    "categoryId": "<categoryId>",
+    "name": "Spanish Latte",
+    "slug": "spanish-latte",
+    "description": "Sweet milk coffee",
+    "imageUrl": "https://example.com/spanish-latte.jpg",
+    "basePriceMinor": 8500,
+    "currency": "EGP",
+    "station": "barista",
+    "status": "active",
+    "isFeatured": true,
+    "sortOrder": 10
+  }'
+```
+
+Update item price or status:
+
+```bash
+curl -X PATCH http://localhost:3000/api/v1/menu-admin/items/<itemId> \
+  -H "Content-Type: application/json" \
+  -d '{"basePriceMinor":9000,"status":"inactive"}'
+```
+
+Create a modifier group and option:
+
+```bash
+curl -X POST http://localhost:3000/api/v1/companies/<companyId>/menu-admin/modifier-groups \
+  -H "Content-Type: application/json" \
+  -d '{"name":"Milk Type","slug":"milk-type","selectionType":"single","isRequired":true,"minSelections":1,"maxSelections":1,"sortOrder":10,"status":"active"}'
+
+curl -X POST http://localhost:3000/api/v1/menu-admin/modifier-groups/<groupId>/options \
+  -H "Content-Type: application/json" \
+  -d '{"name":"Oat Milk","slug":"oat-milk","priceDeltaMinor":1500,"status":"active","sortOrder":10}'
+```
+
+Attach a modifier group to an item:
+
+```bash
+curl -X POST http://localhost:3000/api/v1/menu-admin/items/<itemId>/modifier-groups \
+  -H "Content-Type: application/json" \
+  -d '{"modifierGroupId":"<groupId>","sortOrder":10}'
+```
+
+Set a branch availability override:
+
+```bash
+curl -X PUT http://localhost:3000/api/v1/branches/<branchId>/menu-admin/items/<itemId>/override \
+  -H "Content-Type: application/json" \
+  -d '{"priceOverrideMinor":9000,"isAvailable":true,"isVisible":true,"sortOrder":10}'
+```
+
+Deactivate a menu item:
+
+```bash
+curl -X POST http://localhost:3000/api/v1/menu-admin/items/<itemId>/deactivate
 ```
 
 List tables and resolve a seeded QR token:
@@ -509,3 +585,4 @@ curl http://localhost:3000/api/v1/realtime/table-sessions/<sessionId>/events?cha
 - Phase 12 realtime events foundation: `docs/architecture/phase-12-realtime-events-foundation.md`
 - Phase 13 Smart Cashier auto-accept foundation: `docs/architecture/phase-13-smart-cashier-auto-accept-foundation.md`
 - Phase 14 order completion and bill flow foundation: `docs/architecture/phase-14-order-completion-bill-flow-foundation.md`
+- Phase 15 menu admin backend: `docs/architecture/phase-15-menu-admin-backend.md`

@@ -8,6 +8,7 @@ import { CartModule } from './cart/cart.module';
 import { CompaniesModule } from './companies/companies.module';
 import { CustomerStatusModule } from './customer-status/customer-status.module';
 import { HealthModule } from './health/health.module';
+import { MenuAdminModule } from './menu-admin/menu-admin.module';
 import { MenuModule } from './menu/menu.module';
 import { OrdersModule } from './orders/orders.module';
 import { PresenceNotificationsModule } from './presence-notifications/presence-notifications.module';
@@ -46,6 +47,7 @@ import { WaiterCallsModule } from './waiter-calls/waiter-calls.module';
     SmartCashierModule,
     TablesModule,
     StaffModule,
+    MenuAdminModule,
     MenuModule,
     TableSessionsModule,
     WaiterCallsModule,
