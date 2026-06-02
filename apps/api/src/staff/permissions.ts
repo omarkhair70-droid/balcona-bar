@@ -8,6 +8,10 @@ export const STAFF_PERMISSIONS = [
   'sessions.manage',
   'menu.read',
   'menu.manage',
+  'menu.manage_categories',
+  'menu.manage_items',
+  'menu.manage_modifiers',
+  'menu.manage_branch_overrides',
   'cart.read',
   'orders.read',
   'orders.cashier_review',
@@ -54,6 +58,10 @@ export const ROLE_PERMISSIONS: Record<StaffRole, readonly StaffPermission[]> = {
     'sessions.manage',
     'menu.read',
     'menu.manage',
+    'menu.manage_categories',
+    'menu.manage_items',
+    'menu.manage_modifiers',
+    'menu.manage_branch_overrides',
     'cart.read',
     'orders.read',
     'orders.cashier_review',
@@ -85,6 +93,7 @@ export const ROLE_PERMISSIONS: Record<StaffRole, readonly StaffPermission[]> = {
     'analytics.read',
   ],
   [StaffRole.cashier]: [
+    'menu.read',
     'orders.read',
     'orders.cashier_review',
     'orders.accept',
@@ -108,6 +117,7 @@ export const ROLE_PERMISSIONS: Record<StaffRole, readonly StaffPermission[]> = {
     'waiter_calls.read',
   ],
   [StaffRole.waiter]: [
+    'menu.read',
     'tables.read',
     'sessions.read',
     'waiter_calls.read',
@@ -116,12 +126,14 @@ export const ROLE_PERMISSIONS: Record<StaffRole, readonly StaffPermission[]> = {
     'notifications.read',
   ],
   [StaffRole.kitchen]: [
+    'menu.read',
     'preparation.read',
     'preparation.start',
     'preparation.ready',
     'preparation.cancel',
   ],
   [StaffRole.barista]: [
+    'menu.read',
     'preparation.read',
     'preparation.start',
     'preparation.ready',
@@ -132,6 +144,10 @@ export const ROLE_PERMISSIONS: Record<StaffRole, readonly StaffPermission[]> = {
     'branches.read',
     'menu.read',
     'menu.manage',
+    'menu.manage_categories',
+    'menu.manage_items',
+    'menu.manage_modifiers',
+    'menu.manage_branch_overrides',
   ],
 };
 
