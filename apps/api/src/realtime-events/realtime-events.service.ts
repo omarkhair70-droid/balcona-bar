@@ -385,6 +385,45 @@ export class RealtimeEventsService {
     return this.recordOrderEvent(orderId, RealtimeEventType.order_rejected, tx);
   }
 
+  async recordSmartCashierEvaluated(
+    orderId: string,
+    payload: unknown,
+    tx: PrismaExecutor,
+  ) {
+    return this.recordSmartCashierEvent(
+      orderId,
+      RealtimeEventType.smart_cashier_evaluated,
+      payload,
+      tx,
+    );
+  }
+
+  async recordSmartCashierAutoAccepted(
+    orderId: string,
+    payload: unknown,
+    tx: PrismaExecutor,
+  ) {
+    return this.recordSmartCashierEvent(
+      orderId,
+      RealtimeEventType.smart_cashier_auto_accepted,
+      payload,
+      tx,
+    );
+  }
+
+  async recordSmartCashierManualReviewRequired(
+    orderId: string,
+    payload: unknown,
+    tx: PrismaExecutor,
+  ) {
+    return this.recordSmartCashierEvent(
+      orderId,
+      RealtimeEventType.smart_cashier_manual_review_required,
+      payload,
+      tx,
+    );
+  }
+
   async recordPreparationTaskCreated(taskId: string, tx: PrismaExecutor) {
     return this.recordPreparationTaskEvent(
       taskId,
@@ -511,6 +550,68 @@ export class RealtimeEventsService {
       totalQuantity: order.totalQuantity,
       itemCount: order.itemCount,
       currency: order.currency,
+    };
+    const branchEvent = await this.createRealtimeEvent(
+      {
+        companyId: order.companyId,
+        branchId: order.branchId,
+        tableSessionId: order.tableSessionId,
+        orderId: order.id,
+        type,
+        channel: RealtimeEventChannel.branch_orders,
+        payload,
+      },
+      tx,
+    );
+    const sessionEvent = await this.createRealtimeEvent(
+      {
+        companyId: order.companyId,
+        branchId: order.branchId,
+        tableSessionId: order.tableSessionId,
+        orderId: order.id,
+        type,
+        channel: RealtimeEventChannel.session_status,
+        payload,
+      },
+      tx,
+    );
+
+    return [branchEvent, sessionEvent];
+  }
+
+  private async recordSmartCashierEvent(
+    orderId: string,
+    type: RealtimeEventType,
+    smartCashierPayload: unknown,
+    tx: PrismaExecutor,
+  ) {
+    const order = await tx.order.findUnique({
+      where: { id: orderId },
+      select: {
+        id: true,
+        companyId: true,
+        branchId: true,
+        tableSessionId: true,
+        orderNumber: true,
+        status: true,
+        autoAcceptDecision: true,
+        autoAcceptedAt: true,
+        autoAcceptEvaluatedAt: true,
+      },
+    });
+
+    if (!order) {
+      throw new NotFoundException('Order not found');
+    }
+
+    const payload = {
+      orderId: order.id,
+      orderNumber: order.orderNumber,
+      status: order.status,
+      autoAcceptDecision: order.autoAcceptDecision,
+      autoAcceptedAt: order.autoAcceptedAt,
+      autoAcceptEvaluatedAt: order.autoAcceptEvaluatedAt,
+      smartCashier: smartCashierPayload,
     };
     const branchEvent = await this.createRealtimeEvent(
       {

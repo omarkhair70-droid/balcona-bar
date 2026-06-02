@@ -16,6 +16,7 @@ import { PresenceNotificationsService } from '../presence-notifications/presence
 import { PreparationTasksService } from '../preparation-tasks/preparation-tasks.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { RealtimeEventsService } from '../realtime-events/realtime-events.service';
+import { SmartCashierService } from '../smart-cashier/smart-cashier.service';
 import { CashierAcceptOrderDto } from './dto/cashier-accept-order.dto';
 import { CashierOrdersQueryDto } from './dto/cashier-orders-query.dto';
 import { CashierRejectOrderDto } from './dto/cashier-reject-order.dto';
@@ -44,6 +45,7 @@ export class OrdersService {
     private readonly preparationTasksService: PreparationTasksService,
     private readonly presenceNotificationsService: PresenceNotificationsService,
     private readonly realtimeEventsService: RealtimeEventsService,
+    private readonly smartCashierService: SmartCashierService,
   ) {}
 
   async submitCart(
@@ -146,6 +148,7 @@ export class OrdersService {
         tx,
       );
       await this.realtimeEventsService.recordOrderSubmitted(order.id, tx);
+      await this.smartCashierService.attemptAutoAcceptOrder(order.id, tx);
 
       return this.getOrderResponse(order.id, tx, {
         replayed: false,

@@ -1,6 +1,6 @@
 # balcona-bar
 
-Balcona Bar is organized as a monorepo for the Cafe AI Waiter App / Smart Café Operating System. Phase 12 adds the backend foundation for stored realtime events and Server-Sent Events streams.
+Balcona Bar is organized as a monorepo for the Cafe AI Waiter App / Smart Café Operating System. Phase 13 adds the deterministic Smart Cashier / Auto-Accept Rules foundation.
 
 ## Layout
 
@@ -192,6 +192,55 @@ curl -X POST http://localhost:3000/api/v1/orders/<orderId>/cashier/reject \
   -d '{"reason":"Item unavailable","staffUserId":"<optionalStaffUserId>"}'
 ```
 
+Read Smart Cashier settings. Missing settings return the default effective mode: disabled `manual_only`.
+
+```bash
+curl http://localhost:3000/api/v1/branches/<branchId>/smart-cashier/settings
+```
+
+Enable deterministic auto-accept for safe orders:
+
+```bash
+curl -X PUT http://localhost:3000/api/v1/branches/<branchId>/smart-cashier/settings \
+  -H "Content-Type: application/json" \
+  -d '{
+    "enabled": true,
+    "mode": "auto_accept_safe_orders",
+    "maxAutoAcceptSubtotalMinor": 50000,
+    "requirePaymentBeforeAutoAccept": false,
+    "reviewCustomerNotes": true
+  }'
+```
+
+Submit a valid draft cart. If every Smart Cashier check passes, the response shows `cashier_accepted`, `autoAcceptDecision=auto_accepted`, and created preparation tasks:
+
+```bash
+curl -X POST http://localhost:3000/api/v1/table-sessions/<sessionId>/cart/submit \
+  -H "Content-Type: application/json" \
+  -H "Idempotency-Key: demo-session-<sessionId>-submit-auto-accept-1" \
+  -d '{}'
+```
+
+Evaluate or explicitly attempt auto-accept for an existing order:
+
+```bash
+curl -X POST http://localhost:3000/api/v1/orders/<orderId>/smart-cashier/evaluate
+
+curl -X POST http://localhost:3000/api/v1/orders/<orderId>/smart-cashier/attempt-auto-accept
+```
+
+Create, list, and disable Smart Cashier review rules:
+
+```bash
+curl -X POST http://localhost:3000/api/v1/branches/<branchId>/smart-cashier/review-rules \
+  -H "Content-Type: application/json" \
+  -d '{"scope":"menu_item","menuItemId":"<menuItemId>","reasonCode":"item_requires_review","note":"Seasonal manual check"}'
+
+curl http://localhost:3000/api/v1/branches/<branchId>/smart-cashier/review-rules
+
+curl -X POST http://localhost:3000/api/v1/smart-cashier/review-rules/<ruleId>/disable
+```
+
 List pending preparation tasks for a branch:
 
 ```bash
@@ -334,6 +383,12 @@ Check if a cashier can accept an order for a branch:
 curl "http://localhost:3000/api/v1/staff/<cashierStaffUserId>/can?permission=orders.accept&branchId=<branchId>"
 ```
 
+Check if a cashier can attempt Smart Cashier auto-accept:
+
+```bash
+curl "http://localhost:3000/api/v1/staff/<cashierStaffUserId>/can?permission=smart_cashier.auto_accept&branchId=<branchId>"
+```
+
 Check if kitchen staff can start preparation:
 
 ```bash
@@ -397,3 +452,4 @@ curl http://localhost:3000/api/v1/realtime/table-sessions/<sessionId>/events?cha
 - Phase 10 waiter call system foundation: `docs/architecture/phase-10-waiter-call-system-foundation.md`
 - Phase 11 staff roles and permissions foundation: `docs/architecture/phase-11-staff-roles-permissions-foundation.md`
 - Phase 12 realtime events foundation: `docs/architecture/phase-12-realtime-events-foundation.md`
+- Phase 13 Smart Cashier auto-accept foundation: `docs/architecture/phase-13-smart-cashier-auto-accept-foundation.md`

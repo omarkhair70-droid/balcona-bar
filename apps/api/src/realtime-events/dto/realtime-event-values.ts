@@ -31,6 +31,9 @@ export const REALTIME_EVENT_TYPES = [
   'waiter_call_acknowledged',
   'waiter_call_resolved',
   'waiter_call_cancelled',
+  'smart_cashier_evaluated',
+  'smart_cashier_auto_accepted',
+  'smart_cashier_manual_review_required',
   'system',
 ] as const;
 

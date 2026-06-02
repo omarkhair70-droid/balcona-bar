@@ -139,6 +139,39 @@ enum OrderEventActorType {
   dev
 }
 
+enum SmartCashierMode {
+  manual_only
+  assisted
+  auto_accept_safe_orders
+}
+
+enum SmartCashierRuleScope {
+  branch
+  menu_item
+  category
+}
+
+enum ManualReviewReasonCode {
+  smart_cashier_disabled
+  branch_manual_only
+  assisted_mode_requires_review
+  cart_invalid
+  branch_closed
+  order_amount_too_high
+  item_requires_review
+  item_unavailable
+  modifier_unavailable
+  out_of_stock
+  payment_required
+  customer_note_present
+  unknown
+}
+
+enum AutoAcceptDecision {
+  auto_accepted
+  requires_manual_review
+}
+
 enum WaiterCallType {
   call_waiter
   need_bill
@@ -233,6 +266,9 @@ enum RealtimeEventType {
   waiter_call_acknowledged
   waiter_call_resolved
   waiter_call_cancelled
+  smart_cashier_evaluated
+  smart_cashier_auto_accepted
+  smart_cashier_manual_review_required
   system
 }
 
@@ -282,6 +318,8 @@ model Company {
   presenceEvents            PresenceEvent[]
   preparationTasks          PreparationTask[]
   realtimeEvents            RealtimeEvent[]
+  smartCashierSettings      BranchSmartCashierSettings[]
+  smartCashierReviewRules   SmartCashierReviewRule[]
   staffMemberships          StaffMembership[]
   tableSessions             TableSession[]
   customerSessionIdentities CustomerSessionIdentity[]
@@ -300,7 +338,7 @@ model Branch {
   createdAt DateTime     @default(now())
   updatedAt DateTime     @updatedAt
 
-  company                   Company                   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  company                   Company                     @relation(fields: [companyId], references: [id], onDelete: Cascade)
   carts                     Cart[]
   floors                    Floor[]
   menuItemOverrides         BranchMenuItemOverride[]
@@ -310,6 +348,8 @@ model Branch {
   presenceEvents            PresenceEvent[]
   preparationTasks          PreparationTask[]
   realtimeEvents            RealtimeEvent[]
+  smartCashierSettings      BranchSmartCashierSettings?
+  smartCashierReviewRules   SmartCashierReviewRule[]
   tables                    CafeTable[]
   staffMemberships          StaffMembership[]
   tableSessions             TableSession[]
@@ -407,8 +447,9 @@ model MenuCategory {
   createdAt   DateTime           @default(now())
   updatedAt   DateTime           @updatedAt
 
-  company Company    @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  items   MenuItem[]
+  company                 Company                  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  items                   MenuItem[]
+  smartCashierReviewRules SmartCashierReviewRule[]
 
   @@unique([companyId, slug])
   @@index([companyId])
@@ -432,12 +473,13 @@ model MenuItem {
   createdAt      DateTime           @default(now())
   updatedAt      DateTime           @updatedAt
 
-  company         Company                  @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  category        MenuCategory             @relation(fields: [categoryId], references: [id], onDelete: Restrict)
-  modifierGroups  MenuItemModifierGroup[]
-  branchOverrides BranchMenuItemOverride[]
-  cartItems       CartItem[]
-  orderItems      OrderItem[]
+  company                 Company                  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  category                MenuCategory             @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+  modifierGroups          MenuItemModifierGroup[]
+  branchOverrides         BranchMenuItemOverride[]
+  cartItems               CartItem[]
+  orderItems              OrderItem[]
+  smartCashierReviewRules SmartCashierReviewRule[]
 
   @@unique([companyId, slug])
   @@index([companyId])
@@ -527,6 +569,54 @@ model BranchMenuItemOverride {
   @@index([menuItemId])
   @@index([isAvailable])
   @@index([isVisible])
+}
+
+model BranchSmartCashierSettings {
+  id                             String           @id @default(uuid())
+  companyId                      String
+  branchId                       String           @unique
+  mode                           SmartCashierMode @default(manual_only)
+  enabled                        Boolean          @default(false)
+  maxAutoAcceptSubtotalMinor     Int?
+  requirePaymentBeforeAutoAccept Boolean          @default(false)
+  reviewCustomerNotes            Boolean          @default(true)
+  createdAt                      DateTime         @default(now())
+  updatedAt                      DateTime         @updatedAt
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  branch  Branch  @relation(fields: [branchId], references: [id], onDelete: Cascade)
+
+  @@index([companyId])
+  @@index([branchId])
+  @@index([mode])
+  @@index([enabled])
+}
+
+model SmartCashierReviewRule {
+  id         String                 @id @default(uuid())
+  companyId  String
+  branchId   String
+  scope      SmartCashierRuleScope
+  menuItemId String?
+  categoryId String?
+  reasonCode ManualReviewReasonCode
+  enabled    Boolean                @default(true)
+  note       String?
+  createdAt  DateTime               @default(now())
+  updatedAt  DateTime               @updatedAt
+
+  company  Company       @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  branch   Branch        @relation(fields: [branchId], references: [id], onDelete: Cascade)
+  menuItem MenuItem?     @relation(fields: [menuItemId], references: [id], onDelete: Cascade)
+  category MenuCategory? @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+
+  @@index([companyId])
+  @@index([branchId])
+  @@index([scope])
+  @@index([menuItemId])
+  @@index([categoryId])
+  @@index([reasonCode])
+  @@index([enabled])
 }
 
 model TableSession {
@@ -647,26 +737,31 @@ model CartItemModifierOption {
 }
 
 model Order {
-  id                String      @id @default(uuid())
-  companyId         String
-  branchId          String
-  tableSessionId    String
-  cartId            String?
-  orderNumber       String
-  status            OrderStatus @default(submitted)
-  source            OrderSource
-  currency          String      @default("EGP")
-  subtotalMinor     Int
-  totalQuantity     Int
-  itemCount         Int
-  customerNote      String?
-  idempotencyKey    String?
-  submittedAt       DateTime    @default(now())
-  cashierAcceptedAt DateTime?
-  cashierRejectedAt DateTime?
-  rejectionReason   String?
-  createdAt         DateTime    @default(now())
-  updatedAt         DateTime    @updatedAt
+  id                       String              @id @default(uuid())
+  companyId                String
+  branchId                 String
+  tableSessionId           String
+  cartId                   String?
+  orderNumber              String
+  status                   OrderStatus         @default(submitted)
+  source                   OrderSource
+  currency                 String              @default("EGP")
+  subtotalMinor            Int
+  totalQuantity            Int
+  itemCount                Int
+  customerNote             String?
+  idempotencyKey           String?
+  submittedAt              DateTime            @default(now())
+  cashierAcceptedAt        DateTime?
+  cashierRejectedAt        DateTime?
+  rejectionReason          String?
+  autoAcceptDecision       AutoAcceptDecision?
+  autoAcceptedAt           DateTime?
+  manualReviewReasons      Json?
+  smartCashierModeSnapshot SmartCashierMode?
+  autoAcceptEvaluatedAt    DateTime?
+  createdAt                DateTime            @default(now())
+  updatedAt                DateTime            @updatedAt
 
   company          Company           @relation(fields: [companyId], references: [id], onDelete: Cascade)
   branch           Branch            @relation(fields: [branchId], references: [id], onDelete: Cascade)
@@ -686,6 +781,8 @@ model Order {
   @@index([tableSessionId])
   @@index([status])
   @@index([submittedAt])
+  @@index([autoAcceptDecision])
+  @@index([autoAcceptedAt])
 }
 
 model OrderItem {

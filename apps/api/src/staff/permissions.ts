@@ -13,6 +13,10 @@ export const STAFF_PERMISSIONS = [
   'orders.cashier_review',
   'orders.accept',
   'orders.reject',
+  'smart_cashier.read',
+  'smart_cashier.manage',
+  'smart_cashier.evaluate',
+  'smart_cashier.auto_accept',
   'preparation.read',
   'preparation.start',
   'preparation.ready',
@@ -47,6 +51,10 @@ export const ROLE_PERMISSIONS: Record<StaffRole, readonly StaffPermission[]> = {
     'orders.cashier_review',
     'orders.accept',
     'orders.reject',
+    'smart_cashier.read',
+    'smart_cashier.manage',
+    'smart_cashier.evaluate',
+    'smart_cashier.auto_accept',
     'preparation.read',
     'preparation.start',
     'preparation.ready',
@@ -65,6 +73,9 @@ export const ROLE_PERMISSIONS: Record<StaffRole, readonly StaffPermission[]> = {
     'orders.cashier_review',
     'orders.accept',
     'orders.reject',
+    'smart_cashier.read',
+    'smart_cashier.evaluate',
+    'smart_cashier.auto_accept',
     'tables.read',
     'sessions.read',
     'waiter_calls.read',
@@ -101,6 +112,8 @@ export function isStaffPermission(value: string): value is StaffPermission {
   return STAFF_PERMISSION_SET.has(value);
 }
 
-export function getRolePermissions(role: StaffRole): readonly StaffPermission[] {
+export function getRolePermissions(
+  role: StaffRole,
+): readonly StaffPermission[] {
   return ROLE_PERMISSIONS[role];
 }
