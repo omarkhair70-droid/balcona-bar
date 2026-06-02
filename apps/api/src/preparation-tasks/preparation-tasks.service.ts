@@ -194,6 +194,11 @@ export class PreparationTasksService {
         },
       });
 
+      await this.presenceNotificationsService.createPreparationStartedNotification(
+        task.id,
+        tx,
+      );
+
       return this.getTaskResponse(task.id, tx);
     });
   }

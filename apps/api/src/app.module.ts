@@ -5,6 +5,7 @@ import { validateEnvironment } from './config/env.validation';
 import { BranchesModule } from './branches/branches.module';
 import { CartModule } from './cart/cart.module';
 import { CompaniesModule } from './companies/companies.module';
+import { CustomerStatusModule } from './customer-status/customer-status.module';
 import { HealthModule } from './health/health.module';
 import { MenuModule } from './menu/menu.module';
 import { OrdersModule } from './orders/orders.module';
@@ -32,6 +33,7 @@ import { TablesModule } from './tables/tables.module';
     CompaniesModule,
     BranchesModule,
     CartModule,
+    CustomerStatusModule,
     OrdersModule,
     PresenceNotificationsModule,
     PreparationTasksModule,
