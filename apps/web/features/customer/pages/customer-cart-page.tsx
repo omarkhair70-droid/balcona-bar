@@ -180,6 +180,15 @@ export function CustomerCartPage({ sessionId }: CustomerCartPageProps) {
                   Cart needs attention before submitting.
                 </div>
               ) : null}
+              {submitMutation.isError ? (
+                <div
+                  role="alert"
+                  className="rounded-card border border-danger bg-danger/10 p-3 text-sm text-danger"
+                >
+                  We could not submit your order yet. Please check the cart and
+                  try again. {submitMutation.error.message}
+                </div>
+              ) : null}
             </CardContent>
             <CardFooter>
               <Button

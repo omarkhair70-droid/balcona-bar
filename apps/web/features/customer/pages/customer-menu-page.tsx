@@ -59,6 +59,10 @@ export function CustomerMenuPage({ sessionId }: CustomerMenuPageProps) {
       });
     }
   });
+  const selectItem = (item: MenuItemSummary) => {
+    addMutation.reset();
+    setSelectedItem(item);
+  };
 
   return (
     <CustomerSessionScreen
@@ -106,7 +110,7 @@ export function CustomerMenuPage({ sessionId }: CustomerMenuPageProps) {
                     <MenuItemCard
                       key={item.id}
                       item={item}
-                      onSelect={setSelectedItem}
+                      onSelect={selectItem}
                     />
                   ))}
                 </div>
@@ -122,7 +126,7 @@ export function CustomerMenuPage({ sessionId }: CustomerMenuPageProps) {
                     <MenuItemCard
                       key={item.id}
                       item={item}
-                      onSelect={setSelectedItem}
+                      onSelect={selectItem}
                     />
                   ))}
                 </div>
@@ -137,6 +141,11 @@ export function CustomerMenuPage({ sessionId }: CustomerMenuPageProps) {
               <ItemDetailPanel
                 item={selectedItem}
                 isAdding={addMutation.isPending}
+                errorMessage={
+                  addMutation.isError
+                    ? `We could not add this item to your cart. ${addMutation.error.message}`
+                    : undefined
+                }
                 onClose={() => setSelectedItem(null)}
                 onAdd={async (payload) => {
                   await addMutation.mutateAsync(payload);

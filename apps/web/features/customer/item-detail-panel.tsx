@@ -25,6 +25,7 @@ import { QuantityStepper } from "./quantity-stepper";
 type ItemDetailPanelProps = {
   item: MenuItemSummary;
   isAdding?: boolean;
+  errorMessage?: string;
   onClose: () => void;
   onAdd: (payload: AddCartItemPayload) => Promise<void> | void;
 };
@@ -46,6 +47,7 @@ function getMissingRequiredGroups(
 export function ItemDetailPanel({
   item,
   isAdding,
+  errorMessage,
   onClose,
   onAdd
 }: ItemDetailPanelProps) {
@@ -64,18 +66,22 @@ export function ItemDetailPanel({
       return;
     }
 
-    await onAdd({
-      menuItemId: item.id,
-      quantity,
-      notes: notes.trim() || undefined,
-      selectedModifiers: Object.entries(selections).map(
-        ([modifierGroupId, optionIds]) => ({
-          modifierGroupId,
-          optionIds
-        })
-      )
-    });
-    vibrateLight();
+    try {
+      await onAdd({
+        menuItemId: item.id,
+        quantity,
+        notes: notes.trim() || undefined,
+        selectedModifiers: Object.entries(selections).map(
+          ([modifierGroupId, optionIds]) => ({
+            modifierGroupId,
+            optionIds
+          })
+        )
+      });
+      vibrateLight();
+    } catch {
+      vibrateWarning();
+    }
   }
 
   return (
@@ -127,6 +133,14 @@ export function ItemDetailPanel({
             Choose required options for{" "}
             {missingRequiredGroups.map((group) => group.name).join(", ")}.
           </p>
+        ) : null}
+        {errorMessage ? (
+          <div
+            role="alert"
+            className="rounded-card border border-danger bg-danger/10 p-3 text-sm text-danger"
+          >
+            {errorMessage}
+          </div>
         ) : null}
       </CardContent>
       <CardFooter>

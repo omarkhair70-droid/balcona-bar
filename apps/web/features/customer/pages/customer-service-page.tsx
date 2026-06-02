@@ -18,6 +18,7 @@ import type { WaiterCallPayload } from "@/lib/api/types";
 import { useCustomerSessionStore } from "@/lib/customer/customer-session-store";
 import { vibrateSuccess, vibrateWarning } from "@/lib/haptics/haptics";
 import { CustomerSessionScreen } from "../customer-session-screen";
+import { formatMoney, getRecordString } from "../customer-format";
 import { ServiceActionCard } from "../service-action-card";
 
 type CustomerServicePageProps = {
@@ -65,6 +66,24 @@ function getRecords(value: unknown) {
   return [];
 }
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function getRecord(value: unknown) {
+  return isRecord(value) ? value : undefined;
+}
+
+function getRecordNumber(
+  record: Record<string, unknown> | undefined,
+  key: string,
+  fallback = 0
+) {
+  const value = record?.[key];
+
+  return typeof value === "number" ? value : fallback;
+}
+
 export function CustomerServicePage({ sessionId }: CustomerServicePageProps) {
   const queryClient = useQueryClient();
   const token = useCustomerSessionStore((state) => state.customerAccessToken);
@@ -102,6 +121,38 @@ export function CustomerServicePage({ sessionId }: CustomerServicePageProps) {
   const waiterCalls = getRecords(
     waiterCallsQuery.data?.waiterCalls ?? waiterCallsQuery.data?.calls
   );
+  const activeBillRequest = getRecord(billQuery.data?.activeBillRequest);
+  const billTotals = getRecord(billQuery.data?.totals);
+  const billOrderCount = getRecordNumber(billTotals, "orderCount");
+  const billSubtotalMinor = getRecordNumber(billTotals, "subtotalMinor");
+  const billCurrency = getRecordString(billTotals, "currency", "EGP");
+  const activeBillStatus = getRecordString(
+    activeBillRequest,
+    "status",
+    "active"
+  ).replaceAll("_", " ");
+  const hasNoBillableOrders = billQuery.isSuccess && billOrderCount === 0;
+  const isBillRequestDisabled =
+    billMutation.isPending || Boolean(activeBillRequest) || hasNoBillableOrders;
+  const billSummary = `${billOrderCount} billable order${
+    billOrderCount === 1 ? "" : "s"
+  } totaling ${formatMoney(billSubtotalMinor, billCurrency)}.`;
+  const billStateDescription = activeBillRequest
+    ? `Active bill request: ${activeBillStatus}.`
+    : hasNoBillableOrders
+      ? "The bill will be available after your order is accepted or served."
+      : billQuery.data
+        ? billSummary
+        : "No bill request is active yet.";
+  const billButtonLabel = billMutation.isPending
+    ? "Requesting..."
+    : activeBillRequest
+      ? "Bill requested"
+      : hasNoBillableOrders
+        ? "Not available yet"
+        : "Request bill";
+  const billButtonVariant =
+    activeBillRequest || hasNoBillableOrders ? "secondary" : "primary";
 
   return (
     <CustomerSessionScreen
@@ -127,6 +178,15 @@ export function CustomerServicePage({ sessionId }: CustomerServicePageProps) {
           />
         ))}
       </section>
+      {callMutation.isError ? (
+        <div
+          role="alert"
+          className="mt-4 rounded-card border border-danger bg-danger/10 p-3 text-sm text-danger"
+        >
+          We could not send that service request. Please try again from the
+          table. {callMutation.error.message}
+        </div>
+      ) : null}
 
       <section className="mt-5 grid gap-5 lg:grid-cols-[1fr_1fr]">
         <Card variant="glass" padding="lg">
@@ -184,16 +244,37 @@ export function CustomerServicePage({ sessionId }: CustomerServicePageProps) {
                 Current bill state
               </p>
               <p className="mt-2 text-xs text-muted-foreground">
-                {billQuery.data
-                  ? "Bill information loaded from backend."
-                  : "No bill request is active yet."}
+                {billStateDescription}
               </p>
+              {activeBillRequest ? (
+                <div className="mt-3 rounded-card border border-success bg-success/10 p-3 text-sm text-success">
+                  Your bill request is already active. Status:{" "}
+                  {activeBillStatus}.
+                </div>
+              ) : null}
+              {hasNoBillableOrders ? (
+                <div className="mt-3 rounded-card border border-warning bg-warning/10 p-3 text-sm text-warning">
+                  The bill will be available after your order is accepted or
+                  served.
+                </div>
+              ) : null}
+              {billMutation.isError ? (
+                <div
+                  role="alert"
+                  className="mt-3 rounded-card border border-danger bg-danger/10 p-3 text-sm text-danger"
+                >
+                  We could not request the bill yet. The bill may not be
+                  available until your order is accepted or served.{" "}
+                  {billMutation.error.message}
+                </div>
+              ) : null}
               <Button
                 className="mt-4"
                 onClick={() => billMutation.mutate()}
-                disabled={billMutation.isPending}
+                disabled={isBillRequestDisabled}
+                variant={billButtonVariant}
               >
-                {billMutation.isPending ? "Requesting..." : "Request bill"}
+                {billButtonLabel}
               </Button>
             </div>
           </CardContent>
