@@ -1,6 +1,6 @@
 # balcona-bar
 
-Balcona Bar is organized as a monorepo for the Cafe AI Waiter App / Smart Café Operating System. Phase 10 adds the backend foundation for customer waiter calls and branch staff waiter-call queues.
+Balcona Bar is organized as a monorepo for the Cafe AI Waiter App / Smart Café Operating System. Phase 11 adds the backend foundation for staff roles, permissions, and internal access checks.
 
 ## Layout
 
@@ -322,6 +322,42 @@ Development-only staff verification:
 curl http://localhost:3000/api/v1/staff
 ```
 
+Get staff access context and effective permissions:
+
+```bash
+curl http://localhost:3000/api/v1/staff/<staffUserId>/access
+```
+
+Check if a cashier can accept an order for a branch:
+
+```bash
+curl "http://localhost:3000/api/v1/staff/<cashierStaffUserId>/can?permission=orders.accept&branchId=<branchId>"
+```
+
+Check if kitchen staff can start preparation:
+
+```bash
+curl "http://localhost:3000/api/v1/staff/<kitchenStaffUserId>/can?permission=preparation.start&branchId=<branchId>"
+```
+
+Check if a waiter can resolve a waiter call:
+
+```bash
+curl "http://localhost:3000/api/v1/staff/<waiterStaffUserId>/can?permission=waiter_calls.resolve&branchId=<branchId>"
+```
+
+Denied example for the wrong role:
+
+```bash
+curl "http://localhost:3000/api/v1/staff/<waiterStaffUserId>/can?permission=orders.accept&branchId=<branchId>"
+```
+
+Check branch-level access with explicit company and branch scope:
+
+```bash
+curl "http://localhost:3000/api/v1/staff/<staffUserId>/can?permission=branches.read&companyId=<companyId>&branchId=<branchId>"
+```
+
 ## Phase notes
 
 - Phase 1 backend skeleton: `docs/architecture/phase-1-backend-skeleton.md`
@@ -334,3 +370,4 @@ curl http://localhost:3000/api/v1/staff
 - Phase 8 presence, notifications, and welcome trigger foundation: `docs/architecture/phase-8-presence-notifications-welcome-triggers-foundation.md`
 - Phase 9 customer order status foundation: `docs/architecture/phase-9-customer-order-status-foundation.md`
 - Phase 10 waiter call system foundation: `docs/architecture/phase-10-waiter-call-system-foundation.md`
+- Phase 11 staff roles and permissions foundation: `docs/architecture/phase-11-staff-roles-permissions-foundation.md`
