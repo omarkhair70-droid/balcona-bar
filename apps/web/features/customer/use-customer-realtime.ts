@@ -45,6 +45,15 @@ export function useCustomerRealtime(sessionId?: string, token?: string) {
         void queryClient.invalidateQueries({
           queryKey: customerQueryKeys.bill(sessionId)
         });
+        void queryClient.invalidateQueries({
+          queryKey: customerQueryKeys.aiWaiter(sessionId)
+        });
+        void queryClient.invalidateQueries({
+          queryKey: customerQueryKeys.aiWaiterMessages(sessionId)
+        });
+        void queryClient.invalidateQueries({
+          queryKey: customerQueryKeys.aiWaiterProposals(sessionId)
+        });
       },
       onError: () => {
         setConnectionState({ sessionId, state: "error" });

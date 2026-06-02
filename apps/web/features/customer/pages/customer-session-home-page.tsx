@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
-import { Bell, ClipboardList, ShoppingBag, Utensils } from "lucide-react";
+import { Bell, ClipboardList, ShoppingBag, Sparkles, Utensils } from "lucide-react";
 import { buttonVariants } from "@/components/ui/button";
 import {
   Card,
@@ -26,6 +26,11 @@ const actions = [
     label: "Browse menu",
     href: "menu",
     icon: <Utensils className="size-5" aria-hidden="true" />
+  },
+  {
+    label: "AI waiter",
+    href: "ai-waiter",
+    icon: <Sparkles className="size-5" aria-hidden="true" />
   },
   {
     label: "Review cart",

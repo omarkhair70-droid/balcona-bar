@@ -1,9 +1,10 @@
 "use client";
 
+import Link from "next/link";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { type ReactNode } from "react";
-import { BellRing, Droplets, HelpCircle, ReceiptText } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { BellRing, Droplets, HelpCircle, ReceiptText, Sparkles } from "lucide-react";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
 import { LoadingState } from "@/components/ui/loading-state";
@@ -162,6 +163,28 @@ export function CustomerServicePage({ sessionId }: CustomerServicePageProps) {
       title="Ask the team without leaving your table"
       description="Call a waiter, ask for help, request water, or ask for the bill. The UI keeps active requests visible to prevent noisy repeats."
     >
+      <div className="mb-5 rounded-card border border-primary/40 bg-primary/10 p-4">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="flex items-start gap-3">
+            <Sparkles className="mt-0.5 size-5 text-primary" aria-hidden="true" />
+            <div>
+              <h2 className="text-sm font-semibold text-foreground">
+                Ask AI waiter first
+              </h2>
+              <p className="mt-1 text-sm text-muted-foreground">
+                Get menu-grounded help, then ask a human waiter here whenever
+                you prefer.
+              </p>
+            </div>
+          </div>
+          <Link
+            href={`/customer/session/${sessionId}/ai-waiter`}
+            className={buttonVariants({ variant: "secondary" })}
+          >
+            Open AI waiter
+          </Link>
+        </div>
+      </div>
       <section className="grid gap-4 md:grid-cols-3">
         {serviceActions.map((action) => (
           <ServiceActionCard

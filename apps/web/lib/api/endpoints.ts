@@ -1,6 +1,11 @@
 import { apiRequest } from "./client";
 import type {
   AddCartItemPayload,
+  AiCartProposalActionResult,
+  AiWaiterCloseResult,
+  AiWaiterEscalateResult,
+  AiWaiterMessagesResult,
+  AiWaiterStateResult,
   BillResult,
   BranchEffectiveExperience,
   BranchMenuResult,
@@ -9,12 +14,18 @@ import type {
   CompanySummary,
   CustomerStatusResult,
   CustomerTimelineResult,
+  EscalateAiWaiterPayload,
+  ListAiWaiterMessagesQuery,
   MenuItemDetailResult,
+  RejectAiCartProposalPayload,
   RequestBillPayload,
+  SendAiWaiterMessagePayload,
+  SendAiWaiterMessageResult,
   StaffAuthContext,
   StaffLoginPayload,
   StaffLoginResult,
   SessionOrdersResult,
+  StartAiWaiterPayload,
   StartTableSessionPayload,
   StartTableSessionResult,
   SubmitCartPayload,
@@ -191,6 +202,104 @@ export function getBill(sessionId: string, token?: string) {
   return apiRequest<BillResult>(`/table-sessions/${sessionId}/bill`, {
     token
   });
+}
+
+export function startAiWaiter(
+  sessionId: string,
+  payload: StartAiWaiterPayload = {},
+  token?: string
+) {
+  return apiRequest<AiWaiterStateResult, StartAiWaiterPayload>(
+    `/table-sessions/${sessionId}/ai-waiter/start`,
+    {
+      method: "POST",
+      body: payload,
+      token
+    }
+  );
+}
+
+export function getCurrentAiWaiterSession(sessionId: string, token?: string) {
+  return apiRequest<AiWaiterStateResult>(
+    `/table-sessions/${sessionId}/ai-waiter`,
+    { token }
+  );
+}
+
+export function listAiWaiterMessages(
+  sessionId: string,
+  query: ListAiWaiterMessagesQuery = {},
+  token?: string
+) {
+  return apiRequest<AiWaiterMessagesResult>(
+    `/table-sessions/${sessionId}/ai-waiter/messages`,
+    { query, token }
+  );
+}
+
+export function sendAiWaiterMessage(
+  sessionId: string,
+  payload: SendAiWaiterMessagePayload,
+  token?: string
+) {
+  return apiRequest<SendAiWaiterMessageResult, SendAiWaiterMessagePayload>(
+    `/table-sessions/${sessionId}/ai-waiter/messages`,
+    {
+      method: "POST",
+      body: payload,
+      token
+    }
+  );
+}
+
+export function applyAiCartProposal(proposalId: string, token?: string) {
+  return apiRequest<AiCartProposalActionResult>(
+    `/ai-waiter/cart-proposals/${proposalId}/apply`,
+    {
+      method: "POST",
+      token
+    }
+  );
+}
+
+export function rejectAiCartProposal(
+  proposalId: string,
+  payload: RejectAiCartProposalPayload = {},
+  token?: string
+) {
+  return apiRequest<AiCartProposalActionResult, RejectAiCartProposalPayload>(
+    `/ai-waiter/cart-proposals/${proposalId}/reject`,
+    {
+      method: "POST",
+      body: payload,
+      token
+    }
+  );
+}
+
+export function escalateAiWaiter(
+  sessionId: string,
+  payload: EscalateAiWaiterPayload,
+  token?: string
+) {
+  return apiRequest<AiWaiterEscalateResult, EscalateAiWaiterPayload>(
+    `/table-sessions/${sessionId}/ai-waiter/escalate`,
+    {
+      method: "POST",
+      body: payload,
+      token
+    }
+  );
+}
+
+export function closeAiWaiter(sessionId: string, token?: string) {
+  return apiRequest<AiWaiterCloseResult>(
+    `/table-sessions/${sessionId}/ai-waiter/close`,
+    {
+      method: "POST",
+      token
+    }
+  );
 }
 
 export function staffLogin(payload: StaffLoginPayload) {

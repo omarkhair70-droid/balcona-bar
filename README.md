@@ -1,6 +1,6 @@
 # balcona-bar
 
-Balcona Bar is organized as a monorepo for the Cafe AI Waiter App / Smart Cafe Operating System. The backend core is complete through Phase 24, UI Phase 1 adds the first Next.js web foundation for customer and staff experiences, and UI Phase 2 adds the customer PWA core.
+Balcona Bar is organized as a monorepo for the Cafe AI Waiter App / Smart Cafe Operating System. The backend core is complete through Phase 24, UI Phase 1 adds the first Next.js web foundation for customer and staff experiences, UI Phase 2 adds the customer PWA core, and UI Phase 3 adds the customer AI waiter experience.
 
 ## Layout
 
@@ -88,6 +88,10 @@ Balcona Bar is organized as a monorepo for the Cafe AI Waiter App / Smart Cafe O
    http://localhost:3001/customer/table/balcona-main-t01
    ```
 
+   From the customer table home, open AI Waiter, send a suggested prompt,
+   apply or reject a cart proposal if one is returned, review the cart, and
+   submit the order manually from the cart flow.
+
 Useful root scripts:
 
 ```bash
@@ -126,6 +130,22 @@ UI Phase 2 builds the customer PWA core on top of the Phase 1 foundation:
 - branch experience loading with compatible design-token application
 
 Kitchen or barista queues, staff dashboards, payment/POS, AI waiter chat UI, external AI, and backend behavior changes remain outside this phase.
+
+## UI Phase 3 status
+
+UI Phase 3 adds the customer AI waiter experience inside the Customer PWA:
+
+- `/customer/session/[sessionId]/ai-waiter` route
+- AI waiter start/resume, message history, message composer, and suggested prompts
+- English/Arabic language foundation with right-to-left layout support
+- tenant-ready tone/copy sourced from effective experience data when available
+- menu-grounded safety copy and proposal rendering
+- backend cart proposal apply/reject actions
+- cart invalidation after proposal application
+- human waiter escalation fallback
+- visible errors for AI session, message, proposal, escalation, and close actions
+
+The AI waiter never submits orders, changes prices, bypasses cart validation, or replaces the final cart review and submit flow. External AI provider integration remains outside this UI phase.
 
 ## API verification
 
@@ -893,3 +913,4 @@ Backend core is now ready for UI Phase 1 planning. Remaining production work inc
 - Backend core complete checklist: `docs/architecture/backend-core-complete-checklist.md`
 - UI Phase 1 web foundation: `docs/architecture/ui-phase-1-web-foundation.md`
 - UI Phase 2 customer PWA core: `docs/architecture/ui-phase-2-customer-pwa-core.md`
+- UI Phase 3 AI waiter customer experience: `docs/architecture/ui-phase-3-ai-waiter-customer-experience.md`
