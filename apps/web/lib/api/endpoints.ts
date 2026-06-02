@@ -2,9 +2,9 @@ import { apiRequest } from "./client";
 import type {
   BranchEffectiveExperience,
   CompanySummary,
+  StaffAuthContext,
   StaffLoginPayload,
   StaffLoginResult,
-  StaffUserSummary,
   StartTableSessionPayload,
   StartTableSessionResult
 } from "./types";
@@ -37,7 +37,7 @@ export function staffLogin(payload: StaffLoginPayload) {
 }
 
 export function staffMe(token: string) {
-  return apiRequest<StaffUserSummary>("/staff-auth/me", {
+  return apiRequest<StaffAuthContext>("/staff-auth/me", {
     token
   });
 }

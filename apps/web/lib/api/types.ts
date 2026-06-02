@@ -25,13 +25,19 @@ export type BranchSummary = {
 };
 
 export type BranchEffectiveExperience = {
-  branchId: string;
-  companyId?: string;
-  profileId?: string;
-  key?: string;
-  name?: string;
+  company: CompanySummary;
+  branch: BranchSummary;
+  profile: Record<string, unknown> | null;
+  source: "branch" | "company";
   theme?: Record<string, unknown> | null;
   designTokens?: Record<string, unknown> | null;
+  motionTokens?: Record<string, unknown> | null;
+  layoutConfig?: Record<string, unknown> | null;
+  brandVoice?: Record<string, unknown> | null;
+  aiWaiterTone?: Record<string, unknown> | null;
+  contentBlocks: Record<string, unknown>[];
+  venueZones: Record<string, unknown>[];
+  mediaUsages: Record<string, unknown>[];
 };
 
 export type StartTableSessionPayload = {
@@ -104,6 +110,12 @@ export type StaffLoginResult = {
   effectivePermissions: string[];
   effectiveAccess: StaffEffectiveAccess;
   defaultBranch: BranchSummary | null;
+};
+
+export type StaffAuthContext = {
+  staffUser: StaffUserSummary;
+  staffSession: StaffSessionSummary;
+  staffAccess: StaffEffectiveAccess;
 };
 
 export type StaffUserSummary = {
