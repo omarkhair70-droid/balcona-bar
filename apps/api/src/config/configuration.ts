@@ -16,4 +16,24 @@ export default () => ({
     password: process.env.REDIS_PASSWORD || undefined,
     db: Number.parseInt(process.env.REDIS_DB ?? '0', 10),
   },
+  staffAuth: {
+    sessionHours: Number.parseInt(process.env.STAFF_AUTH_SESSION_HOURS ?? '12', 10),
+    devBootstrapEnabled:
+      process.env.STAFF_AUTH_DEV_BOOTSTRAP_ENABLED === 'true',
+  },
+  customerAccess: {
+    tokenHours: Number.parseInt(
+      process.env.CUSTOMER_ACCESS_TOKEN_HOURS ?? '24',
+      10,
+    ),
+  },
+  swagger: {
+    enabled: process.env.SWAGGER_ENABLED !== 'false',
+  },
+  security: {
+    corsOrigins: process.env.CORS_ORIGINS,
+  },
+  jobs: {
+    enabled: process.env.JOBS_ENABLED !== 'false',
+  },
 });

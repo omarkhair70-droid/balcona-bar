@@ -15,6 +15,7 @@ import { ContentModule } from './content/content.module';
 import { CustomerStatusModule } from './customer-status/customer-status.module';
 import { ExperienceModule } from './experience/experience.module';
 import { HealthModule } from './health/health.module';
+import { JobsModule } from './jobs/jobs.module';
 import { MediaAssetsModule } from './media-assets/media-assets.module';
 import { MenuAdminModule } from './menu-admin/menu-admin.module';
 import { MenuModule } from './menu/menu.module';
@@ -25,6 +26,7 @@ import { PrismaModule } from './prisma/prisma.module';
 import { RealtimeEventsModule } from './realtime-events/realtime-events.module';
 import { RedisModule } from './redis/redis.module';
 import { SmartCashierModule } from './smart-cashier/smart-cashier.module';
+import { StaffAuthModule } from './staff-auth/staff-auth.module';
 import { StaffModule } from './staff/staff.module';
 import { SystemModule } from './system/system.module';
 import { TableSessionsModule } from './table-sessions/table-sessions.module';
@@ -44,9 +46,11 @@ import { WaiterCallsModule } from './waiter-calls/waiter-calls.module';
     AnalyticsModule,
     AuditModule,
     AutopilotModule,
+    StaffAuthModule,
     PrismaModule,
     RedisModule,
     HealthModule,
+    JobsModule,
     SystemModule,
     BillRequestsModule,
     BranchSettingsModule,

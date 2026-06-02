@@ -18,3 +18,5 @@ export function RequiredPermission(
     ...options,
   } satisfies RequiredPermissionMetadata);
 }
+
+export const RequirePermissions = RequiredPermission;

@@ -1,5 +1,15 @@
 import { plainToInstance } from 'class-transformer';
-import { IsEnum, IsInt, IsOptional, IsString, Matches, Max, Min, validateSync } from 'class-validator';
+import {
+  IsBooleanString,
+  IsEnum,
+  IsInt,
+  IsOptional,
+  IsString,
+  Matches,
+  Max,
+  Min,
+  validateSync,
+} from 'class-validator';
 
 enum NodeEnvironment {
   Development = 'development',
@@ -55,6 +65,34 @@ class EnvironmentVariables {
   @Min(0)
   @IsOptional()
   REDIS_DB?: number;
+
+  @IsInt()
+  @Min(1)
+  @Max(168)
+  @IsOptional()
+  STAFF_AUTH_SESSION_HOURS?: number;
+
+  @IsBooleanString()
+  @IsOptional()
+  STAFF_AUTH_DEV_BOOTSTRAP_ENABLED?: string;
+
+  @IsInt()
+  @Min(1)
+  @Max(168)
+  @IsOptional()
+  CUSTOMER_ACCESS_TOKEN_HOURS?: number;
+
+  @IsBooleanString()
+  @IsOptional()
+  SWAGGER_ENABLED?: string;
+
+  @IsString()
+  @IsOptional()
+  CORS_ORIGINS?: string;
+
+  @IsBooleanString()
+  @IsOptional()
+  JOBS_ENABLED?: string;
 }
 
 export function validateEnvironment(config: Record<string, unknown>) {

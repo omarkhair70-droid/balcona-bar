@@ -28,6 +28,12 @@ enum StaffStatus {
   inactive
 }
 
+enum StaffSessionStatus {
+  active
+  revoked
+  expired
+}
+
 enum StaffRole {
   owner
   branch_manager
@@ -502,6 +508,10 @@ enum AuditActorType {
 }
 
 enum AuditAction {
+  staff_login
+  staff_logout
+  staff_password_bootstrapped
+  staff_session_revoked
   settings_updated
   feature_flag_updated
   order_accepted
@@ -525,6 +535,12 @@ enum AuditAction {
   media_changed
   content_changed
   other
+}
+
+enum CustomerSessionAccessStatus {
+  active
+  revoked
+  expired
 }
 
 enum MediaStorageProvider {
@@ -616,6 +632,7 @@ model Company {
   smartCashierSettings      BranchSmartCashierSettings[]
   smartCashierReviewRules   SmartCashierReviewRule[]
   staffMemberships          StaffMembership[]
+  staffSessions             StaffSession[]
   tableAttentionSnapshots   TableAttentionSnapshot[]
   tableAttentionEvents      TableAttentionEvent[]
   tableSessions             TableSession[]
@@ -664,6 +681,7 @@ model Branch {
   tableAttentionEvents      TableAttentionEvent[]
   tables                    CafeTable[]
   staffMemberships          StaffMembership[]
+  staffSessions             StaffSession[]
   tableSessions             TableSession[]
   customerSessionIdentities CustomerSessionIdentity[]
   deviceSubscriptions       DeviceSubscription[]
@@ -712,14 +730,18 @@ model CafeTable {
 }
 
 model StaffUser {
-  id        String      @id @default(uuid())
-  email     String      @unique
-  name      String
-  status    StaffStatus @default(active)
-  createdAt DateTime    @default(now())
-  updatedAt DateTime    @updatedAt
+  id            String      @id @default(uuid())
+  email         String      @unique
+  name          String
+  status        StaffStatus @default(active)
+  passwordHash  String?
+  passwordSetAt DateTime?
+  lastLoginAt   DateTime?
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
 
   memberships              StaffMembership[]
+  sessions                 StaffSession[]
   servedOrders             Order[]                @relation("OrderServedByStaff")
   completedOrders          Order[]                @relation("OrderCompletedByStaff")
   orderEvents              OrderEvent[]
@@ -754,6 +776,35 @@ model StaffMembership {
   @@index([companyId])
   @@index([branchId])
   @@index([companyId, branchId, role])
+}
+
+model StaffSession {
+  id               String             @id @default(uuid())
+  companyId        String
+  branchId         String?
+  staffUserId      String
+  status           StaffSessionStatus @default(active)
+  tokenHash        String             @unique
+  refreshTokenHash String?
+  userAgent        String?
+  ipAddress        String?
+  expiresAt        DateTime
+  revokedAt        DateTime?
+  lastUsedAt       DateTime?
+  metadata         Json?
+  createdAt        DateTime           @default(now())
+  updatedAt        DateTime           @updatedAt
+
+  company   Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  branch    Branch?   @relation(fields: [branchId], references: [id], onDelete: SetNull)
+  staffUser StaffUser @relation(fields: [staffUserId], references: [id], onDelete: Cascade)
+
+  @@index([companyId])
+  @@index([branchId])
+  @@index([staffUserId])
+  @@index([status])
+  @@index([expiresAt])
+  @@index([createdAt])
 }
 
 model MenuCategory {
@@ -1811,18 +1862,22 @@ model VenueZone {
 }
 
 model CustomerSessionIdentity {
-  id                 String   @id @default(uuid())
-  companyId          String
-  branchId           String
-  tableSessionId     String?
-  displayName        String?
-  phone              String?
-  locale             String   @default("ar-EG")
-  marketingOptIn     Boolean  @default(false)
-  notificationsOptIn Boolean  @default(false)
-  metadata           Json?
-  createdAt          DateTime @default(now())
-  updatedAt          DateTime @updatedAt
+  id                    String                      @id @default(uuid())
+  companyId             String
+  branchId              String
+  tableSessionId        String?
+  displayName           String?
+  phone                 String?
+  locale                String                      @default("ar-EG")
+  marketingOptIn        Boolean                     @default(false)
+  notificationsOptIn    Boolean                     @default(false)
+  accessTokenHash       String?                     @unique
+  accessTokenStatus     CustomerSessionAccessStatus @default(active)
+  accessTokenExpiresAt  DateTime?
+  accessTokenLastUsedAt DateTime?
+  metadata              Json?
+  createdAt             DateTime                    @default(now())
+  updatedAt             DateTime                    @updatedAt
 
   company             Company              @relation(fields: [companyId], references: [id], onDelete: Cascade)
   branch              Branch               @relation(fields: [branchId], references: [id], onDelete: Cascade)
@@ -1835,6 +1890,8 @@ model CustomerSessionIdentity {
   @@index([branchId])
   @@index([tableSessionId])
   @@index([phone])
+  @@index([accessTokenStatus])
+  @@index([accessTokenExpiresAt])
 }
 
 model DeviceSubscription {
