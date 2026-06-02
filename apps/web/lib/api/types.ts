@@ -40,6 +40,79 @@ export type BranchEffectiveExperience = {
   mediaUsages: Record<string, unknown>[];
 };
 
+export type MenuModifierOption = {
+  id: string;
+  groupId: string;
+  name: string;
+  slug: string;
+  priceDeltaMinor: number;
+  status: string;
+  sortOrder: number;
+};
+
+export type MenuModifierGroup = {
+  id: string;
+  menuItemModifierGroupId?: string;
+  companyId: string;
+  name: string;
+  slug: string;
+  description?: string | null;
+  selectionType: "single" | "multiple" | string;
+  isRequired: boolean;
+  minSelections: number;
+  maxSelections: number;
+  sortOrder: number;
+  status: string;
+  options: MenuModifierOption[];
+};
+
+export type MenuCategorySummary = {
+  id: string;
+  name: string;
+  slug: string;
+  description?: string | null;
+  sortOrder: number;
+  status: string;
+};
+
+export type MenuItemSummary = {
+  id: string;
+  companyId: string;
+  categoryId: string;
+  name: string;
+  slug: string;
+  description?: string | null;
+  imageUrl?: string | null;
+  basePriceMinor: number;
+  effectivePriceMinor?: number;
+  currency: string;
+  station?: string | null;
+  status: string;
+  isFeatured?: boolean;
+  isAvailable?: boolean;
+  isVisible?: boolean;
+  sortOrder?: number;
+  category?: MenuCategorySummary;
+  modifiers?: MenuModifierGroup[];
+};
+
+export type BranchMenuCategory = MenuCategorySummary & {
+  items: MenuItemSummary[];
+};
+
+export type BranchMenuResult = {
+  branch: BranchSummary & {
+    company?: CompanySummary;
+  };
+  categories: BranchMenuCategory[];
+};
+
+export type MenuItemDetailResult = {
+  item: MenuItemSummary;
+  category: MenuCategorySummary;
+  branchOverrides: Record<string, unknown>[];
+};
+
 export type StartTableSessionPayload = {
   qrToken: string;
   guestLabel?: string;
@@ -93,6 +166,138 @@ export type StartTableSessionResult = {
   table: TableSessionTableSummary;
   wasResumed: boolean;
   customerAccess: CustomerAccessSummary;
+};
+
+export type SelectedModifierPayload = {
+  modifierGroupId: string;
+  optionIds: string[];
+};
+
+export type AddCartItemPayload = {
+  menuItemId: string;
+  quantity: number;
+  notes?: string;
+  selectedModifiers?: SelectedModifierPayload[];
+};
+
+export type UpdateCartItemPayload = {
+  quantity?: number;
+  notes?: string | null;
+};
+
+export type CartTotals = {
+  subtotalMinor: number;
+  totalQuantity: number;
+  itemCount: number;
+  currency: string;
+};
+
+export type CartItemModifierOption = {
+  id?: string;
+  modifierGroupId: string;
+  modifierOptionId: string;
+  modifierGroupNameSnapshot: string;
+  modifierOptionNameSnapshot: string;
+  priceDeltaMinorSnapshot: number;
+};
+
+export type CartItemSummary = {
+  id: string;
+  menuItemId: string;
+  quantity: number;
+  notes?: string | null;
+  itemNameSnapshot: string;
+  itemSlugSnapshot?: string;
+  effectiveBasePriceMinorSnapshot: number;
+  modifiersTotalMinorSnapshot: number;
+  unitPriceMinorSnapshot: number;
+  lineTotalMinorSnapshot: number;
+  currency: string;
+  modifierOptions: CartItemModifierOption[];
+};
+
+export type CartResponse = {
+  cart: {
+    id: string | null;
+    tableSessionId: string;
+    status: string;
+    currency: string;
+  };
+  items: CartItemSummary[];
+  totals: CartTotals;
+};
+
+export type CartValidationResult = {
+  isValid: boolean;
+  issues: Record<string, unknown>[];
+  recalculatedTotals: CartTotals;
+  cart: CartResponse;
+};
+
+export type SubmitCartPayload = {
+  customerNote?: string | null;
+};
+
+export type SubmitCartResult = Record<string, unknown> & {
+  order?: Record<string, unknown>;
+  idempotency?: {
+    replayed: boolean;
+    key: string | null;
+  };
+};
+
+export type WaiterCallPayload = {
+  type:
+    | "call_waiter"
+    | "need_bill"
+    | "need_water"
+    | "need_help"
+    | "order_problem"
+    | "clean_table"
+    | "other";
+  message?: string;
+  orderId?: string;
+  priority?: number;
+};
+
+export type RequestBillPayload = {
+  note?: string;
+};
+
+export type SessionOrdersResult = {
+  tableSession?: Record<string, unknown>;
+  orders: Record<string, unknown>[];
+};
+
+export type CustomerStatusResult = Record<string, unknown> & {
+  customerStatus?: string;
+  orders?: Record<string, unknown>[];
+};
+
+export type CustomerTimelineResult = {
+  tableSession?: Record<string, unknown>;
+  branch?: BranchSummary;
+  floor?: Record<string, unknown> | null;
+  table?: Record<string, unknown>;
+  timeline: Array<{
+    type: string;
+    label: string;
+    occurredAt: string;
+    [key: string]: unknown;
+  }>;
+};
+
+export type WaiterCallsResult = {
+  tableSession?: Record<string, unknown>;
+  waiterCalls?: Record<string, unknown>[];
+  calls?: Record<string, unknown>[];
+  [key: string]: unknown;
+};
+
+export type BillResult = Record<string, unknown> & {
+  billRequest?: Record<string, unknown> | null;
+  activeBillRequest?: Record<string, unknown> | null;
+  totals?: CartTotals | Record<string, unknown>;
 };
 
 export type StaffLoginPayload = {
