@@ -344,6 +344,82 @@ enum VenueZoneType {
   custom
 }
 
+enum VenueZoneStatus {
+  active
+  inactive
+  archived
+}
+
+enum MediaAssetType {
+  image
+  video
+  icon
+  animation
+  document
+  audio
+  other
+}
+
+enum MediaAssetStatus {
+  active
+  archived
+  deleted
+}
+
+enum MediaStorageProvider {
+  external_url
+  local_placeholder
+  supabase
+  cloudflare_r2
+  s3
+  other
+}
+
+enum MediaAssetUsageTarget {
+  company
+  branch
+  menu_category
+  menu_item
+  modifier_group
+  venue_zone
+  experience_profile
+  content_block
+  notification_template
+  ai_waiter
+  other
+}
+
+enum ExperienceProfileStatus {
+  draft
+  active
+  archived
+}
+
+enum ExperienceProfileScope {
+  company
+  branch
+}
+
+enum ContentBlockStatus {
+  active
+  inactive
+  archived
+}
+
+enum ContentBlockPlacement {
+  customer_home
+  customer_welcome
+  menu_header
+  order_status
+  bill_flow
+  waiter_call
+  table_question
+  ai_waiter_intro
+  owner_dashboard
+  venue_zone
+  other
+}
+
 model Company {
   id        String        @id @default(uuid())
   name      String
@@ -357,9 +433,13 @@ model Company {
   carts                     Cart[]
   menuCategories            MenuCategory[]
   menuItems                 MenuItem[]
+  mediaAssets               MediaAsset[]
+  mediaAssetUsages          MediaAssetUsage[]
   modifierGroups            ModifierGroup[]
   notificationTemplates     NotificationTemplate[]
   notifications             Notification[]
+  experienceProfiles        ExperienceProfile[]
+  contentBlocks             ContentBlock[]
   orders                    Order[]
   presenceEvents            PresenceEvent[]
   preparationTasks          PreparationTask[]
@@ -388,9 +468,13 @@ model Branch {
   billRequests              BillRequest[]
   carts                     Cart[]
   floors                    Floor[]
+  mediaAssets               MediaAsset[]
+  mediaAssetUsages          MediaAssetUsage[]
   menuItemOverrides         BranchMenuItemOverride[]
   notificationTemplates     NotificationTemplate[]
   notifications             Notification[]
+  experienceProfiles        ExperienceProfile[]
+  contentBlocks             ContentBlock[]
   orders                    Order[]
   presenceEvents            PresenceEvent[]
   preparationTasks          PreparationTask[]
@@ -1086,17 +1170,142 @@ model BillRequestEvent {
   @@index([createdAt])
 }
 
+model MediaAsset {
+  id              String               @id @default(uuid())
+  companyId       String
+  branchId        String?
+  type            MediaAssetType
+  status          MediaAssetStatus     @default(active)
+  provider        MediaStorageProvider @default(external_url)
+  storageKey      String?
+  publicUrl       String?
+  originalUrl     String?
+  mimeType        String?
+  sizeBytes       Int?
+  width           Int?
+  height          Int?
+  durationSeconds Int?
+  title           String?
+  altText         String?
+  caption         String?
+  dominantColor   String?
+  metadata        Json?
+  createdAt       DateTime             @default(now())
+  updatedAt       DateTime             @updatedAt
+
+  company Company           @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  branch  Branch?           @relation(fields: [branchId], references: [id], onDelete: SetNull)
+  usages  MediaAssetUsage[]
+
+  @@index([companyId])
+  @@index([branchId])
+  @@index([type])
+  @@index([status])
+  @@index([provider])
+  @@index([createdAt])
+}
+
+model MediaAssetUsage {
+  id           String                @id @default(uuid())
+  companyId    String
+  branchId     String?
+  mediaAssetId String
+  target       MediaAssetUsageTarget
+  targetId     String
+  role         String                @default("default")
+  sortOrder    Int                   @default(0)
+  metadata     Json?
+  createdAt    DateTime              @default(now())
+  updatedAt    DateTime              @updatedAt
+
+  company    Company    @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  branch     Branch?    @relation(fields: [branchId], references: [id], onDelete: SetNull)
+  mediaAsset MediaAsset @relation(fields: [mediaAssetId], references: [id], onDelete: Cascade)
+
+  @@unique([target, targetId, role, mediaAssetId])
+  @@index([companyId])
+  @@index([branchId])
+  @@index([mediaAssetId])
+  @@index([target, targetId])
+  @@index([target, targetId, role])
+  @@index([sortOrder])
+}
+
+model ExperienceProfile {
+  id           String                  @id @default(uuid())
+  companyId    String
+  branchId     String?
+  scope        ExperienceProfileScope
+  key          String
+  name         String
+  status       ExperienceProfileStatus @default(draft)
+  isDefault    Boolean                 @default(false)
+  language     String                  @default("ar-EG")
+  theme        Json
+  designTokens Json
+  motionTokens Json?
+  layoutConfig Json?
+  brandVoice   Json?
+  aiWaiterTone Json?
+  metadata     Json?
+  createdAt    DateTime                @default(now())
+  updatedAt    DateTime                @updatedAt
+
+  company       Company        @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  branch        Branch?        @relation(fields: [branchId], references: [id], onDelete: Cascade)
+  contentBlocks ContentBlock[]
+
+  @@index([companyId])
+  @@index([branchId])
+  @@index([key])
+  @@index([status])
+  @@index([isDefault])
+}
+
+model ContentBlock {
+  id                  String                @id @default(uuid())
+  companyId           String
+  branchId            String?
+  experienceProfileId String?
+  placement           ContentBlockPlacement
+  key                 String
+  language            String                @default("ar-EG")
+  status              ContentBlockStatus    @default(active)
+  title               String?
+  body                String?
+  ctaLabel            String?
+  ctaAction           String?
+  sortOrder           Int                   @default(0)
+  metadata            Json?
+  createdAt           DateTime              @default(now())
+  updatedAt           DateTime              @updatedAt
+
+  company           Company            @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  branch            Branch?            @relation(fields: [branchId], references: [id], onDelete: Cascade)
+  experienceProfile ExperienceProfile? @relation(fields: [experienceProfileId], references: [id], onDelete: SetNull)
+
+  @@index([companyId])
+  @@index([branchId])
+  @@index([experienceProfileId])
+  @@index([placement])
+  @@index([key])
+  @@index([language])
+  @@index([status])
+  @@index([sortOrder])
+}
+
 model VenueZone {
-  id          String        @id @default(uuid())
+  id          String          @id @default(uuid())
   companyId   String
   branchId    String
   name        String
   slug        String
   type        VenueZoneType
+  status      VenueZoneStatus @default(active)
   description String?
   metadata    Json?
-  createdAt   DateTime      @default(now())
-  updatedAt   DateTime      @updatedAt
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
 
   company        Company         @relation(fields: [companyId], references: [id], onDelete: Cascade)
   branch         Branch          @relation(fields: [branchId], references: [id], onDelete: Cascade)
@@ -1106,6 +1315,7 @@ model VenueZone {
   @@index([companyId])
   @@index([branchId])
   @@index([type])
+  @@index([status])
 }
 
 model CustomerSessionIdentity {

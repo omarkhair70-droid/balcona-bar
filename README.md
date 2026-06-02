@@ -1,6 +1,6 @@
 # balcona-bar
 
-Balcona Bar is organized as a monorepo for the Cafe AI Waiter App / Smart Café Operating System. Phase 15 adds the backend menu admin foundation.
+Balcona Bar is organized as a monorepo for the Cafe AI Waiter App / Smart Café Operating System. Phase 16-17 adds the media, experience, content, venue zone, and Balkona experience pack backend foundation.
 
 ## Layout
 
@@ -168,6 +168,99 @@ Deactivate a menu item:
 
 ```bash
 curl -X POST http://localhost:3000/api/v1/menu-admin/items/<itemId>/deactivate
+```
+
+Create a media asset:
+
+```bash
+curl -X POST http://localhost:3000/api/v1/companies/<companyId>/media-assets \
+  -H "Content-Type: application/json" \
+  -d '{
+    "type": "image",
+    "provider": "external_url",
+    "publicUrl": "https://example.com/spanish-latte.jpg",
+    "mimeType": "image/jpeg",
+    "width": 1200,
+    "height": 800,
+    "title": "Spanish Latte hero",
+    "altText": "Spanish latte on a dark table",
+    "dominantColor": "#2A1711"
+  }'
+```
+
+Attach a media asset to a menu item cover:
+
+```bash
+curl -X POST http://localhost:3000/api/v1/media-assets/<mediaAssetId>/usages \
+  -H "Content-Type: application/json" \
+  -d '{"target":"menu_item","targetId":"<itemId>","role":"cover","sortOrder":10}'
+```
+
+Create a branch experience profile:
+
+```bash
+curl -X POST http://localhost:3000/api/v1/branches/<branchId>/experience/profiles \
+  -H "Content-Type: application/json" \
+  -d '{
+    "key": "warm-dark",
+    "name": "Warm Dark Café",
+    "status": "active",
+    "isDefault": true,
+    "language": "ar-EG",
+    "theme": { "name": "warm-dark" },
+    "designTokens": {
+      "colors": {
+        "background": "#120D0A",
+        "surface": "#1D1510",
+        "primary": "#C68A4A",
+        "accent": "#7A2E2E",
+        "text": "#FFF7EA",
+        "mutedText": "#B7A99A"
+      }
+    }
+  }'
+```
+
+Get the effective branch experience:
+
+```bash
+curl http://localhost:3000/api/v1/branches/<branchId>/experience/effective
+```
+
+Create a content block:
+
+```bash
+curl -X POST http://localhost:3000/api/v1/branches/<branchId>/content-blocks \
+  -H "Content-Type: application/json" \
+  -d '{"placement":"customer_welcome","key":"welcome-copy","title":"أهلاً بيك","body":"خد نفس فوق.","sortOrder":10}'
+```
+
+Create and update a notification template:
+
+```bash
+curl -X POST http://localhost:3000/api/v1/branches/<branchId>/notification-templates \
+  -H "Content-Type: application/json" \
+  -d '{"key":"welcome-main","kind":"welcome","channel":"in_app","title":"أهلاً بيك","body":"نورت بلكونة."}'
+
+curl -X PATCH http://localhost:3000/api/v1/notification-templates/<templateId> \
+  -H "Content-Type: application/json" \
+  -d '{"title":"أهلاً بيك في بلكونة","isActive":true}'
+```
+
+Create a venue zone:
+
+```bash
+curl -X POST http://localhost:3000/api/v1/branches/<branchId>/venue-zones \
+  -H "Content-Type: application/json" \
+  -d '{"name":"Fusion Photo Zone","slug":"fusion-photo-zone","type":"custom","description":"Central visual transition area","metadata":{"mood":"photo","experienceRole":"hero_zone"}}'
+```
+
+Apply the Balkona experience pack:
+
+```bash
+curl http://localhost:3000/api/v1/branches/<branchId>/experience-packs/balkona/preview
+
+curl -X POST http://localhost:3000/api/v1/branches/<branchId>/experience-packs/balkona/apply
 ```
 
 List tables and resolve a seeded QR token:
@@ -586,3 +679,4 @@ curl http://localhost:3000/api/v1/realtime/table-sessions/<sessionId>/events?cha
 - Phase 13 Smart Cashier auto-accept foundation: `docs/architecture/phase-13-smart-cashier-auto-accept-foundation.md`
 - Phase 14 order completion and bill flow foundation: `docs/architecture/phase-14-order-completion-bill-flow-foundation.md`
 - Phase 15 menu admin backend: `docs/architecture/phase-15-menu-admin-backend.md`
+- Phase 16-17 media, experience, content, and Balkona pack: `docs/architecture/phase-16-17-media-experience-content-balkona-pack.md`

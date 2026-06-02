@@ -6,8 +6,11 @@ import { BillRequestsModule } from './bill-requests/bill-requests.module';
 import { BranchesModule } from './branches/branches.module';
 import { CartModule } from './cart/cart.module';
 import { CompaniesModule } from './companies/companies.module';
+import { ContentModule } from './content/content.module';
 import { CustomerStatusModule } from './customer-status/customer-status.module';
+import { ExperienceModule } from './experience/experience.module';
 import { HealthModule } from './health/health.module';
+import { MediaAssetsModule } from './media-assets/media-assets.module';
 import { MenuAdminModule } from './menu-admin/menu-admin.module';
 import { MenuModule } from './menu/menu.module';
 import { OrdersModule } from './orders/orders.module';
@@ -21,6 +24,7 @@ import { StaffModule } from './staff/staff.module';
 import { SystemModule } from './system/system.module';
 import { TableSessionsModule } from './table-sessions/table-sessions.module';
 import { TablesModule } from './tables/tables.module';
+import { VenueZonesModule } from './venue-zones/venue-zones.module';
 import { WaiterCallsModule } from './waiter-calls/waiter-calls.module';
 
 @Module({
@@ -39,7 +43,10 @@ import { WaiterCallsModule } from './waiter-calls/waiter-calls.module';
     CompaniesModule,
     BranchesModule,
     CartModule,
+    ContentModule,
     CustomerStatusModule,
+    ExperienceModule,
+    MediaAssetsModule,
     OrdersModule,
     PresenceNotificationsModule,
     PreparationTasksModule,
@@ -50,6 +57,7 @@ import { WaiterCallsModule } from './waiter-calls/waiter-calls.module';
     MenuAdminModule,
     MenuModule,
     TableSessionsModule,
+    VenueZonesModule,
     WaiterCallsModule,
   ],
 })
