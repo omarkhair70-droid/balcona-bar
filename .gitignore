@@ -1,9 +1,14 @@
 node_modules/
 dist/
 coverage/
+.next/
 .env
 .env.*
 !.env.example
 npm-debug.log*
 .DS_Store
 .prisma/
+*.tsbuildinfo
+apps/web/public/sw.js
+apps/web/public/workbox-*.js
+apps/web/public/worker-*.js
