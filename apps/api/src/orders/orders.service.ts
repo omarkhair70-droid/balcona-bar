@@ -1,4 +1,8 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import {
   CartStatus,
   OrderEventActorType,
@@ -8,6 +12,7 @@ import {
   Prisma,
 } from '@prisma/client';
 import { CartService } from '../cart/cart.service';
+import { PreparationTasksService } from '../preparation-tasks/preparation-tasks.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { CashierAcceptOrderDto } from './dto/cashier-accept-order.dto';
 import { CashierOrdersQueryDto } from './dto/cashier-orders-query.dto';
@@ -34,9 +39,14 @@ export class OrdersService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly cartService: CartService,
+    private readonly preparationTasksService: PreparationTasksService,
   ) {}
 
-  async submitCart(sessionId: string, body: SubmitCartDto = {}, rawIdempotencyKey?: string) {
+  async submitCart(
+    sessionId: string,
+    body: SubmitCartDto = {},
+    rawIdempotencyKey?: string,
+  ) {
     const idempotencyKey = this.normalizeIdempotencyKey(rawIdempotencyKey);
     const customerNote = this.normalizeOptionalText(body.customerNote);
 
@@ -44,14 +54,22 @@ export class OrdersService {
       await this.lockSubmitForSession(sessionId, tx);
 
       if (idempotencyKey) {
-        const existingOrder = await this.findByIdempotencyKey(sessionId, idempotencyKey, tx);
+        const existingOrder = await this.findByIdempotencyKey(
+          sessionId,
+          idempotencyKey,
+          tx,
+        );
 
         if (existingOrder) {
-          return this.toOrderResponse(existingOrder, { replayed: true, key: idempotencyKey });
+          return this.toOrderResponse(existingOrder, {
+            replayed: true,
+            key: idempotencyKey,
+          });
         }
       }
 
-      const { session, cart, totals } = await this.cartService.getValidatedDraftCartForSubmit(sessionId, tx);
+      const { session, cart, totals } =
+        await this.cartService.getValidatedDraftCartForSubmit(sessionId, tx);
       const orderNumber = await this.generateOrderNumber(session.branchId, tx);
       const submittedAt = new Date();
       const submittedMetadata: Record<string, string> = { cartId: cart.id };
@@ -84,7 +102,8 @@ export class OrdersService {
               itemNameSnapshot: item.itemNameSnapshot,
               itemSlugSnapshot: item.itemSlugSnapshot,
               basePriceMinorSnapshot: item.basePriceMinorSnapshot,
-              effectiveBasePriceMinorSnapshot: item.effectiveBasePriceMinorSnapshot,
+              effectiveBasePriceMinorSnapshot:
+                item.effectiveBasePriceMinorSnapshot,
               modifiersTotalMinorSnapshot: item.modifiersTotalMinorSnapshot,
               unitPriceMinorSnapshot: item.unitPriceMinorSnapshot,
               lineTotalMinorSnapshot: item.lineTotalMinorSnapshot,
@@ -118,7 +137,10 @@ export class OrdersService {
         data: { status: CartStatus.converted },
       });
 
-      return this.getOrderResponse(order.id, tx, { replayed: false, key: idempotencyKey });
+      return this.getOrderResponse(order.id, tx, {
+        replayed: false,
+        key: idempotencyKey,
+      });
     });
   }
 
@@ -189,6 +211,12 @@ export class OrdersService {
           actorStaffUserId: body.staffUserId,
         },
       });
+
+      await this.preparationTasksService.createTasksForAcceptedOrder(
+        order.id,
+        body.staffUserId,
+        tx,
+      );
 
       return this.getOrderResponse(order.id, tx);
     });
@@ -262,11 +290,17 @@ export class OrdersService {
     };
   }
 
-  private async lockSubmitForSession(sessionId: string, tx: Prisma.TransactionClient) {
+  private async lockSubmitForSession(
+    sessionId: string,
+    tx: Prisma.TransactionClient,
+  ) {
     await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`submit:${sessionId}`})::bigint)`;
   }
 
-  private async generateOrderNumber(branchId: string, tx: Prisma.TransactionClient) {
+  private async generateOrderNumber(
+    branchId: string,
+    tx: Prisma.TransactionClient,
+  ) {
     await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`order-number:${branchId}`})::bigint)`;
 
     let sequence = (await tx.order.count({ where: { branchId } })) + 1;
@@ -291,7 +325,11 @@ export class OrdersService {
     }
   }
 
-  private async findByIdempotencyKey(sessionId: string, idempotencyKey: string, tx: PrismaExecutor) {
+  private async findByIdempotencyKey(
+    sessionId: string,
+    idempotencyKey: string,
+    tx: PrismaExecutor,
+  ) {
     return tx.order.findUnique({
       where: {
         tableSessionId_idempotencyKey: {
@@ -303,7 +341,11 @@ export class OrdersService {
     });
   }
 
-  private async getOrderResponse(orderId: string, tx: PrismaExecutor, idempotency?: IdempotencyReplay) {
+  private async getOrderResponse(
+    orderId: string,
+    tx: PrismaExecutor,
+    idempotency?: IdempotencyReplay,
+  ) {
     const order = await tx.order.findUnique({
       where: { id: orderId },
       include: this.orderInclude(),
@@ -316,7 +358,10 @@ export class OrdersService {
     return this.toOrderResponse(order, idempotency);
   }
 
-  private async assertStaffUserExists(staffUserId: string | undefined, tx: PrismaExecutor) {
+  private async assertStaffUserExists(
+    staffUserId: string | undefined,
+    tx: PrismaExecutor,
+  ) {
     if (!staffUserId) {
       return;
     }
@@ -343,7 +388,9 @@ export class OrdersService {
     }
 
     if (normalizedKey.length > IDEMPOTENCY_KEY_MAX_LENGTH) {
-      throw new BadRequestException(`Idempotency-Key must be ${IDEMPOTENCY_KEY_MAX_LENGTH} characters or fewer`);
+      throw new BadRequestException(
+        `Idempotency-Key must be ${IDEMPOTENCY_KEY_MAX_LENGTH} characters or fewer`,
+      );
     }
 
     return normalizedKey;
@@ -360,7 +407,15 @@ export class OrdersService {
   }
 
   private toOrderResponse(order: any, idempotency?: IdempotencyReplay) {
-    const { company, branch, tableSession, items, events, ...orderFields } = order;
+    const {
+      company,
+      branch,
+      tableSession,
+      items,
+      events,
+      preparationTasks,
+      ...orderFields
+    } = order;
     const { table, ...tableSessionFields } = tableSession;
     const { floor, ...tableFields } = table;
 
@@ -409,6 +464,32 @@ export class OrdersService {
         metadata: event.metadata,
         createdAt: event.createdAt,
       })),
+      preparationTasks: (preparationTasks ?? []).map((task: any) => ({
+        id: task.id,
+        companyId: task.companyId,
+        branchId: task.branchId,
+        orderId: task.orderId,
+        orderItemId: task.orderItemId,
+        station: task.station,
+        status: task.status,
+        quantity: task.quantity,
+        itemNameSnapshot: task.itemNameSnapshot,
+        itemSlugSnapshot: task.itemSlugSnapshot,
+        notes: task.notes,
+        startedAt: task.startedAt,
+        readyAt: task.readyAt,
+        cancelledAt: task.cancelledAt,
+        createdAt: task.createdAt,
+        updatedAt: task.updatedAt,
+        events: task.events.map((event: any) => ({
+          id: event.id,
+          preparationTaskId: event.preparationTaskId,
+          type: event.type,
+          actorStaffUserId: event.actorStaffUserId,
+          metadata: event.metadata,
+          createdAt: event.createdAt,
+        })),
+      })),
       totals: {
         subtotalMinor: order.subtotalMinor,
         totalQuantity: order.totalQuantity,
@@ -449,6 +530,14 @@ export class OrdersService {
       },
       events: {
         orderBy: [{ createdAt: 'asc' as const }],
+      },
+      preparationTasks: {
+        orderBy: [{ createdAt: 'asc' as const }],
+        include: {
+          events: {
+            orderBy: [{ createdAt: 'asc' as const }],
+          },
+        },
       },
     } satisfies Prisma.OrderInclude;
   }
