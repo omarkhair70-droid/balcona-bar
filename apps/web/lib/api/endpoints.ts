@@ -6,7 +6,7 @@ import type {
   StaffLoginResult,
   StaffUserSummary,
   StartTableSessionPayload,
-  TableSessionSummary
+  StartTableSessionResult
 } from "./types";
 
 export function getCompanies() {
@@ -20,7 +20,7 @@ export function getBranchEffectiveExperience(branchId: string) {
 }
 
 export function startTableSession(payload: StartTableSessionPayload) {
-  return apiRequest<TableSessionSummary, StartTableSessionPayload>(
+  return apiRequest<StartTableSessionResult, StartTableSessionPayload>(
     "/table-sessions/start",
     {
       method: "POST",
