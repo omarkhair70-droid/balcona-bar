@@ -14,7 +14,11 @@
     "api:prisma": "pnpm --filter @balcona-bar/api prisma",
     "api:prisma:generate": "pnpm --filter @balcona-bar/api prisma:generate",
     "api:prisma:migrate:dev": "pnpm --filter @balcona-bar/api prisma:migrate:dev",
-    "api:prisma:seed": "pnpm --filter @balcona-bar/api prisma:seed"
+    "api:prisma:seed": "pnpm --filter @balcona-bar/api prisma:seed",
+    "web:dev": "pnpm --filter @balcona-bar/web dev",
+    "web:build": "pnpm --filter @balcona-bar/web build",
+    "web:lint": "pnpm --filter @balcona-bar/web lint",
+    "web:typecheck": "pnpm --filter @balcona-bar/web typecheck"
   },
   "engines": {
     "node": ">=22"

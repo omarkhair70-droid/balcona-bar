@@ -1,11 +1,12 @@
 # balcona-bar
 
-Balcona Bar is organized as a monorepo for the Cafe AI Waiter App / Smart Café Operating System. Phase 16-17 adds the media, experience, content, venue zone, and Balkona experience pack backend foundation.
+Balcona Bar is organized as a monorepo for the Cafe AI Waiter App / Smart Cafe Operating System. The backend core is complete through Phase 24, and UI Phase 1 adds the first Next.js web foundation for customer and staff experiences.
 
 ## Layout
 
 - `apps/api` - NestJS backend application.
 - `apps/api/prisma` - Prisma schema, migrations, and seed data.
+- `apps/web` - Next.js App Router frontend foundation.
 - `docker-compose.yml` - local PostgreSQL and Redis services.
 - `docs/architecture` - architecture decisions and phase notes.
 
@@ -23,41 +24,80 @@ Balcona Bar is organized as a monorepo for the Cafe AI Waiter App / Smart Café 
    cp apps/api/.env.example apps/api/.env
    ```
 
-3. Start local infrastructure:
+3. Copy the web environment example:
+
+   ```bash
+   cp apps/web/.env.example apps/web/.env.local
+   ```
+
+   `NEXT_PUBLIC_API_BASE_URL` defaults to `http://localhost:3000/api/v1`.
+
+4. Start local infrastructure:
 
    ```bash
    docker compose up -d
    ```
 
-4. Generate the Prisma client:
+5. Generate the Prisma client:
 
    ```bash
    pnpm --filter @balcona-bar/api prisma:generate
    ```
 
-5. Apply the local development migrations:
+6. Apply the local development migrations:
 
    ```bash
    pnpm --filter @balcona-bar/api prisma:migrate:dev
    ```
 
-6. Seed local demo data:
+7. Seed local demo data:
 
    ```bash
    pnpm --filter @balcona-bar/api prisma:seed
    ```
 
-7. Build the API:
+8. Build the API:
 
    ```bash
    pnpm --filter @balcona-bar/api build
    ```
 
-8. Start the API:
+9. Start the API:
 
    ```bash
    pnpm --filter @balcona-bar/api start:dev
    ```
+
+10. Start the web app:
+
+   ```bash
+   pnpm --filter @balcona-bar/web dev
+   ```
+
+   The web app runs on port `3001` by default.
+
+Useful root scripts:
+
+```bash
+pnpm api:build
+pnpm web:build
+pnpm web:lint
+pnpm web:typecheck
+```
+
+## UI Phase 1 status
+
+UI Phase 1 adds `apps/web` with:
+
+- Next.js App Router route groups for customer and staff shells
+- Tailwind CSS variables for dynamic theme tokens
+- API client and endpoint helpers
+- React Query provider
+- SSE client foundation using `@microsoft/fetch-event-source`
+- PWA manifest and static asset caching foundation using `@ducanh2912/next-pwa`
+- basic UI primitives, haptics, and sound utilities
+
+Full customer PWA screens, staff dashboards, AI waiter UI, production auth screens, payment, and backend behavior changes are intentionally outside this phase.
 
 ## API verification
 

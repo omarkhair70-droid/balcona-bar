@@ -1,0 +1,17 @@
+{
+  "name": "Balcona Bar Smart Cafe",
+  "short_name": "Balcona",
+  "description": "Smart cafe operating system customer and staff shell.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#120D0A",
+  "theme_color": "#C68A4A",
+  "icons": [
+    {
+      "src": "/icons/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

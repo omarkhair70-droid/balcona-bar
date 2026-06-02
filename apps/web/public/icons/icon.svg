@@ -1,0 +1,7 @@
+<svg width="512" height="512" viewBox="0 0 512 512" role="img" aria-label="Balcona smart cafe icon" xmlns="http://www.w3.org/2000/svg">
+  <rect width="512" height="512" rx="72" fill="#120D0A"/>
+  <circle cx="256" cy="256" r="176" fill="#1D1510" stroke="#C68A4A" stroke-width="18"/>
+  <path d="M166 294c18 48 57 76 108 76h16c58 0 104-46 104-104V158H152v108c0 10 1 20 4 30l10-2Z" fill="#FFF7EA"/>
+  <path d="M394 202h26c27 0 49 22 49 49s-22 49-49 49h-26v-38h26c6 0 11-5 11-11s-5-11-11-11h-26v-38Z" fill="#C68A4A"/>
+  <path d="M194 137c0-23 19-42 42-42h74c23 0 42 19 42 42v21H194v-21Z" fill="#7A2E2E"/>
+</svg>
