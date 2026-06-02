@@ -1,6 +1,6 @@
 # balcona-bar
 
-Balcona Bar is organized as a monorepo for the Cafe AI Waiter App / Smart Café Operating System. Phase 13 adds the deterministic Smart Cashier / Auto-Accept Rules foundation.
+Balcona Bar is organized as a monorepo for the Cafe AI Waiter App / Smart Café Operating System. Phase 14 adds the backend order completion and operational bill flow foundation.
 
 ## Layout
 
@@ -271,6 +271,18 @@ curl -X POST http://localhost:3000/api/v1/preparation-tasks/<taskId>/cancel \
   -d '{"reason":"Made by mistake","staffUserId":"<optionalStaffUserId>"}'
 ```
 
+Serve or complete an order. Orders with preparation tasks can only be served after every non-cancelled task is ready:
+
+```bash
+curl -X POST http://localhost:3000/api/v1/orders/<orderId>/serve \
+  -H "Content-Type: application/json" \
+  -d '{"staffUserId":"<optionalStaffUserId>","note":"Served to table"}'
+
+curl -X POST http://localhost:3000/api/v1/orders/<orderId>/complete \
+  -H "Content-Type: application/json" \
+  -d '{"staffUserId":"<optionalStaffUserId>","note":"Completed operationally"}'
+```
+
 List preparation tasks for an order:
 
 ```bash
@@ -281,6 +293,41 @@ List orders for a table session:
 
 ```bash
 curl http://localhost:3000/api/v1/table-sessions/<sessionId>/orders
+```
+
+Request and inspect the operational bill state for a table session:
+
+```bash
+curl -X POST http://localhost:3000/api/v1/table-sessions/<sessionId>/bill/request \
+  -H "Content-Type: application/json" \
+  -d '{"note":"عايز الحساب"}'
+
+curl http://localhost:3000/api/v1/table-sessions/<sessionId>/bill
+```
+
+List active branch bill requests and manage a bill request lifecycle:
+
+```bash
+curl http://localhost:3000/api/v1/branches/<branchId>/bill-requests
+curl http://localhost:3000/api/v1/branches/<branchId>/bill-requests?status=active
+
+curl http://localhost:3000/api/v1/bill-requests/<billRequestId>
+
+curl -X POST http://localhost:3000/api/v1/bill-requests/<billRequestId>/acknowledge \
+  -H "Content-Type: application/json" \
+  -d '{"staffUserId":"<optionalStaffUserId>"}'
+
+curl -X POST http://localhost:3000/api/v1/bill-requests/<billRequestId>/present \
+  -H "Content-Type: application/json" \
+  -d '{"staffUserId":"<optionalStaffUserId>"}'
+
+curl -X POST http://localhost:3000/api/v1/bill-requests/<billRequestId>/close \
+  -H "Content-Type: application/json" \
+  -d '{"staffUserId":"<optionalStaffUserId>","note":"Closed operationally"}'
+
+curl -X POST http://localhost:3000/api/v1/bill-requests/<billRequestId>/cancel \
+  -H "Content-Type: application/json" \
+  -d '{"staffUserId":"<optionalStaffUserId>","reason":"Customer changed mind"}'
 ```
 
 Read table-session notifications and mark a stored notification read or dismissed:
@@ -389,6 +436,14 @@ Check if a cashier can attempt Smart Cashier auto-accept:
 curl "http://localhost:3000/api/v1/staff/<cashierStaffUserId>/can?permission=smart_cashier.auto_accept&branchId=<branchId>"
 ```
 
+Check if staff can serve orders or manage bill requests:
+
+```bash
+curl "http://localhost:3000/api/v1/staff/<waiterStaffUserId>/can?permission=orders.serve&branchId=<branchId>"
+curl "http://localhost:3000/api/v1/staff/<waiterStaffUserId>/can?permission=bills.request&branchId=<branchId>"
+curl "http://localhost:3000/api/v1/staff/<cashierStaffUserId>/can?permission=bills.close&branchId=<branchId>"
+```
+
 Check if kitchen staff can start preparation:
 
 ```bash
@@ -453,3 +508,4 @@ curl http://localhost:3000/api/v1/realtime/table-sessions/<sessionId>/events?cha
 - Phase 11 staff roles and permissions foundation: `docs/architecture/phase-11-staff-roles-permissions-foundation.md`
 - Phase 12 realtime events foundation: `docs/architecture/phase-12-realtime-events-foundation.md`
 - Phase 13 Smart Cashier auto-accept foundation: `docs/architecture/phase-13-smart-cashier-auto-accept-foundation.md`
+- Phase 14 order completion and bill flow foundation: `docs/architecture/phase-14-order-completion-bill-flow-foundation.md`

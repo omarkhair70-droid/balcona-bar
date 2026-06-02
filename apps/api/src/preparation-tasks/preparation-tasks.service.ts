@@ -4,6 +4,9 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import {
+  OrderEventActorType,
+  OrderEventType,
+  OrderStatus,
   PreparationStation,
   PreparationTaskEventType,
   PreparationTaskStatus,
@@ -210,6 +213,11 @@ export class PreparationTasksService {
         task.id,
         tx,
       );
+      await this.syncOrderPreparationStarted(
+        task.orderId,
+        body.staffUserId,
+        tx,
+      );
 
       return this.getTaskResponse(task.id, tx);
     });
@@ -251,6 +259,7 @@ export class PreparationTasksService {
         tx,
       );
       await this.realtimeEventsService.recordPreparationTaskReady(task.id, tx);
+      await this.syncOrderPreparationReady(task.orderId, body.staffUserId, tx);
 
       return this.getTaskResponse(task.id, tx);
     });
@@ -302,7 +311,7 @@ export class PreparationTasksService {
   private async findTaskStatus(taskId: string, tx: PrismaExecutor) {
     const task = await tx.preparationTask.findUnique({
       where: { id: taskId },
-      select: { id: true, status: true },
+      select: { id: true, orderId: true, status: true },
     });
 
     if (!task) {
@@ -310,6 +319,100 @@ export class PreparationTasksService {
     }
 
     return task;
+  }
+
+  private async syncOrderPreparationStarted(
+    orderId: string,
+    staffUserId: string | undefined,
+    tx: Prisma.TransactionClient,
+  ) {
+    const now = new Date();
+    const updatedOrder = await tx.order.updateMany({
+      where: {
+        id: orderId,
+        status: OrderStatus.cashier_accepted,
+      },
+      data: {
+        status: OrderStatus.preparing,
+        preparingAt: now,
+      },
+    });
+
+    if (updatedOrder.count === 0) {
+      return;
+    }
+
+    await tx.orderEvent.create({
+      data: {
+        orderId,
+        type: OrderEventType.preparation_started,
+        actorType: staffUserId
+          ? OrderEventActorType.staff
+          : OrderEventActorType.system,
+        actorStaffUserId: staffUserId,
+      },
+    });
+    await this.realtimeEventsService.recordOrderPreparationStarted(orderId, tx);
+  }
+
+  private async syncOrderPreparationReady(
+    orderId: string,
+    staffUserId: string | undefined,
+    tx: Prisma.TransactionClient,
+  ) {
+    const order = await tx.order.findUnique({
+      where: { id: orderId },
+      select: {
+        id: true,
+        status: true,
+        preparationTasks: {
+          where: { status: { not: PreparationTaskStatus.cancelled } },
+          select: { id: true, status: true },
+        },
+      },
+    });
+
+    if (!order || order.preparationTasks.length === 0) {
+      return;
+    }
+
+    if (
+      !order.preparationTasks.every(
+        (task) => task.status === PreparationTaskStatus.ready,
+      )
+    ) {
+      return;
+    }
+
+    const now = new Date();
+    const updatedOrder = await tx.order.updateMany({
+      where: {
+        id: orderId,
+        status: {
+          in: [OrderStatus.cashier_accepted, OrderStatus.preparing],
+        },
+      },
+      data: {
+        status: OrderStatus.ready,
+        readyAt: now,
+      },
+    });
+
+    if (updatedOrder.count === 0) {
+      return;
+    }
+
+    await tx.orderEvent.create({
+      data: {
+        orderId,
+        type: OrderEventType.preparation_ready,
+        actorType: staffUserId
+          ? OrderEventActorType.staff
+          : OrderEventActorType.system,
+        actorStaffUserId: staffUserId,
+      },
+    });
+    await this.realtimeEventsService.recordOrderPreparationReady(orderId, tx);
   }
 
   private async getTaskResponse(taskId: string, tx: PrismaExecutor) {
@@ -447,6 +550,13 @@ export class PreparationTasksService {
       cashierAcceptedAt: true,
       cashierRejectedAt: true,
       rejectionReason: true,
+      preparingAt: true,
+      readyAt: true,
+      servedAt: true,
+      completedAt: true,
+      servedByStaffUserId: true,
+      completedByStaffUserId: true,
+      completionNote: true,
       createdAt: true,
       updatedAt: true,
       company: { select: this.companySelect() },

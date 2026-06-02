@@ -115,6 +115,10 @@ enum CartStatus {
 enum OrderStatus {
   submitted
   cashier_accepted
+  preparing
+  ready
+  served
+  completed
   cashier_rejected
   cancelled
 }
@@ -129,6 +133,11 @@ enum OrderEventType {
   submitted
   cashier_accepted
   cashier_rejected
+  preparation_started
+  preparation_ready
+  served
+  completed
+  bill_requested
   cancelled
 }
 
@@ -203,6 +212,29 @@ enum WaiterCallActorType {
   dev
 }
 
+enum BillRequestStatus {
+  open
+  acknowledged
+  presented
+  closed
+  cancelled
+}
+
+enum BillRequestEventType {
+  created
+  acknowledged
+  presented
+  closed
+  cancelled
+}
+
+enum BillRequestActorType {
+  customer
+  staff
+  system
+  dev
+}
+
 enum PresenceTriggerType {
   qr_session_started
   qr_session_resumed
@@ -230,6 +262,10 @@ enum NotificationKind {
   order_rejected
   preparation_started
   preparation_ready
+  order_served
+  bill_requested
+  bill_presented
+  bill_closed
   waiter_call
   system
 }
@@ -258,6 +294,15 @@ enum RealtimeEventType {
   order_submitted
   order_accepted
   order_rejected
+  order_preparation_started
+  order_preparation_ready
+  order_served
+  order_completed
+  bill_requested
+  bill_acknowledged
+  bill_presented
+  bill_closed
+  bill_cancelled
   preparation_task_created
   preparation_task_started
   preparation_task_ready
@@ -308,6 +353,7 @@ model Company {
   updatedAt DateTime      @updatedAt
 
   branches                  Branch[]
+  billRequests              BillRequest[]
   carts                     Cart[]
   menuCategories            MenuCategory[]
   menuItems                 MenuItem[]
@@ -339,6 +385,7 @@ model Branch {
   updatedAt DateTime     @updatedAt
 
   company                   Company                     @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  billRequests              BillRequest[]
   carts                     Cart[]
   floors                    Floor[]
   menuItemOverrides         BranchMenuItemOverride[]
@@ -407,10 +454,17 @@ model StaffUser {
   createdAt DateTime    @default(now())
   updatedAt DateTime    @updatedAt
 
-  memberships           StaffMembership[]
-  orderEvents           OrderEvent[]
-  preparationTaskEvents PreparationTaskEvent[]
-  waiterCallEvents      WaiterCallEvent[]
+  memberships              StaffMembership[]
+  servedOrders             Order[]                @relation("OrderServedByStaff")
+  completedOrders          Order[]                @relation("OrderCompletedByStaff")
+  orderEvents              OrderEvent[]
+  acknowledgedBillRequests BillRequest[]          @relation("BillRequestAcknowledgedByStaff")
+  presentedBillRequests    BillRequest[]          @relation("BillRequestPresentedByStaff")
+  closedBillRequests       BillRequest[]          @relation("BillRequestClosedByStaff")
+  cancelledBillRequests    BillRequest[]          @relation("BillRequestCancelledByStaff")
+  billRequestEvents        BillRequestEvent[]
+  preparationTaskEvents    PreparationTaskEvent[]
+  waiterCallEvents         WaiterCallEvent[]
 
   @@index([email])
 }
@@ -638,6 +692,7 @@ model TableSession {
 
   company                   Company                   @relation(fields: [companyId], references: [id], onDelete: Cascade)
   branch                    Branch                    @relation(fields: [branchId], references: [id], onDelete: Cascade)
+  billRequests              BillRequest[]
   table                     CafeTable                 @relation(fields: [tableId], references: [id], onDelete: Cascade)
   carts                     Cart[]
   events                    TableSessionEvent[]
@@ -755,6 +810,13 @@ model Order {
   cashierAcceptedAt        DateTime?
   cashierRejectedAt        DateTime?
   rejectionReason          String?
+  preparingAt              DateTime?
+  readyAt                  DateTime?
+  servedAt                 DateTime?
+  completedAt              DateTime?
+  servedByStaffUserId      String?
+  completedByStaffUserId   String?
+  completionNote           String?
   autoAcceptDecision       AutoAcceptDecision?
   autoAcceptedAt           DateTime?
   manualReviewReasons      Json?
@@ -763,16 +825,18 @@ model Order {
   createdAt                DateTime            @default(now())
   updatedAt                DateTime            @updatedAt
 
-  company          Company           @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  branch           Branch            @relation(fields: [branchId], references: [id], onDelete: Cascade)
-  tableSession     TableSession      @relation(fields: [tableSessionId], references: [id], onDelete: Cascade)
-  cart             Cart?             @relation(fields: [cartId], references: [id], onDelete: SetNull)
-  items            OrderItem[]
-  events           OrderEvent[]
-  notifications    Notification[]
-  preparationTasks PreparationTask[]
-  realtimeEvents   RealtimeEvent[]
-  waiterCalls      WaiterCall[]
+  company              Company           @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  branch               Branch            @relation(fields: [branchId], references: [id], onDelete: Cascade)
+  tableSession         TableSession      @relation(fields: [tableSessionId], references: [id], onDelete: Cascade)
+  cart                 Cart?             @relation(fields: [cartId], references: [id], onDelete: SetNull)
+  servedByStaffUser    StaffUser?        @relation("OrderServedByStaff", fields: [servedByStaffUserId], references: [id], onDelete: SetNull)
+  completedByStaffUser StaffUser?        @relation("OrderCompletedByStaff", fields: [completedByStaffUserId], references: [id], onDelete: SetNull)
+  items                OrderItem[]
+  events               OrderEvent[]
+  notifications        Notification[]
+  preparationTasks     PreparationTask[]
+  realtimeEvents       RealtimeEvent[]
+  waiterCalls          WaiterCall[]
 
   @@unique([branchId, orderNumber])
   @@unique([tableSessionId, idempotencyKey])
@@ -781,6 +845,12 @@ model Order {
   @@index([tableSessionId])
   @@index([status])
   @@index([submittedAt])
+  @@index([preparingAt])
+  @@index([readyAt])
+  @@index([servedAt])
+  @@index([completedAt])
+  @@index([servedByStaffUserId])
+  @@index([completedByStaffUserId])
   @@index([autoAcceptDecision])
   @@index([autoAcceptedAt])
 }
@@ -952,6 +1022,67 @@ model WaiterCallEvent {
   @@index([waiterCallId])
   @@index([type])
   @@index([actorType])
+  @@index([createdAt])
+}
+
+model BillRequest {
+  id                        String               @id @default(uuid())
+  companyId                 String
+  branchId                  String
+  tableSessionId            String
+  status                    BillRequestStatus    @default(open)
+  currency                  String               @default("EGP")
+  subtotalMinor             Int
+  orderCount                Int
+  requestedAt               DateTime             @default(now())
+  acknowledgedAt            DateTime?
+  presentedAt               DateTime?
+  closedAt                  DateTime?
+  cancelledAt               DateTime?
+  requestedByActorType      BillRequestActorType @default(customer)
+  acknowledgedByStaffUserId String?
+  presentedByStaffUserId    String?
+  closedByStaffUserId       String?
+  cancelledByStaffUserId    String?
+  note                      String?
+  cancellationReason        String?
+  createdAt                 DateTime             @default(now())
+  updatedAt                 DateTime             @updatedAt
+
+  company                 Company            @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  branch                  Branch             @relation(fields: [branchId], references: [id], onDelete: Cascade)
+  tableSession            TableSession       @relation(fields: [tableSessionId], references: [id], onDelete: Cascade)
+  acknowledgedByStaffUser StaffUser?         @relation("BillRequestAcknowledgedByStaff", fields: [acknowledgedByStaffUserId], references: [id], onDelete: SetNull)
+  presentedByStaffUser    StaffUser?         @relation("BillRequestPresentedByStaff", fields: [presentedByStaffUserId], references: [id], onDelete: SetNull)
+  closedByStaffUser       StaffUser?         @relation("BillRequestClosedByStaff", fields: [closedByStaffUserId], references: [id], onDelete: SetNull)
+  cancelledByStaffUser    StaffUser?         @relation("BillRequestCancelledByStaff", fields: [cancelledByStaffUserId], references: [id], onDelete: SetNull)
+  events                  BillRequestEvent[]
+  realtimeEvents          RealtimeEvent[]
+
+  @@index([companyId])
+  @@index([branchId])
+  @@index([tableSessionId])
+  @@index([status])
+  @@index([requestedAt])
+  @@index([branchId, status, requestedAt])
+  @@index([tableSessionId, status])
+}
+
+model BillRequestEvent {
+  id               String               @id @default(uuid())
+  billRequestId    String
+  type             BillRequestEventType
+  actorType        BillRequestActorType
+  actorStaffUserId String?
+  metadata         Json?
+  createdAt        DateTime             @default(now())
+
+  billRequest    BillRequest @relation(fields: [billRequestId], references: [id], onDelete: Cascade)
+  actorStaffUser StaffUser?  @relation(fields: [actorStaffUserId], references: [id], onDelete: SetNull)
+
+  @@index([billRequestId])
+  @@index([type])
+  @@index([actorStaffUserId])
   @@index([createdAt])
 }
 
@@ -1147,6 +1278,7 @@ model RealtimeEvent {
   orderId           String?
   preparationTaskId String?
   waiterCallId      String?
+  billRequestId     String?
   notificationId    String?
   type              RealtimeEventType
   channel           RealtimeEventChannel
@@ -1159,6 +1291,7 @@ model RealtimeEvent {
   order           Order?           @relation(fields: [orderId], references: [id], onDelete: SetNull)
   preparationTask PreparationTask? @relation(fields: [preparationTaskId], references: [id], onDelete: SetNull)
   waiterCall      WaiterCall?      @relation(fields: [waiterCallId], references: [id], onDelete: SetNull)
+  billRequest     BillRequest?     @relation(fields: [billRequestId], references: [id], onDelete: SetNull)
   notification    Notification?    @relation(fields: [notificationId], references: [id], onDelete: SetNull)
 
   @@index([companyId])
@@ -1167,6 +1300,7 @@ model RealtimeEvent {
   @@index([orderId])
   @@index([preparationTaskId])
   @@index([waiterCallId])
+  @@index([billRequestId])
   @@index([notificationId])
   @@index([type])
   @@index([channel])
