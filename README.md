@@ -750,6 +750,57 @@ curl http://localhost:3000/api/v1/branches/<branchId>/audit-logs
 curl http://localhost:3000/api/v1/companies/<companyId>/audit-logs
 ```
 
+Staff auth local/dev bootstrap and login:
+
+```bash
+curl -X POST http://localhost:3000/api/v1/staff-auth/dev/bootstrap-password \
+  -H "Content-Type: application/json" \
+  -d '{"email":"manager@balcona.local","password":"change-me-local-123"}'
+
+curl -X POST http://localhost:3000/api/v1/staff-auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"email":"manager@balcona.local","password":"change-me-local-123","branchId":"<optionalBranchId>"}'
+
+curl http://localhost:3000/api/v1/staff-auth/me \
+  -H "Authorization: Bearer <accessToken>"
+
+curl -X POST http://localhost:3000/api/v1/staff-auth/logout \
+  -H "Authorization: Bearer <accessToken>"
+```
+
+Table-session start/resume responses now include a `customerAccess` object with a one-time returned customer access token. Current customer endpoints remain backwards-compatible; the token foundation is ready for the future PWA ownership guard rollout.
+
+Swagger/OpenAPI is available by default in local/dev:
+
+```bash
+curl http://localhost:3000/api/openapi.json
+```
+
+Open browser docs at `http://localhost:3000/api/docs`. Future UI clients can generate typed API bindings from the OpenAPI JSON.
+
+Inspect BullMQ/Redis job queue health with a staff bearer token that has `system.jobs.read`:
+
+```bash
+curl http://localhost:3000/api/v1/system/jobs/health \
+  -H "Authorization: Bearer <accessToken>"
+
+curl http://localhost:3000/api/v1/system/jobs/queues \
+  -H "Authorization: Bearer <accessToken>"
+```
+
+Security and scaling environment variables:
+
+```bash
+STAFF_AUTH_SESSION_HOURS=12
+STAFF_AUTH_DEV_BOOTSTRAP_ENABLED=false
+CUSTOMER_ACCESS_TOKEN_HOURS=24
+SWAGGER_ENABLED=true
+CORS_ORIGINS=http://localhost:3000,http://localhost:5173
+JOBS_ENABLED=true
+```
+
+Backend core is now ready for UI Phase 1 planning. Remaining production work includes complete staff-auth enforcement on all staff-only routes, customer token guards across PWA mutation/read endpoints, production rate limiting, external notification delivery, deployment-specific CORS, and real payment/POS/storage/AI integrations when their phases begin.
+
 ## Phase notes
 
 - Phase 1 backend skeleton: `docs/architecture/phase-1-backend-skeleton.md`
@@ -770,3 +821,5 @@ curl http://localhost:3000/api/v1/companies/<companyId>/audit-logs
 - Phase 16-17 media, experience, content, and Balkona pack: `docs/architecture/phase-16-17-media-experience-content-balkona-pack.md`
 - Phase 18 AI waiter backend foundation: `docs/architecture/phase-18-ai-waiter-backend-foundation.md`
 - Phases 19, 20, and 22 cafe autopilot brain: `docs/architecture/phase-19-20-22-cafe-autopilot-brain.md`
+- Phases 21, 23, and 24 security, scaling, and hardening: `docs/architecture/phase-21-23-24-security-scaling-hardening.md`
+- Backend core complete checklist: `docs/architecture/backend-core-complete-checklist.md`

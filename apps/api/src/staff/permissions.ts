@@ -61,6 +61,13 @@ export const STAFF_PERMISSIONS = [
   'autopilot.manage',
   'analytics.read',
   'audit.read',
+  'auth.read',
+  'auth.manage',
+  'system.jobs.read',
+  'system.jobs.manage',
+  'system.docs.read',
+  'security.read',
+  'security.manage',
 ] as const;
 
 export type StaffPermission = (typeof STAFF_PERMISSIONS)[number];
@@ -129,6 +136,10 @@ export const ROLE_PERMISSIONS: Record<StaffRole, readonly StaffPermission[]> = {
     'autopilot.manage',
     'analytics.read',
     'audit.read',
+    'auth.read',
+    'system.jobs.read',
+    'system.docs.read',
+    'security.read',
   ],
   [StaffRole.cashier]: [
     'menu.read',

@@ -14,6 +14,7 @@ import { PresenceNotificationsService } from '../presence-notifications/presence
 import { PrismaService } from '../prisma/prisma.service';
 import { RealtimeEventsService } from '../realtime-events/realtime-events.service';
 import { StartTableSessionDto } from './dto/start-table-session.dto';
+import { TableSessionAccessService } from './table-session-access.service';
 
 const OPEN_SESSION_STATUSES: TableSessionStatus[] = [
   TableSessionStatus.active,
@@ -82,6 +83,7 @@ export class TableSessionsService {
     private readonly prisma: PrismaService,
     private readonly presenceNotificationsService: PresenceNotificationsService,
     private readonly realtimeEventsService: RealtimeEventsService,
+    private readonly tableSessionAccessService: TableSessionAccessService,
   ) {}
 
   async start(body: StartTableSessionDto) {
@@ -163,7 +165,12 @@ export class TableSessionsService {
 
         await this.realtimeEventsService.recordTableSessionResumed(session, tx);
 
-        return { session, wasResumed: true };
+        const access = await this.tableSessionAccessService.issueAccessToken(
+          session,
+          tx,
+        );
+
+        return { session, access, wasResumed: true };
       }
 
       const session = await tx.tableSession.create({
@@ -195,10 +202,19 @@ export class TableSessionsService {
 
       await this.realtimeEventsService.recordTableSessionStarted(session, tx);
 
-      return { session, wasResumed: false };
+      const access = await this.tableSessionAccessService.issueAccessToken(
+        session,
+        tx,
+      );
+
+      return { session, access, wasResumed: false };
     });
 
-    return this.toContextResponse(result.session, result.wasResumed);
+    return this.toContextResponse(
+      result.session,
+      result.wasResumed,
+      result.access,
+    );
   }
 
   async findOne(sessionId: string) {
@@ -328,6 +344,11 @@ export class TableSessionsService {
       select: typeof tableSessionContextSelect;
     }>,
     wasResumed?: boolean,
+    access?: {
+      customerAccessToken: string;
+      customerAccessTokenExpiresAt: Date | null;
+      customerSessionIdentityId: string;
+    },
   ) {
     const { company, branch, table, ...sessionFields } = session;
     const { floor, ...tableFields } = table;
@@ -339,6 +360,7 @@ export class TableSessionsService {
       floor,
       table: tableFields,
       ...(wasResumed === undefined ? {} : { wasResumed }),
+      ...(access ? { customerAccess: access } : {}),
     };
   }
 

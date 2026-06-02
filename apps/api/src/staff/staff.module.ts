@@ -9,6 +9,6 @@ import { StaffService } from './staff.service';
   imports: [PrismaModule],
   controllers: [StaffController],
   providers: [StaffService, StaffAccessService, StaffPermissionGuard],
-  exports: [StaffService, StaffAccessService],
+  exports: [StaffService, StaffAccessService, StaffPermissionGuard],
 })
 export class StaffModule {}
