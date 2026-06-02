@@ -320,6 +320,12 @@ enum RealtimeEventType {
   ai_waiter_cart_proposal_applied
   ai_waiter_escalated
   ai_waiter_session_closed
+  table_attention_updated
+  table_attention_resolved
+  branch_attention_queue_updated
+  branch_settings_updated
+  analytics_snapshot_generated
+  audit_log_created
   system
 }
 
@@ -435,6 +441,92 @@ enum AiWaiterProviderMode {
   external_ready
 }
 
+enum BranchOperatingMode {
+  manual
+  assisted
+  autopilot
+}
+
+enum BranchServiceMode {
+  dine_in
+  takeaway
+  mixed
+}
+
+enum BranchFeatureFlagKey {
+  ai_waiter
+  waiter_calls
+  smart_cashier
+  realtime
+  media_experience
+  bill_flow
+  table_attention
+  analytics
+  notifications
+  presence_triggers
+}
+
+enum TableAttentionStatus {
+  normal
+  needs_attention
+  urgent
+  resolved
+  muted
+}
+
+enum TableAttentionReason {
+  order_waiting_for_acceptance
+  preparation_delayed
+  order_ready_not_served
+  waiter_call_open
+  bill_requested
+  ai_waiter_escalated
+  session_idle_too_long
+  manual_flag
+  other
+}
+
+enum TableAttentionPriority {
+  low
+  medium
+  high
+  urgent
+}
+
+enum AuditActorType {
+  customer
+  staff
+  system
+  ai_waiter
+  dev
+}
+
+enum AuditAction {
+  settings_updated
+  feature_flag_updated
+  order_accepted
+  order_rejected
+  order_served
+  order_completed
+  bill_acknowledged
+  bill_presented
+  bill_closed
+  bill_cancelled
+  waiter_call_acknowledged
+  waiter_call_resolved
+  waiter_call_cancelled
+  ai_waiter_escalated
+  attention_recalculated
+  attention_resolved
+  attention_muted
+  attention_rebuilt
+  menu_changed
+  experience_changed
+  media_changed
+  content_changed
+  other
+}
+
 enum MediaStorageProvider {
   external_url
   local_placeholder
@@ -502,7 +594,10 @@ model Company {
   aiWaiterCartProposals     AiWaiterCartProposal[]
   aiWaiterToolCalls         AiWaiterToolCall[]
   aiWaiterUsageEvents       AiWaiterUsageEvent[]
+  auditLogs                 AuditLog[]
   branches                  Branch[]
+  branchOperatingSettings   BranchOperatingSettings[]
+  branchFeatureFlags        BranchFeatureFlag[]
   billRequests              BillRequest[]
   carts                     Cart[]
   menuCategories            MenuCategory[]
@@ -521,6 +616,8 @@ model Company {
   smartCashierSettings      BranchSmartCashierSettings[]
   smartCashierReviewRules   SmartCashierReviewRule[]
   staffMemberships          StaffMembership[]
+  tableAttentionSnapshots   TableAttentionSnapshot[]
+  tableAttentionEvents      TableAttentionEvent[]
   tableSessions             TableSession[]
   customerSessionIdentities CustomerSessionIdentity[]
   deviceSubscriptions       DeviceSubscription[]
@@ -543,7 +640,10 @@ model Branch {
   aiWaiterCartProposals     AiWaiterCartProposal[]
   aiWaiterToolCalls         AiWaiterToolCall[]
   aiWaiterUsageEvents       AiWaiterUsageEvent[]
+  auditLogs                 AuditLog[]
   company                   Company                     @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  operatingSettings         BranchOperatingSettings?
+  featureFlags              BranchFeatureFlag[]
   billRequests              BillRequest[]
   carts                     Cart[]
   floors                    Floor[]
@@ -560,6 +660,8 @@ model Branch {
   realtimeEvents            RealtimeEvent[]
   smartCashierSettings      BranchSmartCashierSettings?
   smartCashierReviewRules   SmartCashierReviewRule[]
+  tableAttentionSnapshots   TableAttentionSnapshot[]
+  tableAttentionEvents      TableAttentionEvent[]
   tables                    CafeTable[]
   staffMemberships          StaffMembership[]
   tableSessions             TableSession[]
@@ -628,6 +730,7 @@ model StaffUser {
   billRequestEvents        BillRequestEvent[]
   preparationTaskEvents    PreparationTaskEvent[]
   waiterCallEvents         WaiterCallEvent[]
+  auditLogs                AuditLog[]
 
   @@index([email])
 }
@@ -809,6 +912,58 @@ model BranchSmartCashierSettings {
   @@index([enabled])
 }
 
+model BranchOperatingSettings {
+  id                      String              @id @default(uuid())
+  companyId               String
+  branchId                String              @unique
+  operatingMode           BranchOperatingMode @default(assisted)
+  serviceMode             BranchServiceMode   @default(dine_in)
+  aiWaiterEnabled         Boolean             @default(true)
+  waiterCallsEnabled      Boolean             @default(true)
+  smartCashierEnabled     Boolean             @default(true)
+  realtimeEnabled         Boolean             @default(true)
+  mediaExperienceEnabled  Boolean             @default(true)
+  billFlowEnabled         Boolean             @default(true)
+  tableAttentionEnabled   Boolean             @default(true)
+  analyticsEnabled        Boolean             @default(true)
+  notificationsEnabled    Boolean             @default(true)
+  presenceTriggersEnabled Boolean             @default(true)
+  openingHours            Json?
+  serviceConfig           Json?
+  attentionConfig         Json?
+  metadata                Json?
+  createdAt               DateTime            @default(now())
+  updatedAt               DateTime            @updatedAt
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  branch  Branch  @relation(fields: [branchId], references: [id], onDelete: Cascade)
+
+  @@index([companyId])
+  @@index([branchId])
+  @@index([operatingMode])
+  @@index([serviceMode])
+}
+
+model BranchFeatureFlag {
+  id        String               @id @default(uuid())
+  companyId String
+  branchId  String
+  key       BranchFeatureFlagKey
+  enabled   Boolean              @default(true)
+  config    Json?
+  createdAt DateTime             @default(now())
+  updatedAt DateTime             @updatedAt
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  branch  Branch  @relation(fields: [branchId], references: [id], onDelete: Cascade)
+
+  @@unique([branchId, key])
+  @@index([companyId])
+  @@index([branchId])
+  @@index([key])
+  @@index([enabled])
+}
+
 model SmartCashierReviewRule {
   id         String                 @id @default(uuid())
   companyId  String
@@ -858,6 +1013,7 @@ model TableSession {
   aiWaiterCartProposals     AiWaiterCartProposal[]
   aiWaiterToolCalls         AiWaiterToolCall[]
   aiWaiterUsageEvents       AiWaiterUsageEvent[]
+  auditLogs                 AuditLog[]
   company                   Company                   @relation(fields: [companyId], references: [id], onDelete: Cascade)
   branch                    Branch                    @relation(fields: [branchId], references: [id], onDelete: Cascade)
   billRequests              BillRequest[]
@@ -868,6 +1024,8 @@ model TableSession {
   orders                    Order[]
   presenceEvents            PresenceEvent[]
   realtimeEvents            RealtimeEvent[]
+  tableAttentionSnapshot    TableAttentionSnapshot?
+  tableAttentionEvents      TableAttentionEvent[]
   customerSessionIdentities CustomerSessionIdentity[]
   deviceSubscriptions       DeviceSubscription[]
   waiterCalls               WaiterCall[]
@@ -1115,6 +1273,65 @@ model AiWaiterUsageEvent {
   @@index([branchId])
   @@index([tableSessionId])
   @@index([aiWaiterSessionId])
+  @@index([createdAt])
+}
+
+model TableAttentionSnapshot {
+  id                 String                 @id @default(uuid())
+  companyId          String
+  branchId           String
+  tableSessionId     String                 @unique
+  status             TableAttentionStatus   @default(normal)
+  priority           TableAttentionPriority @default(low)
+  score              Int                    @default(0)
+  reasons            Json
+  recommendedActions Json?
+  source             String                 @default("autopilot")
+  lastEvaluatedAt    DateTime               @default(now())
+  resolvedAt         DateTime?
+  mutedUntil         DateTime?
+  metadata           Json?
+  createdAt          DateTime               @default(now())
+  updatedAt          DateTime               @updatedAt
+
+  company      Company               @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  branch       Branch                @relation(fields: [branchId], references: [id], onDelete: Cascade)
+  tableSession TableSession          @relation(fields: [tableSessionId], references: [id], onDelete: Cascade)
+  events       TableAttentionEvent[]
+
+  @@index([companyId])
+  @@index([branchId])
+  @@index([tableSessionId])
+  @@index([status])
+  @@index([priority])
+  @@index([score])
+  @@index([lastEvaluatedAt])
+  @@index([branchId, status, priority])
+}
+
+model TableAttentionEvent {
+  id             String                 @id @default(uuid())
+  companyId      String
+  branchId       String
+  tableSessionId String
+  snapshotId     String?
+  reason         TableAttentionReason
+  priority       TableAttentionPriority
+  scoreDelta     Int                    @default(0)
+  message        String?
+  metadata       Json?
+  createdAt      DateTime               @default(now())
+
+  company      Company                 @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  branch       Branch                  @relation(fields: [branchId], references: [id], onDelete: Cascade)
+  tableSession TableSession            @relation(fields: [tableSessionId], references: [id], onDelete: Cascade)
+  snapshot     TableAttentionSnapshot? @relation(fields: [snapshotId], references: [id], onDelete: SetNull)
+
+  @@index([companyId])
+  @@index([branchId])
+  @@index([tableSessionId])
+  @@index([snapshotId])
+  @@index([reason])
   @@index([createdAt])
 }
 
@@ -1410,6 +1627,38 @@ model BillRequestEvent {
   @@index([billRequestId])
   @@index([type])
   @@index([actorStaffUserId])
+  @@index([createdAt])
+}
+
+model AuditLog {
+  id               String         @id @default(uuid())
+  companyId        String
+  branchId         String?
+  actorType        AuditActorType
+  actorStaffUserId String?
+  tableSessionId   String?
+  targetType       String
+  targetId         String?
+  action           AuditAction
+  message          String?
+  before           Json?
+  after            Json?
+  metadata         Json?
+  requestId        String?
+  createdAt        DateTime       @default(now())
+
+  company        Company       @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  branch         Branch?       @relation(fields: [branchId], references: [id], onDelete: SetNull)
+  actorStaffUser StaffUser?    @relation(fields: [actorStaffUserId], references: [id], onDelete: SetNull)
+  tableSession   TableSession? @relation(fields: [tableSessionId], references: [id], onDelete: SetNull)
+
+  @@index([companyId])
+  @@index([branchId])
+  @@index([actorType])
+  @@index([actorStaffUserId])
+  @@index([tableSessionId])
+  @@index([targetType, targetId])
+  @@index([action])
   @@index([createdAt])
 }
 

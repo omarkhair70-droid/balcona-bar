@@ -13,6 +13,7 @@ import {
   Prisma,
   TableSessionStatus,
 } from '@prisma/client';
+import { TableAttentionService } from '../autopilot/table-attention.service';
 import { PresenceNotificationsService } from '../presence-notifications/presence-notifications.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { RealtimeEventsService } from '../realtime-events/realtime-events.service';
@@ -43,6 +44,7 @@ export class BillRequestsService {
     private readonly prisma: PrismaService,
     private readonly presenceNotificationsService: PresenceNotificationsService,
     private readonly realtimeEventsService: RealtimeEventsService,
+    private readonly tableAttentionService: TableAttentionService,
   ) {}
 
   async requestBill(sessionId: string, body: RequestBillDto = {}) {
@@ -113,6 +115,12 @@ export class BillRequestsService {
         tx,
       );
       await this.realtimeEventsService.recordBillRequested(billRequest.id, tx);
+      await this.recalculateAttention(
+        tableSession.id,
+        tx,
+        'bill_requested',
+        { billRequestId: billRequest.id },
+      );
 
       return this.getBillRequestResponse(billRequest.id, tx);
     });
@@ -227,6 +235,12 @@ export class BillRequestsService {
         billRequest.id,
         tx,
       );
+      await this.recalculateAttention(
+        billRequest.tableSessionId,
+        tx,
+        'bill_acknowledged',
+        { billRequestId: billRequest.id },
+      );
 
       return this.getBillRequestResponse(billRequest.id, tx);
     });
@@ -273,6 +287,12 @@ export class BillRequestsService {
         tx,
       );
       await this.realtimeEventsService.recordBillPresented(billRequest.id, tx);
+      await this.recalculateAttention(
+        billRequest.tableSessionId,
+        tx,
+        'bill_presented',
+        { billRequestId: billRequest.id },
+      );
 
       return this.getBillRequestResponse(billRequest.id, tx);
     });
@@ -323,6 +343,12 @@ export class BillRequestsService {
         tx,
       );
       await this.realtimeEventsService.recordBillClosed(billRequest.id, tx);
+      await this.recalculateAttention(
+        billRequest.tableSessionId,
+        tx,
+        'bill_closed',
+        { billRequestId: billRequest.id },
+      );
 
       return this.getBillRequestResponse(billRequest.id, tx);
     });
@@ -366,6 +392,12 @@ export class BillRequestsService {
         tx,
       );
       await this.realtimeEventsService.recordBillCancelled(billRequest.id, tx);
+      await this.recalculateAttention(
+        billRequest.tableSessionId,
+        tx,
+        'bill_cancelled',
+        { billRequestId: billRequest.id },
+      );
 
       return this.getBillRequestResponse(billRequest.id, tx);
     });
@@ -421,6 +453,12 @@ export class BillRequestsService {
         },
       });
       await this.realtimeEventsService.recordOrderCompleted(order.id, tx);
+      await this.recalculateAttention(
+        tableSessionId,
+        tx,
+        'bill_order_completed',
+        { orderId: order.id, billRequestId },
+      );
     }
   }
 
@@ -631,6 +669,23 @@ export class BillRequestsService {
 
     if (!staffUser) {
       throw new NotFoundException('Staff user not found');
+    }
+  }
+
+  private async recalculateAttention(
+    tableSessionId: string,
+    tx: Prisma.TransactionClient,
+    source: string,
+    metadata: Record<string, unknown>,
+  ) {
+    try {
+      await this.tableAttentionService.recalculateForTableSession(
+        tableSessionId,
+        tx,
+        { source, metadata },
+      );
+    } catch {
+      return undefined;
     }
   }
 

@@ -697,6 +697,59 @@ curl http://localhost:3000/api/v1/realtime/table-sessions/<sessionId>/events
 curl http://localhost:3000/api/v1/realtime/table-sessions/<sessionId>/events?channel=status&limit=25
 ```
 
+Read and update branch operating settings:
+
+```bash
+curl http://localhost:3000/api/v1/branches/<branchId>/operating-settings
+
+curl -X PUT http://localhost:3000/api/v1/branches/<branchId>/operating-settings \
+  -H "Content-Type: application/json" \
+  -d '{"operatingMode":"assisted","serviceMode":"dine_in","tableAttentionEnabled":true,"analyticsEnabled":true}'
+```
+
+Read and update branch feature flags:
+
+```bash
+curl http://localhost:3000/api/v1/branches/<branchId>/feature-flags
+
+curl -X PUT http://localhost:3000/api/v1/branches/<branchId>/feature-flags/table_attention \
+  -H "Content-Type: application/json" \
+  -d '{"enabled":true,"config":{"source":"local-demo"}}'
+```
+
+Inspect and manage table attention:
+
+```bash
+curl http://localhost:3000/api/v1/branches/<branchId>/autopilot/attention
+curl http://localhost:3000/api/v1/table-sessions/<sessionId>/autopilot/attention
+
+curl -X POST http://localhost:3000/api/v1/table-sessions/<sessionId>/autopilot/attention/recalculate \
+  -H "Content-Type: application/json" \
+  -d '{"source":"manual_check"}'
+
+curl -X POST http://localhost:3000/api/v1/table-sessions/<sessionId>/autopilot/attention/resolve \
+  -H "Content-Type: application/json" \
+  -d '{"staffUserId":"<optionalStaffUserId>","note":"Handled"}'
+
+curl -X POST http://localhost:3000/api/v1/table-sessions/<sessionId>/autopilot/attention/mute \
+  -H "Content-Type: application/json" \
+  -d '{"minutes":30,"staffUserId":"<optionalStaffUserId>"}'
+
+curl -X POST http://localhost:3000/api/v1/branches/<branchId>/autopilot/attention/rebuild
+```
+
+Read analytics and audit history:
+
+```bash
+curl http://localhost:3000/api/v1/branches/<branchId>/analytics/overview
+curl http://localhost:3000/api/v1/branches/<branchId>/analytics/menu
+curl http://localhost:3000/api/v1/branches/<branchId>/analytics/staff-actions
+curl http://localhost:3000/api/v1/companies/<companyId>/analytics/overview
+
+curl http://localhost:3000/api/v1/branches/<branchId>/audit-logs
+curl http://localhost:3000/api/v1/companies/<companyId>/audit-logs
+```
+
 ## Phase notes
 
 - Phase 1 backend skeleton: `docs/architecture/phase-1-backend-skeleton.md`
@@ -716,3 +769,4 @@ curl http://localhost:3000/api/v1/realtime/table-sessions/<sessionId>/events?cha
 - Phase 15 menu admin backend: `docs/architecture/phase-15-menu-admin-backend.md`
 - Phase 16-17 media, experience, content, and Balkona pack: `docs/architecture/phase-16-17-media-experience-content-balkona-pack.md`
 - Phase 18 AI waiter backend foundation: `docs/architecture/phase-18-ai-waiter-backend-foundation.md`
+- Phases 19, 20, and 22 cafe autopilot brain: `docs/architecture/phase-19-20-22-cafe-autopilot-brain.md`

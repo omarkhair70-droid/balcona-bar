@@ -12,6 +12,7 @@ import {
   PreparationTaskStatus,
   Prisma,
 } from '@prisma/client';
+import { TableAttentionService } from '../autopilot/table-attention.service';
 import { CartService } from '../cart/cart.service';
 import { PresenceNotificationsService } from '../presence-notifications/presence-notifications.service';
 import { PreparationTasksService } from '../preparation-tasks/preparation-tasks.service';
@@ -62,6 +63,7 @@ export class OrdersService {
     private readonly presenceNotificationsService: PresenceNotificationsService,
     private readonly realtimeEventsService: RealtimeEventsService,
     private readonly smartCashierService: SmartCashierService,
+    private readonly tableAttentionService: TableAttentionService,
   ) {}
 
   async submitCart(
@@ -165,6 +167,9 @@ export class OrdersService {
       );
       await this.realtimeEventsService.recordOrderSubmitted(order.id, tx);
       await this.smartCashierService.attemptAutoAcceptOrder(order.id, tx);
+      await this.recalculateAttention(session.id, tx, 'order_submitted', {
+        orderId: order.id,
+      });
 
       return this.getOrderResponse(order.id, tx, {
         replayed: false,
@@ -211,7 +216,7 @@ export class OrdersService {
 
       const order = await tx.order.findUnique({
         where: { id: orderId },
-        select: { id: true, status: true },
+        select: { id: true, tableSessionId: true, status: true },
       });
 
       if (!order) {
@@ -252,6 +257,12 @@ export class OrdersService {
         tx,
       );
       await this.realtimeEventsService.recordOrderAccepted(order.id, tx);
+      await this.recalculateAttention(
+        order.tableSessionId,
+        tx,
+        'order_accepted',
+        { orderId: order.id },
+      );
 
       return this.getOrderResponse(order.id, tx);
     });
@@ -263,7 +274,7 @@ export class OrdersService {
 
       const order = await tx.order.findUnique({
         where: { id: orderId },
-        select: { id: true, status: true },
+        select: { id: true, tableSessionId: true, status: true },
       });
 
       if (!order) {
@@ -302,6 +313,12 @@ export class OrdersService {
         tx,
       );
       await this.realtimeEventsService.recordOrderRejected(order.id, tx);
+      await this.recalculateAttention(
+        order.tableSessionId,
+        tx,
+        'order_rejected',
+        { orderId: order.id },
+      );
 
       return this.getOrderResponse(order.id, tx);
     });
@@ -315,6 +332,7 @@ export class OrdersService {
         where: { id: orderId },
         select: {
           id: true,
+          tableSessionId: true,
           status: true,
           preparationTasks: {
             where: { status: { not: PreparationTaskStatus.cancelled } },
@@ -373,6 +391,9 @@ export class OrdersService {
         tx,
       );
       await this.realtimeEventsService.recordOrderServed(order.id, tx);
+      await this.recalculateAttention(order.tableSessionId, tx, 'order_served', {
+        orderId: order.id,
+      });
 
       return this.getOrderResponse(order.id, tx);
     });
@@ -384,7 +405,7 @@ export class OrdersService {
 
       const order = await tx.order.findUnique({
         where: { id: orderId },
-        select: { id: true, status: true },
+        select: { id: true, tableSessionId: true, status: true },
       });
 
       if (!order) {
@@ -423,6 +444,12 @@ export class OrdersService {
       });
 
       await this.realtimeEventsService.recordOrderCompleted(order.id, tx);
+      await this.recalculateAttention(
+        order.tableSessionId,
+        tx,
+        'order_completed',
+        { orderId: order.id },
+      );
 
       return this.getOrderResponse(order.id, tx);
     });
@@ -536,6 +563,23 @@ export class OrdersService {
 
     if (!staffUser) {
       throw new NotFoundException('Staff user not found');
+    }
+  }
+
+  private async recalculateAttention(
+    tableSessionId: string,
+    tx: Prisma.TransactionClient,
+    source: string,
+    metadata: Record<string, unknown>,
+  ) {
+    try {
+      await this.tableAttentionService.recalculateForTableSession(
+        tableSessionId,
+        tx,
+        { source, metadata },
+      );
+    } catch {
+      return undefined;
     }
   }
 

@@ -12,6 +12,7 @@ import {
   PreparationTaskStatus,
   Prisma,
 } from '@prisma/client';
+import { TableAttentionService } from '../autopilot/table-attention.service';
 import { PresenceNotificationsService } from '../presence-notifications/presence-notifications.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { RealtimeEventsService } from '../realtime-events/realtime-events.service';
@@ -33,6 +34,7 @@ export class PreparationTasksService {
     private readonly prisma: PrismaService,
     private readonly presenceNotificationsService: PresenceNotificationsService,
     private readonly realtimeEventsService: RealtimeEventsService,
+    private readonly tableAttentionService: TableAttentionService,
   ) {}
 
   async createTasksForAcceptedOrder(
@@ -218,6 +220,12 @@ export class PreparationTasksService {
         body.staffUserId,
         tx,
       );
+      await this.recalculateAttention(
+        task.order.tableSessionId,
+        tx,
+        'preparation_task_started',
+        { preparationTaskId: task.id, orderId: task.orderId },
+      );
 
       return this.getTaskResponse(task.id, tx);
     });
@@ -260,6 +268,12 @@ export class PreparationTasksService {
       );
       await this.realtimeEventsService.recordPreparationTaskReady(task.id, tx);
       await this.syncOrderPreparationReady(task.orderId, body.staffUserId, tx);
+      await this.recalculateAttention(
+        task.order.tableSessionId,
+        tx,
+        'preparation_task_ready',
+        { preparationTaskId: task.id, orderId: task.orderId },
+      );
 
       return this.getTaskResponse(task.id, tx);
     });
@@ -303,6 +317,12 @@ export class PreparationTasksService {
         task.id,
         tx,
       );
+      await this.recalculateAttention(
+        task.order.tableSessionId,
+        tx,
+        'preparation_task_cancelled',
+        { preparationTaskId: task.id, orderId: task.orderId },
+      );
 
       return this.getTaskResponse(task.id, tx);
     });
@@ -311,7 +331,16 @@ export class PreparationTasksService {
   private async findTaskStatus(taskId: string, tx: PrismaExecutor) {
     const task = await tx.preparationTask.findUnique({
       where: { id: taskId },
-      select: { id: true, orderId: true, status: true },
+      select: {
+        id: true,
+        orderId: true,
+        status: true,
+        order: {
+          select: {
+            tableSessionId: true,
+          },
+        },
+      },
     });
 
     if (!task) {
@@ -443,6 +472,23 @@ export class PreparationTasksService {
 
     if (!staffUser) {
       throw new NotFoundException('Staff user not found');
+    }
+  }
+
+  private async recalculateAttention(
+    tableSessionId: string,
+    tx: Prisma.TransactionClient,
+    source: string,
+    metadata: Record<string, unknown>,
+  ) {
+    try {
+      await this.tableAttentionService.recalculateForTableSession(
+        tableSessionId,
+        tx,
+        { source, metadata },
+      );
+    } catch {
+      return undefined;
     }
   }
 

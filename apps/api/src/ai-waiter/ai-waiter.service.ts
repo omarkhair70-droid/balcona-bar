@@ -17,6 +17,7 @@ import {
   RealtimeEventType,
   WaiterCallType,
 } from "@prisma/client";
+import { TableAttentionService } from "../autopilot/table-attention.service";
 import {
   AddCartItemDto,
   SelectedModifierDto,
@@ -56,6 +57,7 @@ export class AiWaiterService {
     private readonly cartService: CartService,
     private readonly waiterCallsService: WaiterCallsService,
     private readonly realtimeEventsService: RealtimeEventsService,
+    private readonly tableAttentionService: TableAttentionService,
   ) {}
 
   async start(sessionId: string, body: StartAiWaiterDto = {}) {
@@ -400,6 +402,11 @@ export class AiWaiterService {
         { reason: body.reason, waiterCallId: waiterCall.waiterCall.id },
         tx,
       );
+      await this.recalculateAttention(session.tableSessionId, tx, {
+        aiWaiterSessionId: session.id,
+        waiterCallId: waiterCall.waiterCall.id,
+        reason: body.reason,
+      });
 
       return updated;
     });
@@ -978,6 +985,22 @@ export class AiWaiterService {
       },
       tx,
     );
+  }
+
+  private async recalculateAttention(
+    tableSessionId: string,
+    tx: Prisma.TransactionClient,
+    metadata: Record<string, unknown>,
+  ) {
+    try {
+      await this.tableAttentionService.recalculateForTableSession(
+        tableSessionId,
+        tx,
+        { source: "ai_waiter_escalated", metadata },
+      );
+    } catch {
+      return undefined;
+    }
   }
 
   private async getSessionState(aiWaiterSessionId: string) {

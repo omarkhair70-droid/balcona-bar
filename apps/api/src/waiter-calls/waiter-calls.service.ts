@@ -11,6 +11,7 @@ import {
   WaiterCallStatus,
   WaiterCallType,
 } from '@prisma/client';
+import { TableAttentionService } from '../autopilot/table-attention.service';
 import { PresenceNotificationsService } from '../presence-notifications/presence-notifications.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { RealtimeEventsService } from '../realtime-events/realtime-events.service';
@@ -28,6 +29,7 @@ export class WaiterCallsService {
     private readonly prisma: PrismaService,
     private readonly presenceNotificationsService: PresenceNotificationsService,
     private readonly realtimeEventsService: RealtimeEventsService,
+    private readonly tableAttentionService: TableAttentionService,
   ) {}
 
   async createForTableSession(sessionId: string, body: CreateWaiterCallDto) {
@@ -71,6 +73,9 @@ export class WaiterCallsService {
         waiterCall.id,
         tx,
       );
+      await this.recalculateAttention(session.id, tx, 'waiter_call_created', {
+        waiterCallId: waiterCall.id,
+      });
 
       return this.getWaiterCallResponse(waiterCall.id, tx);
     });
@@ -189,6 +194,12 @@ export class WaiterCallsService {
         waiterCall.id,
         tx,
       );
+      await this.recalculateAttention(
+        waiterCall.tableSessionId,
+        tx,
+        'waiter_call_acknowledged',
+        { waiterCallId: waiterCall.id },
+      );
 
       return this.getWaiterCallResponse(waiterCall.id, tx);
     });
@@ -238,6 +249,12 @@ export class WaiterCallsService {
         waiterCall.id,
         tx,
       );
+      await this.recalculateAttention(
+        waiterCall.tableSessionId,
+        tx,
+        'waiter_call_resolved',
+        { waiterCallId: waiterCall.id },
+      );
 
       return this.getWaiterCallResponse(waiterCall.id, tx);
     });
@@ -279,6 +296,12 @@ export class WaiterCallsService {
       await this.realtimeEventsService.recordWaiterCallCancelled(
         waiterCall.id,
         tx,
+      );
+      await this.recalculateAttention(
+        waiterCall.tableSessionId,
+        tx,
+        'waiter_call_cancelled',
+        { waiterCallId: waiterCall.id },
       );
 
       return this.getWaiterCallResponse(waiterCall.id, tx);
@@ -341,7 +364,7 @@ export class WaiterCallsService {
   private async findWaiterCallStatus(waiterCallId: string, tx: PrismaExecutor) {
     const waiterCall = await tx.waiterCall.findUnique({
       where: { id: waiterCallId },
-      select: { id: true, status: true },
+      select: { id: true, tableSessionId: true, status: true },
     });
 
     if (!waiterCall) {
@@ -382,6 +405,23 @@ export class WaiterCallsService {
 
     if (!staffUser) {
       throw new NotFoundException('Staff user not found');
+    }
+  }
+
+  private async recalculateAttention(
+    tableSessionId: string,
+    tx: Prisma.TransactionClient,
+    source: string,
+    metadata: Record<string, unknown>,
+  ) {
+    try {
+      await this.tableAttentionService.recalculateForTableSession(
+        tableSessionId,
+        tx,
+        { source, metadata },
+      );
+    } catch {
+      return undefined;
     }
   }
 

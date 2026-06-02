@@ -1,0 +1,33 @@
+export const AUDIT_ACTOR_TYPES = [
+  'customer',
+  'staff',
+  'system',
+  'ai_waiter',
+  'dev',
+] as const;
+
+export const AUDIT_ACTIONS = [
+  'settings_updated',
+  'feature_flag_updated',
+  'order_accepted',
+  'order_rejected',
+  'order_served',
+  'order_completed',
+  'bill_acknowledged',
+  'bill_presented',
+  'bill_closed',
+  'bill_cancelled',
+  'waiter_call_acknowledged',
+  'waiter_call_resolved',
+  'waiter_call_cancelled',
+  'ai_waiter_escalated',
+  'attention_recalculated',
+  'attention_resolved',
+  'attention_muted',
+  'attention_rebuilt',
+  'menu_changed',
+  'experience_changed',
+  'media_changed',
+  'content_changed',
+  'other',
+] as const;
