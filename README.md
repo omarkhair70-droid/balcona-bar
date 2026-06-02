@@ -1,6 +1,6 @@
 # balcona-bar
 
-Balcona Bar is organized as a monorepo for the Cafe AI Waiter App / Smart Café Operating System. Phase 8 adds the backend foundation for presence events, stored notifications, in-app deliveries, and welcome triggers.
+Balcona Bar is organized as a monorepo for the Cafe AI Waiter App / Smart Café Operating System. Phase 9 adds read-only customer order status and timeline APIs over the existing order, preparation, and notification state.
 
 ## Layout
 
@@ -264,6 +264,24 @@ curl http://localhost:3000/api/v1/branches/<branchId>/notifications?status=sent
 curl http://localhost:3000/api/v1/branches/<branchId>/notifications?kind=welcome
 ```
 
+Read customer-facing order and table-session status:
+
+```bash
+curl http://localhost:3000/api/v1/orders/<orderId>/customer-status
+
+curl http://localhost:3000/api/v1/table-sessions/<sessionId>/customer-status
+
+curl http://localhost:3000/api/v1/table-sessions/<sessionId>/customer-timeline
+```
+
+Starting a preparation task also stores a deduped in-app `preparation_started` notification for the table session:
+
+```bash
+curl -X POST http://localhost:3000/api/v1/preparation-tasks/<taskId>/start \
+  -H "Content-Type: application/json" \
+  -d '{"staffUserId":"<optionalStaffUserId>"}'
+```
+
 Development-only staff verification:
 
 ```bash
@@ -280,3 +298,4 @@ curl http://localhost:3000/api/v1/staff
 - Phase 6 cart submit and cashier intake foundation: `docs/architecture/phase-6-cart-submit-cashier-intake-foundation.md`
 - Phase 7 kitchen and barista queue foundation: `docs/architecture/phase-7-kitchen-barista-queue-foundation.md`
 - Phase 8 presence, notifications, and welcome trigger foundation: `docs/architecture/phase-8-presence-notifications-welcome-triggers-foundation.md`
+- Phase 9 customer order status foundation: `docs/architecture/phase-9-customer-order-status-foundation.md`

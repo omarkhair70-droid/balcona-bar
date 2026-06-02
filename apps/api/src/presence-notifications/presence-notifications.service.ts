@@ -301,6 +301,56 @@ export class PresenceNotificationsService {
     );
   }
 
+  async createPreparationStartedNotification(
+    preparationTaskId: string,
+    tx: Prisma.TransactionClient,
+  ) {
+    const task = await tx.preparationTask.findUnique({
+      where: { id: preparationTaskId },
+      select: {
+        id: true,
+        companyId: true,
+        branchId: true,
+        orderId: true,
+        station: true,
+        itemNameSnapshot: true,
+        order: {
+          select: {
+            orderNumber: true,
+            tableSessionId: true,
+          },
+        },
+      },
+    });
+
+    if (!task) {
+      throw new NotFoundException('Preparation task not found');
+    }
+
+    return this.createInAppNotification(
+      {
+        companyId: task.companyId,
+        branchId: task.branchId,
+        tableSessionId: task.order.tableSessionId,
+        customerSessionIdentityId: await this.findCustomerIdentityId(
+          task.order.tableSessionId,
+          tx,
+        ),
+        orderId: task.orderId,
+        preparationTaskId: task.id,
+        kind: NotificationKind.preparation_started,
+        title: 'بدأ تجهيز طلبك',
+        body: `${task.itemNameSnapshot} بدأ تجهيزه في ${this.stationLabel(task.station)}.`,
+        dedupeKey: `preparation-started:${task.id}`,
+        metadata: {
+          orderNumber: task.order.orderNumber,
+          station: task.station,
+        },
+      },
+      tx,
+    );
+  }
+
   async findForTableSession(sessionId: string) {
     const tableSession = await this.prisma.tableSession.findUnique({
       where: { id: sessionId },
