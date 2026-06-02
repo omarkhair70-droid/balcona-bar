@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import configuration from './config/configuration';
 import { validateEnvironment } from './config/env.validation';
+import { AiWaiterModule } from './ai-waiter/ai-waiter.module';
 import { BillRequestsModule } from './bill-requests/bill-requests.module';
 import { BranchesModule } from './branches/branches.module';
 import { CartModule } from './cart/cart.module';
@@ -35,6 +36,7 @@ import { WaiterCallsModule } from './waiter-calls/waiter-calls.module';
       load: [configuration],
       validate: validateEnvironment,
     }),
+    AiWaiterModule,
     PrismaModule,
     RedisModule,
     HealthModule,

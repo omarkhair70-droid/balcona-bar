@@ -314,6 +314,12 @@ enum RealtimeEventType {
   smart_cashier_evaluated
   smart_cashier_auto_accepted
   smart_cashier_manual_review_required
+  ai_waiter_session_started
+  ai_waiter_message_created
+  ai_waiter_cart_proposal_created
+  ai_waiter_cart_proposal_applied
+  ai_waiter_escalated
+  ai_waiter_session_closed
   system
 }
 
@@ -364,6 +370,69 @@ enum MediaAssetStatus {
   active
   archived
   deleted
+}
+
+enum AiWaiterSessionStatus {
+  active
+  escalated
+  closed
+}
+
+enum AiWaiterMessageRole {
+  customer
+  assistant
+  system
+  tool
+}
+
+enum AiWaiterMessageKind {
+  text
+  menu_suggestion
+  cart_proposal
+  action_result
+  escalation
+  status
+}
+
+enum AiWaiterCartProposalStatus {
+  proposed
+  applied
+  rejected
+  expired
+}
+
+enum AiWaiterToolName {
+  show_menu
+  recommend_items
+  create_cart_proposal
+  apply_cart_proposal
+  call_waiter
+  request_bill
+  read_order_status
+  fallback_to_human
+}
+
+enum AiWaiterToolCallStatus {
+  pending
+  succeeded
+  failed
+  skipped
+}
+
+enum AiWaiterEscalationReason {
+  customer_requested_human
+  unclear_request
+  unavailable_item
+  missing_required_options
+  safety_or_policy
+  system_error
+  other
+}
+
+enum AiWaiterProviderMode {
+  stub
+  external_disabled
+  external_ready
 }
 
 enum MediaStorageProvider {
@@ -428,6 +497,11 @@ model Company {
   createdAt DateTime      @default(now())
   updatedAt DateTime      @updatedAt
 
+  aiWaiterSessions          AiWaiterSession[]
+  aiWaiterMessages          AiWaiterMessage[]
+  aiWaiterCartProposals     AiWaiterCartProposal[]
+  aiWaiterToolCalls         AiWaiterToolCall[]
+  aiWaiterUsageEvents       AiWaiterUsageEvent[]
   branches                  Branch[]
   billRequests              BillRequest[]
   carts                     Cart[]
@@ -464,6 +538,11 @@ model Branch {
   createdAt DateTime     @default(now())
   updatedAt DateTime     @updatedAt
 
+  aiWaiterSessions          AiWaiterSession[]
+  aiWaiterMessages          AiWaiterMessage[]
+  aiWaiterCartProposals     AiWaiterCartProposal[]
+  aiWaiterToolCalls         AiWaiterToolCall[]
+  aiWaiterUsageEvents       AiWaiterUsageEvent[]
   company                   Company                     @relation(fields: [companyId], references: [id], onDelete: Cascade)
   billRequests              BillRequest[]
   carts                     Cart[]
@@ -774,6 +853,11 @@ model TableSession {
   createdAt   DateTime           @default(now())
   updatedAt   DateTime           @updatedAt
 
+  aiWaiterSessions          AiWaiterSession[]
+  aiWaiterMessages          AiWaiterMessage[]
+  aiWaiterCartProposals     AiWaiterCartProposal[]
+  aiWaiterToolCalls         AiWaiterToolCall[]
+  aiWaiterUsageEvents       AiWaiterUsageEvent[]
   company                   Company                   @relation(fields: [companyId], references: [id], onDelete: Cascade)
   branch                    Branch                    @relation(fields: [branchId], references: [id], onDelete: Cascade)
   billRequests              BillRequest[]
@@ -817,11 +901,12 @@ model Cart {
   createdAt      DateTime   @default(now())
   updatedAt      DateTime   @updatedAt
 
-  tableSession TableSession @relation(fields: [tableSessionId], references: [id], onDelete: Cascade)
-  company      Company      @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  branch       Branch       @relation(fields: [branchId], references: [id], onDelete: Cascade)
-  items        CartItem[]
-  orders       Order[]
+  tableSession          TableSession           @relation(fields: [tableSessionId], references: [id], onDelete: Cascade)
+  company               Company                @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  branch                Branch                 @relation(fields: [branchId], references: [id], onDelete: Cascade)
+  items                 CartItem[]
+  orders                Order[]
+  aiWaiterCartProposals AiWaiterCartProposal[]
 
   @@index([tableSessionId])
   @@index([companyId])
@@ -873,6 +958,164 @@ model CartItemModifierOption {
   @@index([cartItemId])
   @@index([modifierGroupId])
   @@index([modifierOptionId])
+}
+
+model AiWaiterSession {
+  id                  String                    @id @default(uuid())
+  companyId           String
+  branchId            String
+  tableSessionId      String
+  status              AiWaiterSessionStatus     @default(active)
+  language            String                    @default("ar-EG")
+  providerMode        AiWaiterProviderMode      @default(stub)
+  modelName           String?
+  summary             Json?
+  contextMetadata     Json?
+  totalInputTokens    Int                       @default(0)
+  totalOutputTokens   Int                       @default(0)
+  estimatedCostMicros Int                       @default(0)
+  messageCount        Int                       @default(0)
+  lastMessageAt       DateTime?
+  escalatedAt         DateTime?
+  escalationReason    AiWaiterEscalationReason?
+  closedAt            DateTime?
+  createdAt           DateTime                  @default(now())
+  updatedAt           DateTime                  @updatedAt
+
+  company       Company                @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  branch        Branch                 @relation(fields: [branchId], references: [id], onDelete: Cascade)
+  tableSession  TableSession           @relation(fields: [tableSessionId], references: [id], onDelete: Cascade)
+  messages      AiWaiterMessage[]
+  cartProposals AiWaiterCartProposal[]
+  toolCalls     AiWaiterToolCall[]
+  usageEvents   AiWaiterUsageEvent[]
+
+  @@index([companyId])
+  @@index([branchId])
+  @@index([tableSessionId])
+  @@index([status])
+  @@index([lastMessageAt])
+  @@index([createdAt])
+}
+
+model AiWaiterMessage {
+  id                String              @id @default(uuid())
+  companyId         String
+  branchId          String
+  tableSessionId    String
+  aiWaiterSessionId String
+  role              AiWaiterMessageRole
+  kind              AiWaiterMessageKind @default(text)
+  language          String              @default("ar-EG")
+  content           String
+  structuredPayload Json?
+  metadata          Json?
+  inputTokens       Int?
+  outputTokens      Int?
+  createdAt         DateTime            @default(now())
+
+  company         Company            @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  branch          Branch             @relation(fields: [branchId], references: [id], onDelete: Cascade)
+  tableSession    TableSession       @relation(fields: [tableSessionId], references: [id], onDelete: Cascade)
+  aiWaiterSession AiWaiterSession    @relation(fields: [aiWaiterSessionId], references: [id], onDelete: Cascade)
+  toolCalls       AiWaiterToolCall[]
+
+  @@index([aiWaiterSessionId])
+  @@index([tableSessionId])
+  @@index([role])
+  @@index([kind])
+  @@index([createdAt])
+}
+
+model AiWaiterCartProposal {
+  id                     String                     @id @default(uuid())
+  companyId              String
+  branchId               String
+  tableSessionId         String
+  aiWaiterSessionId      String
+  status                 AiWaiterCartProposalStatus @default(proposed)
+  title                  String?
+  language               String                     @default("ar-EG")
+  items                  Json
+  validationSnapshot     Json?
+  estimatedSubtotalMinor Int?
+  currency               String                     @default("EGP")
+  appliedCartId          String?
+  appliedAt              DateTime?
+  rejectedAt             DateTime?
+  rejectionReason        String?
+  expiresAt              DateTime?
+  createdAt              DateTime                   @default(now())
+  updatedAt              DateTime                   @updatedAt
+
+  company         Company         @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  branch          Branch          @relation(fields: [branchId], references: [id], onDelete: Cascade)
+  tableSession    TableSession    @relation(fields: [tableSessionId], references: [id], onDelete: Cascade)
+  aiWaiterSession AiWaiterSession @relation(fields: [aiWaiterSessionId], references: [id], onDelete: Cascade)
+  appliedCart     Cart?           @relation(fields: [appliedCartId], references: [id], onDelete: SetNull)
+
+  @@index([companyId])
+  @@index([branchId])
+  @@index([tableSessionId])
+  @@index([aiWaiterSessionId])
+  @@index([status])
+  @@index([createdAt])
+}
+
+model AiWaiterToolCall {
+  id                String                 @id @default(uuid())
+  companyId         String
+  branchId          String
+  tableSessionId    String
+  aiWaiterSessionId String
+  messageId         String?
+  toolName          AiWaiterToolName
+  status            AiWaiterToolCallStatus @default(pending)
+  input             Json?
+  output            Json?
+  errorCode         String?
+  errorMessage      String?
+  startedAt         DateTime               @default(now())
+  completedAt       DateTime?
+  createdAt         DateTime               @default(now())
+
+  company         Company          @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  branch          Branch           @relation(fields: [branchId], references: [id], onDelete: Cascade)
+  tableSession    TableSession     @relation(fields: [tableSessionId], references: [id], onDelete: Cascade)
+  aiWaiterSession AiWaiterSession  @relation(fields: [aiWaiterSessionId], references: [id], onDelete: Cascade)
+  message         AiWaiterMessage? @relation(fields: [messageId], references: [id], onDelete: SetNull)
+
+  @@index([aiWaiterSessionId])
+  @@index([tableSessionId])
+  @@index([toolName])
+  @@index([status])
+  @@index([createdAt])
+}
+
+model AiWaiterUsageEvent {
+  id                  String               @id @default(uuid())
+  companyId           String
+  branchId            String
+  tableSessionId      String
+  aiWaiterSessionId   String
+  providerMode        AiWaiterProviderMode
+  modelName           String?
+  inputTokens         Int                  @default(0)
+  outputTokens        Int                  @default(0)
+  estimatedCostMicros Int                  @default(0)
+  metadata            Json?
+  createdAt           DateTime             @default(now())
+
+  company         Company         @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  branch          Branch          @relation(fields: [branchId], references: [id], onDelete: Cascade)
+  tableSession    TableSession    @relation(fields: [tableSessionId], references: [id], onDelete: Cascade)
+  aiWaiterSession AiWaiterSession @relation(fields: [aiWaiterSessionId], references: [id], onDelete: Cascade)
+
+  @@index([companyId])
+  @@index([branchId])
+  @@index([tableSessionId])
+  @@index([aiWaiterSessionId])
+  @@index([createdAt])
 }
 
 model Order {

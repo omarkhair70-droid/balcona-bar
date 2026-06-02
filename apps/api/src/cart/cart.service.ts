@@ -25,40 +25,48 @@ export class CartService {
 
   async addItem(sessionId: string, body: AddCartItemDto) {
     return this.prisma.$transaction(async (tx) => {
-      const session = await this.resolveActiveTableSession(sessionId, tx);
-      const preparedItem = await this.prepareCartItem(session, body, tx);
-      const cart = await this.findOrCreateDraftCart(session, preparedItem.currency, tx);
-
-      await tx.cartItem.create({
-        data: {
-          cartId: cart.id,
-          menuItemId: preparedItem.menuItem.id,
-          quantity: body.quantity,
-          notes: preparedItem.notes,
-          itemNameSnapshot: preparedItem.menuItem.name,
-          itemSlugSnapshot: preparedItem.menuItem.slug,
-          basePriceMinorSnapshot: preparedItem.menuItem.basePriceMinor,
-          effectiveBasePriceMinorSnapshot: preparedItem.effectiveBasePriceMinor,
-          modifiersTotalMinorSnapshot: preparedItem.modifiersTotalMinor,
-          unitPriceMinorSnapshot: preparedItem.unitPriceMinor,
-          lineTotalMinorSnapshot: preparedItem.unitPriceMinor * body.quantity,
-          currency: preparedItem.currency,
-          modifierOptions: {
-            create: preparedItem.modifierOptions.map(({ group, option }) => ({
-              modifierGroupId: group.id,
-              modifierOptionId: option.id,
-              modifierGroupNameSnapshot: group.name,
-              modifierGroupSlugSnapshot: group.slug,
-              modifierOptionNameSnapshot: option.name,
-              modifierOptionSlugSnapshot: option.slug,
-              priceDeltaMinorSnapshot: option.priceDeltaMinor,
-            })),
-          },
-        },
-      });
-
-      return this.toCartResponse(await this.getCartById(cart.id, tx));
+      return this.addItemWithTransaction(sessionId, body, tx);
     });
+  }
+
+  async addItemWithTransaction(
+    sessionId: string,
+    body: AddCartItemDto,
+    tx: Prisma.TransactionClient,
+  ) {
+    const session = await this.resolveActiveTableSession(sessionId, tx);
+    const preparedItem = await this.prepareCartItem(session, body, tx);
+    const cart = await this.findOrCreateDraftCart(session, preparedItem.currency, tx);
+
+    await tx.cartItem.create({
+      data: {
+        cartId: cart.id,
+        menuItemId: preparedItem.menuItem.id,
+        quantity: body.quantity,
+        notes: preparedItem.notes,
+        itemNameSnapshot: preparedItem.menuItem.name,
+        itemSlugSnapshot: preparedItem.menuItem.slug,
+        basePriceMinorSnapshot: preparedItem.menuItem.basePriceMinor,
+        effectiveBasePriceMinorSnapshot: preparedItem.effectiveBasePriceMinor,
+        modifiersTotalMinorSnapshot: preparedItem.modifiersTotalMinor,
+        unitPriceMinorSnapshot: preparedItem.unitPriceMinor,
+        lineTotalMinorSnapshot: preparedItem.unitPriceMinor * body.quantity,
+        currency: preparedItem.currency,
+        modifierOptions: {
+          create: preparedItem.modifierOptions.map(({ group, option }) => ({
+            modifierGroupId: group.id,
+            modifierOptionId: option.id,
+            modifierGroupNameSnapshot: group.name,
+            modifierGroupSlugSnapshot: group.slug,
+            modifierOptionNameSnapshot: option.name,
+            modifierOptionSlugSnapshot: option.slug,
+            priceDeltaMinorSnapshot: option.priceDeltaMinor,
+          })),
+        },
+      },
+    });
+
+    return this.toCartResponse(await this.getCartById(cart.id, tx));
   }
 
   async updateItem(cartItemId: string, body: UpdateCartItemDto) {
