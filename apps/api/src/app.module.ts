@@ -17,6 +17,7 @@ import { StaffModule } from './staff/staff.module';
 import { SystemModule } from './system/system.module';
 import { TableSessionsModule } from './table-sessions/table-sessions.module';
 import { TablesModule } from './tables/tables.module';
+import { WaiterCallsModule } from './waiter-calls/waiter-calls.module';
 
 @Module({
   imports: [
@@ -41,6 +42,7 @@ import { TablesModule } from './tables/tables.module';
     StaffModule,
     MenuModule,
     TableSessionsModule,
+    WaiterCallsModule,
   ],
 })
 export class AppModule {}

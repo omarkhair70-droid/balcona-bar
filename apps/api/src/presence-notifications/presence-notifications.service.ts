@@ -58,6 +58,12 @@ type NotificationCreateInput = {
   metadata?: Record<string, unknown>;
 };
 
+type WaiterCallNotificationCopy = {
+  title: string;
+  body: string;
+  dedupeKey: string;
+};
+
 @Injectable()
 export class PresenceNotificationsService {
   constructor(private readonly prisma: PrismaService) {}
@@ -351,6 +357,51 @@ export class PresenceNotificationsService {
     );
   }
 
+  async createWaiterCallCreatedNotification(
+    waiterCallId: string,
+    tx: Prisma.TransactionClient,
+  ) {
+    return this.createWaiterCallNotification(
+      waiterCallId,
+      {
+        title: 'طلبك وصل للويتر',
+        body: 'استلمنا طلبك. الويتر هيجيلك في أقرب وقت.',
+        dedupeKey: `waiter-call-created:${waiterCallId}`,
+      },
+      tx,
+    );
+  }
+
+  async createWaiterCallAcknowledgedNotification(
+    waiterCallId: string,
+    tx: Prisma.TransactionClient,
+  ) {
+    return this.createWaiterCallNotification(
+      waiterCallId,
+      {
+        title: 'الويتر في الطريق',
+        body: 'تم تأكيد طلبك. الويتر جاي يساعدك.',
+        dedupeKey: `waiter-call-acknowledged:${waiterCallId}`,
+      },
+      tx,
+    );
+  }
+
+  async createWaiterCallResolvedNotification(
+    waiterCallId: string,
+    tx: Prisma.TransactionClient,
+  ) {
+    return this.createWaiterCallNotification(
+      waiterCallId,
+      {
+        title: 'تم التعامل مع طلبك',
+        body: 'طلب المساعدة اتسجل إنه اتعامل. شكراً ليك.',
+        dedupeKey: `waiter-call-resolved:${waiterCallId}`,
+      },
+      tx,
+    );
+  }
+
   async findForTableSession(sessionId: string) {
     const tableSession = await this.prisma.tableSession.findUnique({
       where: { id: sessionId },
@@ -571,6 +622,52 @@ export class PresenceNotificationsService {
       },
       include: this.notificationInclude(),
     });
+  }
+
+  private async createWaiterCallNotification(
+    waiterCallId: string,
+    copy: WaiterCallNotificationCopy,
+    tx: PrismaExecutor,
+  ) {
+    const waiterCall = await tx.waiterCall.findUnique({
+      where: { id: waiterCallId },
+      select: {
+        id: true,
+        companyId: true,
+        branchId: true,
+        tableSessionId: true,
+        orderId: true,
+        type: true,
+        status: true,
+      },
+    });
+
+    if (!waiterCall) {
+      throw new NotFoundException('Waiter call not found');
+    }
+
+    return this.createInAppNotification(
+      {
+        companyId: waiterCall.companyId,
+        branchId: waiterCall.branchId,
+        tableSessionId: waiterCall.tableSessionId,
+        customerSessionIdentityId: await this.findCustomerIdentityId(
+          waiterCall.tableSessionId,
+          tx,
+        ),
+        orderId: waiterCall.orderId ?? undefined,
+        kind: NotificationKind.waiter_call,
+        title: copy.title,
+        body: copy.body,
+        dedupeKey: copy.dedupeKey,
+        metadata: {
+          waiterCallId: waiterCall.id,
+          type: waiterCall.type,
+          status: waiterCall.status,
+        },
+      },
+      tx,
+    );
   }
 
   private async findBranchOrThrow(branchId: string, tx: PrismaExecutor) {

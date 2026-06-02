@@ -8,6 +8,8 @@ import {
   PreparationTaskStatus,
   Prisma,
   TableSessionEventType,
+  WaiterCallEventType,
+  WaiterCallType,
 } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 
@@ -33,6 +35,7 @@ type TimelineEvent = {
   occurredAt: Date;
   orderId?: string;
   preparationTaskId?: string;
+  waiterCallId?: string;
   notificationId?: string;
   station?: PreparationStation;
 };
@@ -205,6 +208,10 @@ export class CustomerStatusService {
           orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
           select: this.notificationSelect(),
         },
+        waiterCalls: {
+          orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
+          select: this.waiterCallTimelineSelect(),
+        },
       },
     });
 
@@ -212,8 +219,15 @@ export class CustomerStatusService {
       throw new NotFoundException('Table session not found');
     }
 
-    const { branch, table, events, orders, notifications, ...sessionFields } =
-      tableSession;
+    const {
+      branch,
+      table,
+      events,
+      orders,
+      notifications,
+      waiterCalls,
+      ...sessionFields
+    } = tableSession;
     const { floor, ...tableFields } = table;
 
     return {
@@ -224,6 +238,9 @@ export class CustomerStatusService {
       timeline: this.sortTimeline([
         ...this.toSessionTimelineEvents(events),
         ...orders.flatMap((order) => this.toOrderTimelineEvents(order)),
+        ...waiterCalls.flatMap((waiterCall) =>
+          this.toWaiterCallTimelineEvents(waiterCall),
+        ),
         ...this.toNotificationTimelineEvents(notifications),
       ]),
     };
@@ -501,6 +518,51 @@ export class CustomerStatusService {
     });
   }
 
+  private toWaiterCallTimelineEvents(waiterCall: any): TimelineEvent[] {
+    return waiterCall.events.map((event: any) => ({
+      type: this.waiterCallTimelineType(event.type),
+      label: this.waiterCallTimelineLabel(event.type, waiterCall.type),
+      occurredAt: event.createdAt,
+      waiterCallId: waiterCall.id,
+      orderId: waiterCall.orderId ?? undefined,
+    }));
+  }
+
+  private waiterCallTimelineType(type: WaiterCallEventType) {
+    switch (type) {
+      case WaiterCallEventType.created:
+        return 'waiter-call-created';
+      case WaiterCallEventType.acknowledged:
+        return 'waiter-call-acknowledged';
+      case WaiterCallEventType.resolved:
+        return 'waiter-call-resolved';
+      case WaiterCallEventType.cancelled:
+        return 'waiter-call-cancelled';
+      default:
+        return 'waiter-call-updated';
+    }
+  }
+
+  private waiterCallTimelineLabel(
+    eventType: WaiterCallEventType,
+    callType: WaiterCallType,
+  ) {
+    const requestLabel = this.waiterCallTypeLabel(callType);
+
+    switch (eventType) {
+      case WaiterCallEventType.created:
+        return `${requestLabel} request was sent to staff.`;
+      case WaiterCallEventType.acknowledged:
+        return `${requestLabel} request was acknowledged.`;
+      case WaiterCallEventType.resolved:
+        return `${requestLabel} request was handled.`;
+      case WaiterCallEventType.cancelled:
+        return `${requestLabel} request was cancelled.`;
+      default:
+        return `${requestLabel} request was updated.`;
+    }
+  }
+
   private sortTimeline(events: TimelineEvent[]) {
     return events.sort(
       (left, right) => left.occurredAt.getTime() - right.occurredAt.getTime(),
@@ -645,6 +707,26 @@ export class CustomerStatusService {
     }
   }
 
+  private waiterCallTypeLabel(type: WaiterCallType) {
+    switch (type) {
+      case WaiterCallType.need_bill:
+        return 'Bill';
+      case WaiterCallType.need_water:
+        return 'Water';
+      case WaiterCallType.need_help:
+        return 'Help';
+      case WaiterCallType.order_problem:
+        return 'Order help';
+      case WaiterCallType.clean_table:
+        return 'Table cleaning';
+      case WaiterCallType.other:
+        return 'Waiter';
+      case WaiterCallType.call_waiter:
+      default:
+        return 'Waiter';
+    }
+  }
+
   private branchSelect() {
     return {
       id: true,
@@ -722,6 +804,28 @@ export class CustomerStatusService {
       dismissedAt: true,
       createdAt: true,
     } satisfies Prisma.NotificationSelect;
+  }
+
+  private waiterCallTimelineSelect() {
+    return {
+      id: true,
+      orderId: true,
+      type: true,
+      status: true,
+      createdAt: true,
+      acknowledgedAt: true,
+      resolvedAt: true,
+      cancelledAt: true,
+      events: {
+        orderBy: [{ createdAt: 'asc' as const }, { id: 'asc' as const }],
+        select: {
+          id: true,
+          type: true,
+          actorType: true,
+          createdAt: true,
+        },
+      },
+    } satisfies Prisma.WaiterCallSelect;
   }
 
   private cartInclude() {

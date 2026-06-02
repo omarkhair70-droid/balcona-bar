@@ -1,6 +1,6 @@
 # balcona-bar
 
-Balcona Bar is organized as a monorepo for the Cafe AI Waiter App / Smart Café Operating System. Phase 9 adds read-only customer order status and timeline APIs over the existing order, preparation, and notification state.
+Balcona Bar is organized as a monorepo for the Cafe AI Waiter App / Smart Café Operating System. Phase 10 adds the backend foundation for customer waiter calls and branch staff waiter-call queues.
 
 ## Layout
 
@@ -282,6 +282,40 @@ curl -X POST http://localhost:3000/api/v1/preparation-tasks/<taskId>/start \
   -d '{"staffUserId":"<optionalStaffUserId>"}'
 ```
 
+Create, list, and manage waiter calls:
+
+```bash
+curl -X POST http://localhost:3000/api/v1/table-sessions/<sessionId>/waiter-calls \
+  -H "Content-Type: application/json" \
+  -d '{"type":"call_waiter","message":"Please send someone when available","priority":1}'
+
+curl http://localhost:3000/api/v1/table-sessions/<sessionId>/waiter-calls
+curl http://localhost:3000/api/v1/table-sessions/<sessionId>/waiter-calls?status=all
+
+curl http://localhost:3000/api/v1/branches/<branchId>/waiter-calls
+curl http://localhost:3000/api/v1/branches/<branchId>/waiter-calls?status=acknowledged&type=need_bill
+
+curl http://localhost:3000/api/v1/waiter-calls/<waiterCallId>
+
+curl -X POST http://localhost:3000/api/v1/waiter-calls/<waiterCallId>/acknowledge \
+  -H "Content-Type: application/json" \
+  -d '{"staffUserId":"<optionalStaffUserId>"}'
+
+curl -X POST http://localhost:3000/api/v1/waiter-calls/<waiterCallId>/resolve \
+  -H "Content-Type: application/json" \
+  -d '{"staffUserId":"<optionalStaffUserId>","resolutionNote":"Handled at table"}'
+
+curl -X POST http://localhost:3000/api/v1/waiter-calls/<waiterCallId>/cancel \
+  -H "Content-Type: application/json" \
+  -d '{"reason":"No longer needed"}'
+```
+
+Customer timeline responses include waiter call created, acknowledged, resolved, and cancelled events:
+
+```bash
+curl http://localhost:3000/api/v1/table-sessions/<sessionId>/customer-timeline
+```
+
 Development-only staff verification:
 
 ```bash
@@ -299,3 +333,4 @@ curl http://localhost:3000/api/v1/staff
 - Phase 7 kitchen and barista queue foundation: `docs/architecture/phase-7-kitchen-barista-queue-foundation.md`
 - Phase 8 presence, notifications, and welcome trigger foundation: `docs/architecture/phase-8-presence-notifications-welcome-triggers-foundation.md`
 - Phase 9 customer order status foundation: `docs/architecture/phase-9-customer-order-status-foundation.md`
+- Phase 10 waiter call system foundation: `docs/architecture/phase-10-waiter-call-system-foundation.md`
