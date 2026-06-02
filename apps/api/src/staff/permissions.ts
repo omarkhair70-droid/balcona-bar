@@ -53,7 +53,14 @@ export const STAFF_PERMISSIONS = [
   'presence.read',
   'staff.read',
   'staff.manage',
+  'settings.read',
+  'settings.manage',
+  'feature_flags.read',
+  'feature_flags.manage',
+  'autopilot.read',
+  'autopilot.manage',
   'analytics.read',
+  'audit.read',
 ] as const;
 
 export type StaffPermission = (typeof STAFF_PERMISSIONS)[number];
@@ -114,7 +121,14 @@ export const ROLE_PERMISSIONS: Record<StaffRole, readonly StaffPermission[]> = {
     'notifications.read',
     'presence.read',
     'staff.read',
+    'settings.read',
+    'settings.manage',
+    'feature_flags.read',
+    'feature_flags.manage',
+    'autopilot.read',
+    'autopilot.manage',
     'analytics.read',
+    'audit.read',
   ],
   [StaffRole.cashier]: [
     'menu.read',
@@ -144,6 +158,9 @@ export const ROLE_PERMISSIONS: Record<StaffRole, readonly StaffPermission[]> = {
     'bills.present',
     'ai_waiter.read',
     'waiter_calls.read',
+    'settings.read',
+    'autopilot.read',
+    'analytics.read',
   ],
   [StaffRole.waiter]: [
     'menu.read',
@@ -159,6 +176,8 @@ export const ROLE_PERMISSIONS: Record<StaffRole, readonly StaffPermission[]> = {
     'waiter_calls.acknowledge',
     'waiter_calls.resolve',
     'notifications.read',
+    'autopilot.read',
+    'autopilot.manage',
   ],
   [StaffRole.kitchen]: [
     'menu.read',
@@ -171,6 +190,7 @@ export const ROLE_PERMISSIONS: Record<StaffRole, readonly StaffPermission[]> = {
     'preparation.start',
     'preparation.ready',
     'preparation.cancel',
+    'autopilot.read',
   ],
   [StaffRole.barista]: [
     'menu.read',
@@ -183,6 +203,7 @@ export const ROLE_PERMISSIONS: Record<StaffRole, readonly StaffPermission[]> = {
     'preparation.start',
     'preparation.ready',
     'preparation.cancel',
+    'autopilot.read',
   ],
   [StaffRole.menu_admin]: [
     'companies.read',
@@ -201,6 +222,8 @@ export const ROLE_PERMISSIONS: Record<StaffRole, readonly StaffPermission[]> = {
     'venue_zones.read',
     'venue_zones.manage',
     'ai_waiter.read',
+    'settings.read',
+    'analytics.read',
   ],
 };
 

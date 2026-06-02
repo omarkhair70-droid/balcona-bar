@@ -3,7 +3,11 @@ import { ConfigModule } from '@nestjs/config';
 import configuration from './config/configuration';
 import { validateEnvironment } from './config/env.validation';
 import { AiWaiterModule } from './ai-waiter/ai-waiter.module';
+import { AnalyticsModule } from './analytics/analytics.module';
+import { AuditModule } from './audit/audit.module';
+import { AutopilotModule } from './autopilot/autopilot.module';
 import { BillRequestsModule } from './bill-requests/bill-requests.module';
+import { BranchSettingsModule } from './branch-settings/branch-settings.module';
 import { BranchesModule } from './branches/branches.module';
 import { CartModule } from './cart/cart.module';
 import { CompaniesModule } from './companies/companies.module';
@@ -37,11 +41,15 @@ import { WaiterCallsModule } from './waiter-calls/waiter-calls.module';
       validate: validateEnvironment,
     }),
     AiWaiterModule,
+    AnalyticsModule,
+    AuditModule,
+    AutopilotModule,
     PrismaModule,
     RedisModule,
     HealthModule,
     SystemModule,
     BillRequestsModule,
+    BranchSettingsModule,
     CompaniesModule,
     BranchesModule,
     CartModule,

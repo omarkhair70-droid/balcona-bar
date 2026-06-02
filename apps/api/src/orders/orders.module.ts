@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common';
+import { AutopilotModule } from '../autopilot/autopilot.module';
 import { CartModule } from '../cart/cart.module';
 import { PresenceNotificationsModule } from '../presence-notifications/presence-notifications.module';
 import { PreparationTasksModule } from '../preparation-tasks/preparation-tasks.module';
@@ -11,6 +12,7 @@ import { OrdersService } from './orders.service';
 @Module({
   imports: [
     PrismaModule,
+    AutopilotModule,
     CartModule,
     PreparationTasksModule,
     PresenceNotificationsModule,
