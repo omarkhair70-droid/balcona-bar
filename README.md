@@ -327,6 +327,41 @@ curl -X POST http://localhost:3000/api/v1/table-sessions/<sessionId>/cart/clear
 curl -X POST http://localhost:3000/api/v1/table-sessions/<sessionId>/cart/validate
 ```
 
+Start an AI waiter session and exchange messages. The AI waiter creates proposals only; applying a proposal reuses backend cart validation and pricing:
+
+```bash
+curl -X POST http://localhost:3000/api/v1/table-sessions/<sessionId>/ai-waiter/start \
+  -H "Content-Type: application/json" \
+  -d '{"language":"ar-EG"}'
+
+curl -X POST http://localhost:3000/api/v1/table-sessions/<sessionId>/ai-waiter/messages \
+  -H "Content-Type: application/json" \
+  -d '{"message":"عايز حاجة ساقعة ومش مسكرة قوي","language":"ar-EG"}'
+
+curl http://localhost:3000/api/v1/table-sessions/<sessionId>/ai-waiter/messages
+```
+
+Apply or reject an AI waiter cart proposal:
+
+```bash
+curl -X POST http://localhost:3000/api/v1/ai-waiter/cart-proposals/<proposalId>/apply
+
+curl -X POST http://localhost:3000/api/v1/ai-waiter/cart-proposals/<proposalId>/reject \
+  -H "Content-Type: application/json" \
+  -d '{"reason":"مش ده اللي عايزه"}'
+```
+
+Escalate AI waiter help to a human waiter and inspect staff-facing sessions:
+
+```bash
+curl -X POST http://localhost:3000/api/v1/table-sessions/<sessionId>/ai-waiter/escalate \
+  -H "Content-Type: application/json" \
+  -d '{"reason":"customer_requested_human","message":"عايز أكلم ويتر"}'
+
+curl http://localhost:3000/api/v1/branches/<branchId>/ai-waiter/sessions
+curl http://localhost:3000/api/v1/ai-waiter/sessions/<aiWaiterSessionId>
+```
+
 Submit a valid draft cart with an idempotency key:
 
 ```bash
@@ -680,3 +715,4 @@ curl http://localhost:3000/api/v1/realtime/table-sessions/<sessionId>/events?cha
 - Phase 14 order completion and bill flow foundation: `docs/architecture/phase-14-order-completion-bill-flow-foundation.md`
 - Phase 15 menu admin backend: `docs/architecture/phase-15-menu-admin-backend.md`
 - Phase 16-17 media, experience, content, and Balkona pack: `docs/architecture/phase-16-17-media-experience-content-balkona-pack.md`
+- Phase 18 AI waiter backend foundation: `docs/architecture/phase-18-ai-waiter-backend-foundation.md`

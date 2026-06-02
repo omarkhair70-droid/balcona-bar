@@ -9,5 +9,6 @@ import { WaiterCallsService } from './waiter-calls.service';
   imports: [PrismaModule, PresenceNotificationsModule, RealtimeEventsModule],
   controllers: [WaiterCallsController],
   providers: [WaiterCallsService],
+  exports: [WaiterCallsService],
 })
 export class WaiterCallsModule {}
