@@ -1,0 +1,30 @@
+project_name = "balcona-bar"
+environment  = "staging"
+aws_region   = "eu-central-1"
+
+# Use real image URIs after pushing the first images to ECR.
+api_image_uri = "<aws-account-id>.dkr.ecr.eu-central-1.amazonaws.com/balcona-bar-staging-api:replace-me"
+web_image_uri = "<aws-account-id>.dkr.ecr.eu-central-1.amazonaws.com/balcona-bar-staging-web:replace-me"
+
+web_origin          = "https://app.example.com"
+public_api_base_url = "https://api.example.com/api/v1"
+
+# Leave empty until ACM/DNS is ready. See domain-placeholders.tf.example.
+acm_certificate_arn = ""
+
+# NAT gateways cost money continuously. Keep false for early low-cost staging
+# unless private ECS tasks need outbound internet access.
+enable_nat_gateway = false
+
+db_instance_class       = "db.t4g.micro"
+db_allocated_storage_gb = 20
+db_deletion_protection  = true
+db_skip_final_snapshot  = false
+
+redis_node_type = "cache.t4g.micro"
+
+log_retention_days = 30
+
+tags = {
+  Owner = "replace-me"
+}
