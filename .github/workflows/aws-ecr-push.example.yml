@@ -1,0 +1,96 @@
+# Example manual workflow for Production Phase 3B image publishing.
+# This workflow does not run automatically on push or pull request.
+#
+# Required GitHub secrets before use:
+# - AWS_REGION
+# - API_ECR_REPOSITORY
+# - WEB_ECR_REPOSITORY
+# - NEXT_PUBLIC_API_BASE_URL
+# - AWS_ROLE_TO_ASSUME, or AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY
+
+name: Example AWS ECR Push
+
+on:
+  workflow_dispatch:
+    inputs:
+      image_tag:
+        description: Optional image tag. Defaults to the commit SHA when empty.
+        required: false
+        type: string
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  build-and-push:
+    name: Build and push API/Web images
+    runs-on: ubuntu-latest
+
+    env:
+      AWS_REGION: ${{ secrets.AWS_REGION }}
+      AWS_ROLE_TO_ASSUME: ${{ secrets.AWS_ROLE_TO_ASSUME }}
+      AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+      AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+      API_ECR_REPOSITORY: ${{ secrets.API_ECR_REPOSITORY }}
+      WEB_ECR_REPOSITORY: ${{ secrets.WEB_ECR_REPOSITORY }}
+      NEXT_PUBLIC_API_BASE_URL: ${{ secrets.NEXT_PUBLIC_API_BASE_URL }}
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Validate required configuration
+        run: |
+          test -n "${AWS_REGION}" || { echo "AWS_REGION secret is required."; exit 1; }
+          test -n "${API_ECR_REPOSITORY}" || { echo "API_ECR_REPOSITORY secret is required."; exit 1; }
+          test -n "${WEB_ECR_REPOSITORY}" || { echo "WEB_ECR_REPOSITORY secret is required."; exit 1; }
+          test -n "${NEXT_PUBLIC_API_BASE_URL}" || { echo "NEXT_PUBLIC_API_BASE_URL secret is required."; exit 1; }
+          if [ -z "${AWS_ROLE_TO_ASSUME}" ] && { [ -z "${AWS_ACCESS_KEY_ID}" ] || [ -z "${AWS_SECRET_ACCESS_KEY}" ]; }; then
+            echo "Set AWS_ROLE_TO_ASSUME or AWS_ACCESS_KEY_ID/AWS_SECRET_ACCESS_KEY secrets."
+            exit 1
+          fi
+
+      - name: Configure AWS credentials with OIDC role
+        if: ${{ env.AWS_ROLE_TO_ASSUME != '' }}
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ env.AWS_ROLE_TO_ASSUME }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Configure AWS credentials with access keys
+        if: ${{ env.AWS_ROLE_TO_ASSUME == '' }}
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ env.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ env.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Log in to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Build and push images
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          INPUT_IMAGE_TAG: ${{ inputs.image_tag }}
+        run: |
+          IMAGE_TAG="${INPUT_IMAGE_TAG:-${GITHUB_SHA}}"
+          API_IMAGE="${ECR_REGISTRY}/${API_ECR_REPOSITORY}:${IMAGE_TAG}"
+          WEB_IMAGE="${ECR_REGISTRY}/${WEB_ECR_REPOSITORY}:${IMAGE_TAG}"
+
+          docker build -f apps/api/Dockerfile -t "${API_IMAGE}" .
+          docker build \
+            -f apps/web/Dockerfile \
+            -t "${WEB_IMAGE}" \
+            --build-arg NEXT_PUBLIC_API_BASE_URL="${NEXT_PUBLIC_API_BASE_URL}" \
+            .
+
+          docker push "${API_IMAGE}"
+          docker push "${WEB_IMAGE}"
+
+          {
+            echo "## Pushed images"
+            echo "- API: \`${API_IMAGE}\`"
+            echo "- Web: \`${WEB_IMAGE}\`"
+          } >> "${GITHUB_STEP_SUMMARY}"
