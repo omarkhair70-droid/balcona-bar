@@ -1,0 +1,48 @@
+project_name = "balcona-bar"
+environment  = "staging"
+aws_region   = "eu-central-1"
+
+# First-demo staging sizing keeps resources small. Review cost before apply.
+api_desired_count = 1
+web_desired_count = 1
+api_cpu           = 512
+api_memory        = 1024
+web_cpu           = 512
+web_memory        = 1024
+
+# Replace only after API/Web images are pushed to ECR.
+api_image_uri = "<aws-account-id>.dkr.ecr.eu-central-1.amazonaws.com/balcona-bar-staging-api:<image-tag>"
+web_image_uri = "<aws-account-id>.dkr.ecr.eu-central-1.amazonaws.com/balcona-bar-staging-web:<image-tag>"
+
+# Replace with approved public origins before Web build and API rollout.
+web_origin          = "https://app.example.com"
+public_api_base_url = "https://api.example.com/api/v1"
+
+# Leave empty until ACM/DNS is approved. See domain-placeholders.tf.example.
+acm_certificate_arn = ""
+
+# NAT gateways cost money continuously. Keep false until the budget owner
+# approves NAT, or implement the VPC endpoint approach documented in
+# docs/deployment/aws-network-egress-options.md.
+enable_nat_gateway = false
+
+# Small first-demo database. Deletion protection is enabled so an accidental
+# destroy cannot delete the RDS instance without an explicit variable change.
+db_instance_class        = "db.t4g.micro"
+db_allocated_storage_gb  = 20
+db_backup_retention_days = 7
+db_deletion_protection   = true
+db_skip_final_snapshot   = false
+
+# Small first-demo Redis. Transit encryption remains enabled by default.
+redis_node_type                  = "cache.t4g.micro"
+redis_engine_version             = "7.1"
+redis_transit_encryption_enabled = true
+
+log_retention_days = 14
+
+tags = {
+  Owner       = "replace-me"
+  CostCenter  = "first-public-demo"
+  Environment = "staging"
+}
