@@ -1,6 +1,6 @@
 # balcona-bar
 
-Balcona Bar is organized as a monorepo for the Cafe AI Waiter App / Smart Cafe Operating System. The backend core is complete through Phase 24, UI Phase 1 adds the first Next.js web foundation for customer and staff experiences, UI Phase 2 adds the customer PWA core, UI Phase 3 adds the customer AI waiter experience, UI Phase 4 adds the cashier dashboard core, UI Phase 5 adds the kitchen/barista dashboard core, UI Phase 6 adds the waiter dashboard and attention queue, UI Phase 7 adds the owner/manager command center, UI Phase 8 adds full demo hardening plus Balkona demo mode, Production Phase 1 adds deployable platform foundation files, Production Phase 2 adds AWS infrastructure foundation scaffolding without deploying resources, Production Phase 3A adds public demo deploy readiness plus CI/CD guardrails without deploying resources, and Production Phase 3B adds the first public AWS demo preflight deploy pack without deploying resources.
+Balcona Bar is organized as a monorepo for the Cafe AI Waiter App / Smart Cafe Operating System. The backend core is complete through Phase 24, UI Phase 1 adds the first Next.js web foundation for customer and staff experiences, UI Phase 2 adds the customer PWA core, UI Phase 3 adds the customer AI waiter experience, UI Phase 4 adds the cashier dashboard core, UI Phase 5 adds the kitchen/barista dashboard core, UI Phase 6 adds the waiter dashboard and attention queue, UI Phase 7 adds the owner/manager command center, UI Phase 8 adds full demo hardening plus Balkona demo mode, Production Phase 1 adds deployable platform foundation files, Production Phase 2 adds AWS infrastructure foundation scaffolding without deploying resources, Production Phase 3A adds public demo deploy readiness plus CI/CD guardrails without deploying resources, Production Phase 3B adds the first public AWS demo preflight deploy pack without deploying resources, and Product Phase 4A starts the full Cafe OS product completion track.
 
 ## Layout
 
@@ -15,6 +15,7 @@ Balcona Bar is organized as a monorepo for the Cafe AI Waiter App / Smart Cafe O
 - `docs/architecture` - architecture decisions and phase notes.
 - `docs/demo` - local demo runbooks and smoke tests.
 - `docs/deployment` - production deployment notes and checklists.
+- `docs/product` - product audits, completion roadmap, and real-cafe readiness docs.
 
 ## Local quick start
 
@@ -358,6 +359,21 @@ avoiding real infrastructure changes:
 Still no public link until real AWS values are approved and terraform
 apply/deploy is executed manually. The next phase is Production Phase 3C -
 First Public AWS Demo Execution.
+
+## Product Phase 4A status
+
+Product Phase 4A starts the product completion track for turning the current
+demo into a complete Cafe Operating System usable by real cafes:
+
+- full Cafe OS gap audit across customer, staff, admin, AI, analytics, security,
+  seed data, realtime, and QA surfaces
+- completion roadmap from Product Phase 4B through Product Phase 4J
+- real AI Waiter engine specification for menu-grounded, validation-gated
+  suggestions
+- real cafe readiness checklist for one-day pilot decisions
+
+AWS execution is paused until budget and customer readiness are approved. The
+current next phase is Product Phase 4B - Menu Admin + Availability Management.
 
 ## API verification
 
@@ -1227,3 +1243,7 @@ begin.
 - AWS first public demo command runbook: `docs/deployment/aws-first-public-demo-command-runbook.md`
 - AWS Prisma migration runner: `docs/deployment/aws-prisma-migration-runner.md`
 - Public demo seed verification: `docs/deployment/public-demo-seed-verification.md`
+- Full Cafe OS gap audit: `docs/product/full-cafe-os-gap-audit.md`
+- Full Cafe OS completion roadmap: `docs/product/full-cafe-os-completion-roadmap.md`
+- AI Waiter real engine spec: `docs/product/ai-waiter-real-engine-spec.md`
+- Real cafe readiness checklist: `docs/product/real-cafe-readiness-checklist.md`
