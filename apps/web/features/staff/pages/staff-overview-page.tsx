@@ -7,6 +7,7 @@ import {
   ClipboardCheck,
   LayoutDashboard,
   LogIn,
+  MonitorPlay,
   Receipt,
   ShieldCheck,
   UsersRound
@@ -76,10 +77,19 @@ function StaffOverviewContent() {
         title="Staff session is not active"
         description="Sign in to select a branch and open the cashier dashboard."
         action={
-          <Link href="/staff/login" className={buttonVariants()}>
-            <LogIn className="size-4" aria-hidden="true" />
-            Staff login
-          </Link>
+          <div className="flex flex-wrap justify-center gap-3">
+            <Link href="/staff/login" className={buttonVariants()}>
+              <LogIn className="size-4" aria-hidden="true" />
+              Staff login
+            </Link>
+            <Link
+              href="/demo/balkona"
+              className={buttonVariants({ variant: "secondary" })}
+            >
+              <MonitorPlay className="size-4" aria-hidden="true" />
+              Demo launcher
+            </Link>
+          </div>
         }
       />
     );
@@ -88,7 +98,7 @@ function StaffOverviewContent() {
   return (
     <StaffAuthGate>
       <div className="grid gap-5">
-        <section className="grid gap-4 md:grid-cols-3">
+        <section className="grid gap-4 md:grid-cols-4">
           <MetricCard
             label="Staff"
             value={staffUser?.name ? "Active" : "Signed in"}
@@ -103,10 +113,17 @@ function StaffOverviewContent() {
             icon={<LayoutDashboard className="size-4" aria-hidden="true" />}
           />
           <MetricCard
-            label="Cashier"
+            label="Operations"
             value="Ready"
             description="Orders, prep, floor, and owner connected"
             icon={<ClipboardCheck className="size-4" aria-hidden="true" />}
+          />
+          <MetricCard
+            label="Demo"
+            value="Open"
+            description="Presentation launcher"
+            icon={<MonitorPlay className="size-4" aria-hidden="true" />}
+            tone="accent"
           />
         </section>
 
@@ -128,6 +145,25 @@ function StaffOverviewContent() {
               onChange={setSelectedBranchId}
               className="min-w-64"
             />
+          </CardHeader>
+        </Card>
+
+        <Card variant="accent">
+          <CardHeader className="gap-4 md:flex md:flex-row md:items-center md:justify-between md:space-y-0">
+            <div>
+              <Badge variant="muted" className="mb-3">
+                Balkona demo
+              </Badge>
+              <CardTitle>Balkona Bar Full Operating Demo</CardTitle>
+              <CardDescription>
+                Launch the guided customer-to-owner flow, local credentials,
+                readiness checklist, and setup diagnostics from one place.
+              </CardDescription>
+            </div>
+            <Link href="/demo/balkona" className={buttonVariants()}>
+              <MonitorPlay className="size-4" aria-hidden="true" />
+              Open launcher
+            </Link>
           </CardHeader>
         </Card>
 
@@ -171,10 +207,16 @@ export function StaffOverviewPage() {
       title="Staff command surface"
       description="Branch-aware staff operations with cashier, kitchen, waiter, and owner dashboards connected to live backend workflows."
       actions={
-        <Link href="/staff/login" className={buttonVariants({ variant: "secondary" })}>
-          <LogIn className="size-4" aria-hidden="true" />
-          Staff login
-        </Link>
+        <div className="flex flex-wrap gap-3">
+          <Link href="/staff/login" className={buttonVariants({ variant: "secondary" })}>
+            <LogIn className="size-4" aria-hidden="true" />
+            Staff login
+          </Link>
+          <Link href="/demo/balkona" className={buttonVariants({ variant: "secondary" })}>
+            <MonitorPlay className="size-4" aria-hidden="true" />
+            Demo launcher
+          </Link>
+        </div>
       }
     >
       <StaffOverviewContent />

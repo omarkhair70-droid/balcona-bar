@@ -25,26 +25,31 @@ const actions = [
   {
     label: "Browse menu",
     href: "menu",
+    description: "Pick real branch menu items and add them to the cart.",
     icon: <Utensils className="size-5" aria-hidden="true" />
   },
   {
     label: "AI waiter",
     href: "ai-waiter",
+    description: "Ask for menu-grounded suggestions before deciding.",
     icon: <Sparkles className="size-5" aria-hidden="true" />
   },
   {
     label: "Review cart",
     href: "cart",
+    description: "Validate totals and submit the final order yourself.",
     icon: <ShoppingBag className="size-5" aria-hidden="true" />
   },
   {
     label: "Order status",
     href: "status",
+    description: "Follow accepted orders and table timeline updates.",
     icon: <ClipboardList className="size-5" aria-hidden="true" />
   },
   {
     label: "Service",
     href: "service",
+    description: "Call a waiter, ask for help, or request the bill.",
     icon: <Bell className="size-5" aria-hidden="true" />
   }
 ];
@@ -109,9 +114,7 @@ export function CustomerSessionHomePage({
             <CardHeader>
               <div className="text-primary">{action.icon}</div>
               <CardTitle>{action.label}</CardTitle>
-              <CardDescription>
-                Open the {action.label.toLowerCase()} surface for this table.
-              </CardDescription>
+              <CardDescription>{action.description}</CardDescription>
             </CardHeader>
             <div className="px-6 pb-6">
               <Link

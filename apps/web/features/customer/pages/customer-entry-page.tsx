@@ -1,10 +1,11 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ArrowRight, QrCode, RotateCcw, Utensils } from "lucide-react";
+import { ArrowRight, MonitorPlay, QrCode, RotateCcw, Utensils } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 import {
   Card,
   CardDescription,
@@ -13,16 +14,15 @@ import {
 } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { CustomerShell } from "@/features/customer/customer-shell";
+import { balkonaDemoQrToken } from "@/features/demo/balkona-demo";
 import { useCustomerSessionStore } from "@/lib/customer/customer-session-store";
-
-const demoQrToken = "balcona-main-t01";
 
 export function CustomerEntryPage() {
   const router = useRouter();
   const [qrToken, setQrToken] = useState("");
   const storedSessionId = useCustomerSessionStore((state) => state.sessionId);
   const clearSession = useCustomerSessionStore((state) => state.clearSession);
-  const tokenToOpen = qrToken.trim() || demoQrToken;
+  const tokenToOpen = qrToken.trim() || balkonaDemoQrToken;
 
   function openTable() {
     router.push(`/customer/table/${encodeURIComponent(tokenToOpen)}`);
@@ -67,7 +67,7 @@ export function CustomerEntryPage() {
             <Input
               value={qrToken}
               onChange={(event) => setQrToken(event.target.value)}
-              placeholder={demoQrToken}
+              placeholder={balkonaDemoQrToken}
               aria-label="Table QR token"
             />
             <div className="flex flex-wrap gap-3">
@@ -106,6 +106,13 @@ export function CustomerEntryPage() {
                 <p className="text-sm font-semibold text-foreground">{label}</p>
               </div>
             ))}
+            <Link
+              href="/demo/balkona"
+              className={buttonVariants({ variant: "secondary" })}
+            >
+              <MonitorPlay className="size-4" aria-hidden="true" />
+              Full demo launcher
+            </Link>
           </div>
         </Card>
       </section>
