@@ -1,7 +1,9 @@
 "use client";
 
+import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
 import { ClipboardList, Clock, PackageCheck } from "lucide-react";
+import { buttonVariants } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
 import { LoadingState } from "@/components/ui/loading-state";
@@ -102,6 +104,14 @@ export function CustomerStatusPage({ sessionId }: CustomerStatusPageProps) {
               <EmptyState
                 title="No orders yet"
                 description="Submit your cart and the timeline will begin here."
+                action={
+                  <Link
+                    href={`/customer/session/${sessionId}/cart`}
+                    className={buttonVariants({ variant: "secondary" })}
+                  >
+                    Review cart
+                  </Link>
+                }
               />
             ) : null}
             {orders.map((order) => (

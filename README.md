@@ -1,6 +1,6 @@
 # balcona-bar
 
-Balcona Bar is organized as a monorepo for the Cafe AI Waiter App / Smart Cafe Operating System. The backend core is complete through Phase 24, UI Phase 1 adds the first Next.js web foundation for customer and staff experiences, UI Phase 2 adds the customer PWA core, UI Phase 3 adds the customer AI waiter experience, UI Phase 4 adds the cashier dashboard core, UI Phase 5 adds the kitchen/barista dashboard core, UI Phase 6 adds the waiter dashboard and attention queue, and UI Phase 7 adds the owner/manager command center.
+Balcona Bar is organized as a monorepo for the Cafe AI Waiter App / Smart Cafe Operating System. The backend core is complete through Phase 24, UI Phase 1 adds the first Next.js web foundation for customer and staff experiences, UI Phase 2 adds the customer PWA core, UI Phase 3 adds the customer AI waiter experience, UI Phase 4 adds the cashier dashboard core, UI Phase 5 adds the kitchen/barista dashboard core, UI Phase 6 adds the waiter dashboard and attention queue, UI Phase 7 adds the owner/manager command center, and UI Phase 8 adds full demo hardening plus Balkona demo mode.
 
 ## Layout
 
@@ -9,6 +9,7 @@ Balcona Bar is organized as a monorepo for the Cafe AI Waiter App / Smart Cafe O
 - `apps/web` - Next.js App Router frontend foundation.
 - `docker-compose.yml` - local PostgreSQL and Redis services.
 - `docs/architecture` - architecture decisions and phase notes.
+- `docs/demo` - local demo runbooks and smoke tests.
 
 ## Local quick start
 
@@ -135,6 +136,16 @@ Balcona Bar is organized as a monorepo for the Cafe AI Waiter App / Smart Cafe O
    preparation, waiter-call, bill, attention, realtime, menu, and experience
    readiness without requiring a dedicated analytics endpoint.
 
+16. Open the full Balkona demo launcher:
+
+   ```text
+   http://localhost:3001/demo/balkona
+   ```
+
+   The launcher collects the customer QR route, staff routes, local/dev
+   credentials, presentation checklist, proof points, API base URL diagnostics,
+   and command reminders in one presentation-ready screen.
+
 Useful root scripts:
 
 ```bash
@@ -249,6 +260,20 @@ UI Phase 7 adds the Owner / Manager Command Center inside the Staff shell:
 - staff overview updated so cashier, kitchen, waiter, and owner surfaces are live
 
 SaaS admin/menu admin, company/tenant admin, staff role management, POS/payment, backend behavior changes, chart libraries, fake revenue, and new dependencies remain outside this phase.
+
+## UI Phase 8 status
+
+UI Phase 8 adds Full Demo Hardening + Balkona Demo Mode:
+
+- `/demo/balkona` premium local presentation launcher
+- shared Balkona demo constants for QR token, local/dev credentials, route links, checklist, proof points, and command reference
+- staff overview polished into an operations hub with cashier, kitchen, waiter, owner, and demo launcher links
+- customer entry and session empty states hardened for clearer demo next steps
+- launcher diagnostics for API base URL, route list, Docker/API/Web reminder, and local command reference
+- full demo smoke-test runbook in `docs/demo/balkona-full-demo-smoke-test.md`
+- architecture note in `docs/architecture/ui-phase-8-full-demo-hardening-balkona-demo-mode.md`
+
+SaaS admin/menu admin, company/tenant admin, payment/POS, backend behavior changes, fake revenue/orders/analytics, external chart libraries, and new dependencies remain outside this phase.
 
 ## API verification
 
@@ -962,6 +987,7 @@ curl -X POST http://localhost:3000/api/v1/staff-auth/logout \
 Frontend staff demo:
 
 ```text
+http://localhost:3001/demo/balkona
 http://localhost:3001/staff/login
 http://localhost:3001/staff
 http://localhost:3001/staff/cashier
@@ -1010,6 +1036,19 @@ Owner/manager flow:
 4. Open /staff/waiter and resolve any service call or attention item.
 5. Open /staff/owner.
 6. Review the branch pulse, health/risk summary, lane snapshots, attention risks, realtime activity, and menu/experience readiness.
+```
+
+Balkona full demo flow:
+
+```text
+1. Open /demo/balkona.
+2. Start the seeded customer QR table: /customer/table/balcona-main-t01.
+3. Add menu items, optionally use AI Waiter, review cart, and submit the order.
+4. Log in through /staff/login with the local/dev account.
+5. Accept the order in /staff/cashier.
+6. Move preparation work in /staff/kitchen.
+7. Resolve service calls or attention in /staff/waiter.
+8. Review the operating overview in /staff/owner.
 ```
 
 Table-session start/resume responses now include a `customerAccess` object with a one-time returned customer access token. Current customer endpoints remain backwards-compatible; the token foundation is ready for the future PWA ownership guard rollout.
@@ -1074,3 +1113,5 @@ Backend core is now ready for UI Phase 1 planning. Remaining production work inc
 - UI Phase 5 kitchen/barista dashboard core: `docs/architecture/ui-phase-5-kitchen-barista-dashboard-core.md`
 - UI Phase 6 waiter dashboard and attention queue: `docs/architecture/ui-phase-6-waiter-dashboard-attention-queue.md`
 - UI Phase 7 owner/manager command center: `docs/architecture/ui-phase-7-owner-manager-command-center.md`
+- UI Phase 8 full demo hardening and Balkona demo mode: `docs/architecture/ui-phase-8-full-demo-hardening-balkona-demo-mode.md`
+- Balkona full demo smoke test: `docs/demo/balkona-full-demo-smoke-test.md`

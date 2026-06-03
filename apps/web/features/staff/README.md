@@ -6,6 +6,8 @@ Staff feature code lives here for staff operations surfaces.
 - UI Phase 5 adds kitchen/barista dashboard core.
 - UI Phase 6 adds waiter dashboard and attention queue.
 - UI Phase 7 adds owner/manager command center.
+- UI Phase 8 hardens the staff overview as an operations hub and links the
+  Balkona full demo launcher.
 
 SaaS admin, tenant admin, and staff role management remain outside these staff
 operations surfaces until their phases.

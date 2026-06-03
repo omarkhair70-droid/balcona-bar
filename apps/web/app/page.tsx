@@ -2,7 +2,9 @@ import Link from "next/link";
 import {
   ArrowRight,
   BellRing,
+  ClipboardList,
   MonitorSmartphone,
+  MonitorPlay,
   Radio,
   Sparkles,
   Store,
@@ -29,7 +31,7 @@ const systemPillars = [
   {
     title: "Realtime-ready shell",
     description:
-      "Operator screens have room for live service signals without coupling to dashboards yet.",
+      "Operator screens refresh around live service signals across staff dashboards.",
     icon: <Radio className="size-5" aria-hidden="true" />
   },
   {
@@ -44,7 +46,7 @@ export default function HomePage() {
   return (
     <main className="mx-auto grid min-h-screen w-full max-w-7xl gap-8 px-4 py-6 sm:px-6 lg:grid-cols-[1.05fr_0.95fr] lg:px-8">
       <section className="flex flex-col justify-center">
-        <Badge className="w-fit">UI Phase 1</Badge>
+        <Badge className="w-fit">UI Phase 8</Badge>
         <h1 className="mt-5 max-w-4xl text-4xl font-semibold text-foreground md:text-6xl">
           Premium smart cafe product shell
         </h1>
@@ -54,8 +56,15 @@ export default function HomePage() {
         </p>
         <div className="mt-8 flex flex-wrap gap-3">
           <Link
-            href="/customer"
+            href="/demo/balkona"
             className={buttonVariants({ variant: "primary", size: "lg" })}
+          >
+            Full demo launcher
+            <MonitorPlay className="size-4" aria-hidden="true" />
+          </Link>
+          <Link
+            href="/customer"
+            className={buttonVariants({ variant: "secondary", size: "lg" })}
           >
             Customer shell
             <ArrowRight className="size-4" aria-hidden="true" />
@@ -78,9 +87,9 @@ export default function HomePage() {
           />
           <MetricCard
             label="Routes"
-            value="2"
-            description="Guest and staff"
-            icon={<MonitorSmartphone className="size-4" aria-hidden="true" />}
+            value="Demo"
+            description="Customer and staff flow"
+            icon={<ClipboardList className="size-4" aria-hidden="true" />}
           />
           <MetricCard
             label="Alerts"

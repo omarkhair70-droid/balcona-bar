@@ -1,10 +1,11 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { LoaderCircle, Send, Trash2 } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 import {
   Card,
   CardContent,
@@ -136,6 +137,14 @@ export function CustomerCartPage({ sessionId }: CustomerCartPageProps) {
         <EmptyState
           title="Your cart is empty"
           description="Browse the menu and add something beautiful for the table."
+          action={
+            <Link
+              href={`/customer/session/${sessionId}/menu`}
+              className={buttonVariants({ variant: "secondary" })}
+            >
+              Browse menu
+            </Link>
+          }
         />
       ) : null}
       {cart && cart.items.length > 0 ? (
