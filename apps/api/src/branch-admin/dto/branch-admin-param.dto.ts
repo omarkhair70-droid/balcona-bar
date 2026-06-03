@@ -12,13 +12,21 @@ export class BranchIdParamDto {
   branchId!: string;
 }
 
-export class FloorIdParamDto {
+export class BranchFloorParamDto {
+  @IsString()
+  @IsNotEmpty()
+  branchId!: string;
+
   @IsString()
   @IsNotEmpty()
   floorId!: string;
 }
 
-export class TableIdParamDto {
+export class BranchTableParamDto {
+  @IsString()
+  @IsNotEmpty()
+  branchId!: string;
+
   @IsString()
   @IsNotEmpty()
   tableId!: string;

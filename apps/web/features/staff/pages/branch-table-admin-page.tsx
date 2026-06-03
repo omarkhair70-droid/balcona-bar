@@ -1262,7 +1262,11 @@ function BranchTableAdminContent() {
     }: {
       floorId: string;
       payload: UpdateFloorPayload;
-    }) => updateFloor(floorId, payload, accessToken),
+    }) => {
+      const { branchId, token } = requireBranchScope();
+
+      return updateFloor(branchId, floorId, payload, token);
+    },
     onSuccess: () => {
       setFloorForm(emptyFloorForm);
       refreshBranchAdmin();
@@ -1286,29 +1290,46 @@ function BranchTableAdminContent() {
     }: {
       tableId: string;
       payload: UpdateTablePayload;
-    }) => updateTable(tableId, payload, accessToken),
+    }) => {
+      const { branchId, token } = requireBranchScope();
+
+      return updateTable(branchId, tableId, payload, token);
+    },
     onSuccess: () => {
       setTableForm(emptyTableForm);
       refreshBranchAdmin();
     }
   });
   const activateTableMutation = useMutation({
-    mutationFn: (table: BranchAdminTable) => activateTable(table.id, accessToken),
+    mutationFn: (table: BranchAdminTable) => {
+      const { branchId, token } = requireBranchScope();
+
+      return activateTable(branchId, table.id, token);
+    },
     onSuccess: refreshBranchAdmin
   });
   const deactivateTableMutation = useMutation({
-    mutationFn: (table: BranchAdminTable) =>
-      deactivateTable(table.id, accessToken),
+    mutationFn: (table: BranchAdminTable) => {
+      const { branchId, token } = requireBranchScope();
+
+      return deactivateTable(branchId, table.id, token);
+    },
     onSuccess: refreshBranchAdmin
   });
   const generateQrMutation = useMutation({
-    mutationFn: (table: BranchAdminTable) =>
-      generateTableQrToken(table.id, accessToken),
+    mutationFn: (table: BranchAdminTable) => {
+      const { branchId, token } = requireBranchScope();
+
+      return generateTableQrToken(branchId, table.id, token);
+    },
     onSuccess: refreshBranchAdmin
   });
   const regenerateQrMutation = useMutation({
-    mutationFn: (table: BranchAdminTable) =>
-      regenerateTableQrToken(table.id, accessToken),
+    mutationFn: (table: BranchAdminTable) => {
+      const { branchId, token } = requireBranchScope();
+
+      return regenerateTableQrToken(branchId, table.id, token);
+    },
     onSuccess: refreshBranchAdmin
   });
   const isMutating =

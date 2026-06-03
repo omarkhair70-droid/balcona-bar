@@ -388,8 +388,10 @@ export class BranchAdminService {
     return { branch, floor };
   }
 
-  async updateFloor(floorId: string, body: UpdateFloorDto) {
+  async updateFloor(branchId: string, floorId: string, body: UpdateFloorDto) {
+    const branch = await this.findBranchOrThrow(branchId, this.prisma);
     const existingFloor = await this.findFloorOrThrow(floorId, this.prisma);
+    this.assertFloorBelongsToBranch(existingFloor, branch.id);
     const data: Prisma.FloorUpdateInput = {};
 
     if (body.name !== undefined) {
@@ -443,10 +445,12 @@ export class BranchAdminService {
     }
   }
 
-  async updateTable(tableId: string, body: UpdateTableDto) {
+  async updateTable(branchId: string, tableId: string, body: UpdateTableDto) {
     try {
       return await this.prisma.$transaction(async (tx) => {
+        const branch = await this.findBranchOrThrow(branchId, tx);
         const existingTable = await this.findTableOrThrow(tableId, tx);
+        this.assertTableBelongsToBranch(existingTable, branch.id);
         const data: Prisma.CafeTableUpdateInput = {};
 
         if (body.floorId !== undefined) {
@@ -454,7 +458,7 @@ export class BranchAdminService {
             body.floorId === null || body.floorId.trim() === ''
               ? null
               : await this.findFloorOrThrow(body.floorId, tx);
-          this.assertFloorBelongsToBranch(floor, existingTable.branchId);
+          this.assertFloorBelongsToBranch(floor, branch.id);
           data.floor = floor
             ? { connect: { id: floor.id } }
             : { disconnect: true };
@@ -500,17 +504,19 @@ export class BranchAdminService {
     }
   }
 
-  activateTable(tableId: string) {
-    return this.updateTableStatus(tableId, TableStatus.active);
+  activateTable(branchId: string, tableId: string) {
+    return this.updateTableStatus(branchId, tableId, TableStatus.active);
   }
 
-  deactivateTable(tableId: string) {
-    return this.updateTableStatus(tableId, TableStatus.inactive);
+  deactivateTable(branchId: string, tableId: string) {
+    return this.updateTableStatus(branchId, tableId, TableStatus.inactive);
   }
 
-  async generateQrToken(tableId: string) {
+  async generateQrToken(branchId: string, tableId: string) {
     return this.prisma.$transaction(async (tx) => {
+      const branch = await this.findBranchOrThrow(branchId, tx);
       const existingTable = await this.findTableOrThrow(tableId, tx);
+      this.assertTableBelongsToBranch(existingTable, branch.id);
 
       if (this.hasQrToken(existingTable.qrToken)) {
         return {
@@ -520,7 +526,6 @@ export class BranchAdminService {
         };
       }
 
-      const branch = await this.findBranchOrThrow(existingTable.branchId, tx);
       const qrToken = await this.generateAvailableQrToken(
         branch,
         existingTable.code,
@@ -541,7 +546,11 @@ export class BranchAdminService {
     });
   }
 
-  async regenerateQrToken(tableId: string, body: RegenerateQrTokenDto) {
+  async regenerateQrToken(
+    branchId: string,
+    tableId: string,
+    body: RegenerateQrTokenDto,
+  ) {
     if (!body.confirmPrintedQrInvalidation) {
       throw new BadRequestException(
         'Regenerating a QR token requires confirmation because printed QR codes will stop working.',
@@ -549,8 +558,9 @@ export class BranchAdminService {
     }
 
     return this.prisma.$transaction(async (tx) => {
+      const branch = await this.findBranchOrThrow(branchId, tx);
       const existingTable = await this.findTableOrThrow(tableId, tx);
-      const branch = await this.findBranchOrThrow(existingTable.branchId, tx);
+      this.assertTableBelongsToBranch(existingTable, branch.id);
       const qrToken = await this.generateAvailableQrToken(
         branch,
         existingTable.code,
@@ -582,8 +592,14 @@ export class BranchAdminService {
     return { branch };
   }
 
-  private async updateTableStatus(tableId: string, status: TableStatus) {
+  private async updateTableStatus(
+    branchId: string,
+    tableId: string,
+    status: TableStatus,
+  ) {
+    const branch = await this.findBranchOrThrow(branchId, this.prisma);
     const existingTable = await this.findTableOrThrow(tableId, this.prisma);
+    this.assertTableBelongsToBranch(existingTable, branch.id);
     const table = await this.prisma.cafeTable.update({
       where: { id: existingTable.id },
       data: { status },
@@ -854,6 +870,12 @@ export class BranchAdminService {
   ) {
     if (floor && floor.branchId !== branchId) {
       throw new BadRequestException('Floor must belong to the selected branch');
+    }
+  }
+
+  private assertTableBelongsToBranch(table: TableRecord, branchId: string) {
+    if (table.branchId !== branchId) {
+      throw new BadRequestException('Table must belong to the selected branch');
     }
   }
 

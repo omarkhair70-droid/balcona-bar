@@ -193,6 +193,9 @@ describe('BranchAdminService', () => {
     const service = createService({
       $transaction: jest.fn((callback) =>
         callback({
+          branch: {
+            findUnique: jest.fn().mockResolvedValue(branch),
+          },
           cafeTable: {
             findUnique: jest.fn().mockResolvedValue(buildTable()),
           },
@@ -208,9 +211,108 @@ describe('BranchAdminService', () => {
     } as unknown as PrismaService);
 
     await expect(
-      service.updateTable('table-1', {
+      service.updateTable(branch.id, 'table-1', {
         floorId: 'other-floor',
       }),
     ).rejects.toThrow(BadRequestException);
+  });
+
+  it('rejects floor updates when the floor does not belong to the route branch', async () => {
+    const floorUpdate = jest.fn();
+    const service = createService({
+      branch: {
+        findUnique: jest.fn().mockResolvedValue(branch),
+      },
+      floor: {
+        findUnique: jest.fn().mockResolvedValue({
+          ...floor,
+          branchId: 'other-branch',
+        }),
+        update: floorUpdate,
+      },
+    } as unknown as PrismaService);
+
+    await expect(
+      service.updateFloor(branch.id, floor.id, {
+        name: 'Garden',
+      }),
+    ).rejects.toThrow(BadRequestException);
+    expect(floorUpdate).not.toHaveBeenCalled();
+  });
+
+  it('rejects table updates when the table does not belong to the route branch', async () => {
+    const tableUpdate = jest.fn();
+    const service = createService({
+      $transaction: jest.fn((callback) =>
+        callback({
+          branch: {
+            findUnique: jest.fn().mockResolvedValue(branch),
+          },
+          cafeTable: {
+            findUnique: jest
+              .fn()
+              .mockResolvedValue(buildTable({ branchId: 'other-branch' })),
+            update: tableUpdate,
+          },
+        }),
+      ),
+    } as unknown as PrismaService);
+
+    await expect(
+      service.updateTable(branch.id, 'table-1', {
+        displayName: 'Patio 1',
+      }),
+    ).rejects.toThrow(BadRequestException);
+    expect(tableUpdate).not.toHaveBeenCalled();
+  });
+
+  it('rejects QR token generation when the table does not belong to the route branch', async () => {
+    const tableUpdate = jest.fn();
+    const service = createService({
+      $transaction: jest.fn((callback) =>
+        callback({
+          branch: {
+            findUnique: jest.fn().mockResolvedValue(branch),
+          },
+          cafeTable: {
+            findUnique: jest
+              .fn()
+              .mockResolvedValue(buildTable({ branchId: 'other-branch' })),
+            update: tableUpdate,
+          },
+        }),
+      ),
+    } as unknown as PrismaService);
+
+    await expect(
+      service.generateQrToken(branch.id, 'table-1'),
+    ).rejects.toThrow(BadRequestException);
+    expect(tableUpdate).not.toHaveBeenCalled();
+  });
+
+  it('rejects QR token regeneration when the table does not belong to the route branch', async () => {
+    const tableUpdate = jest.fn();
+    const service = createService({
+      $transaction: jest.fn((callback) =>
+        callback({
+          branch: {
+            findUnique: jest.fn().mockResolvedValue(branch),
+          },
+          cafeTable: {
+            findUnique: jest
+              .fn()
+              .mockResolvedValue(buildTable({ branchId: 'other-branch' })),
+            update: tableUpdate,
+          },
+        }),
+      ),
+    } as unknown as PrismaService);
+
+    await expect(
+      service.regenerateQrToken(branch.id, 'table-1', {
+        confirmPrintedQrInvalidation: true,
+      }),
+    ).rejects.toThrow(BadRequestException);
+    expect(tableUpdate).not.toHaveBeenCalled();
   });
 });

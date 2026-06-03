@@ -208,12 +208,13 @@ export function createFloor(
 }
 
 export function updateFloor(
+  branchId: string,
   floorId: string,
   payload: UpdateFloorPayload,
   token?: string
 ) {
   return apiRequest<FloorMutationResult, UpdateFloorPayload>(
-    `/table-admin/floors/${floorId}`,
+    `/branches/${branchId}/table-admin/floors/${floorId}`,
     {
       method: "PATCH",
       body: payload,
@@ -238,12 +239,13 @@ export function createTable(
 }
 
 export function updateTable(
+  branchId: string,
   tableId: string,
   payload: UpdateTablePayload,
   token?: string
 ) {
   return apiRequest<TableMutationResult, UpdateTablePayload>(
-    `/table-admin/tables/${tableId}`,
+    `/branches/${branchId}/table-admin/tables/${tableId}`,
     {
       method: "PATCH",
       body: payload,
@@ -252,9 +254,9 @@ export function updateTable(
   );
 }
 
-export function activateTable(tableId: string, token?: string) {
+export function activateTable(branchId: string, tableId: string, token?: string) {
   return apiRequest<TableMutationResult>(
-    `/table-admin/tables/${tableId}/activate`,
+    `/branches/${branchId}/table-admin/tables/${tableId}/activate`,
     {
       method: "POST",
       token
@@ -262,9 +264,13 @@ export function activateTable(tableId: string, token?: string) {
   );
 }
 
-export function deactivateTable(tableId: string, token?: string) {
+export function deactivateTable(
+  branchId: string,
+  tableId: string,
+  token?: string
+) {
   return apiRequest<TableMutationResult>(
-    `/table-admin/tables/${tableId}/deactivate`,
+    `/branches/${branchId}/table-admin/tables/${tableId}/deactivate`,
     {
       method: "POST",
       token
@@ -272,9 +278,13 @@ export function deactivateTable(tableId: string, token?: string) {
   );
 }
 
-export function generateTableQrToken(tableId: string, token?: string) {
+export function generateTableQrToken(
+  branchId: string,
+  tableId: string,
+  token?: string
+) {
   return apiRequest<QrTokenMutationResult>(
-    `/table-admin/tables/${tableId}/qr-token/generate`,
+    `/branches/${branchId}/table-admin/tables/${tableId}/qr-token/generate`,
     {
       method: "POST",
       token
@@ -282,11 +292,15 @@ export function generateTableQrToken(tableId: string, token?: string) {
   );
 }
 
-export function regenerateTableQrToken(tableId: string, token?: string) {
+export function regenerateTableQrToken(
+  branchId: string,
+  tableId: string,
+  token?: string
+) {
   return apiRequest<
     QrTokenMutationResult,
     { confirmPrintedQrInvalidation: boolean }
-  >(`/table-admin/tables/${tableId}/qr-token/regenerate`, {
+  >(`/branches/${branchId}/table-admin/tables/${tableId}/qr-token/regenerate`, {
     method: "POST",
     body: { confirmPrintedQrInvalidation: true },
     token

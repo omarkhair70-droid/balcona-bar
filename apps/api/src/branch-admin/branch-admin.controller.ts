@@ -23,10 +23,10 @@ import {
   UpdateTableDto,
 } from './dto/branch-admin.dto';
 import {
+  BranchFloorParamDto,
   BranchIdParamDto,
+  BranchTableParamDto,
   CompanyIdParamDto,
-  FloorIdParamDto,
-  TableIdParamDto,
 } from './dto/branch-admin-param.dto';
 
 @Controller()
@@ -82,10 +82,17 @@ export class BranchAdminController {
     return this.branchAdminService.createFloor(params.branchId, body);
   }
 
-  @Patch('table-admin/floors/:floorId')
-  @RequiredPermission('settings.manage')
-  updateFloor(@Param() params: FloorIdParamDto, @Body() body: UpdateFloorDto) {
-    return this.branchAdminService.updateFloor(params.floorId, body);
+  @Patch('branches/:branchId/table-admin/floors/:floorId')
+  @RequiredPermission('settings.manage', { branchIdParam: 'branchId' })
+  updateFloor(
+    @Param() params: BranchFloorParamDto,
+    @Body() body: UpdateFloorDto,
+  ) {
+    return this.branchAdminService.updateFloor(
+      params.branchId,
+      params.floorId,
+      body,
+    );
   }
 
   @Post('branches/:branchId/table-admin/tables')
@@ -97,36 +104,56 @@ export class BranchAdminController {
     return this.branchAdminService.createTable(params.branchId, body);
   }
 
-  @Patch('table-admin/tables/:tableId')
-  @RequiredPermission('settings.manage')
-  updateTable(@Param() params: TableIdParamDto, @Body() body: UpdateTableDto) {
-    return this.branchAdminService.updateTable(params.tableId, body);
+  @Patch('branches/:branchId/table-admin/tables/:tableId')
+  @RequiredPermission('settings.manage', { branchIdParam: 'branchId' })
+  updateTable(
+    @Param() params: BranchTableParamDto,
+    @Body() body: UpdateTableDto,
+  ) {
+    return this.branchAdminService.updateTable(
+      params.branchId,
+      params.tableId,
+      body,
+    );
   }
 
-  @Post('table-admin/tables/:tableId/activate')
-  @RequiredPermission('settings.manage')
-  activateTable(@Param() params: TableIdParamDto) {
-    return this.branchAdminService.activateTable(params.tableId);
+  @Post('branches/:branchId/table-admin/tables/:tableId/activate')
+  @RequiredPermission('settings.manage', { branchIdParam: 'branchId' })
+  activateTable(@Param() params: BranchTableParamDto) {
+    return this.branchAdminService.activateTable(
+      params.branchId,
+      params.tableId,
+    );
   }
 
-  @Post('table-admin/tables/:tableId/deactivate')
-  @RequiredPermission('settings.manage')
-  deactivateTable(@Param() params: TableIdParamDto) {
-    return this.branchAdminService.deactivateTable(params.tableId);
+  @Post('branches/:branchId/table-admin/tables/:tableId/deactivate')
+  @RequiredPermission('settings.manage', { branchIdParam: 'branchId' })
+  deactivateTable(@Param() params: BranchTableParamDto) {
+    return this.branchAdminService.deactivateTable(
+      params.branchId,
+      params.tableId,
+    );
   }
 
-  @Post('table-admin/tables/:tableId/qr-token/generate')
-  @RequiredPermission('settings.manage')
-  generateQrToken(@Param() params: TableIdParamDto) {
-    return this.branchAdminService.generateQrToken(params.tableId);
+  @Post('branches/:branchId/table-admin/tables/:tableId/qr-token/generate')
+  @RequiredPermission('settings.manage', { branchIdParam: 'branchId' })
+  generateQrToken(@Param() params: BranchTableParamDto) {
+    return this.branchAdminService.generateQrToken(
+      params.branchId,
+      params.tableId,
+    );
   }
 
-  @Post('table-admin/tables/:tableId/qr-token/regenerate')
-  @RequiredPermission('settings.manage')
+  @Post('branches/:branchId/table-admin/tables/:tableId/qr-token/regenerate')
+  @RequiredPermission('settings.manage', { branchIdParam: 'branchId' })
   regenerateQrToken(
-    @Param() params: TableIdParamDto,
+    @Param() params: BranchTableParamDto,
     @Body() body: RegenerateQrTokenDto,
   ) {
-    return this.branchAdminService.regenerateQrToken(params.tableId, body);
+    return this.branchAdminService.regenerateQrToken(
+      params.branchId,
+      params.tableId,
+      body,
+    );
   }
 }
