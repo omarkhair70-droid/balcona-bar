@@ -24,6 +24,181 @@ export type BranchSummary = {
   status?: string;
 };
 
+export type BranchAdminBranchStatus = "active" | "inactive";
+export type BranchAdminTableStatus = "active" | "inactive" | "maintenance";
+
+export type BranchAdminBranch = BranchSummary & {
+  companyId: string;
+  createdAt?: string;
+  updatedAt?: string;
+  floorsCount?: number;
+  tablesCount?: number;
+  status: BranchAdminBranchStatus;
+};
+
+export type BranchAdminFloor = {
+  id: string;
+  branchId: string;
+  name: string;
+  sortOrder: number;
+  createdAt?: string;
+  updatedAt?: string;
+};
+
+export type BranchAdminAttentionSnapshot = {
+  id: string;
+  status: string;
+  priority: string;
+  score: number;
+  lastEvaluatedAt: string;
+  resolvedAt?: string | null;
+  mutedUntil?: string | null;
+};
+
+export type BranchAdminSession = {
+  id: string;
+  companyId: string;
+  branchId: string;
+  tableId: string;
+  status: string;
+  source: string;
+  guestLabel?: string | null;
+  partySize?: number | null;
+  startedAt: string;
+  lastSeenAt: string;
+  expiresAt?: string | null;
+  closedAt?: string | null;
+  closeReason?: string | null;
+  createdAt?: string;
+  updatedAt?: string;
+  tableAttentionSnapshot?: BranchAdminAttentionSnapshot | null;
+  table?: {
+    id: string;
+    code: string;
+    displayName: string;
+    qrToken: string;
+    status: BranchAdminTableStatus;
+    floor?: BranchAdminFloor | null;
+  };
+};
+
+export type BranchAdminTable = {
+  id: string;
+  branchId: string;
+  floorId?: string | null;
+  code: string;
+  displayName: string;
+  capacity?: number | null;
+  qrToken: string;
+  status: BranchAdminTableStatus;
+  createdAt?: string;
+  updatedAt?: string;
+  floor?: BranchAdminFloor | null;
+  customerPreviewPath?: string | null;
+  activeSession?: BranchAdminSession | null;
+};
+
+export type BranchAdminFloorWithTables = BranchAdminFloor & {
+  tables: BranchAdminTable[];
+  tableCount: number;
+};
+
+export type BranchAdminSetupIssue = {
+  code: string;
+  severity: "warning" | "error";
+  scope: "company" | "branch" | "floor" | "table" | "qr";
+  message: string;
+  branchId?: string;
+  floorId?: string | null;
+  tableId?: string;
+};
+
+export type BranchAdminStats = {
+  totalTables: number;
+  activeTables: number;
+  inactiveTables: number;
+  maintenanceTables: number;
+  occupiedTables: number;
+  activeSessions: number;
+  needsAttention: number;
+  tablesWithQrToken: number;
+  tablesMissingQrToken: number;
+  setupWarnings: number;
+};
+
+export type BranchAdminOverviewResult = {
+  company: CompanySummary;
+  branches: BranchAdminBranch[];
+  selectedBranch: BranchAdminBranch | null;
+  floors: BranchAdminFloor[];
+  tablesByFloor: BranchAdminFloorWithTables[];
+  ungroupedTables: BranchAdminTable[];
+  activeSessions: BranchAdminSession[];
+  stats: BranchAdminStats;
+  setupIssues: BranchAdminSetupIssue[];
+};
+
+export type CreateBranchPayload = {
+  name: string;
+  slug: string;
+  address?: string | null;
+  status?: BranchAdminBranchStatus;
+};
+
+export type UpdateBranchPayload = Partial<CreateBranchPayload>;
+
+export type BranchMutationResult = {
+  branch: BranchAdminBranch;
+};
+
+export type CreateBranchResult = {
+  company: CompanySummary;
+  branch: BranchAdminBranch;
+};
+
+export type CreateFloorPayload = {
+  name: string;
+  sortOrder?: number;
+};
+
+export type UpdateFloorPayload = Partial<CreateFloorPayload>;
+
+export type FloorMutationResult = {
+  floor: BranchAdminFloor;
+};
+
+export type CreateFloorResult = {
+  branch: BranchAdminBranch;
+  floor: BranchAdminFloor;
+};
+
+export type CreateTablePayload = {
+  code: string;
+  displayName: string;
+  capacity?: number | null;
+  floorId?: string | null;
+  qrToken?: string;
+  status?: BranchAdminTableStatus;
+};
+
+export type UpdateTablePayload = Partial<CreateTablePayload>;
+
+export type TableMutationResult = {
+  table: BranchAdminTable;
+};
+
+export type CreateTableResult = {
+  branch: BranchAdminBranch;
+  table: BranchAdminTable;
+  generatedQrToken: string;
+};
+
+export type QrTokenMutationResult = {
+  table: BranchAdminTable;
+  qrToken: string;
+  generated: boolean;
+};
+
 export type BranchEffectiveExperience = {
   company: CompanySummary;
   branch: BranchSummary;

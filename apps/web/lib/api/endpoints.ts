@@ -14,6 +14,7 @@ import type {
   BranchEffectiveExperience,
   BranchBillRequestsQuery,
   BranchBillRequestsResult,
+  BranchAdminOverviewResult,
   BranchMenuResult,
   BranchPreparationTasksQuery,
   BranchPreparationTasksResult,
@@ -30,6 +31,7 @@ import type {
   CashierOrdersResult,
   CashierRejectOrderPayload,
   CompanySummary,
+  BranchMutationResult,
   CreateMenuCategoryPayload,
   CreateMenuCategoryResult,
   CreateMenuItemModifierGroupPayload,
@@ -39,6 +41,12 @@ import type {
   CreateModifierGroupPayload,
   CreateModifierGroupResult,
   CreateModifierOptionPayload,
+  CreateBranchPayload,
+  CreateBranchResult,
+  CreateFloorPayload,
+  CreateFloorResult,
+  CreateTablePayload,
+  CreateTableResult,
   CreateModifierOptionResult,
   CustomerStatusResult,
   CustomerTimelineResult,
@@ -57,10 +65,12 @@ import type {
   OrderPreparationTasksResult,
   PreparationTaskActionPayload,
   PreparationTaskDetailResult,
+  QrTokenMutationResult,
   RebuildBranchAttentionResult,
   RecalculateAttentionPayload,
   RejectAiCartProposalPayload,
   RequestBillPayload,
+  FloorMutationResult,
   ResolveAttentionPayload,
   ResolveWaiterCallPayload,
   SendAiWaiterMessagePayload,
@@ -78,7 +88,11 @@ import type {
   UpdateMenuItemPayload,
   UpdateModifierGroupPayload,
   UpdateModifierOptionPayload,
+  UpdateBranchPayload,
+  UpdateFloorPayload,
+  UpdateTablePayload,
   TableSessionAttentionResult,
+  TableMutationResult,
   UpdateCartItemPayload,
   UpsertBranchMenuItemOverrideResult,
   UpsertBranchMenuItemOverridePayload,
@@ -112,6 +126,185 @@ export function getBranchMenuAdminOverview(branchId: string, token?: string) {
     `/branches/${branchId}/menu-admin/overview`,
     { token }
   );
+}
+
+export function getBranchTableAdminOverview(
+  companyId: string,
+  branchId?: string,
+  token?: string
+) {
+  return apiRequest<BranchAdminOverviewResult>(
+    `/companies/${companyId}/branch-admin/overview`,
+    {
+      query: { branchId },
+      token
+    }
+  );
+}
+
+export function createBranch(
+  companyId: string,
+  payload: CreateBranchPayload,
+  token?: string
+) {
+  return apiRequest<CreateBranchResult, CreateBranchPayload>(
+    `/companies/${companyId}/branch-admin/branches`,
+    {
+      method: "POST",
+      body: payload,
+      token
+    }
+  );
+}
+
+export function updateBranch(
+  branchId: string,
+  payload: UpdateBranchPayload,
+  token?: string
+) {
+  return apiRequest<BranchMutationResult, UpdateBranchPayload>(
+    `/branch-admin/branches/${branchId}`,
+    {
+      method: "PATCH",
+      body: payload,
+      token
+    }
+  );
+}
+
+export function activateBranch(branchId: string, token?: string) {
+  return apiRequest<BranchMutationResult>(
+    `/branch-admin/branches/${branchId}/activate`,
+    {
+      method: "POST",
+      token
+    }
+  );
+}
+
+export function deactivateBranch(branchId: string, token?: string) {
+  return apiRequest<BranchMutationResult>(
+    `/branch-admin/branches/${branchId}/deactivate`,
+    {
+      method: "POST",
+      token
+    }
+  );
+}
+
+export function createFloor(
+  branchId: string,
+  payload: CreateFloorPayload,
+  token?: string
+) {
+  return apiRequest<CreateFloorResult, CreateFloorPayload>(
+    `/branches/${branchId}/table-admin/floors`,
+    {
+      method: "POST",
+      body: payload,
+      token
+    }
+  );
+}
+
+export function updateFloor(
+  branchId: string,
+  floorId: string,
+  payload: UpdateFloorPayload,
+  token?: string
+) {
+  return apiRequest<FloorMutationResult, UpdateFloorPayload>(
+    `/branches/${branchId}/table-admin/floors/${floorId}`,
+    {
+      method: "PATCH",
+      body: payload,
+      token
+    }
+  );
+}
+
+export function createTable(
+  branchId: string,
+  payload: CreateTablePayload,
+  token?: string
+) {
+  return apiRequest<CreateTableResult, CreateTablePayload>(
+    `/branches/${branchId}/table-admin/tables`,
+    {
+      method: "POST",
+      body: payload,
+      token
+    }
+  );
+}
+
+export function updateTable(
+  branchId: string,
+  tableId: string,
+  payload: UpdateTablePayload,
+  token?: string
+) {
+  return apiRequest<TableMutationResult, UpdateTablePayload>(
+    `/branches/${branchId}/table-admin/tables/${tableId}`,
+    {
+      method: "PATCH",
+      body: payload,
+      token
+    }
+  );
+}
+
+export function activateTable(branchId: string, tableId: string, token?: string) {
+  return apiRequest<TableMutationResult>(
+    `/branches/${branchId}/table-admin/tables/${tableId}/activate`,
+    {
+      method: "POST",
+      token
+    }
+  );
+}
+
+export function deactivateTable(
+  branchId: string,
+  tableId: string,
+  token?: string
+) {
+  return apiRequest<TableMutationResult>(
+    `/branches/${branchId}/table-admin/tables/${tableId}/deactivate`,
+    {
+      method: "POST",
+      token
+    }
+  );
+}
+
+export function generateTableQrToken(
+  branchId: string,
+  tableId: string,
+  token?: string
+) {
+  return apiRequest<QrTokenMutationResult>(
+    `/branches/${branchId}/table-admin/tables/${tableId}/qr-token/generate`,
+    {
+      method: "POST",
+      token
+    }
+  );
+}
+
+export function regenerateTableQrToken(
+  branchId: string,
+  tableId: string,
+  token?: string
+) {
+  return apiRequest<
+    QrTokenMutationResult,
+    { confirmPrintedQrInvalidation: boolean }
+  >(`/branches/${branchId}/table-admin/tables/${tableId}/qr-token/regenerate`, {
+    method: "POST",
+    body: { confirmPrintedQrInvalidation: true },
+    token
+  });
 }
 
 export function createMenuCategory(
