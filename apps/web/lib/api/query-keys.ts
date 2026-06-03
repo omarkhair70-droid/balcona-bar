@@ -74,5 +74,47 @@ export const staffQueryKeys = {
     "table-session-attention",
     sessionId
   ],
+  staffOwnerOrders: (branchId?: string) => [
+    "staff",
+    "owner",
+    "orders",
+    branchId
+  ],
+  staffOwnerBillRequests: (branchId?: string) => [
+    "staff",
+    "owner",
+    "bill-requests",
+    branchId
+  ],
+  staffOwnerPreparationTasks: (branchId?: string) => [
+    "staff",
+    "owner",
+    "preparation-tasks",
+    branchId
+  ],
+  staffOwnerWaiterCalls: (branchId?: string) => [
+    "staff",
+    "owner",
+    "waiter-calls",
+    branchId
+  ],
+  staffOwnerAttentionQueue: (branchId?: string) => [
+    "staff",
+    "owner",
+    "attention-queue",
+    branchId
+  ],
+  staffOwnerExperience: (branchId?: string) => [
+    "staff",
+    "owner",
+    "experience",
+    branchId
+  ],
+  staffOwnerMenu: (branchId?: string) => [
+    "staff",
+    "owner",
+    "menu",
+    branchId
+  ],
   branchRealtime: (branchId?: string) => ["staff", "branch-realtime", branchId]
 } as const;

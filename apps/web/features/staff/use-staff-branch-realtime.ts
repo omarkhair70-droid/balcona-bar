@@ -86,6 +86,21 @@ export function useStaffBranchRealtime(
           queryKey: staffQueryKeys.staffAttentionQueue(branchId)
         });
         void queryClient.invalidateQueries({
+          queryKey: staffQueryKeys.staffOwnerOrders(branchId)
+        });
+        void queryClient.invalidateQueries({
+          queryKey: staffQueryKeys.staffOwnerBillRequests(branchId)
+        });
+        void queryClient.invalidateQueries({
+          queryKey: staffQueryKeys.staffOwnerPreparationTasks(branchId)
+        });
+        void queryClient.invalidateQueries({
+          queryKey: staffQueryKeys.staffOwnerWaiterCalls(branchId)
+        });
+        void queryClient.invalidateQueries({
+          queryKey: staffQueryKeys.staffOwnerAttentionQueue(branchId)
+        });
+        void queryClient.invalidateQueries({
           queryKey: staffQueryKeys.branchRealtime(branchId)
         });
 
