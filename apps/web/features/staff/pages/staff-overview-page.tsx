@@ -52,9 +52,9 @@ const staffAreas = [
   {
     title: "Owner",
     href: "/staff/owner",
-    description: "Operating pulse, permissions, and branch insight surface.",
+    description: "Manager command center for branch pulse and risks.",
     icon: <UsersRound className="size-5" aria-hidden="true" />,
-    state: "Preview"
+    state: "Live"
   }
 ];
 
@@ -105,7 +105,7 @@ function StaffOverviewContent() {
           <MetricCard
             label="Cashier"
             value="Ready"
-            description="Orders, prep, and floor connected"
+            description="Orders, prep, floor, and owner connected"
             icon={<ClipboardCheck className="size-4" aria-hidden="true" />}
           />
         </section>
@@ -169,7 +169,7 @@ export function StaffOverviewPage() {
   return (
     <StaffPageShell
       title="Staff command surface"
-      description="Branch-aware staff operations with cashier, kitchen, and waiter dashboards connected to live backend workflows."
+      description="Branch-aware staff operations with cashier, kitchen, waiter, and owner dashboards connected to live backend workflows."
       actions={
         <Link href="/staff/login" className={buttonVariants({ variant: "secondary" })}>
           <LogIn className="size-4" aria-hidden="true" />

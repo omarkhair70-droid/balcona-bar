@@ -1,6 +1,6 @@
 # balcona-bar
 
-Balcona Bar is organized as a monorepo for the Cafe AI Waiter App / Smart Cafe Operating System. The backend core is complete through Phase 24, UI Phase 1 adds the first Next.js web foundation for customer and staff experiences, UI Phase 2 adds the customer PWA core, UI Phase 3 adds the customer AI waiter experience, UI Phase 4 adds the cashier dashboard core, UI Phase 5 adds the kitchen/barista dashboard core, and UI Phase 6 adds the waiter dashboard and attention queue.
+Balcona Bar is organized as a monorepo for the Cafe AI Waiter App / Smart Cafe Operating System. The backend core is complete through Phase 24, UI Phase 1 adds the first Next.js web foundation for customer and staff experiences, UI Phase 2 adds the customer PWA core, UI Phase 3 adds the customer AI waiter experience, UI Phase 4 adds the cashier dashboard core, UI Phase 5 adds the kitchen/barista dashboard core, UI Phase 6 adds the waiter dashboard and attention queue, and UI Phase 7 adds the owner/manager command center.
 
 ## Layout
 
@@ -125,6 +125,16 @@ Balcona Bar is organized as a monorepo for the Cafe AI Waiter App / Smart Cafe O
    attention signals for waiter calls, bill requests, ready orders not served,
    preparation delays, and AI waiter escalations.
 
+15. Open the owner/manager command center:
+
+   ```text
+   http://localhost:3001/staff/owner
+   ```
+
+   The owner dashboard aggregates existing branch endpoints to show order,
+   preparation, waiter-call, bill, attention, realtime, menu, and experience
+   readiness without requiring a dedicated analytics endpoint.
+
 Useful root scripts:
 
 ```bash
@@ -223,6 +233,22 @@ UI Phase 6 adds the Waiter Dashboard and Attention Queue inside the Staff shell:
 - staff overview updated so cashier, kitchen, and waiter surfaces are live
 
 Owner/manager command center, SaaS admin/menu admin, POS/payment, backend behavior changes, floorplan drag/drop, and new dependencies remain outside this phase.
+
+## UI Phase 7 status
+
+UI Phase 7 adds the Owner / Manager Command Center inside the Staff shell:
+
+- `/staff/owner` live manager dashboard for selected branch
+- executive pulse metrics for active orders, submitted orders, preparation, ready orders, waiter calls, bill requests, urgent attention, and visible order value
+- client-side aggregation over existing cashier, bill, preparation, waiter-call, attention, realtime, menu, and experience endpoints
+- branch health state derived as calm, busy, needs manager attention, or critical
+- operations snapshot cards linking to cashier, kitchen, waiter, and bill lanes
+- attention and service recovery summary for top table risks
+- recent branch realtime activity stream
+- menu and experience readiness panel with read-only setup pulse
+- staff overview updated so cashier, kitchen, waiter, and owner surfaces are live
+
+SaaS admin/menu admin, company/tenant admin, staff role management, POS/payment, backend behavior changes, chart libraries, fake revenue, and new dependencies remain outside this phase.
 
 ## API verification
 
@@ -941,6 +967,7 @@ http://localhost:3001/staff
 http://localhost:3001/staff/cashier
 http://localhost:3001/staff/kitchen
 http://localhost:3001/staff/waiter
+http://localhost:3001/staff/owner
 ```
 
 Use the same local/dev account after password bootstrap:
@@ -972,6 +999,17 @@ Waiter/floor flow:
 4. Resolve the waiter call after speaking with the table.
 5. Review attention signals created by waiter calls, bill requests, ready orders not served, preparation delays, or AI escalations.
 6. Resolve, mute, or recalculate table attention from the detail panel.
+```
+
+Owner/manager flow:
+
+```text
+1. Open /customer and submit an order.
+2. Open /staff/cashier and accept the submitted order.
+3. Open /staff/kitchen and move a preparation task toward ready.
+4. Open /staff/waiter and resolve any service call or attention item.
+5. Open /staff/owner.
+6. Review the branch pulse, health/risk summary, lane snapshots, attention risks, realtime activity, and menu/experience readiness.
 ```
 
 Table-session start/resume responses now include a `customerAccess` object with a one-time returned customer access token. Current customer endpoints remain backwards-compatible; the token foundation is ready for the future PWA ownership guard rollout.
@@ -1035,3 +1073,4 @@ Backend core is now ready for UI Phase 1 planning. Remaining production work inc
 - UI Phase 4 cashier dashboard core: `docs/architecture/ui-phase-4-cashier-dashboard-core.md`
 - UI Phase 5 kitchen/barista dashboard core: `docs/architecture/ui-phase-5-kitchen-barista-dashboard-core.md`
 - UI Phase 6 waiter dashboard and attention queue: `docs/architecture/ui-phase-6-waiter-dashboard-attention-queue.md`
+- UI Phase 7 owner/manager command center: `docs/architecture/ui-phase-7-owner-manager-command-center.md`
