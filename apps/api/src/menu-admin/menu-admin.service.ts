@@ -203,6 +203,10 @@ type MenuItemSummary = Prisma.MenuItemGetPayload<{
   select: typeof menuItemSummarySelect;
 }>;
 
+type MenuItemDetailRecord = Prisma.MenuItemGetPayload<{
+  select: typeof menuItemDetailSelect;
+}>;
+
 type MenuItemModifierGroupRecord = Prisma.MenuItemModifierGroupGetPayload<{
   select: typeof menuItemModifierGroupSelect;
 }>;
@@ -216,6 +220,26 @@ type ModifierGroupSelectionState = {
   isRequired: boolean;
   minSelections: number;
   maxSelections: number;
+};
+
+type MenuSetupIssueSeverity = 'warning' | 'error';
+
+type MenuSetupIssueScope =
+  | 'branch'
+  | 'category'
+  | 'item'
+  | 'modifier_group'
+  | 'modifier_option';
+
+type MenuSetupIssue = {
+  code: string;
+  severity: MenuSetupIssueSeverity;
+  scope: MenuSetupIssueScope;
+  message: string;
+  categoryId?: string;
+  itemId?: string;
+  modifierGroupId?: string;
+  modifierOptionId?: string;
 };
 
 @Injectable()
@@ -298,6 +322,115 @@ export class MenuAdminService {
       branchOverrideCounts: {
         total: branchOverrideCount,
       },
+    };
+  }
+
+  async getBranchOverview(branchId: string) {
+    const branch = await this.findBranchOrThrow(branchId, this.prisma);
+    const [company, categories, modifierGroups] = await Promise.all([
+      this.findCompanyOrThrow(branch.companyId, this.prisma),
+      this.prisma.menuCategory.findMany({
+        where: { companyId: branch.companyId },
+        orderBy: [{ sortOrder: 'asc' }, { name: 'asc' }],
+        select: {
+          ...categorySelect,
+          items: {
+            orderBy: [{ sortOrder: 'asc' }, { name: 'asc' }],
+            select: menuItemDetailSelect,
+          },
+        },
+      }),
+      this.prisma.modifierGroup.findMany({
+        where: { companyId: branch.companyId },
+        orderBy: [{ sortOrder: 'asc' }, { name: 'asc' }],
+        select: {
+          ...modifierGroupDetailSelect,
+          _count: {
+            select: {
+              menuItems: true,
+            },
+          },
+        },
+      }),
+    ]);
+
+    const setupIssues: MenuSetupIssue[] = [];
+    const categorySummaries = categories.map((category) => {
+      if (category.status !== MenuCategoryStatus.active) {
+        setupIssues.push({
+          code: 'category_inactive',
+          severity: 'warning',
+          scope: 'category',
+          categoryId: category.id,
+          message: `${category.name} is inactive and will not appear in the customer menu.`,
+        });
+      }
+
+      const items = category.items.map((item) =>
+        this.toBranchMenuAdminItem(item, branch.id, setupIssues),
+      );
+
+      return {
+        id: category.id,
+        companyId: category.companyId,
+        name: category.name,
+        slug: category.slug,
+        description: category.description,
+        sortOrder: category.sortOrder,
+        status: category.status,
+        createdAt: category.createdAt,
+        updatedAt: category.updatedAt,
+        items,
+        itemCount: items.length,
+        visibleItemCount: items.filter((item) => item.customerVisible).length,
+      };
+    });
+
+    const items = categorySummaries.flatMap((category) => category.items);
+    const visibleItems = items.filter((item) => item.customerVisible);
+    const unavailableItems = items.filter((item) => !item.isAvailable);
+    const hiddenItems = items.filter((item) => !item.isVisible);
+
+    if (visibleItems.length === 0) {
+      setupIssues.push({
+        code: 'branch_has_no_visible_items',
+        severity: 'error',
+        scope: 'branch',
+        message: 'This branch has no active, visible, available customer menu items.',
+      });
+    }
+
+    return {
+      company,
+      branch,
+      stats: {
+        categories: categorySummaries.length,
+        items: items.length,
+        visibleItems: visibleItems.length,
+        unavailableItems: unavailableItems.length,
+        hiddenItems: hiddenItems.length,
+        modifierGroups: modifierGroups.length,
+        setupWarnings: setupIssues.length,
+      },
+      categories: categorySummaries,
+      modifierGroups: modifierGroups.map((modifierGroup) => ({
+        id: modifierGroup.id,
+        companyId: modifierGroup.companyId,
+        name: modifierGroup.name,
+        slug: modifierGroup.slug,
+        description: modifierGroup.description,
+        selectionType: modifierGroup.selectionType,
+        isRequired: modifierGroup.isRequired,
+        minSelections: modifierGroup.minSelections,
+        maxSelections: modifierGroup.maxSelections,
+        sortOrder: modifierGroup.sortOrder,
+        status: modifierGroup.status,
+        createdAt: modifierGroup.createdAt,
+        updatedAt: modifierGroup.updatedAt,
+        options: modifierGroup.options,
+        itemCount: modifierGroup._count.menuItems,
+      })),
+      setupIssues,
     };
   }
 
@@ -1486,7 +1619,7 @@ export class MenuAdminService {
   }
 
   private toMenuItemDetail(
-    item: Prisma.MenuItemGetPayload<{ select: typeof menuItemDetailSelect }>,
+    item: MenuItemDetailRecord,
   ) {
     return {
       id: item.id,
@@ -1547,6 +1680,190 @@ export class MenuAdminService {
       updatedAt: override.updatedAt,
       branch: override.branch,
       menuItem: override.menuItem,
+    };
+  }
+
+  private toBranchMenuAdminItem(
+    item: MenuItemDetailRecord,
+    branchId: string,
+    setupIssues: MenuSetupIssue[],
+  ) {
+    const branchOverride = item.branchOverrides.find(
+      (override) => override.branchId === branchId,
+    );
+    const effectivePriceMinor =
+      branchOverride?.priceOverrideMinor ?? item.basePriceMinor;
+    const isVisible = branchOverride?.isVisible ?? false;
+    const isAvailable = branchOverride?.isAvailable ?? false;
+    const customerVisible =
+      item.status === MenuItemStatus.active &&
+      item.category.status === MenuCategoryStatus.active &&
+      isVisible &&
+      isAvailable &&
+      effectivePriceMinor >= 0;
+
+    if (!branchOverride) {
+      setupIssues.push({
+        code: 'item_missing_branch_override',
+        severity: 'warning',
+        scope: 'item',
+        categoryId: item.categoryId,
+        itemId: item.id,
+        message: `${item.name} has no branch override and will not appear in this branch customer menu.`,
+      });
+    }
+
+    if (item.status !== MenuItemStatus.active) {
+      setupIssues.push({
+        code: 'item_inactive',
+        severity: item.status === MenuItemStatus.archived ? 'error' : 'warning',
+        scope: 'item',
+        categoryId: item.categoryId,
+        itemId: item.id,
+        message: `${item.name} is ${item.status} and will not appear as an active customer item.`,
+      });
+    }
+
+    if (branchOverride && !branchOverride.isVisible) {
+      setupIssues.push({
+        code: 'item_hidden_for_branch',
+        severity: 'warning',
+        scope: 'item',
+        categoryId: item.categoryId,
+        itemId: item.id,
+        message: `${item.name} is hidden from this branch customer menu.`,
+      });
+    }
+
+    if (branchOverride && !branchOverride.isAvailable) {
+      setupIssues.push({
+        code: 'item_unavailable_for_branch',
+        severity: 'warning',
+        scope: 'item',
+        categoryId: item.categoryId,
+        itemId: item.id,
+        message: `${item.name} is unavailable for this branch.`,
+      });
+    }
+
+    if (effectivePriceMinor < 0) {
+      setupIssues.push({
+        code: 'item_invalid_price',
+        severity: 'error',
+        scope: 'item',
+        categoryId: item.categoryId,
+        itemId: item.id,
+        message: `${item.name} has an invalid effective price.`,
+      });
+    }
+
+    if (!item.station) {
+      setupIssues.push({
+        code: 'item_station_missing',
+        severity: 'warning',
+        scope: 'item',
+        categoryId: item.categoryId,
+        itemId: item.id,
+        message: `${item.name} does not have a preparation station.`,
+      });
+    }
+
+    for (const link of item.modifierGroups) {
+      const group = link.modifierGroup;
+      const activeOptions = group.options.filter(
+        (option) => option.status === ModifierOptionStatus.active,
+      );
+
+      if (
+        group.status === ModifierGroupStatus.active &&
+        group.isRequired &&
+        activeOptions.length === 0
+      ) {
+        setupIssues.push({
+          code: 'required_modifier_group_has_no_active_options',
+          severity: 'error',
+          scope: 'modifier_group',
+          categoryId: item.categoryId,
+          itemId: item.id,
+          modifierGroupId: group.id,
+          message: `${item.name} requires ${group.name}, but that group has no active options.`,
+        });
+      }
+
+      if (group.maxSelections < group.minSelections) {
+        setupIssues.push({
+          code: 'modifier_group_invalid_min_max',
+          severity: 'error',
+          scope: 'modifier_group',
+          categoryId: item.categoryId,
+          itemId: item.id,
+          modifierGroupId: group.id,
+          message: `${group.name} has minSelections greater than maxSelections.`,
+        });
+      }
+
+      if (
+        group.selectionType === ModifierSelectionType.single &&
+        group.maxSelections > 1
+      ) {
+        setupIssues.push({
+          code: 'single_modifier_group_invalid_max',
+          severity: 'error',
+          scope: 'modifier_group',
+          categoryId: item.categoryId,
+          itemId: item.id,
+          modifierGroupId: group.id,
+          message: `${group.name} is single selection but allows more than one option.`,
+        });
+      }
+    }
+
+    return {
+      id: item.id,
+      companyId: item.companyId,
+      categoryId: item.categoryId,
+      name: item.name,
+      slug: item.slug,
+      description: item.description,
+      imageUrl: item.imageUrl,
+      basePriceMinor: item.basePriceMinor,
+      effectivePriceMinor,
+      currency: item.currency,
+      station: item.station,
+      status: item.status,
+      isFeatured: item.isFeatured,
+      sortOrder: branchOverride?.sortOrder ?? item.sortOrder,
+      createdAt: item.createdAt,
+      updatedAt: item.updatedAt,
+      category: item.category,
+      modifierGroups: item.modifierGroups,
+      branchOverride: branchOverride
+        ? this.toBranchOverride({
+            ...branchOverride,
+            menuItem: {
+              id: item.id,
+              companyId: item.companyId,
+              categoryId: item.categoryId,
+              name: item.name,
+              slug: item.slug,
+              description: item.description,
+              imageUrl: item.imageUrl,
+              basePriceMinor: item.basePriceMinor,
+              currency: item.currency,
+              station: item.station,
+              status: item.status,
+              isFeatured: item.isFeatured,
+              sortOrder: item.sortOrder,
+              createdAt: item.createdAt,
+              updatedAt: item.updatedAt,
+              category: item.category,
+            },
+          })
+        : null,
+      hasBranchOverride: Boolean(branchOverride),
+      isAvailable,
+      isVisible,
+      customerVisible,
     };
   }
 

@@ -58,6 +58,11 @@ export class MenuAdminController {
     return this.menuAdminService.getOverview(params.companyId);
   }
 
+  @Get('branches/:branchId/menu-admin/overview')
+  getBranchOverview(@Param() params: BranchIdParamDto) {
+    return this.menuAdminService.getBranchOverview(params.branchId);
+  }
+
   @Get('companies/:companyId/menu-admin/categories')
   listCategories(
     @Param() params: CompanyIdParamDto,

@@ -30,10 +30,22 @@ import type {
   CashierOrdersResult,
   CashierRejectOrderPayload,
   CompanySummary,
+  CreateMenuCategoryPayload,
+  CreateMenuItemModifierGroupPayload,
+  CreateMenuItemPayload,
+  CreateModifierGroupPayload,
+  CreateModifierOptionPayload,
   CustomerStatusResult,
   CustomerTimelineResult,
   EscalateAiWaiterPayload,
   ListAiWaiterMessagesQuery,
+  MenuAdminBranchOverride,
+  MenuAdminCategory,
+  MenuAdminItem,
+  MenuAdminItemModifierGroup,
+  MenuAdminModifierGroup,
+  MenuAdminModifierOption,
+  MenuAdminOverviewResult,
   MenuItemDetailResult,
   MuteAttentionPayload,
   OrderDetailResult,
@@ -57,8 +69,13 @@ import type {
   StartTableSessionResult,
   SubmitCartPayload,
   SubmitCartResult,
+  UpdateMenuCategoryPayload,
+  UpdateMenuItemPayload,
+  UpdateModifierGroupPayload,
+  UpdateModifierOptionPayload,
   TableSessionAttentionResult,
   UpdateCartItemPayload,
+  UpsertBranchMenuItemOverridePayload,
   WaiterCallDetailResult,
   WaiterCallPayload,
   WaiterCallStaffActionPayload,
@@ -82,6 +99,273 @@ export function getBranchMenu(branchId: string, token?: string) {
 
 export function getMenuItemDetail(itemId: string, token?: string) {
   return apiRequest<MenuItemDetailResult>(`/menu/items/${itemId}`, { token });
+}
+
+export function getBranchMenuAdminOverview(branchId: string, token?: string) {
+  return apiRequest<MenuAdminOverviewResult>(
+    `/branches/${branchId}/menu-admin/overview`,
+    { token }
+  );
+}
+
+export function createMenuCategory(
+  companyId: string,
+  payload: CreateMenuCategoryPayload,
+  token?: string
+) {
+  return apiRequest<MenuAdminCategory, CreateMenuCategoryPayload>(
+    `/companies/${companyId}/menu-admin/categories`,
+    {
+      method: "POST",
+      body: payload,
+      token
+    }
+  );
+}
+
+export function updateMenuCategory(
+  categoryId: string,
+  payload: UpdateMenuCategoryPayload,
+  token?: string
+) {
+  return apiRequest<MenuAdminCategory, UpdateMenuCategoryPayload>(
+    `/menu-admin/categories/${categoryId}`,
+    {
+      method: "PATCH",
+      body: payload,
+      token
+    }
+  );
+}
+
+export function activateMenuCategory(categoryId: string, token?: string) {
+  return apiRequest<MenuAdminCategory>(
+    `/menu-admin/categories/${categoryId}/activate`,
+    {
+      method: "POST",
+      token
+    }
+  );
+}
+
+export function deactivateMenuCategory(categoryId: string, token?: string) {
+  return apiRequest<MenuAdminCategory>(
+    `/menu-admin/categories/${categoryId}/deactivate`,
+    {
+      method: "POST",
+      token
+    }
+  );
+}
+
+export function createMenuItem(
+  companyId: string,
+  payload: CreateMenuItemPayload,
+  token?: string
+) {
+  return apiRequest<MenuAdminItem, CreateMenuItemPayload>(
+    `/companies/${companyId}/menu-admin/items`,
+    {
+      method: "POST",
+      body: payload,
+      token
+    }
+  );
+}
+
+export function updateMenuItem(
+  itemId: string,
+  payload: UpdateMenuItemPayload,
+  token?: string
+) {
+  return apiRequest<MenuAdminItem, UpdateMenuItemPayload>(
+    `/menu-admin/items/${itemId}`,
+    {
+      method: "PATCH",
+      body: payload,
+      token
+    }
+  );
+}
+
+export function activateMenuItem(itemId: string, token?: string) {
+  return apiRequest<MenuAdminItem>(`/menu-admin/items/${itemId}/activate`, {
+    method: "POST",
+    token
+  });
+}
+
+export function deactivateMenuItem(itemId: string, token?: string) {
+  return apiRequest<MenuAdminItem>(`/menu-admin/items/${itemId}/deactivate`, {
+    method: "POST",
+    token
+  });
+}
+
+export function archiveMenuItem(itemId: string, token?: string) {
+  return apiRequest<MenuAdminItem>(`/menu-admin/items/${itemId}/archive`, {
+    method: "POST",
+    token
+  });
+}
+
+export function upsertBranchMenuItemOverride(
+  branchId: string,
+  itemId: string,
+  payload: UpsertBranchMenuItemOverridePayload,
+  token?: string
+) {
+  return apiRequest<
+    MenuAdminBranchOverride,
+    UpsertBranchMenuItemOverridePayload
+  >(`/branches/${branchId}/menu-admin/items/${itemId}/override`, {
+    method: "PUT",
+    body: payload,
+    token
+  });
+}
+
+export function deleteBranchMenuItemOverride(
+  branchId: string,
+  itemId: string,
+  token?: string
+) {
+  return apiRequest<MenuAdminBranchOverride>(
+    `/branches/${branchId}/menu-admin/items/${itemId}/override`,
+    {
+      method: "DELETE",
+      token
+    }
+  );
+}
+
+export function createModifierGroup(
+  companyId: string,
+  payload: CreateModifierGroupPayload,
+  token?: string
+) {
+  return apiRequest<MenuAdminModifierGroup, CreateModifierGroupPayload>(
+    `/companies/${companyId}/menu-admin/modifier-groups`,
+    {
+      method: "POST",
+      body: payload,
+      token
+    }
+  );
+}
+
+export function updateModifierGroup(
+  groupId: string,
+  payload: UpdateModifierGroupPayload,
+  token?: string
+) {
+  return apiRequest<MenuAdminModifierGroup, UpdateModifierGroupPayload>(
+    `/menu-admin/modifier-groups/${groupId}`,
+    {
+      method: "PATCH",
+      body: payload,
+      token
+    }
+  );
+}
+
+export function activateModifierGroup(groupId: string, token?: string) {
+  return apiRequest<MenuAdminModifierGroup>(
+    `/menu-admin/modifier-groups/${groupId}/activate`,
+    {
+      method: "POST",
+      token
+    }
+  );
+}
+
+export function deactivateModifierGroup(groupId: string, token?: string) {
+  return apiRequest<MenuAdminModifierGroup>(
+    `/menu-admin/modifier-groups/${groupId}/deactivate`,
+    {
+      method: "POST",
+      token
+    }
+  );
+}
+
+export function createModifierOption(
+  groupId: string,
+  payload: CreateModifierOptionPayload,
+  token?: string
+) {
+  return apiRequest<MenuAdminModifierOption, CreateModifierOptionPayload>(
+    `/menu-admin/modifier-groups/${groupId}/options`,
+    {
+      method: "POST",
+      body: payload,
+      token
+    }
+  );
+}
+
+export function updateModifierOption(
+  optionId: string,
+  payload: UpdateModifierOptionPayload,
+  token?: string
+) {
+  return apiRequest<MenuAdminModifierOption, UpdateModifierOptionPayload>(
+    `/menu-admin/modifier-options/${optionId}`,
+    {
+      method: "PATCH",
+      body: payload,
+      token
+    }
+  );
+}
+
+export function activateModifierOption(optionId: string, token?: string) {
+  return apiRequest<MenuAdminModifierOption>(
+    `/menu-admin/modifier-options/${optionId}/activate`,
+    {
+      method: "POST",
+      token
+    }
+  );
+}
+
+export function deactivateModifierOption(optionId: string, token?: string) {
+  return apiRequest<MenuAdminModifierOption>(
+    `/menu-admin/modifier-options/${optionId}/deactivate`,
+    {
+      method: "POST",
+      token
+    }
+  );
+}
+
+export function createMenuItemModifierGroup(
+  itemId: string,
+  payload: CreateMenuItemModifierGroupPayload,
+  token?: string
+) {
+  return apiRequest<
+    MenuAdminItemModifierGroup,
+    CreateMenuItemModifierGroupPayload
+  >(`/menu-admin/items/${itemId}/modifier-groups`, {
+    method: "POST",
+    body: payload,
+    token
+  });
+}
+
+export function deleteMenuItemModifierGroup(
+  itemId: string,
+  linkId: string,
+  token?: string
+) {
+  return apiRequest<MenuAdminItemModifierGroup>(
+    `/menu-admin/items/${itemId}/modifier-groups/${linkId}`,
+    {
+      method: "DELETE",
+      token
+    }
+  );
 }
 
 export function startTableSession(payload: StartTableSessionPayload) {

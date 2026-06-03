@@ -1,6 +1,6 @@
 # balcona-bar
 
-Balcona Bar is organized as a monorepo for the Cafe AI Waiter App / Smart Cafe Operating System. The backend core is complete through Phase 24, UI Phase 1 adds the first Next.js web foundation for customer and staff experiences, UI Phase 2 adds the customer PWA core, UI Phase 3 adds the customer AI waiter experience, UI Phase 4 adds the cashier dashboard core, UI Phase 5 adds the kitchen/barista dashboard core, UI Phase 6 adds the waiter dashboard and attention queue, UI Phase 7 adds the owner/manager command center, UI Phase 8 adds full demo hardening plus Balkona demo mode, Production Phase 1 adds deployable platform foundation files, Production Phase 2 adds AWS infrastructure foundation scaffolding without deploying resources, Production Phase 3A adds public demo deploy readiness plus CI/CD guardrails without deploying resources, Production Phase 3B adds the first public AWS demo preflight deploy pack without deploying resources, and Product Phase 4A starts the full Cafe OS product completion track.
+Balcona Bar is organized as a monorepo for the Cafe AI Waiter App / Smart Cafe Operating System. The backend core is complete through Phase 24, UI Phase 1 adds the first Next.js web foundation for customer and staff experiences, UI Phase 2 adds the customer PWA core, UI Phase 3 adds the customer AI waiter experience, UI Phase 4 adds the cashier dashboard core, UI Phase 5 adds the kitchen/barista dashboard core, UI Phase 6 adds the waiter dashboard and attention queue, UI Phase 7 adds the owner/manager command center, UI Phase 8 adds full demo hardening plus Balkona demo mode, Production Phase 1 adds deployable platform foundation files, Production Phase 2 adds AWS infrastructure foundation scaffolding without deploying resources, Production Phase 3A adds public demo deploy readiness plus CI/CD guardrails without deploying resources, Production Phase 3B adds the first public AWS demo preflight deploy pack without deploying resources, Product Phase 4A starts the full Cafe OS product completion track, and Product Phase 4B adds branch-scoped menu admin and availability management.
 
 ## Layout
 
@@ -372,8 +372,25 @@ demo into a complete Cafe Operating System usable by real cafes:
   suggestions
 - real cafe readiness checklist for one-day pilot decisions
 
-AWS execution is paused until budget and customer readiness are approved. The
-current next phase is Product Phase 4B - Menu Admin + Availability Management.
+AWS execution is paused until budget and customer readiness are approved.
+
+## Product Phase 4B status
+
+Product Phase 4B adds a branch-scoped Menu Admin Control Center for real cafe
+menu operations:
+
+- `/staff/menu` control center for categories, items, branch availability,
+  modifiers, item modifier links, and preview issues
+- branch-effective menu admin overview at
+  `/api/v1/branches/:branchId/menu-admin/overview`
+- setup warnings for customer-visible menu gaps, hidden or unavailable items,
+  missing branch overrides, and modifier validation risks
+- customer menu and staff owner menu cache invalidation after menu admin writes
+- local Balkona demo launcher links for reviewing menu admin before customer
+  ordering
+
+This phase does not add AWS execution, SaaS onboarding, billing, payments, POS,
+or real LLM behavior. The current next phase is Product Phase 4C.
 
 ## API verification
 
@@ -1246,4 +1263,5 @@ begin.
 - Full Cafe OS gap audit: `docs/product/full-cafe-os-gap-audit.md`
 - Full Cafe OS completion roadmap: `docs/product/full-cafe-os-completion-roadmap.md`
 - AI Waiter real engine spec: `docs/product/ai-waiter-real-engine-spec.md`
+- Product Phase 4B menu admin control center: `docs/product/product-phase-4b-menu-admin-control-center.md`
 - Real cafe readiness checklist: `docs/product/real-cafe-readiness-checklist.md`

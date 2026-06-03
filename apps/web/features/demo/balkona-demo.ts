@@ -27,6 +27,11 @@ export const balkonaDemoRoutes = [
     description: "Accept submitted customer orders and manage bill requests."
   },
   {
+    label: "Menu Admin",
+    href: "/staff/menu",
+    description: "Review branch menu setup, availability, and modifiers."
+  },
+  {
     label: "Kitchen / Barista",
     href: "/staff/kitchen",
     description: "Start and mark preparation tasks ready."
@@ -49,6 +54,7 @@ export const balkonaDemoChecklist = [
   "Optional: use AI Waiter and apply proposal if available",
   "Submit order",
   "Login as staff",
+  "Open menu admin and review branch availability",
   "Open cashier and accept order",
   "Open kitchen and start or mark ready a prep task",
   "Open waiter and resolve service call or attention",
@@ -60,6 +66,7 @@ export const balkonaDemoProofPoints = [
   "Menu and order flow",
   "AI waiter proposal flow",
   "Staff login and session",
+  "Menu admin readiness",
   "Cashier acceptance",
   "Preparation tasks",
   "Waiter calls and attention queue",

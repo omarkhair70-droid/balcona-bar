@@ -113,6 +113,198 @@ export type MenuItemDetailResult = {
   branchOverrides: Record<string, unknown>[];
 };
 
+export type MenuAdminCategoryStatus = "active" | "inactive";
+export type MenuAdminItemStatus = "active" | "inactive" | "archived";
+export type MenuAdminModifierStatus = "active" | "inactive";
+export type MenuAdminSelectionType = "single" | "multiple";
+export type MenuAdminPreparationStation =
+  | "barista"
+  | "kitchen"
+  | "dessert"
+  | "cashier";
+
+export type MenuAdminModifierOption = {
+  id: string;
+  groupId: string;
+  name: string;
+  slug: string;
+  priceDeltaMinor: number;
+  status: MenuAdminModifierStatus;
+  sortOrder: number;
+  createdAt?: string;
+  updatedAt?: string;
+};
+
+export type MenuAdminModifierGroup = {
+  id: string;
+  companyId: string;
+  name: string;
+  slug: string;
+  description?: string | null;
+  selectionType: MenuAdminSelectionType;
+  isRequired: boolean;
+  minSelections: number;
+  maxSelections: number;
+  sortOrder: number;
+  status: MenuAdminModifierStatus;
+  createdAt?: string;
+  updatedAt?: string;
+  options: MenuAdminModifierOption[];
+  itemCount?: number;
+};
+
+export type MenuAdminItemModifierGroup = {
+  id: string;
+  menuItemId: string;
+  modifierGroupId: string;
+  sortOrder: number;
+  createdAt?: string;
+  updatedAt?: string;
+  modifierGroup: MenuAdminModifierGroup;
+};
+
+export type MenuAdminBranchOverride = {
+  id: string;
+  branchId: string;
+  menuItemId: string;
+  priceOverrideMinor: number | null;
+  effectivePriceMinor: number;
+  isAvailable: boolean;
+  isVisible: boolean;
+  sortOrder: number | null;
+  createdAt?: string;
+  updatedAt?: string;
+  branch?: BranchSummary;
+  menuItem?: MenuItemSummary;
+};
+
+export type MenuAdminItem = {
+  id: string;
+  companyId: string;
+  categoryId: string;
+  name: string;
+  slug: string;
+  description?: string | null;
+  imageUrl?: string | null;
+  basePriceMinor: number;
+  effectivePriceMinor: number;
+  currency: string;
+  station: MenuAdminPreparationStation;
+  status: MenuAdminItemStatus;
+  isFeatured: boolean;
+  sortOrder: number;
+  createdAt?: string;
+  updatedAt?: string;
+  category: MenuCategorySummary;
+  modifierGroups: MenuAdminItemModifierGroup[];
+  branchOverride: MenuAdminBranchOverride | null;
+  hasBranchOverride: boolean;
+  isAvailable: boolean;
+  isVisible: boolean;
+  customerVisible: boolean;
+};
+
+export type MenuAdminCategory = MenuCategorySummary & {
+  companyId: string;
+  createdAt?: string;
+  updatedAt?: string;
+  itemCount: number;
+  visibleItemCount: number;
+  items: MenuAdminItem[];
+};
+
+export type MenuAdminSetupIssue = {
+  code: string;
+  severity: "warning" | "error";
+  scope: "branch" | "category" | "item" | "modifier_group" | "modifier_option";
+  message: string;
+  categoryId?: string;
+  itemId?: string;
+  modifierGroupId?: string;
+  modifierOptionId?: string;
+};
+
+export type MenuAdminOverviewStats = {
+  categories: number;
+  items: number;
+  visibleItems: number;
+  unavailableItems: number;
+  hiddenItems: number;
+  modifierGroups: number;
+  setupWarnings: number;
+};
+
+export type MenuAdminOverviewResult = {
+  company: CompanySummary;
+  branch: BranchSummary;
+  stats: MenuAdminOverviewStats;
+  categories: MenuAdminCategory[];
+  modifierGroups: MenuAdminModifierGroup[];
+  setupIssues: MenuAdminSetupIssue[];
+};
+
+export type CreateMenuCategoryPayload = {
+  name: string;
+  slug: string;
+  description?: string | null;
+  sortOrder?: number;
+  status?: MenuAdminCategoryStatus;
+};
+
+export type UpdateMenuCategoryPayload = Partial<CreateMenuCategoryPayload>;
+
+export type CreateMenuItemPayload = {
+  categoryId: string;
+  name: string;
+  slug: string;
+  description?: string | null;
+  imageUrl?: string | null;
+  basePriceMinor: number;
+  currency?: string;
+  station: MenuAdminPreparationStation;
+  status?: MenuAdminItemStatus;
+  isFeatured?: boolean;
+  sortOrder?: number;
+};
+
+export type UpdateMenuItemPayload = Partial<CreateMenuItemPayload>;
+
+export type UpsertBranchMenuItemOverridePayload = {
+  priceOverrideMinor?: number | null;
+  isAvailable?: boolean;
+  isVisible?: boolean;
+  sortOrder?: number | null;
+};
+
+export type CreateModifierGroupPayload = {
+  name: string;
+  slug: string;
+  description?: string | null;
+  selectionType: MenuAdminSelectionType;
+  isRequired?: boolean;
+  minSelections?: number;
+  maxSelections?: number;
+  sortOrder?: number;
+  status?: MenuAdminModifierStatus;
+};
+
+export type UpdateModifierGroupPayload = Partial<CreateModifierGroupPayload>;
+
+export type CreateModifierOptionPayload = {
+  name: string;
+  slug: string;
+  priceDeltaMinor?: number;
+  status?: MenuAdminModifierStatus;
+  sortOrder?: number;
+};
+
+export type UpdateModifierOptionPayload = Partial<CreateModifierOptionPayload>;
+
+export type CreateMenuItemModifierGroupPayload = {
+  modifierGroupId: string;
+  sortOrder?: number;
+};
+
 export type StartTableSessionPayload = {
   qrToken: string;
   guestLabel?: string;

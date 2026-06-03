@@ -116,5 +116,11 @@ export const staffQueryKeys = {
     "menu",
     branchId
   ],
+  staffMenuAdminOverview: (branchId?: string) => [
+    "staff",
+    "menu-admin",
+    "overview",
+    branchId
+  ],
   branchRealtime: (branchId?: string) => ["staff", "branch-realtime", branchId]
 } as const;
