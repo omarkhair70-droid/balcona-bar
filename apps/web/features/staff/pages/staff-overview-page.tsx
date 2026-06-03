@@ -3,6 +3,7 @@
 import Link from "next/link";
 import {
   Bell,
+  BookOpenText,
   ChefHat,
   ClipboardCheck,
   LayoutDashboard,
@@ -34,6 +35,13 @@ const staffAreas = [
     href: "/staff/cashier",
     description: "Live order intake, bill requests, and cashier decisions.",
     icon: <Receipt className="size-5" aria-hidden="true" />,
+    state: "Live"
+  },
+  {
+    title: "Menu",
+    href: "/staff/menu",
+    description: "Branch menu availability, item setup, and modifier readiness.",
+    icon: <BookOpenText className="size-5" aria-hidden="true" />,
     state: "Live"
   },
   {
@@ -167,7 +175,7 @@ function StaffOverviewContent() {
           </CardHeader>
         </Card>
 
-        <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+        <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
           {staffAreas.map((area) => (
             <Card key={area.href} variant="glass">
               <CardHeader>
