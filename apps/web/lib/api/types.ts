@@ -754,6 +754,25 @@ export type BillResult = Record<string, unknown> & {
 
 export type AiWaiterLanguage = "en" | "ar-EG";
 
+export type AiWaiterProviderMetadata = Record<string, unknown> & {
+  provider?: "stub" | "groq" | string;
+  model?: string;
+  intent?: string;
+  confidence?: number;
+  safetyFlags?: string[];
+  fallbackUsed?: boolean;
+  latencyMs?: number;
+};
+
+export type AiWaiterMessageRecord = Record<string, unknown> & {
+  id?: string;
+  role?: "customer" | "assistant" | "system" | "tool" | string;
+  kind?: string;
+  content?: string;
+  metadata?: AiWaiterProviderMetadata;
+  structuredPayload?: Record<string, unknown>;
+};
+
 export type StartAiWaiterPayload = {
   language?: string;
 };
@@ -786,7 +805,7 @@ export type EscalateAiWaiterPayload = {
 export type AiWaiterStateResult = Record<string, unknown> & {
   tableSession?: Record<string, unknown>;
   session: Record<string, unknown> | null;
-  messages: Record<string, unknown>[];
+  messages: AiWaiterMessageRecord[];
   latestCartProposal?: Record<string, unknown> | null;
   cartSummary?: CartResponse;
   effectiveExperience?: BranchEffectiveExperience | Record<string, unknown>;
@@ -795,13 +814,13 @@ export type AiWaiterStateResult = Record<string, unknown> & {
 export type AiWaiterMessagesResult = {
   session: Record<string, unknown> | null;
   filters?: Record<string, unknown>;
-  messages: Record<string, unknown>[];
+  messages: AiWaiterMessageRecord[];
 };
 
 export type SendAiWaiterMessageResult = Record<string, unknown> & {
   session?: Record<string, unknown>;
-  customerMessage?: Record<string, unknown>;
-  assistantMessage?: Record<string, unknown>;
+  customerMessage?: AiWaiterMessageRecord;
+  assistantMessage?: AiWaiterMessageRecord;
   suggestedActions?: string[];
   cartProposal?: Record<string, unknown> | null;
 };

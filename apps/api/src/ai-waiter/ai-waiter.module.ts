@@ -8,6 +8,9 @@ import { AiWaiterContextService } from "./ai-waiter-context.service";
 import { AiWaiterController } from "./ai-waiter.controller";
 import { AiWaiterService } from "./ai-waiter.service";
 import { AiWaiterStubProviderService } from "./ai-waiter-stub-provider.service";
+import { AiWaiterProviderRegistry } from "./providers/ai-waiter-provider-registry.service";
+import { AiWaiterProviderSafetyService } from "./providers/ai-waiter-provider-safety.service";
+import { GroqAiWaiterProviderService } from "./providers/groq-ai-waiter-provider.service";
 
 @Module({
   imports: [
@@ -22,6 +25,9 @@ import { AiWaiterStubProviderService } from "./ai-waiter-stub-provider.service";
     AiWaiterService,
     AiWaiterContextService,
     AiWaiterStubProviderService,
+    AiWaiterProviderRegistry,
+    AiWaiterProviderSafetyService,
+    GroqAiWaiterProviderService,
   ],
 })
 export class AiWaiterModule {}
