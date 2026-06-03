@@ -1,0 +1,51 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    name: Lint, typecheck, build, and test
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Enable pnpm
+        run: |
+          corepack enable
+          corepack prepare pnpm@10.28.1 --activate
+          pnpm --version
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Lint web
+        run: pnpm --filter @balcona-bar/web lint
+
+      - name: Typecheck web
+        run: pnpm --filter @balcona-bar/web typecheck
+
+      - name: Build web
+        run: pnpm web:build
+
+      - name: Generate Prisma client
+        run: pnpm --filter @balcona-bar/api prisma:generate
+
+      - name: Build API
+        run: pnpm --filter @balcona-bar/api build
+
+      - name: Test API
+        run: pnpm --filter @balcona-bar/api test

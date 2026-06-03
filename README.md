@@ -1,15 +1,17 @@
 # balcona-bar
 
-Balcona Bar is organized as a monorepo for the Cafe AI Waiter App / Smart Cafe Operating System. The backend core is complete through Phase 24, UI Phase 1 adds the first Next.js web foundation for customer and staff experiences, UI Phase 2 adds the customer PWA core, UI Phase 3 adds the customer AI waiter experience, UI Phase 4 adds the cashier dashboard core, UI Phase 5 adds the kitchen/barista dashboard core, UI Phase 6 adds the waiter dashboard and attention queue, UI Phase 7 adds the owner/manager command center, UI Phase 8 adds full demo hardening plus Balkona demo mode, Production Phase 1 adds deployable platform foundation files, and Production Phase 2 adds AWS infrastructure foundation scaffolding without deploying resources.
+Balcona Bar is organized as a monorepo for the Cafe AI Waiter App / Smart Cafe Operating System. The backend core is complete through Phase 24, UI Phase 1 adds the first Next.js web foundation for customer and staff experiences, UI Phase 2 adds the customer PWA core, UI Phase 3 adds the customer AI waiter experience, UI Phase 4 adds the cashier dashboard core, UI Phase 5 adds the kitchen/barista dashboard core, UI Phase 6 adds the waiter dashboard and attention queue, UI Phase 7 adds the owner/manager command center, UI Phase 8 adds full demo hardening plus Balkona demo mode, Production Phase 1 adds deployable platform foundation files, Production Phase 2 adds AWS infrastructure foundation scaffolding without deploying resources, and Production Phase 3A adds public demo deploy readiness plus CI/CD guardrails without deploying resources.
 
 ## Layout
 
 - `apps/api` - NestJS backend application.
 - `apps/api/prisma` - Prisma schema, migrations, and seed data.
 - `apps/web` - Next.js App Router frontend foundation.
+- `.github/workflows` - CI, Docker build, Terraform validation, and manual ECR example workflows.
 - `docker-compose.yml` - local PostgreSQL and Redis services.
 - `docker-compose.prod.example.yml` - production-style compose example for deployment smoke tests.
 - `infra/aws/terraform` - AWS infrastructure foundation scaffold for Production Phase 2.
+- `scripts/deploy` - non-destructive local image build and public smoke test helpers.
 - `docs/architecture` - architecture decisions and phase notes.
 - `docs/demo` - local demo runbooks and smoke tests.
 - `docs/deployment` - production deployment notes and checklists.
@@ -155,6 +157,9 @@ Useful root scripts:
 pnpm api:build
 pnpm api:start:prod
 pnpm api:prisma:migrate:deploy
+pnpm docker:build:api
+pnpm docker:build:web
+pnpm smoke:public:ps
 pnpm web:build
 pnpm web:lint
 pnpm web:start
@@ -314,6 +319,24 @@ resources:
 The next production phase is Production Phase 3 - First Public Demo Deploy,
 where real AWS account values, image pushes, DNS/TLS finalization, seed/demo
 tenant verification, and public smoke testing happen.
+
+## Production Phase 3A status
+
+Production Phase 3A prepares the repository for the first public AWS demo deploy
+without creating resources or publishing a public link:
+
+- GitHub Actions CI for Web lint, Web typecheck, Web build, Prisma generate, API
+  build, and API tests
+- Docker build validation workflow for API and Web images with no image push
+- Terraform formatting and validation workflow with no plan or apply
+- manual ECR push example workflow documenting required GitHub secrets
+- `scripts/deploy` helpers for local Docker image builds and public smoke tests
+- Phase 3A readiness docs and Phase 3B first public demo deploy checklist
+- no real AWS resources, secrets, account IDs, domains, or deploy commands
+
+Local development still uses the existing quick start and `docker-compose.yml`.
+There is still no public demo URL until Production Phase 3B. The next phase is
+Production Phase 3B - First Public Demo Deploy.
 
 ## API verification
 
@@ -1176,3 +1199,5 @@ begin.
 - Production Phase 2 AWS infrastructure foundation: `docs/deployment/production-phase-2-aws-infrastructure-foundation.md`
 - AWS environment mapping: `docs/deployment/aws-env-mapping.md`
 - AWS first deploy checklist: `docs/deployment/aws-first-deploy-checklist.md`
+- Production Phase 3A public demo readiness: `docs/deployment/production-phase-3a-public-demo-readiness.md`
+- Production Phase 3B first public demo deploy checklist: `docs/deployment/production-phase-3b-first-public-demo-deploy-checklist.md`
