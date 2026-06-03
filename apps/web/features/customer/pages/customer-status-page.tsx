@@ -27,6 +27,20 @@ function getOrderNumber(order: Record<string, unknown>) {
   return getRecordString(order, "orderNumber", getRecordString(order, "id", "Order"));
 }
 
+function getOrderKey(order: Record<string, unknown>, index: number) {
+  return (
+    getRecordString(
+      order,
+      "id",
+      getRecordString(
+        order,
+        "orderId",
+        getRecordString(order, "orderNumber", `order-${index}`)
+      )
+    ) || `order-${index}`
+  );
+}
+
 function getOrderStatus(order: Record<string, unknown>) {
   return getRecordString(order, "status", "submitted").replaceAll("_", " ");
 }
@@ -114,8 +128,8 @@ export function CustomerStatusPage({ sessionId }: CustomerStatusPageProps) {
                 }
               />
             ) : null}
-            {orders.map((order) => (
-              <div key={getOrderNumber(order)} className="rounded-card border bg-surface/75 p-4">
+            {orders.map((order, index) => (
+              <div key={getOrderKey(order, index)} className="rounded-card border bg-surface/75 p-4">
                 <p className="text-sm font-semibold text-foreground">
                   {getOrderNumber(order)}
                 </p>

@@ -1,6 +1,6 @@
 # balcona-bar
 
-Balcona Bar is organized as a monorepo for the Cafe AI Waiter App / Smart Cafe Operating System. The backend core is complete through Phase 24, UI Phase 1 adds the first Next.js web foundation for customer and staff experiences, UI Phase 2 adds the customer PWA core, UI Phase 3 adds the customer AI waiter experience, UI Phase 4 adds the cashier dashboard core, UI Phase 5 adds the kitchen/barista dashboard core, UI Phase 6 adds the waiter dashboard and attention queue, UI Phase 7 adds the owner/manager command center, and UI Phase 8 adds full demo hardening plus Balkona demo mode.
+Balcona Bar is organized as a monorepo for the Cafe AI Waiter App / Smart Cafe Operating System. The backend core is complete through Phase 24, UI Phase 1 adds the first Next.js web foundation for customer and staff experiences, UI Phase 2 adds the customer PWA core, UI Phase 3 adds the customer AI waiter experience, UI Phase 4 adds the cashier dashboard core, UI Phase 5 adds the kitchen/barista dashboard core, UI Phase 6 adds the waiter dashboard and attention queue, UI Phase 7 adds the owner/manager command center, UI Phase 8 adds full demo hardening plus Balkona demo mode, and Production Phase 1 adds deployable platform foundation files without choosing the final cloud provider.
 
 ## Layout
 
@@ -8,8 +8,10 @@ Balcona Bar is organized as a monorepo for the Cafe AI Waiter App / Smart Cafe O
 - `apps/api/prisma` - Prisma schema, migrations, and seed data.
 - `apps/web` - Next.js App Router frontend foundation.
 - `docker-compose.yml` - local PostgreSQL and Redis services.
+- `docker-compose.prod.example.yml` - production-style compose example for deployment smoke tests.
 - `docs/architecture` - architecture decisions and phase notes.
 - `docs/demo` - local demo runbooks and smoke tests.
+- `docs/deployment` - production deployment notes and checklists.
 
 ## Local quick start
 
@@ -150,8 +152,11 @@ Useful root scripts:
 
 ```bash
 pnpm api:build
+pnpm api:start:prod
+pnpm api:prisma:migrate:deploy
 pnpm web:build
 pnpm web:lint
+pnpm web:start
 pnpm web:typecheck
 ```
 
@@ -274,6 +279,23 @@ UI Phase 8 adds Full Demo Hardening + Balkona Demo Mode:
 - architecture note in `docs/architecture/ui-phase-8-full-demo-hardening-balkona-demo-mode.md`
 
 SaaS admin/menu admin, company/tenant admin, payment/POS, backend behavior changes, fake revenue/orders/analytics, external chart libraries, and new dependencies remain outside this phase.
+
+## Production Phase 1 status
+
+Production Phase 1 adds a deployable platform foundation while keeping local
+development unchanged:
+
+- production-style API and Web Dockerfiles
+- `docker-compose.prod.example.yml` with API, Web, Postgres, Redis, env-file usage, ports, health checks, and persistent Postgres/Redis volumes
+- clearer API and Web env examples for production API base URL, `DATABASE_URL`, `REDIS_URL`, CORS/web origin, session lifetimes, and optional future provider keys
+- root scripts for production API start, Web start, and Prisma migration deploy
+- deployment runbook in `docs/deployment/production-phase-1-deployable-platform-foundation.md`
+- small post-merge demo hotfixes for duplicate customer order keys and readable staff login errors
+
+Local Docker/Postgres/Redis development still uses `docker-compose.yml` and the
+existing local quick start. Final AWS infrastructure, managed secrets,
+observability, CI/CD promotion, SaaS admin UI, menu admin UI, payments, and POS
+remain outside this phase.
 
 ## API verification
 
@@ -1074,15 +1096,32 @@ curl http://localhost:3000/api/v1/system/jobs/queues \
 Security and scaling environment variables:
 
 ```bash
+NODE_ENV=production
+PORT=3000
+DATABASE_URL=postgresql://<user>:<password>@<host>:5432/balcona_bar?schema=public
+REDIS_URL=redis://<host>:6379/0
 STAFF_AUTH_SESSION_HOURS=12
 STAFF_AUTH_DEV_BOOTSTRAP_ENABLED=false
 CUSTOMER_ACCESS_TOKEN_HOURS=24
-SWAGGER_ENABLED=true
-CORS_ORIGINS=http://localhost:3000,http://localhost:5173
+SWAGGER_ENABLED=false
+CORS_ORIGINS=http://localhost:3001
 JOBS_ENABLED=true
+NEXT_PUBLIC_API_BASE_URL=http://localhost:3000/api/v1
 ```
 
-Backend core is now ready for UI Phase 1 planning. Remaining production work includes complete staff-auth enforcement on all staff-only routes, customer token guards across PWA mutation/read endpoints, production rate limiting, external notification delivery, deployment-specific CORS, and real payment/POS/storage/AI integrations when their phases begin.
+Production deployments should set `NODE_ENV=production`,
+`STAFF_AUTH_DEV_BOOTSTRAP_ENABLED=false`, a production `DATABASE_URL`,
+`REDIS_URL`, and deployed web origins in `CORS_ORIGINS`. Current staff and
+customer access tokens are opaque database-backed tokens stored as hashes, so no
+JWT signing secret is required in this phase.
+
+Backend core, UI demo flows, and Production Phase 1 deployment files are now
+ready for provider-specific planning. Remaining production work includes final
+cloud infrastructure, managed secrets, complete staff-auth enforcement on all
+staff-only routes, customer token guards across PWA mutation/read endpoints,
+production rate limiting, external notification delivery, deployment-specific
+CORS review, and real payment/POS/storage/AI integrations when their phases
+begin.
 
 ## Phase notes
 
@@ -1115,3 +1154,4 @@ Backend core is now ready for UI Phase 1 planning. Remaining production work inc
 - UI Phase 7 owner/manager command center: `docs/architecture/ui-phase-7-owner-manager-command-center.md`
 - UI Phase 8 full demo hardening and Balkona demo mode: `docs/architecture/ui-phase-8-full-demo-hardening-balkona-demo-mode.md`
 - Balkona full demo smoke test: `docs/demo/balkona-full-demo-smoke-test.md`
+- Production Phase 1 deployable platform foundation: `docs/deployment/production-phase-1-deployable-platform-foundation.md`

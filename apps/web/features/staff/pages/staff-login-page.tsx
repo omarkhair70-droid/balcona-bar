@@ -19,6 +19,63 @@ import { StaffPageShell } from "@/features/staff/staff-page-shell";
 import { staffLogin } from "@/lib/api/endpoints";
 import { useStaffAuthStore } from "@/lib/staff/staff-auth-store";
 
+const loginErrorFallback =
+  "Login failed. Check credentials and local password bootstrap.";
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function isReadableMessage(value: unknown): value is string {
+  return (
+    typeof value === "string" &&
+    value.trim().length > 0 &&
+    !value.includes("[object Object]")
+  );
+}
+
+function getDetailsMessage(details: unknown) {
+  if (!isRecord(details)) {
+    return undefined;
+  }
+
+  const message = details.message;
+
+  if (Array.isArray(message)) {
+    const joinedMessage = message
+      .filter((entry): entry is string => isReadableMessage(entry))
+      .join(", ");
+
+    return joinedMessage.length > 0 ? joinedMessage : undefined;
+  }
+
+  if (isReadableMessage(message)) {
+    return message;
+  }
+
+  return isReadableMessage(details.error) ? details.error : undefined;
+}
+
+function getLoginErrorMessage(error: unknown) {
+  if (error instanceof Error && isReadableMessage(error.message)) {
+    return error.message;
+  }
+
+  if (isRecord(error)) {
+    const detailsMessage = getDetailsMessage(error.details);
+
+    if (detailsMessage) {
+      return detailsMessage;
+    }
+
+    if (isReadableMessage(error.message)) {
+      return error.message;
+    }
+  }
+
+  return loginErrorFallback;
+}
+
 export function StaffLoginPage() {
   const router = useRouter();
   const setFromLogin = useStaffAuthStore((state) => state.setFromLogin);
@@ -102,7 +159,7 @@ export function StaffLoginPage() {
                   role="alert"
                   className="rounded-card border border-danger bg-danger/10 p-3 text-sm text-danger"
                 >
-                  Login failed. {loginMutation.error.message}
+                  {getLoginErrorMessage(loginMutation.error)}
                 </div>
               ) : null}
             </CardContent>

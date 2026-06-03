@@ -10,14 +10,17 @@
   "scripts": {
     "api:dev": "pnpm --filter @balcona-bar/api start:dev",
     "api:build": "pnpm --filter @balcona-bar/api build",
+    "api:start:prod": "pnpm --filter @balcona-bar/api start:prod",
     "api:test": "pnpm --filter @balcona-bar/api test",
     "api:prisma": "pnpm --filter @balcona-bar/api prisma",
     "api:prisma:generate": "pnpm --filter @balcona-bar/api prisma:generate",
     "api:prisma:migrate:dev": "pnpm --filter @balcona-bar/api prisma:migrate:dev",
+    "api:prisma:migrate:deploy": "pnpm --filter @balcona-bar/api prisma:migrate:deploy",
     "api:prisma:seed": "pnpm --filter @balcona-bar/api prisma:seed",
     "web:dev": "pnpm --filter @balcona-bar/web dev",
     "web:build": "pnpm --filter @balcona-bar/web build",
     "web:lint": "pnpm --filter @balcona-bar/web lint",
+    "web:start": "pnpm --filter @balcona-bar/web start",
     "web:typecheck": "pnpm --filter @balcona-bar/web typecheck"
   },
   "engines": {
