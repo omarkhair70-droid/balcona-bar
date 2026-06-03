@@ -25,3 +25,22 @@ export const customerQueryKeys = {
     sessionId
   ]
 } as const;
+
+export const staffQueryKeys = {
+  me: () => ["staff", "me"],
+  branchOrders: (branchId?: string, status?: string) =>
+    status === undefined
+      ? ["staff", "branch-orders", branchId]
+      : ["staff", "branch-orders", branchId, status],
+  order: (orderId?: string) => ["staff", "order", orderId],
+  branchBillRequests: (branchId?: string, status?: string) =>
+    status === undefined
+      ? ["staff", "branch-bill-requests", branchId]
+      : ["staff", "branch-bill-requests", branchId, status],
+  billRequest: (billRequestId?: string) => [
+    "staff",
+    "bill-request",
+    billRequestId
+  ],
+  branchRealtime: (branchId?: string) => ["staff", "branch-realtime", branchId]
+} as const;

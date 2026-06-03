@@ -1,4 +1,11 @@
-import { Bell, ChartNoAxesCombined, ChefHat, LayoutDashboard, Receipt } from "lucide-react";
+import {
+  Bell,
+  ChartNoAxesCombined,
+  ChefHat,
+  LayoutDashboard,
+  LogIn,
+  Receipt
+} from "lucide-react";
 import type { AppShellNavItem } from "@/components/ui/app-shell";
 
 export const staffNavItems: AppShellNavItem[] = [
@@ -11,6 +18,11 @@ export const staffNavItems: AppShellNavItem[] = [
     href: "/staff/cashier",
     label: "Cashier",
     icon: <Receipt className="size-4" aria-hidden="true" />
+  },
+  {
+    href: "/staff/login",
+    label: "Login",
+    icon: <LogIn className="size-4" aria-hidden="true" />
   },
   {
     href: "/staff/kitchen",

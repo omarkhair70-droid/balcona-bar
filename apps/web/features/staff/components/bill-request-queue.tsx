@@ -1,0 +1,116 @@
+"use client";
+
+import { RefreshCw } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle
+} from "@/components/ui/card";
+import { EmptyState } from "@/components/ui/empty-state";
+import { LoadingState } from "@/components/ui/loading-state";
+import type { BranchBillRequestStatusFilter } from "@/lib/api/types";
+import { cn } from "@/lib/utils/cn";
+import { getBillRequestId } from "@/features/staff/cashier-data";
+import { humanizeStatus } from "@/features/staff/staff-format";
+import { BillRequestCard } from "./bill-request-card";
+
+type BillRequestQueueProps = {
+  billRequests: Record<string, unknown>[];
+  status: BranchBillRequestStatusFilter;
+  isLoading?: boolean;
+  error?: Error;
+  pendingActionId?: string;
+  onStatusChange: (status: BranchBillRequestStatusFilter) => void;
+  onRefresh: () => void;
+  onAcknowledge: (billRequestId: string) => void;
+  onPresent: (billRequestId: string) => void;
+  onClose: (billRequestId: string) => void;
+};
+
+const statusOptions: BranchBillRequestStatusFilter[] = [
+  "active",
+  "open",
+  "acknowledged",
+  "presented",
+  "all"
+];
+
+export function BillRequestQueue({
+  billRequests,
+  status,
+  isLoading,
+  error,
+  pendingActionId,
+  onStatusChange,
+  onRefresh,
+  onAcknowledge,
+  onPresent,
+  onClose
+}: BillRequestQueueProps) {
+  return (
+    <Card variant="glass" padding="lg">
+      <CardHeader className="gap-4 sm:flex sm:flex-row sm:items-start sm:justify-between sm:space-y-0">
+        <div>
+          <CardTitle>Bill requests</CardTitle>
+          <CardDescription>
+            Active bill requests can be acknowledged, presented, then closed.
+          </CardDescription>
+        </div>
+        <Button variant="secondary" size="sm" onClick={onRefresh}>
+          <RefreshCw className="size-4" aria-hidden="true" />
+          Refresh
+        </Button>
+      </CardHeader>
+      <CardContent>
+        <div className="mb-4 flex gap-2 overflow-x-auto pb-1">
+          {statusOptions.map((option) => (
+            <button
+              type="button"
+              key={option}
+              onClick={() => onStatusChange(option)}
+              className={cn(
+                "min-h-9 whitespace-nowrap rounded-button border px-3 text-xs font-semibold transition",
+                status === option
+                  ? "border-primary bg-primary text-primary-foreground"
+                  : "border-border bg-muted text-muted-foreground hover:text-foreground"
+              )}
+            >
+              {humanizeStatus(option)}
+            </button>
+          ))}
+        </div>
+
+        {isLoading ? <LoadingState label="Loading bill requests" /> : null}
+        {error ? (
+          <EmptyState
+            title="Bill requests could not load"
+            description={error.message}
+          />
+        ) : null}
+        {!isLoading && !error && billRequests.length === 0 ? (
+          <EmptyState
+            title="No bill requests in this lane"
+            description="Customer bill requests will appear here when the backend marks them active."
+          />
+        ) : null}
+        {!isLoading && !error && billRequests.length > 0 ? (
+          <div className="grid gap-3">
+            {billRequests.map((billRequest, index) => (
+              <BillRequestCard
+                key={getBillRequestId(billRequest) || String(index)}
+                billRequest={billRequest}
+                pendingActionId={pendingActionId}
+                onAcknowledge={onAcknowledge}
+                onPresent={onPresent}
+                onClose={onClose}
+              />
+            ))}
+          </div>
+        ) : null}
+      </CardContent>
+    </Card>
+  );
+}

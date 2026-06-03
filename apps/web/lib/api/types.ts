@@ -446,3 +446,105 @@ export type StaffEffectiveAccess = {
   roles: string[];
   permissions: string[];
 };
+
+export type CashierOrderStatus =
+  | "submitted"
+  | "cashier_accepted"
+  | "preparing"
+  | "ready"
+  | "served"
+  | "completed"
+  | "cashier_rejected"
+  | "cancelled"
+  | "all";
+
+export type CashierOrdersQuery = {
+  status?: CashierOrderStatus;
+};
+
+export type CashierOrdersResult = {
+  branch: BranchSummary;
+  status: CashierOrderStatus;
+  orders: Record<string, unknown>[];
+};
+
+export type OrderDetailResult = Record<string, unknown> & {
+  order?: Record<string, unknown>;
+  company?: CompanySummary;
+  branch?: BranchSummary;
+  tableSession?: Record<string, unknown>;
+  floor?: Record<string, unknown> | null;
+  table?: Record<string, unknown>;
+  items?: Record<string, unknown>[];
+  events?: Record<string, unknown>[];
+  preparationTasks?: Record<string, unknown>[];
+  totals?: Record<string, unknown>;
+};
+
+export type CashierAcceptOrderPayload = {
+  staffUserId?: string;
+};
+
+export type CashierRejectOrderPayload = {
+  reason?: string | null;
+  staffUserId?: string;
+};
+
+export type BranchBillRequestStatusFilter =
+  | "open"
+  | "acknowledged"
+  | "presented"
+  | "closed"
+  | "cancelled"
+  | "active"
+  | "all";
+
+export type BranchBillRequestsQuery = {
+  status?: BranchBillRequestStatusFilter;
+  limit?: number;
+};
+
+export type BranchBillRequestsResult = {
+  branch: BranchSummary;
+  filters?: Record<string, unknown>;
+  billRequests: Record<string, unknown>[];
+};
+
+export type BillRequestDetailResult = Record<string, unknown> & {
+  billRequest?: Record<string, unknown>;
+  company?: CompanySummary;
+  branch?: BranchSummary;
+  tableSession?: Record<string, unknown>;
+  events?: Record<string, unknown>[];
+  billableOrders?: Record<string, unknown>[];
+  totals?: Record<string, unknown>;
+};
+
+export type BillRequestActionPayload = {
+  staffUserId?: string;
+  note?: string;
+};
+
+export type CancelBillRequestPayload = {
+  staffUserId?: string;
+  reason?: string;
+};
+
+export type BranchRealtimeChannel =
+  | "all"
+  | "orders"
+  | "preparation"
+  | "waiter_calls"
+  | "notifications";
+
+export type BranchRealtimeEventsQuery = {
+  channel?: BranchRealtimeChannel;
+  type?: string;
+  limit?: number;
+};
+
+export type BranchRealtimeEventsResult = {
+  branch?: Record<string, unknown>;
+  filters?: Record<string, unknown>;
+  events: Record<string, unknown>[];
+};

@@ -1,6 +1,6 @@
 # balcona-bar
 
-Balcona Bar is organized as a monorepo for the Cafe AI Waiter App / Smart Cafe Operating System. The backend core is complete through Phase 24, UI Phase 1 adds the first Next.js web foundation for customer and staff experiences, UI Phase 2 adds the customer PWA core, and UI Phase 3 adds the customer AI waiter experience.
+Balcona Bar is organized as a monorepo for the Cafe AI Waiter App / Smart Cafe Operating System. The backend core is complete through Phase 24, UI Phase 1 adds the first Next.js web foundation for customer and staff experiences, UI Phase 2 adds the customer PWA core, UI Phase 3 adds the customer AI waiter experience, and UI Phase 4 adds the cashier dashboard core.
 
 ## Layout
 
@@ -92,6 +92,17 @@ Balcona Bar is organized as a monorepo for the Cafe AI Waiter App / Smart Cafe O
    apply or reject a cart proposal if one is returned, review the cart, and
    submit the order manually from the cart flow.
 
+12. Open the staff cashier demo:
+
+   ```text
+   http://localhost:3001/staff/login
+   ```
+
+   Bootstrap the local/dev staff password if needed, sign in with the seeded
+   staff account documented below, then open `/staff/cashier`. Submit a
+   customer order from `/customer`, watch it appear in the cashier dashboard,
+   and accept or reject it from the detail panel.
+
 Useful root scripts:
 
 ```bash
@@ -146,6 +157,20 @@ UI Phase 3 adds the customer AI waiter experience inside the Customer PWA:
 - visible errors for AI session, message, proposal, escalation, and close actions
 
 The AI waiter never submits orders, changes prices, bypasses cart validation, or replaces the final cart review and submit flow. External AI provider integration remains outside this UI phase.
+
+## UI Phase 4 status
+
+UI Phase 4 adds the cashier dashboard core inside the Staff shell:
+
+- `/staff` overview with login state, branch selection, and staff surface links
+- `/staff/login` staff auth screen using the existing backend login response
+- `/staff/cashier` cashier dashboard with branch orders, order detail, and bill requests
+- persisted staff auth store with access token, session, effective access, default branch, selected branch, and restore/clear helpers
+- cashier order filters, accept, reject with optional reason, visible success/error feedback, and query invalidation
+- bill request active/recent lanes with acknowledge, present, and close actions
+- branch SSE realtime invalidation, compact realtime status, recent event activity, and subtle best-effort notification sound
+
+Kitchen/barista dashboards, waiter dashboard, owner/manager command center, payment/POS, new backend behavior, and AI behavior changes remain outside this phase.
 
 ## API verification
 
@@ -856,6 +881,24 @@ curl -X POST http://localhost:3000/api/v1/staff-auth/logout \
   -H "Authorization: Bearer <accessToken>"
 ```
 
+Frontend staff demo:
+
+```text
+http://localhost:3001/staff/login
+http://localhost:3001/staff
+http://localhost:3001/staff/cashier
+```
+
+Use the same local/dev account after password bootstrap:
+
+```text
+manager@balcona.local
+change-me-local-123
+```
+
+After login, select the default branch if needed. Submit an order from the
+customer PWA, then accept or reject it from the cashier dashboard.
+
 Table-session start/resume responses now include a `customerAccess` object with a one-time returned customer access token. Current customer endpoints remain backwards-compatible; the token foundation is ready for the future PWA ownership guard rollout.
 
 Swagger/OpenAPI is available by default in local/dev:
@@ -914,3 +957,4 @@ Backend core is now ready for UI Phase 1 planning. Remaining production work inc
 - UI Phase 1 web foundation: `docs/architecture/ui-phase-1-web-foundation.md`
 - UI Phase 2 customer PWA core: `docs/architecture/ui-phase-2-customer-pwa-core.md`
 - UI Phase 3 AI waiter customer experience: `docs/architecture/ui-phase-3-ai-waiter-customer-experience.md`
+- UI Phase 4 cashier dashboard core: `docs/architecture/ui-phase-4-cashier-dashboard-core.md`
