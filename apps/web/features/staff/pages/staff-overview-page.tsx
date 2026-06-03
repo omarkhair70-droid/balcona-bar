@@ -38,9 +38,9 @@ const staffAreas = [
   {
     title: "Kitchen",
     href: "/staff/kitchen",
-    description: "Preparation board shell for station-aware operations.",
+    description: "Live station tasks for kitchen, barista, and dessert work.",
     icon: <ChefHat className="size-5" aria-hidden="true" />,
-    state: "Preview"
+    state: "Live"
   },
   {
     title: "Waiter",

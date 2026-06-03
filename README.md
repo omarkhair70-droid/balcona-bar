@@ -1,6 +1,6 @@
 # balcona-bar
 
-Balcona Bar is organized as a monorepo for the Cafe AI Waiter App / Smart Cafe Operating System. The backend core is complete through Phase 24, UI Phase 1 adds the first Next.js web foundation for customer and staff experiences, UI Phase 2 adds the customer PWA core, UI Phase 3 adds the customer AI waiter experience, and UI Phase 4 adds the cashier dashboard core.
+Balcona Bar is organized as a monorepo for the Cafe AI Waiter App / Smart Cafe Operating System. The backend core is complete through Phase 24, UI Phase 1 adds the first Next.js web foundation for customer and staff experiences, UI Phase 2 adds the customer PWA core, UI Phase 3 adds the customer AI waiter experience, UI Phase 4 adds the cashier dashboard core, and UI Phase 5 adds the kitchen/barista dashboard core.
 
 ## Layout
 
@@ -103,6 +103,17 @@ Balcona Bar is organized as a monorepo for the Cafe AI Waiter App / Smart Cafe O
    customer order from `/customer`, watch it appear in the cashier dashboard,
    and accept or reject it from the detail panel.
 
+13. Open the kitchen/barista demo:
+
+   ```text
+   http://localhost:3001/staff/kitchen
+   ```
+
+   After a customer submits an order and the cashier accepts it, the backend
+   creates preparation tasks. Kitchen or barista staff can start a task and mark
+   it ready from the preparation dashboard. When all active preparation tasks
+   for an order are ready, the backend can move the order toward ready state.
+
 Useful root scripts:
 
 ```bash
@@ -171,6 +182,20 @@ UI Phase 4 adds the cashier dashboard core inside the Staff shell:
 - branch SSE realtime invalidation, compact realtime status, recent event activity, and subtle best-effort notification sound
 
 Kitchen/barista dashboards, waiter dashboard, owner/manager command center, payment/POS, new backend behavior, and AI behavior changes remain outside this phase.
+
+## UI Phase 5 status
+
+UI Phase 5 adds the Kitchen / Barista Dashboard Core inside the Staff shell:
+
+- `/staff/kitchen` live preparation task board for selected branch
+- station filters for all, barista, kitchen, and dessert
+- task status filters for pending, preparing, ready, cancelled, and all
+- task detail panel with order, table, item, modifiers, notes, and event context
+- start, mark ready, and cancel actions with visible success/error feedback
+- branch realtime invalidation for preparation task updates
+- compact branch activity panel and metrics for task status counts
+
+Waiter dashboard, owner/manager command center, SaaS admin/menu admin, POS/payment, backend behavior changes, drag/drop, and new dependencies remain outside this phase.
 
 ## API verification
 
@@ -899,6 +924,16 @@ change-me-local-123
 After login, select the default branch if needed. Submit an order from the
 customer PWA, then accept or reject it from the cashier dashboard.
 
+Kitchen/barista flow:
+
+```text
+1. Open /customer and submit an order.
+2. Open /staff/cashier and accept the submitted order.
+3. Open /staff/kitchen.
+4. Start a pending preparation task.
+5. Mark the task ready.
+```
+
 Table-session start/resume responses now include a `customerAccess` object with a one-time returned customer access token. Current customer endpoints remain backwards-compatible; the token foundation is ready for the future PWA ownership guard rollout.
 
 Swagger/OpenAPI is available by default in local/dev:
@@ -958,3 +993,4 @@ Backend core is now ready for UI Phase 1 planning. Remaining production work inc
 - UI Phase 2 customer PWA core: `docs/architecture/ui-phase-2-customer-pwa-core.md`
 - UI Phase 3 AI waiter customer experience: `docs/architecture/ui-phase-3-ai-waiter-customer-experience.md`
 - UI Phase 4 cashier dashboard core: `docs/architecture/ui-phase-4-cashier-dashboard-core.md`
+- UI Phase 5 kitchen/barista dashboard core: `docs/architecture/ui-phase-5-kitchen-barista-dashboard-core.md`

@@ -13,9 +13,12 @@ import type {
   BranchBillRequestsQuery,
   BranchBillRequestsResult,
   BranchMenuResult,
+  BranchPreparationTasksQuery,
+  BranchPreparationTasksResult,
   BranchRealtimeEventsQuery,
   BranchRealtimeEventsResult,
   CancelBillRequestPayload,
+  CancelPreparationTaskPayload,
   CartResponse,
   CartValidationResult,
   CashierAcceptOrderPayload,
@@ -29,6 +32,9 @@ import type {
   ListAiWaiterMessagesQuery,
   MenuItemDetailResult,
   OrderDetailResult,
+  OrderPreparationTasksResult,
+  PreparationTaskActionPayload,
+  PreparationTaskDetailResult,
   RejectAiCartProposalPayload,
   RequestBillPayload,
   SendAiWaiterMessagePayload,
@@ -465,5 +471,75 @@ export function getBranchRealtimeEvents(
   return apiRequest<BranchRealtimeEventsResult>(
     `/realtime/branches/${branchId}/events`,
     { query, token }
+  );
+}
+
+export function getBranchPreparationTasks(
+  branchId: string,
+  query: BranchPreparationTasksQuery = {},
+  token?: string
+) {
+  return apiRequest<BranchPreparationTasksResult>(
+    `/branches/${branchId}/preparation-tasks`,
+    { query, token }
+  );
+}
+
+export function getOrderPreparationTasks(orderId: string, token?: string) {
+  return apiRequest<OrderPreparationTasksResult>(
+    `/orders/${orderId}/preparation-tasks`,
+    { token }
+  );
+}
+
+export function getPreparationTaskDetail(taskId: string, token?: string) {
+  return apiRequest<PreparationTaskDetailResult>(
+    `/preparation-tasks/${taskId}`,
+    { token }
+  );
+}
+
+export function startPreparationTask(
+  taskId: string,
+  payload: PreparationTaskActionPayload = {},
+  token?: string
+) {
+  return apiRequest<PreparationTaskDetailResult, PreparationTaskActionPayload>(
+    `/preparation-tasks/${taskId}/start`,
+    {
+      method: "POST",
+      body: payload,
+      token
+    }
+  );
+}
+
+export function markPreparationTaskReady(
+  taskId: string,
+  payload: PreparationTaskActionPayload = {},
+  token?: string
+) {
+  return apiRequest<PreparationTaskDetailResult, PreparationTaskActionPayload>(
+    `/preparation-tasks/${taskId}/ready`,
+    {
+      method: "POST",
+      body: payload,
+      token
+    }
+  );
+}
+
+export function cancelPreparationTask(
+  taskId: string,
+  payload: CancelPreparationTaskPayload = {},
+  token?: string
+) {
+  return apiRequest<PreparationTaskDetailResult, CancelPreparationTaskPayload>(
+    `/preparation-tasks/${taskId}/cancel`,
+    {
+      method: "POST",
+      body: payload,
+      token
+    }
   );
 }
