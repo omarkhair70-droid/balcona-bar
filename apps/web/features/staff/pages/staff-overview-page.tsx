@@ -45,9 +45,9 @@ const staffAreas = [
   {
     title: "Waiter",
     href: "/staff/waiter",
-    description: "Table attention, requests, and floor signal surface.",
+    description: "Live waiter calls, table attention, and floor recovery.",
     icon: <Bell className="size-5" aria-hidden="true" />,
-    state: "Preview"
+    state: "Live"
   },
   {
     title: "Owner",
@@ -105,7 +105,7 @@ function StaffOverviewContent() {
           <MetricCard
             label="Cashier"
             value="Ready"
-            description="Orders and bills connected"
+            description="Orders, prep, and floor connected"
             icon={<ClipboardCheck className="size-4" aria-hidden="true" />}
           />
         </section>
@@ -118,8 +118,8 @@ function StaffOverviewContent() {
               </Badge>
               <CardTitle>{selectedBranch?.name ?? "Choose a branch"}</CardTitle>
               <CardDescription>
-                The selected branch drives cashier orders, bill requests, and
-                branch realtime refresh.
+                The selected branch drives cashier orders, preparation tasks,
+                waiter calls, attention, and branch realtime refresh.
               </CardDescription>
             </div>
             <StaffBranchSelector
@@ -169,7 +169,7 @@ export function StaffOverviewPage() {
   return (
     <StaffPageShell
       title="Staff command surface"
-      description="Branch-aware staff operations with cashier intake connected first and the remaining staff dashboards still held as preview shells."
+      description="Branch-aware staff operations with cashier, kitchen, and waiter dashboards connected to live backend workflows."
       actions={
         <Link href="/staff/login" className={buttonVariants({ variant: "secondary" })}>
           <LogIn className="size-4" aria-hidden="true" />

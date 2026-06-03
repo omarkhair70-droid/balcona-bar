@@ -6,9 +6,11 @@ import type {
   AiWaiterEscalateResult,
   AiWaiterMessagesResult,
   AiWaiterStateResult,
+  AttentionQuery,
   BillRequestActionPayload,
   BillRequestDetailResult,
   BillResult,
+  BranchAttentionQueueResult,
   BranchEffectiveExperience,
   BranchBillRequestsQuery,
   BranchBillRequestsResult,
@@ -17,8 +19,10 @@ import type {
   BranchPreparationTasksResult,
   BranchRealtimeEventsQuery,
   BranchRealtimeEventsResult,
+  BranchWaiterCallsResult,
   CancelBillRequestPayload,
   CancelPreparationTaskPayload,
+  CancelWaiterCallPayload,
   CartResponse,
   CartValidationResult,
   CashierAcceptOrderPayload,
@@ -31,12 +35,17 @@ import type {
   EscalateAiWaiterPayload,
   ListAiWaiterMessagesQuery,
   MenuItemDetailResult,
+  MuteAttentionPayload,
   OrderDetailResult,
   OrderPreparationTasksResult,
   PreparationTaskActionPayload,
   PreparationTaskDetailResult,
+  RebuildBranchAttentionResult,
+  RecalculateAttentionPayload,
   RejectAiCartProposalPayload,
   RequestBillPayload,
+  ResolveAttentionPayload,
+  ResolveWaiterCallPayload,
   SendAiWaiterMessagePayload,
   SendAiWaiterMessageResult,
   StaffAuthContext,
@@ -48,8 +57,12 @@ import type {
   StartTableSessionResult,
   SubmitCartPayload,
   SubmitCartResult,
+  TableSessionAttentionResult,
   UpdateCartItemPayload,
+  WaiterCallDetailResult,
   WaiterCallPayload,
+  WaiterCallStaffActionPayload,
+  WaiterCallsQuery,
   WaiterCallsResult
 } from "./types";
 
@@ -198,6 +211,68 @@ export function getWaiterCalls(sessionId: string, token?: string) {
   return apiRequest<WaiterCallsResult>(
     `/table-sessions/${sessionId}/waiter-calls`,
     { token }
+  );
+}
+
+export function getBranchWaiterCalls(
+  branchId: string,
+  query: WaiterCallsQuery = {},
+  token?: string
+) {
+  return apiRequest<BranchWaiterCallsResult>(
+    `/branches/${branchId}/waiter-calls`,
+    { query, token }
+  );
+}
+
+export function getWaiterCallDetail(waiterCallId: string, token?: string) {
+  return apiRequest<WaiterCallDetailResult>(`/waiter-calls/${waiterCallId}`, {
+    token
+  });
+}
+
+export function acknowledgeWaiterCall(
+  waiterCallId: string,
+  payload: WaiterCallStaffActionPayload = {},
+  token?: string
+) {
+  return apiRequest<WaiterCallDetailResult, WaiterCallStaffActionPayload>(
+    `/waiter-calls/${waiterCallId}/acknowledge`,
+    {
+      method: "POST",
+      body: payload,
+      token
+    }
+  );
+}
+
+export function resolveWaiterCall(
+  waiterCallId: string,
+  payload: ResolveWaiterCallPayload = {},
+  token?: string
+) {
+  return apiRequest<WaiterCallDetailResult, ResolveWaiterCallPayload>(
+    `/waiter-calls/${waiterCallId}/resolve`,
+    {
+      method: "POST",
+      body: payload,
+      token
+    }
+  );
+}
+
+export function cancelWaiterCall(
+  waiterCallId: string,
+  payload: CancelWaiterCallPayload = {},
+  token?: string
+) {
+  return apiRequest<WaiterCallDetailResult, CancelWaiterCallPayload>(
+    `/waiter-calls/${waiterCallId}/cancel`,
+    {
+      method: "POST",
+      body: payload,
+      token
+    }
   );
 }
 
@@ -536,6 +611,79 @@ export function cancelPreparationTask(
 ) {
   return apiRequest<PreparationTaskDetailResult, CancelPreparationTaskPayload>(
     `/preparation-tasks/${taskId}/cancel`,
+    {
+      method: "POST",
+      body: payload,
+      token
+    }
+  );
+}
+
+export function getBranchAttentionQueue(
+  branchId: string,
+  query: AttentionQuery = {},
+  token?: string
+) {
+  return apiRequest<BranchAttentionQueueResult>(
+    `/branches/${branchId}/autopilot/attention`,
+    { query, token }
+  );
+}
+
+export function rebuildBranchAttention(branchId: string, token?: string) {
+  return apiRequest<RebuildBranchAttentionResult>(
+    `/branches/${branchId}/autopilot/attention/rebuild`,
+    {
+      method: "POST",
+      token
+    }
+  );
+}
+
+export function getTableSessionAttention(sessionId: string, token?: string) {
+  return apiRequest<TableSessionAttentionResult>(
+    `/table-sessions/${sessionId}/autopilot/attention`,
+    { token }
+  );
+}
+
+export function recalculateTableSessionAttention(
+  sessionId: string,
+  payload: RecalculateAttentionPayload = {},
+  token?: string
+) {
+  return apiRequest<TableSessionAttentionResult, RecalculateAttentionPayload>(
+    `/table-sessions/${sessionId}/autopilot/attention/recalculate`,
+    {
+      method: "POST",
+      body: payload,
+      token
+    }
+  );
+}
+
+export function resolveTableSessionAttention(
+  sessionId: string,
+  payload: ResolveAttentionPayload = {},
+  token?: string
+) {
+  return apiRequest<TableSessionAttentionResult, ResolveAttentionPayload>(
+    `/table-sessions/${sessionId}/autopilot/attention/resolve`,
+    {
+      method: "POST",
+      body: payload,
+      token
+    }
+  );
+}
+
+export function muteTableSessionAttention(
+  sessionId: string,
+  payload: MuteAttentionPayload = {},
+  token?: string
+) {
+  return apiRequest<TableSessionAttentionResult, MuteAttentionPayload>(
+    `/table-sessions/${sessionId}/autopilot/attention/mute`,
     {
       method: "POST",
       body: payload,
