@@ -6,17 +6,29 @@ import type {
   AiWaiterEscalateResult,
   AiWaiterMessagesResult,
   AiWaiterStateResult,
+  BillRequestActionPayload,
+  BillRequestDetailResult,
   BillResult,
   BranchEffectiveExperience,
+  BranchBillRequestsQuery,
+  BranchBillRequestsResult,
   BranchMenuResult,
+  BranchRealtimeEventsQuery,
+  BranchRealtimeEventsResult,
+  CancelBillRequestPayload,
   CartResponse,
   CartValidationResult,
+  CashierAcceptOrderPayload,
+  CashierOrdersQuery,
+  CashierOrdersResult,
+  CashierRejectOrderPayload,
   CompanySummary,
   CustomerStatusResult,
   CustomerTimelineResult,
   EscalateAiWaiterPayload,
   ListAiWaiterMessagesQuery,
   MenuItemDetailResult,
+  OrderDetailResult,
   RejectAiCartProposalPayload,
   RequestBillPayload,
   SendAiWaiterMessagePayload,
@@ -313,4 +325,145 @@ export function staffMe(token: string) {
   return apiRequest<StaffAuthContext>("/staff-auth/me", {
     token
   });
+}
+
+export function staffLogout(token: string) {
+  return apiRequest<Record<string, unknown>>("/staff-auth/logout", {
+    method: "POST",
+    token
+  });
+}
+
+export function getCashierOrders(
+  branchId: string,
+  query: CashierOrdersQuery = {},
+  token?: string
+) {
+  return apiRequest<CashierOrdersResult>(
+    `/branches/${branchId}/cashier/orders`,
+    { query, token }
+  );
+}
+
+export function getOrderDetail(orderId: string, token?: string) {
+  return apiRequest<OrderDetailResult>(`/orders/${orderId}`, { token });
+}
+
+export function acceptOrder(
+  orderId: string,
+  payload: CashierAcceptOrderPayload = {},
+  token?: string
+) {
+  return apiRequest<OrderDetailResult, CashierAcceptOrderPayload>(
+    `/orders/${orderId}/cashier/accept`,
+    {
+      method: "POST",
+      body: payload,
+      token
+    }
+  );
+}
+
+export function rejectOrder(
+  orderId: string,
+  payload: CashierRejectOrderPayload = {},
+  token?: string
+) {
+  return apiRequest<OrderDetailResult, CashierRejectOrderPayload>(
+    `/orders/${orderId}/cashier/reject`,
+    {
+      method: "POST",
+      body: payload,
+      token
+    }
+  );
+}
+
+export function getBranchBillRequests(
+  branchId: string,
+  query: BranchBillRequestsQuery = {},
+  token?: string
+) {
+  return apiRequest<BranchBillRequestsResult>(
+    `/branches/${branchId}/bill-requests`,
+    { query, token }
+  );
+}
+
+export function getBillRequestDetail(billRequestId: string, token?: string) {
+  return apiRequest<BillRequestDetailResult>(
+    `/bill-requests/${billRequestId}`,
+    { token }
+  );
+}
+
+export function acknowledgeBillRequest(
+  billRequestId: string,
+  payload: BillRequestActionPayload = {},
+  token?: string
+) {
+  return apiRequest<BillRequestDetailResult, BillRequestActionPayload>(
+    `/bill-requests/${billRequestId}/acknowledge`,
+    {
+      method: "POST",
+      body: payload,
+      token
+    }
+  );
+}
+
+export function presentBillRequest(
+  billRequestId: string,
+  payload: BillRequestActionPayload = {},
+  token?: string
+) {
+  return apiRequest<BillRequestDetailResult, BillRequestActionPayload>(
+    `/bill-requests/${billRequestId}/present`,
+    {
+      method: "POST",
+      body: payload,
+      token
+    }
+  );
+}
+
+export function closeBillRequest(
+  billRequestId: string,
+  payload: BillRequestActionPayload = {},
+  token?: string
+) {
+  return apiRequest<BillRequestDetailResult, BillRequestActionPayload>(
+    `/bill-requests/${billRequestId}/close`,
+    {
+      method: "POST",
+      body: payload,
+      token
+    }
+  );
+}
+
+export function cancelBillRequest(
+  billRequestId: string,
+  payload: CancelBillRequestPayload = {},
+  token?: string
+) {
+  return apiRequest<BillRequestDetailResult, CancelBillRequestPayload>(
+    `/bill-requests/${billRequestId}/cancel`,
+    {
+      method: "POST",
+      body: payload,
+      token
+    }
+  );
+}
+
+export function getBranchRealtimeEvents(
+  branchId: string,
+  query: BranchRealtimeEventsQuery = {},
+  token?: string
+) {
+  return apiRequest<BranchRealtimeEventsResult>(
+    `/realtime/branches/${branchId}/events`,
+    { query, token }
+  );
 }
