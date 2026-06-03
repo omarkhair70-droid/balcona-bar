@@ -20,6 +20,8 @@ type StaffBranchRealtimeStatus = {
 const SOUND_EVENT_TYPES = new Set([
   "order_submitted",
   "bill_requested",
+  "preparation_task_created",
+  "preparation_task_ready",
   "smart_cashier_manual_review_required"
 ]);
 
@@ -69,6 +71,9 @@ export function useStaffBranchRealtime(
         });
         void queryClient.invalidateQueries({
           queryKey: staffQueryKeys.branchBillRequests(branchId)
+        });
+        void queryClient.invalidateQueries({
+          queryKey: staffQueryKeys.preparationTasks(branchId)
         });
         void queryClient.invalidateQueries({
           queryKey: staffQueryKeys.branchRealtime(branchId)

@@ -548,3 +548,58 @@ export type BranchRealtimeEventsResult = {
   filters?: Record<string, unknown>;
   events: Record<string, unknown>[];
 };
+
+export type PreparationStation = "barista" | "kitchen" | "dessert" | "all" | string;
+
+export type PreparationTaskStatus =
+  | "pending"
+  | "preparing"
+  | "ready"
+  | "cancelled"
+  | "all"
+  | string;
+
+export type BranchPreparationTasksQuery = {
+  station?: PreparationStation;
+  status?: PreparationTaskStatus;
+};
+
+export type BranchPreparationTasksResult = {
+  branch: BranchSummary;
+  station: PreparationStation;
+  status: PreparationTaskStatus;
+  tasks: Record<string, unknown>[];
+};
+
+export type OrderPreparationTasksResult = Record<string, unknown> & {
+  order?: Record<string, unknown>;
+  company?: CompanySummary;
+  branch?: BranchSummary;
+  tableSession?: Record<string, unknown>;
+  floor?: Record<string, unknown> | null;
+  table?: Record<string, unknown>;
+  tasks: Record<string, unknown>[];
+};
+
+export type PreparationTaskDetailResult = Record<string, unknown> & {
+  task?: Record<string, unknown>;
+  company?: CompanySummary;
+  branch?: BranchSummary;
+  order?: Record<string, unknown>;
+  tableSession?: Record<string, unknown>;
+  floor?: Record<string, unknown> | null;
+  table?: Record<string, unknown>;
+  orderItem?: Record<string, unknown>;
+  modifierOptions?: Record<string, unknown>[];
+  events?: Record<string, unknown>[];
+};
+
+export type PreparationTaskActionPayload = {
+  staffUserId?: string;
+  note?: string;
+};
+
+export type CancelPreparationTaskPayload = {
+  staffUserId?: string;
+  reason?: string | null;
+};
