@@ -7,6 +7,7 @@ import { AnalyticsModule } from './analytics/analytics.module';
 import { AuditModule } from './audit/audit.module';
 import { AutopilotModule } from './autopilot/autopilot.module';
 import { BillRequestsModule } from './bill-requests/bill-requests.module';
+import { BranchAdminModule } from './branch-admin/branch-admin.module';
 import { BranchSettingsModule } from './branch-settings/branch-settings.module';
 import { BranchesModule } from './branches/branches.module';
 import { CartModule } from './cart/cart.module';
@@ -53,6 +54,7 @@ import { WaiterCallsModule } from './waiter-calls/waiter-calls.module';
     JobsModule,
     SystemModule,
     BillRequestsModule,
+    BranchAdminModule,
     BranchSettingsModule,
     CompaniesModule,
     BranchesModule,

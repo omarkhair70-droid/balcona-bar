@@ -32,6 +32,11 @@ export const balkonaDemoRoutes = [
     description: "Review branch menu setup, availability, and modifiers."
   },
   {
+    label: "Branch & Tables",
+    href: "/staff/branches",
+    description: "Review branch tables, QR tokens, and customer preview links."
+  },
+  {
     label: "Kitchen / Barista",
     href: "/staff/kitchen",
     description: "Start and mark preparation tasks ready."
@@ -55,6 +60,7 @@ export const balkonaDemoChecklist = [
   "Submit order",
   "Login as staff",
   "Open menu admin and review branch availability",
+  "Open branch and tables admin and review QR readiness",
   "Open cashier and accept order",
   "Open kitchen and start or mark ready a prep task",
   "Open waiter and resolve service call or attention",
@@ -67,6 +73,7 @@ export const balkonaDemoProofPoints = [
   "AI waiter proposal flow",
   "Staff login and session",
   "Menu admin readiness",
+  "Branch tables and QR readiness",
   "Cashier acceptance",
   "Preparation tasks",
   "Waiter calls and attention queue",

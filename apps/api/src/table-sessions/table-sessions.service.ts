@@ -125,6 +125,12 @@ export class TableSessionsService {
         );
       }
 
+      if (table.branch.status !== 'active') {
+        throw new BadRequestException(
+          `Branch is not available for sessions because it is ${table.branch.status}`,
+        );
+      }
+
       await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${table.id})::bigint)`;
 
       const existingSession = await tx.tableSession.findFirst({

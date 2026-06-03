@@ -1,6 +1,7 @@
 import {
   Bell,
   BookOpenText,
+  Building2,
   ChartNoAxesCombined,
   ChefHat,
   LayoutDashboard,
@@ -24,6 +25,11 @@ export const staffNavItems: AppShellNavItem[] = [
     href: "/staff/menu",
     label: "Menu",
     icon: <BookOpenText className="size-4" aria-hidden="true" />
+  },
+  {
+    href: "/staff/branches",
+    label: "Branches",
+    icon: <Building2 className="size-4" aria-hidden="true" />
   },
   {
     href: "/staff/login",
