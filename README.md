@@ -1,6 +1,6 @@
 # balcona-bar
 
-Balcona Bar is organized as a monorepo for the Cafe AI Waiter App / Smart Cafe Operating System. The backend core is complete through Phase 24, UI Phase 1 adds the first Next.js web foundation for customer and staff experiences, UI Phase 2 adds the customer PWA core, UI Phase 3 adds the customer AI waiter experience, UI Phase 4 adds the cashier dashboard core, UI Phase 5 adds the kitchen/barista dashboard core, UI Phase 6 adds the waiter dashboard and attention queue, UI Phase 7 adds the owner/manager command center, UI Phase 8 adds full demo hardening plus Balkona demo mode, and Production Phase 1 adds deployable platform foundation files without choosing the final cloud provider.
+Balcona Bar is organized as a monorepo for the Cafe AI Waiter App / Smart Cafe Operating System. The backend core is complete through Phase 24, UI Phase 1 adds the first Next.js web foundation for customer and staff experiences, UI Phase 2 adds the customer PWA core, UI Phase 3 adds the customer AI waiter experience, UI Phase 4 adds the cashier dashboard core, UI Phase 5 adds the kitchen/barista dashboard core, UI Phase 6 adds the waiter dashboard and attention queue, UI Phase 7 adds the owner/manager command center, UI Phase 8 adds full demo hardening plus Balkona demo mode, Production Phase 1 adds deployable platform foundation files, and Production Phase 2 adds AWS infrastructure foundation scaffolding without deploying resources.
 
 ## Layout
 
@@ -9,6 +9,7 @@ Balcona Bar is organized as a monorepo for the Cafe AI Waiter App / Smart Cafe O
 - `apps/web` - Next.js App Router frontend foundation.
 - `docker-compose.yml` - local PostgreSQL and Redis services.
 - `docker-compose.prod.example.yml` - production-style compose example for deployment smoke tests.
+- `infra/aws/terraform` - AWS infrastructure foundation scaffold for Production Phase 2.
 - `docs/architecture` - architecture decisions and phase notes.
 - `docs/demo` - local demo runbooks and smoke tests.
 - `docs/deployment` - production deployment notes and checklists.
@@ -296,6 +297,23 @@ Local Docker/Postgres/Redis development still uses `docker-compose.yml` and the
 existing local quick start. Final AWS infrastructure, managed secrets,
 observability, CI/CD promotion, SaaS admin UI, menu admin UI, payments, and POS
 remain outside this phase.
+
+## Production Phase 2 status
+
+Production Phase 2 adds the AWS infrastructure foundation without deploying
+resources:
+
+- Terraform scaffold in `infra/aws/terraform`
+- VPC, subnet, security group, ECR, RDS, Redis, ECS Fargate, ALB, CloudWatch,
+  and Secrets Manager foundation resources
+- Route 53, ACM, and CloudFront placeholder example for future DNS/TLS work
+- AWS architecture, environment mapping, and first-deploy checklist docs
+- no real AWS account IDs, domains, credentials, or secrets committed
+- no `terraform apply`, Docker compose, server startup, or real AWS deployment
+
+The next production phase is Production Phase 3 - First Public Demo Deploy,
+where real AWS account values, image pushes, DNS/TLS finalization, seed/demo
+tenant verification, and public smoke testing happen.
 
 ## API verification
 
@@ -1155,3 +1173,6 @@ begin.
 - UI Phase 8 full demo hardening and Balkona demo mode: `docs/architecture/ui-phase-8-full-demo-hardening-balkona-demo-mode.md`
 - Balkona full demo smoke test: `docs/demo/balkona-full-demo-smoke-test.md`
 - Production Phase 1 deployable platform foundation: `docs/deployment/production-phase-1-deployable-platform-foundation.md`
+- Production Phase 2 AWS infrastructure foundation: `docs/deployment/production-phase-2-aws-infrastructure-foundation.md`
+- AWS environment mapping: `docs/deployment/aws-env-mapping.md`
+- AWS first deploy checklist: `docs/deployment/aws-first-deploy-checklist.md`
