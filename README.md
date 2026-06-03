@@ -1,6 +1,6 @@
 # balcona-bar
 
-Balcona Bar is organized as a monorepo for the Cafe AI Waiter App / Smart Cafe Operating System. The backend core is complete through Phase 24, UI Phase 1 adds the first Next.js web foundation for customer and staff experiences, UI Phase 2 adds the customer PWA core, UI Phase 3 adds the customer AI waiter experience, UI Phase 4 adds the cashier dashboard core, UI Phase 5 adds the kitchen/barista dashboard core, UI Phase 6 adds the waiter dashboard and attention queue, UI Phase 7 adds the owner/manager command center, UI Phase 8 adds full demo hardening plus Balkona demo mode, Production Phase 1 adds deployable platform foundation files, Production Phase 2 adds AWS infrastructure foundation scaffolding without deploying resources, and Production Phase 3A adds public demo deploy readiness plus CI/CD guardrails without deploying resources.
+Balcona Bar is organized as a monorepo for the Cafe AI Waiter App / Smart Cafe Operating System. The backend core is complete through Phase 24, UI Phase 1 adds the first Next.js web foundation for customer and staff experiences, UI Phase 2 adds the customer PWA core, UI Phase 3 adds the customer AI waiter experience, UI Phase 4 adds the cashier dashboard core, UI Phase 5 adds the kitchen/barista dashboard core, UI Phase 6 adds the waiter dashboard and attention queue, UI Phase 7 adds the owner/manager command center, UI Phase 8 adds full demo hardening plus Balkona demo mode, Production Phase 1 adds deployable platform foundation files, Production Phase 2 adds AWS infrastructure foundation scaffolding without deploying resources, Production Phase 3A adds public demo deploy readiness plus CI/CD guardrails without deploying resources, and Production Phase 3B adds the first public AWS demo preflight deploy pack without deploying resources.
 
 ## Layout
 
@@ -10,7 +10,7 @@ Balcona Bar is organized as a monorepo for the Cafe AI Waiter App / Smart Cafe O
 - `.github/workflows` - CI, Docker build, Terraform validation, and manual ECR example workflows.
 - `docker-compose.yml` - local PostgreSQL and Redis services.
 - `docker-compose.prod.example.yml` - production-style compose example for deployment smoke tests.
-- `infra/aws/terraform` - AWS infrastructure foundation scaffold for Production Phase 2.
+- `infra/aws/terraform` - AWS infrastructure foundation scaffold and staging tfvars examples.
 - `scripts/deploy` - non-destructive local image build and public smoke test helpers.
 - `docs/architecture` - architecture decisions and phase notes.
 - `docs/demo` - local demo runbooks and smoke tests.
@@ -337,6 +337,27 @@ without creating resources or publishing a public link:
 Local development still uses the existing quick start and `docker-compose.yml`.
 There is still no public demo URL until Production Phase 3B. The next phase is
 Production Phase 3B - First Public Demo Deploy.
+
+## Production Phase 3B preflight status
+
+Production Phase 3B adds the exact first public AWS demo deploy pack while still
+avoiding real infrastructure changes:
+
+- AWS deploy decision template for owner, budget, domain, network, sizing,
+  rollback, seed, and approval decisions
+- staging Terraform tfvars example for first-demo sizing and placeholder image
+  URIs/origins
+- AWS network egress planning for NAT Gateway versus VPC endpoints
+- first public demo command runbook with approval gates around cost-creating or
+  destructive commands
+- Prisma migration runner plan for safe deployed migrations
+- public demo seed verification checklist for the Balkona table/customer/staff
+  flow
+- local Terraform validation helper scripts for fmt/init/validate only
+
+Still no public link until real AWS values are approved and terraform
+apply/deploy is executed manually. The next phase is Production Phase 3C -
+First Public AWS Demo Execution.
 
 ## API verification
 
@@ -1201,3 +1222,8 @@ begin.
 - AWS first deploy checklist: `docs/deployment/aws-first-deploy-checklist.md`
 - Production Phase 3A public demo readiness: `docs/deployment/production-phase-3a-public-demo-readiness.md`
 - Production Phase 3B first public demo deploy checklist: `docs/deployment/production-phase-3b-first-public-demo-deploy-checklist.md`
+- AWS deploy decisions template: `docs/deployment/aws-deploy-decisions.template.md`
+- AWS network egress options: `docs/deployment/aws-network-egress-options.md`
+- AWS first public demo command runbook: `docs/deployment/aws-first-public-demo-command-runbook.md`
+- AWS Prisma migration runner: `docs/deployment/aws-prisma-migration-runner.md`
+- Public demo seed verification: `docs/deployment/public-demo-seed-verification.md`

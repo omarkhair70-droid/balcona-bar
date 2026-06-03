@@ -46,7 +46,9 @@ Before apply:
 - Confirm security group ingress and egress.
 - Confirm image URI placeholders are replaced with real ECR image tags.
 
-Only after review:
+Only after review and explicit approval:
+
+DO NOT RUN UNTIL APPROVED.
 
 ```bash
 terraform apply

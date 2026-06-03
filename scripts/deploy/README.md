@@ -1,7 +1,8 @@
 # Deployment Scripts
 
-These scripts are Production Phase 3A readiness helpers. They do not create AWS
-resources, run Terraform apply, start long-running servers, or push images.
+These scripts are Production Phase 3A and 3B readiness helpers. They do not
+create AWS resources, run Terraform apply, start long-running servers, or push
+images.
 
 ## Local Docker Image Build
 
@@ -52,3 +53,25 @@ The smoke scripts check:
 If `API_BASE_URL` is provided as a browser API URL ending in `/api/v1`, the
 scripts derive `/health` from the API origin because the health endpoint is not
 under the API prefix.
+
+## Terraform Local Validation
+
+PowerShell:
+
+```powershell
+.\scripts\deploy\terraform-validate-local.ps1
+```
+
+Bash:
+
+```bash
+./scripts/deploy/terraform-validate-local.sh
+```
+
+These scripts run only:
+
+- `terraform fmt -check -recursive infra/aws/terraform`
+- `terraform init -backend=false`
+- `terraform validate`
+
+They do not run `terraform plan` or `terraform apply`.
