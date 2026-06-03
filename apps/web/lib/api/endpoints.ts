@@ -31,22 +31,27 @@ import type {
   CashierRejectOrderPayload,
   CompanySummary,
   CreateMenuCategoryPayload,
+  CreateMenuCategoryResult,
   CreateMenuItemModifierGroupPayload,
+  CreateMenuItemModifierGroupResult,
   CreateMenuItemPayload,
+  CreateMenuItemResult,
   CreateModifierGroupPayload,
+  CreateModifierGroupResult,
   CreateModifierOptionPayload,
+  CreateModifierOptionResult,
   CustomerStatusResult,
   CustomerTimelineResult,
+  DeleteBranchMenuItemOverrideResult,
+  DeleteMenuItemModifierGroupResult,
   EscalateAiWaiterPayload,
   ListAiWaiterMessagesQuery,
-  MenuAdminBranchOverride,
-  MenuAdminCategory,
-  MenuAdminItem,
-  MenuAdminItemModifierGroup,
-  MenuAdminModifierGroup,
-  MenuAdminModifierOption,
+  MenuCategoryMutationResult,
   MenuAdminOverviewResult,
+  MenuItemMutationResult,
   MenuItemDetailResult,
+  ModifierGroupMutationResult,
+  ModifierOptionMutationResult,
   MuteAttentionPayload,
   OrderDetailResult,
   OrderPreparationTasksResult,
@@ -75,6 +80,7 @@ import type {
   UpdateModifierOptionPayload,
   TableSessionAttentionResult,
   UpdateCartItemPayload,
+  UpsertBranchMenuItemOverrideResult,
   UpsertBranchMenuItemOverridePayload,
   WaiterCallDetailResult,
   WaiterCallPayload,
@@ -113,7 +119,7 @@ export function createMenuCategory(
   payload: CreateMenuCategoryPayload,
   token?: string
 ) {
-  return apiRequest<MenuAdminCategory, CreateMenuCategoryPayload>(
+  return apiRequest<CreateMenuCategoryResult, CreateMenuCategoryPayload>(
     `/companies/${companyId}/menu-admin/categories`,
     {
       method: "POST",
@@ -128,7 +134,7 @@ export function updateMenuCategory(
   payload: UpdateMenuCategoryPayload,
   token?: string
 ) {
-  return apiRequest<MenuAdminCategory, UpdateMenuCategoryPayload>(
+  return apiRequest<MenuCategoryMutationResult, UpdateMenuCategoryPayload>(
     `/menu-admin/categories/${categoryId}`,
     {
       method: "PATCH",
@@ -139,7 +145,7 @@ export function updateMenuCategory(
 }
 
 export function activateMenuCategory(categoryId: string, token?: string) {
-  return apiRequest<MenuAdminCategory>(
+  return apiRequest<MenuCategoryMutationResult>(
     `/menu-admin/categories/${categoryId}/activate`,
     {
       method: "POST",
@@ -149,7 +155,7 @@ export function activateMenuCategory(categoryId: string, token?: string) {
 }
 
 export function deactivateMenuCategory(categoryId: string, token?: string) {
-  return apiRequest<MenuAdminCategory>(
+  return apiRequest<MenuCategoryMutationResult>(
     `/menu-admin/categories/${categoryId}/deactivate`,
     {
       method: "POST",
@@ -163,7 +169,7 @@ export function createMenuItem(
   payload: CreateMenuItemPayload,
   token?: string
 ) {
-  return apiRequest<MenuAdminItem, CreateMenuItemPayload>(
+  return apiRequest<CreateMenuItemResult, CreateMenuItemPayload>(
     `/companies/${companyId}/menu-admin/items`,
     {
       method: "POST",
@@ -178,7 +184,7 @@ export function updateMenuItem(
   payload: UpdateMenuItemPayload,
   token?: string
 ) {
-  return apiRequest<MenuAdminItem, UpdateMenuItemPayload>(
+  return apiRequest<MenuItemMutationResult, UpdateMenuItemPayload>(
     `/menu-admin/items/${itemId}`,
     {
       method: "PATCH",
@@ -189,24 +195,33 @@ export function updateMenuItem(
 }
 
 export function activateMenuItem(itemId: string, token?: string) {
-  return apiRequest<MenuAdminItem>(`/menu-admin/items/${itemId}/activate`, {
-    method: "POST",
-    token
-  });
+  return apiRequest<MenuItemMutationResult>(
+    `/menu-admin/items/${itemId}/activate`,
+    {
+      method: "POST",
+      token
+    }
+  );
 }
 
 export function deactivateMenuItem(itemId: string, token?: string) {
-  return apiRequest<MenuAdminItem>(`/menu-admin/items/${itemId}/deactivate`, {
-    method: "POST",
-    token
-  });
+  return apiRequest<MenuItemMutationResult>(
+    `/menu-admin/items/${itemId}/deactivate`,
+    {
+      method: "POST",
+      token
+    }
+  );
 }
 
 export function archiveMenuItem(itemId: string, token?: string) {
-  return apiRequest<MenuAdminItem>(`/menu-admin/items/${itemId}/archive`, {
-    method: "POST",
-    token
-  });
+  return apiRequest<MenuItemMutationResult>(
+    `/menu-admin/items/${itemId}/archive`,
+    {
+      method: "POST",
+      token
+    }
+  );
 }
 
 export function upsertBranchMenuItemOverride(
@@ -216,7 +231,7 @@ export function upsertBranchMenuItemOverride(
   token?: string
 ) {
   return apiRequest<
-    MenuAdminBranchOverride,
+    UpsertBranchMenuItemOverrideResult,
     UpsertBranchMenuItemOverridePayload
   >(`/branches/${branchId}/menu-admin/items/${itemId}/override`, {
     method: "PUT",
@@ -230,7 +245,7 @@ export function deleteBranchMenuItemOverride(
   itemId: string,
   token?: string
 ) {
-  return apiRequest<MenuAdminBranchOverride>(
+  return apiRequest<DeleteBranchMenuItemOverrideResult>(
     `/branches/${branchId}/menu-admin/items/${itemId}/override`,
     {
       method: "DELETE",
@@ -244,7 +259,7 @@ export function createModifierGroup(
   payload: CreateModifierGroupPayload,
   token?: string
 ) {
-  return apiRequest<MenuAdminModifierGroup, CreateModifierGroupPayload>(
+  return apiRequest<CreateModifierGroupResult, CreateModifierGroupPayload>(
     `/companies/${companyId}/menu-admin/modifier-groups`,
     {
       method: "POST",
@@ -259,7 +274,7 @@ export function updateModifierGroup(
   payload: UpdateModifierGroupPayload,
   token?: string
 ) {
-  return apiRequest<MenuAdminModifierGroup, UpdateModifierGroupPayload>(
+  return apiRequest<ModifierGroupMutationResult, UpdateModifierGroupPayload>(
     `/menu-admin/modifier-groups/${groupId}`,
     {
       method: "PATCH",
@@ -270,7 +285,7 @@ export function updateModifierGroup(
 }
 
 export function activateModifierGroup(groupId: string, token?: string) {
-  return apiRequest<MenuAdminModifierGroup>(
+  return apiRequest<ModifierGroupMutationResult>(
     `/menu-admin/modifier-groups/${groupId}/activate`,
     {
       method: "POST",
@@ -280,7 +295,7 @@ export function activateModifierGroup(groupId: string, token?: string) {
 }
 
 export function deactivateModifierGroup(groupId: string, token?: string) {
-  return apiRequest<MenuAdminModifierGroup>(
+  return apiRequest<ModifierGroupMutationResult>(
     `/menu-admin/modifier-groups/${groupId}/deactivate`,
     {
       method: "POST",
@@ -294,7 +309,7 @@ export function createModifierOption(
   payload: CreateModifierOptionPayload,
   token?: string
 ) {
-  return apiRequest<MenuAdminModifierOption, CreateModifierOptionPayload>(
+  return apiRequest<CreateModifierOptionResult, CreateModifierOptionPayload>(
     `/menu-admin/modifier-groups/${groupId}/options`,
     {
       method: "POST",
@@ -309,7 +324,7 @@ export function updateModifierOption(
   payload: UpdateModifierOptionPayload,
   token?: string
 ) {
-  return apiRequest<MenuAdminModifierOption, UpdateModifierOptionPayload>(
+  return apiRequest<ModifierOptionMutationResult, UpdateModifierOptionPayload>(
     `/menu-admin/modifier-options/${optionId}`,
     {
       method: "PATCH",
@@ -320,7 +335,7 @@ export function updateModifierOption(
 }
 
 export function activateModifierOption(optionId: string, token?: string) {
-  return apiRequest<MenuAdminModifierOption>(
+  return apiRequest<ModifierOptionMutationResult>(
     `/menu-admin/modifier-options/${optionId}/activate`,
     {
       method: "POST",
@@ -330,7 +345,7 @@ export function activateModifierOption(optionId: string, token?: string) {
 }
 
 export function deactivateModifierOption(optionId: string, token?: string) {
-  return apiRequest<MenuAdminModifierOption>(
+  return apiRequest<ModifierOptionMutationResult>(
     `/menu-admin/modifier-options/${optionId}/deactivate`,
     {
       method: "POST",
@@ -345,7 +360,7 @@ export function createMenuItemModifierGroup(
   token?: string
 ) {
   return apiRequest<
-    MenuAdminItemModifierGroup,
+    CreateMenuItemModifierGroupResult,
     CreateMenuItemModifierGroupPayload
   >(`/menu-admin/items/${itemId}/modifier-groups`, {
     method: "POST",
@@ -359,7 +374,7 @@ export function deleteMenuItemModifierGroup(
   linkId: string,
   token?: string
 ) {
-  return apiRequest<MenuAdminItemModifierGroup>(
+  return apiRequest<DeleteMenuItemModifierGroupResult>(
     `/menu-admin/items/${itemId}/modifier-groups/${linkId}`,
     {
       method: "DELETE",

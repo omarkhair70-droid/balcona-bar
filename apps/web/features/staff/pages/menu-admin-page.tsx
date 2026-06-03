@@ -192,7 +192,7 @@ const emptyItemForm: ItemFormState = {
   description: "",
   imageUrl: "",
   basePrice: "0.00",
-  currency: "USD",
+  currency: "EGP",
   station: "barista",
   status: "active",
   isFeatured: false,
@@ -277,7 +277,7 @@ function buildItemPayload(form: ItemFormState): CreateMenuItemPayload {
     description: form.description.trim() || null,
     imageUrl: form.imageUrl.trim() || null,
     basePriceMinor: menuInputToMinor(form.basePrice),
-    currency: form.currency.trim().toUpperCase() || "USD",
+    currency: form.currency.trim().toUpperCase() || "EGP",
     station: form.station,
     status: form.status,
     isFeatured: form.isFeatured,
@@ -1880,8 +1880,12 @@ function MenuAdminContent() {
 
       return createModifierGroup(companyId, payload, token);
     },
-    onSuccess: (group) => {
-      setSelectedModifierGroupId(group.id);
+    onSuccess: (result) => {
+      setSelectedModifierGroupId(result.modifierGroup.id);
+      setLinkForm((current) => ({
+        ...current,
+        modifierGroupId: result.modifierGroup.id
+      }));
       setModifierGroupForm(emptyModifierGroupForm);
       refreshMenuAdmin();
     }

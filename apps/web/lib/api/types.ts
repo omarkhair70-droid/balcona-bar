@@ -178,6 +178,28 @@ export type MenuAdminBranchOverride = {
   menuItem?: MenuItemSummary;
 };
 
+export type MenuAdminItemDetail = {
+  id: string;
+  companyId: string;
+  categoryId: string;
+  name: string;
+  slug: string;
+  description?: string | null;
+  imageUrl?: string | null;
+  basePriceMinor: number;
+  effectivePriceMinor: number;
+  currency: string;
+  station: MenuAdminPreparationStation;
+  status: MenuAdminItemStatus;
+  isFeatured: boolean;
+  sortOrder: number;
+  createdAt?: string;
+  updatedAt?: string;
+  category: MenuCategorySummary;
+  modifierGroups: MenuAdminItemModifierGroup[];
+  branchOverrides: MenuAdminBranchOverride[];
+};
+
 export type MenuAdminItem = {
   id: string;
   companyId: string;
@@ -204,10 +226,13 @@ export type MenuAdminItem = {
   customerVisible: boolean;
 };
 
-export type MenuAdminCategory = MenuCategorySummary & {
+export type MenuAdminCategoryRecord = MenuCategorySummary & {
   companyId: string;
   createdAt?: string;
   updatedAt?: string;
+};
+
+export type MenuAdminCategory = MenuAdminCategoryRecord & {
   itemCount: number;
   visibleItemCount: number;
   items: MenuAdminItem[];
@@ -241,6 +266,66 @@ export type MenuAdminOverviewResult = {
   categories: MenuAdminCategory[];
   modifierGroups: MenuAdminModifierGroup[];
   setupIssues: MenuAdminSetupIssue[];
+};
+
+export type CreateMenuCategoryResult = {
+  company: CompanySummary;
+  category: MenuAdminCategoryRecord;
+};
+
+export type MenuCategoryMutationResult = {
+  category: MenuAdminCategoryRecord;
+};
+
+export type CreateMenuItemResult = {
+  company: CompanySummary;
+  category: MenuAdminCategoryRecord;
+  item: MenuAdminItemDetail;
+};
+
+export type MenuItemMutationResult = {
+  item: MenuAdminItemDetail;
+};
+
+export type CreateModifierGroupResult = {
+  company: CompanySummary;
+  modifierGroup: MenuAdminModifierGroup;
+};
+
+export type ModifierGroupMutationResult = {
+  modifierGroup: MenuAdminModifierGroup;
+};
+
+export type CreateModifierOptionResult = {
+  modifierGroup: MenuAdminModifierGroup;
+  option: MenuAdminModifierOption;
+};
+
+export type ModifierOptionMutationResult = {
+  option: MenuAdminModifierOption;
+};
+
+export type UpsertBranchMenuItemOverrideResult = {
+  branch: BranchSummary;
+  item: MenuAdminItemDetail;
+  override: MenuAdminBranchOverride;
+};
+
+export type DeleteBranchMenuItemOverrideResult = {
+  deleted: boolean;
+  branch: BranchSummary;
+  item: MenuAdminItemDetail;
+  override: MenuAdminBranchOverride;
+};
+
+export type CreateMenuItemModifierGroupResult = {
+  item: MenuAdminItemDetail;
+  link: MenuAdminItemModifierGroup;
+};
+
+export type DeleteMenuItemModifierGroupResult = {
+  deleted: boolean;
+  link: MenuAdminItemModifierGroup;
 };
 
 export type CreateMenuCategoryPayload = {
