@@ -603,3 +603,113 @@ export type CancelPreparationTaskPayload = {
   staffUserId?: string;
   reason?: string | null;
 };
+
+export type WaiterCallStatus =
+  | "open"
+  | "acknowledged"
+  | "resolved"
+  | "cancelled"
+  | "all"
+  | string;
+
+export type WaiterCallType =
+  | "call_waiter"
+  | "need_bill"
+  | "need_water"
+  | "need_help"
+  | "order_problem"
+  | "clean_table"
+  | "other"
+  | "all"
+  | string;
+
+export type WaiterCallsQuery = {
+  status?: WaiterCallStatus;
+  type?: WaiterCallType;
+};
+
+export type BranchWaiterCallsResult = {
+  branch: BranchSummary;
+  filters?: Record<string, unknown>;
+  waiterCalls: Record<string, unknown>[];
+};
+
+export type WaiterCallDetailResult = Record<string, unknown> & {
+  waiterCall?: Record<string, unknown>;
+  company?: CompanySummary;
+  branch?: BranchSummary;
+  tableSession?: Record<string, unknown>;
+  floor?: Record<string, unknown> | null;
+  table?: Record<string, unknown>;
+  order?: Record<string, unknown> | null;
+  events?: Record<string, unknown>[];
+};
+
+export type WaiterCallStaffActionPayload = {
+  staffUserId?: string;
+};
+
+export type ResolveWaiterCallPayload = {
+  staffUserId?: string;
+  resolutionNote?: string | null;
+};
+
+export type CancelWaiterCallPayload = {
+  reason?: string | null;
+};
+
+export type TableAttentionStatus =
+  | "normal"
+  | "needs_attention"
+  | "urgent"
+  | "resolved"
+  | "muted"
+  | "all"
+  | string;
+
+export type TableAttentionPriority =
+  | "low"
+  | "medium"
+  | "high"
+  | "urgent"
+  | "all"
+  | string;
+
+export type AttentionQuery = {
+  status?: TableAttentionStatus;
+  priority?: TableAttentionPriority;
+  limit?: number;
+};
+
+export type BranchAttentionQueueResult = {
+  branch: BranchSummary;
+  filters?: Record<string, unknown>;
+  attentionQueue: Record<string, unknown>[];
+};
+
+export type TableSessionAttentionResult = Record<string, unknown> & {
+  tableSession?: Record<string, unknown>;
+  attention?: Record<string, unknown>;
+};
+
+export type RebuildBranchAttentionResult = {
+  branch: BranchSummary;
+  activeSessionCount: number;
+  attentionQueue: Record<string, unknown>[];
+};
+
+export type ResolveAttentionPayload = {
+  staffUserId?: string;
+  note?: string | null;
+};
+
+export type MuteAttentionPayload = {
+  staffUserId?: string;
+  minutes?: number;
+  note?: string | null;
+};
+
+export type RecalculateAttentionPayload = {
+  source?: string;
+  metadata?: Record<string, unknown>;
+};

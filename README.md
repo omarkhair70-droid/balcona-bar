@@ -1,6 +1,6 @@
 # balcona-bar
 
-Balcona Bar is organized as a monorepo for the Cafe AI Waiter App / Smart Cafe Operating System. The backend core is complete through Phase 24, UI Phase 1 adds the first Next.js web foundation for customer and staff experiences, UI Phase 2 adds the customer PWA core, UI Phase 3 adds the customer AI waiter experience, UI Phase 4 adds the cashier dashboard core, and UI Phase 5 adds the kitchen/barista dashboard core.
+Balcona Bar is organized as a monorepo for the Cafe AI Waiter App / Smart Cafe Operating System. The backend core is complete through Phase 24, UI Phase 1 adds the first Next.js web foundation for customer and staff experiences, UI Phase 2 adds the customer PWA core, UI Phase 3 adds the customer AI waiter experience, UI Phase 4 adds the cashier dashboard core, UI Phase 5 adds the kitchen/barista dashboard core, and UI Phase 6 adds the waiter dashboard and attention queue.
 
 ## Layout
 
@@ -114,6 +114,17 @@ Balcona Bar is organized as a monorepo for the Cafe AI Waiter App / Smart Cafe O
    it ready from the preparation dashboard. When all active preparation tasks
    for an order are ready, the backend can move the order toward ready state.
 
+14. Open the waiter dashboard demo:
+
+   ```text
+   http://localhost:3001/staff/waiter
+   ```
+
+   From `/customer`, create a service call or request the bill. Waiter staff
+   can open `/staff/waiter`, acknowledge the call, resolve it, and review table
+   attention signals for waiter calls, bill requests, ready orders not served,
+   preparation delays, and AI waiter escalations.
+
 Useful root scripts:
 
 ```bash
@@ -196,6 +207,22 @@ UI Phase 5 adds the Kitchen / Barista Dashboard Core inside the Staff shell:
 - compact branch activity panel and metrics for task status counts
 
 Waiter dashboard, owner/manager command center, SaaS admin/menu admin, POS/payment, backend behavior changes, drag/drop, and new dependencies remain outside this phase.
+
+## UI Phase 6 status
+
+UI Phase 6 adds the Waiter Dashboard and Attention Queue inside the Staff shell:
+
+- `/staff/waiter` live floor operations screen for selected branch
+- waiter call queue with status and type filters
+- waiter call detail panel with table, session, order, message, and timeline context
+- acknowledge, resolve with optional note, and cancel with optional reason actions
+- table attention queue with active/default, status, and priority filters
+- attention detail panel with score, reasons, recommended actions, metadata, and session context
+- resolve, mute for 15/30/60 minutes, recalculate, and branch rebuild attention actions
+- branch SSE realtime invalidation for waiter calls, table attention, and activity
+- staff overview updated so cashier, kitchen, and waiter surfaces are live
+
+Owner/manager command center, SaaS admin/menu admin, POS/payment, backend behavior changes, floorplan drag/drop, and new dependencies remain outside this phase.
 
 ## API verification
 
@@ -912,6 +939,8 @@ Frontend staff demo:
 http://localhost:3001/staff/login
 http://localhost:3001/staff
 http://localhost:3001/staff/cashier
+http://localhost:3001/staff/kitchen
+http://localhost:3001/staff/waiter
 ```
 
 Use the same local/dev account after password bootstrap:
@@ -932,6 +961,17 @@ Kitchen/barista flow:
 3. Open /staff/kitchen.
 4. Start a pending preparation task.
 5. Mark the task ready.
+```
+
+Waiter/floor flow:
+
+```text
+1. Open /customer and create a service call or request the bill.
+2. Open /staff/waiter.
+3. Acknowledge the waiter call.
+4. Resolve the waiter call after speaking with the table.
+5. Review attention signals created by waiter calls, bill requests, ready orders not served, preparation delays, or AI escalations.
+6. Resolve, mute, or recalculate table attention from the detail panel.
 ```
 
 Table-session start/resume responses now include a `customerAccess` object with a one-time returned customer access token. Current customer endpoints remain backwards-compatible; the token foundation is ready for the future PWA ownership guard rollout.
@@ -994,3 +1034,4 @@ Backend core is now ready for UI Phase 1 planning. Remaining production work inc
 - UI Phase 3 AI waiter customer experience: `docs/architecture/ui-phase-3-ai-waiter-customer-experience.md`
 - UI Phase 4 cashier dashboard core: `docs/architecture/ui-phase-4-cashier-dashboard-core.md`
 - UI Phase 5 kitchen/barista dashboard core: `docs/architecture/ui-phase-5-kitchen-barista-dashboard-core.md`
+- UI Phase 6 waiter dashboard and attention queue: `docs/architecture/ui-phase-6-waiter-dashboard-attention-queue.md`

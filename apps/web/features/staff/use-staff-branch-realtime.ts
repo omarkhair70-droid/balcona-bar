@@ -22,6 +22,10 @@ const SOUND_EVENT_TYPES = new Set([
   "bill_requested",
   "preparation_task_created",
   "preparation_task_ready",
+  "waiter_call_created",
+  "table_attention_updated",
+  "table_attention_resolved",
+  "branch_attention_queue_updated",
   "smart_cashier_manual_review_required"
 ]);
 
@@ -74,6 +78,12 @@ export function useStaffBranchRealtime(
         });
         void queryClient.invalidateQueries({
           queryKey: staffQueryKeys.preparationTasks(branchId)
+        });
+        void queryClient.invalidateQueries({
+          queryKey: staffQueryKeys.staffWaiterCalls(branchId)
+        });
+        void queryClient.invalidateQueries({
+          queryKey: staffQueryKeys.staffAttentionQueue(branchId)
         });
         void queryClient.invalidateQueries({
           queryKey: staffQueryKeys.branchRealtime(branchId)

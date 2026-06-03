@@ -56,5 +56,23 @@ export const staffQueryKeys = {
     "order-preparation-tasks",
     orderId
   ],
+  staffWaiterCalls: (branchId?: string, status?: string, type?: string) =>
+    status === undefined && type === undefined
+      ? ["staff", "waiter-calls", branchId]
+      : ["staff", "waiter-calls", branchId, status, type],
+  staffWaiterCall: (waiterCallId?: string) => [
+    "staff",
+    "waiter-call",
+    waiterCallId
+  ],
+  staffAttentionQueue: (branchId?: string, status?: string, priority?: string) =>
+    status === undefined && priority === undefined
+      ? ["staff", "attention-queue", branchId]
+      : ["staff", "attention-queue", branchId, status, priority],
+  staffTableSessionAttention: (sessionId?: string) => [
+    "staff",
+    "table-session-attention",
+    sessionId
+  ],
   branchRealtime: (branchId?: string) => ["staff", "branch-realtime", branchId]
 } as const;
