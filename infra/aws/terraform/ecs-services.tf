@@ -88,8 +88,8 @@ resource "aws_ecs_service" "api" {
   launch_type     = "FARGATE"
 
   network_configuration {
-    subnets         = aws_subnet.private_app[*].id
-    security_groups = [aws_security_group.ecs.id]
+    subnets          = aws_subnet.private_app[*].id
+    security_groups  = [aws_security_group.ecs.id]
     assign_public_ip = false
   }
 
@@ -112,8 +112,8 @@ resource "aws_ecs_service" "web" {
   launch_type     = "FARGATE"
 
   network_configuration {
-    subnets         = aws_subnet.private_app[*].id
-    security_groups = [aws_security_group.ecs.id]
+    subnets          = aws_subnet.private_app[*].id
+    security_groups  = [aws_security_group.ecs.id]
     assign_public_ip = false
   }
 
