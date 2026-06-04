@@ -142,8 +142,57 @@ export function getBillRequestFloor(value: unknown) {
   return getRecord(envelope.floor) ?? getRecord(tableSession?.floor);
 }
 
+export function getBillRecord(value: unknown) {
+  const envelope = getBillEnvelopeRecord(value);
+  const billRequest = getRecord(envelope.billRequest);
+
+  return getRecord(envelope.bill) ?? getRecord(billRequest?.bill) ?? {};
+}
+
+export function getBillId(value: unknown) {
+  return getRecordString(getBillRecord(value), "id");
+}
+
+export function getBillNumber(value: unknown) {
+  const bill = getBillRecord(value);
+
+  return getRecordString(bill, "billNumber") || getBillId(value);
+}
+
+export function getBillStatus(value: unknown) {
+  return getRecordString(getBillRecord(value), "status");
+}
+
+export function getBillLines(value: unknown) {
+  const envelope = getBillEnvelopeRecord(value);
+  const bill = getBillRecord(value);
+
+  return getRecordArray(envelope.lines).length > 0
+    ? getRecordArray(envelope.lines)
+    : getRecordArray(bill.lines);
+}
+
+export function getBillManualPayments(value: unknown) {
+  const envelope = getBillEnvelopeRecord(value);
+  const bill = getBillRecord(value);
+
+  return getRecordArray(envelope.manualPayments).length > 0
+    ? getRecordArray(envelope.manualPayments)
+    : getRecordArray(bill.manualPayments);
+}
+
+export function getBillReceipt(value: unknown) {
+  const envelope = getBillEnvelopeRecord(value);
+  const bill = getBillRecord(value);
+
+  return getRecord(envelope.receipt) ?? getRecord(bill.receipt);
+}
+
 export function getBillTotals(value: unknown) {
-  return getRecord(getBillEnvelopeRecord(value).totals);
+  const envelope = getBillEnvelopeRecord(value);
+  const bill = getBillRecord(value);
+
+  return getRecord(envelope.totals) ?? bill;
 }
 
 export function getBillableOrders(value: unknown) {

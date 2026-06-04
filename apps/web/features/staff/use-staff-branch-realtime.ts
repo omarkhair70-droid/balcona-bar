@@ -77,6 +77,9 @@ export function useStaffBranchRealtime(
           queryKey: staffQueryKeys.branchBillRequests(branchId)
         });
         void queryClient.invalidateQueries({
+          queryKey: staffQueryKeys.branchBills(branchId)
+        });
+        void queryClient.invalidateQueries({
           queryKey: staffQueryKeys.preparationTasks(branchId)
         });
         void queryClient.invalidateQueries({

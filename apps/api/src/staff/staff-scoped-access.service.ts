@@ -156,6 +156,19 @@ export class StaffScopedAccessService {
     );
   }
 
+  async assertCanForBill(
+    staffUserId: string,
+    permission: StaffPermission,
+    billId: string,
+  ) {
+    const bill = await this.prisma.bill.findUnique({
+      where: { id: billId },
+      select: { companyId: true, branchId: true },
+    });
+
+    return this.assertCanForRecord(staffUserId, permission, bill, 'Bill');
+  }
+
   async assertCanForTableSession(
     staffUserId: string,
     permission: StaffPermission,

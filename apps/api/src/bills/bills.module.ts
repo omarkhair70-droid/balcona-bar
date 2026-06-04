@@ -1,23 +1,22 @@
 import { Module } from '@nestjs/common';
 import { AutopilotModule } from '../autopilot/autopilot.module';
-import { BillsModule } from '../bills/bills.module';
 import { PresenceNotificationsModule } from '../presence-notifications/presence-notifications.module';
 import { PrismaModule } from '../prisma/prisma.module';
 import { RealtimeEventsModule } from '../realtime-events/realtime-events.module';
 import { StaffModule } from '../staff/staff.module';
-import { BillRequestsController } from './bill-requests.controller';
-import { BillRequestsService } from './bill-requests.service';
+import { BillsController } from './bills.controller';
+import { BillsService } from './bills.service';
 
 @Module({
   imports: [
     PrismaModule,
     AutopilotModule,
-    BillsModule,
     PresenceNotificationsModule,
     RealtimeEventsModule,
     StaffModule,
   ],
-  controllers: [BillRequestsController],
-  providers: [BillRequestsService],
+  controllers: [BillsController],
+  providers: [BillsService],
+  exports: [BillsService],
 })
-export class BillRequestsModule {}
+export class BillsModule {}

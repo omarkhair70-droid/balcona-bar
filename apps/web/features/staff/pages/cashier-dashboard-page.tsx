@@ -42,20 +42,21 @@ import {
   acceptOrder,
   acknowledgeBillRequest,
   cancelOrder,
-  closeBillRequest,
   completeOrder,
   getBranchBillRequests,
   getBranchRealtimeEvents,
   getCashierOrders,
   getOrderDetail,
   presentBillRequest,
+  recordManualPayment,
   rejectOrder,
   staffLogout
 } from "@/lib/api/endpoints";
 import { staffQueryKeys } from "@/lib/api/query-keys";
 import type {
   BranchBillRequestStatusFilter,
-  CashierOrderStatus
+  CashierOrderStatus,
+  RecordManualPaymentPayload
 } from "@/lib/api/types";
 import { useStaffAuthStore } from "@/lib/staff/staff-auth-store";
 import { BillRequestQueue } from "../components/bill-request-queue";
@@ -72,7 +73,12 @@ type Notice = {
 
 type BillAction = {
   billRequestId: string;
-  action: "acknowledge" | "present" | "close";
+  action: "acknowledge" | "present";
+};
+
+type ManualPaymentAction = {
+  billId: string;
+  payload: RecordManualPaymentPayload;
 };
 
 const activeOrderStatuses = new Set([
@@ -277,6 +283,9 @@ function CashierDashboardContent() {
       queryKey: staffQueryKeys.branchBillRequests(selectedBranchId)
     });
     void queryClient.invalidateQueries({
+      queryKey: staffQueryKeys.branchBills(selectedBranchId)
+    });
+    void queryClient.invalidateQueries({
       queryKey: staffQueryKeys.branchRealtime(selectedBranchId)
     });
   };
@@ -394,7 +403,7 @@ function CashierDashboardContent() {
         return presentBillRequest(billRequestId, payload, accessToken);
       }
 
-      return closeBillRequest(billRequestId, payload, accessToken);
+      return acknowledgeBillRequest(billRequestId, payload, accessToken);
     },
     onSuccess: (_, variables) => {
       setNotice({
@@ -403,6 +412,9 @@ function CashierDashboardContent() {
       });
       void queryClient.invalidateQueries({
         queryKey: staffQueryKeys.branchBillRequests(selectedBranchId)
+      });
+      void queryClient.invalidateQueries({
+        queryKey: staffQueryKeys.branchBills(selectedBranchId)
       });
       void queryClient.invalidateQueries({
         queryKey: staffQueryKeys.billRequest(variables.billRequestId)
@@ -415,6 +427,40 @@ function CashierDashboardContent() {
       setNotice({
         tone: "error",
         message: `Bill request action failed. ${error.message}`
+      });
+    }
+  });
+  const manualPaymentMutation = useMutation({
+    mutationFn: ({ billId, payload }: ManualPaymentAction) =>
+      recordManualPayment(billId, payload, accessToken),
+    onSuccess: (_, variables) => {
+      setNotice({
+        tone: "success",
+        message: "Manual payment recorded and receipt generated."
+      });
+      void queryClient.invalidateQueries({
+        queryKey: staffQueryKeys.branchBillRequests(selectedBranchId)
+      });
+      void queryClient.invalidateQueries({
+        queryKey: staffQueryKeys.branchBills(selectedBranchId)
+      });
+      void queryClient.invalidateQueries({
+        queryKey: staffQueryKeys.bill(variables.billId)
+      });
+      void queryClient.invalidateQueries({
+        queryKey: staffQueryKeys.billReceipt(variables.billId)
+      });
+      void queryClient.invalidateQueries({
+        queryKey: staffQueryKeys.branchOrders(selectedBranchId)
+      });
+      void queryClient.invalidateQueries({
+        queryKey: staffQueryKeys.branchRealtime(selectedBranchId)
+      });
+    },
+    onError: (error: Error) => {
+      setNotice({
+        tone: "error",
+        message: `Manual payment could not be recorded. ${error.message}`
       });
     }
   });
@@ -556,6 +602,12 @@ function CashierDashboardContent() {
           isLoading={billRequestsQuery.isPending}
           error={billRequestsQuery.error ?? undefined}
           pendingActionId={billActionMutation.variables?.billRequestId}
+          pendingPaymentId={manualPaymentMutation.variables?.billId}
+          paymentError={
+            manualPaymentMutation.isError
+              ? manualPaymentMutation.error
+              : undefined
+          }
           onStatusChange={setBillStatus}
           onRefresh={refreshBranch}
           onAcknowledge={(billRequestId) =>
@@ -564,8 +616,8 @@ function CashierDashboardContent() {
           onPresent={(billRequestId) =>
             billActionMutation.mutate({ billRequestId, action: "present" })
           }
-          onClose={(billRequestId) =>
-            billActionMutation.mutate({ billRequestId, action: "close" })
+          onRecordManualPayment={(billId, payload) =>
+            manualPaymentMutation.mutate({ billId, payload })
           }
         />
 

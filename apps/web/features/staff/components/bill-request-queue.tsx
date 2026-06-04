@@ -15,6 +15,7 @@ import type { BranchBillRequestStatusFilter } from "@/lib/api/types";
 import { cn } from "@/lib/utils/cn";
 import { getBillRequestId } from "@/features/staff/cashier-data";
 import { humanizeStatus } from "@/features/staff/staff-format";
+import type { RecordManualPaymentPayload } from "@/lib/api/types";
 import { BillRequestCard } from "./bill-request-card";
 
 type BillRequestQueueProps = {
@@ -23,11 +24,16 @@ type BillRequestQueueProps = {
   isLoading?: boolean;
   error?: Error;
   pendingActionId?: string;
+  pendingPaymentId?: string;
+  paymentError?: Error;
   onStatusChange: (status: BranchBillRequestStatusFilter) => void;
   onRefresh: () => void;
   onAcknowledge: (billRequestId: string) => void;
   onPresent: (billRequestId: string) => void;
-  onClose: (billRequestId: string) => void;
+  onRecordManualPayment: (
+    billId: string,
+    payload: RecordManualPaymentPayload
+  ) => void;
 };
 
 const statusOptions: BranchBillRequestStatusFilter[] = [
@@ -44,11 +50,13 @@ export function BillRequestQueue({
   isLoading,
   error,
   pendingActionId,
+  pendingPaymentId,
+  paymentError,
   onStatusChange,
   onRefresh,
   onAcknowledge,
   onPresent,
-  onClose
+  onRecordManualPayment
 }: BillRequestQueueProps) {
   return (
     <Card variant="glass" padding="lg">
@@ -56,7 +64,8 @@ export function BillRequestQueue({
         <div>
           <CardTitle>Bill requests</CardTitle>
           <CardDescription>
-            Active bill requests can be acknowledged, presented, then closed.
+            Present a stable bill, record a manual payment, then issue a
+            receipt. No online payment is taken here.
           </CardDescription>
         </div>
         <Button variant="secondary" size="sm" onClick={onRefresh}>
@@ -103,9 +112,11 @@ export function BillRequestQueue({
                 key={getBillRequestId(billRequest) || String(index)}
                 billRequest={billRequest}
                 pendingActionId={pendingActionId}
+                pendingPaymentId={pendingPaymentId}
+                paymentError={paymentError}
                 onAcknowledge={onAcknowledge}
                 onPresent={onPresent}
-                onClose={onClose}
+                onRecordManualPayment={onRecordManualPayment}
               />
             ))}
           </div>

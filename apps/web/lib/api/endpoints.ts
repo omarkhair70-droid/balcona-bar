@@ -10,8 +10,12 @@ import type {
   BillRequestActionPayload,
   BillRequestDetailResult,
   BillResult,
+  BillDetailResult,
+  BillReceiptResult,
   BranchAttentionQueueResult,
   BranchEffectiveExperience,
+  BranchBillsQuery,
+  BranchBillsResult,
   BranchBillRequestsQuery,
   BranchBillRequestsResult,
   BranchAdminOverviewResult,
@@ -27,6 +31,7 @@ import type {
   BranchRealtimeEventsResult,
   BranchWaiterCallsResult,
   CancelBillRequestPayload,
+  CancelBillPayload,
   CancelPreparationTaskPayload,
   CancelWaiterCallPayload,
   CartResponse,
@@ -78,6 +83,7 @@ import type {
   QrTokenMutationResult,
   RebuildBranchAttentionResult,
   RecalculateAttentionPayload,
+  RecordManualPaymentPayload,
   RejectAiCartProposalPayload,
   ReprintKitchenTicketPayload,
   RequestBillPayload,
@@ -1091,6 +1097,87 @@ export function cancelBillRequest(
       token
     }
   );
+}
+
+export function getBranchBills(
+  branchId: string,
+  query: BranchBillsQuery = {},
+  token?: string
+) {
+  return apiRequest<BranchBillsResult>(`/branches/${branchId}/bills`, {
+    query,
+    token
+  });
+}
+
+export function getBillDetail(billId: string, token?: string) {
+  return apiRequest<BillDetailResult>(`/bills/${billId}`, { token });
+}
+
+export function createBillForBillRequest(
+  billRequestId: string,
+  token?: string
+) {
+  return apiRequest<BillDetailResult>(`/bill-requests/${billRequestId}/bill`, {
+    method: "POST",
+    token
+  });
+}
+
+export function presentBill(
+  billId: string,
+  payload: BillRequestActionPayload = {},
+  token?: string
+) {
+  return apiRequest<BillDetailResult, BillRequestActionPayload>(
+    `/bills/${billId}/present`,
+    {
+      method: "POST",
+      body: payload,
+      token
+    }
+  );
+}
+
+export function recordManualPayment(
+  billId: string,
+  payload: RecordManualPaymentPayload,
+  token?: string
+) {
+  return apiRequest<BillDetailResult, RecordManualPaymentPayload>(
+    `/bills/${billId}/manual-payments`,
+    {
+      method: "POST",
+      body: payload,
+      token
+    }
+  );
+}
+
+export function cancelBill(
+  billId: string,
+  payload: CancelBillPayload = {},
+  token?: string
+) {
+  return apiRequest<BillDetailResult, CancelBillPayload>(
+    `/bills/${billId}/cancel`,
+    {
+      method: "POST",
+      body: payload,
+      token
+    }
+  );
+}
+
+export function generateBillReceipt(billId: string, token?: string) {
+  return apiRequest<BillDetailResult>(`/bills/${billId}/receipt`, {
+    method: "POST",
+    token
+  });
+}
+
+export function getBillReceipt(billId: string, token?: string) {
+  return apiRequest<BillReceiptResult>(`/bills/${billId}/receipt`, { token });
 }
 
 export function getBranchRealtimeEvents(
