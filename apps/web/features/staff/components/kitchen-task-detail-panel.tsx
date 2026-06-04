@@ -67,11 +67,19 @@ export function KitchenTaskDetailPanel({
 }: KitchenTaskDetailPanelProps) {
   const [cancelReason, setCancelReason] = useState("");
   const status = task ? getTaskStatus(task) : undefined;
+  const orderStatus = task ? getTaskOrderStatus(task) : undefined;
   const modifiers = task ? getTaskModifierOptions(task) : [];
   const events = task ? getTaskEvents(task) : [];
-  const canStart = status === "pending";
-  const canReady = status === "pending" || status === "preparing";
-  const canCancel = status === "pending" || status === "preparing";
+  const parentAllowsPreparation =
+    orderStatus === "cashier_accepted" || orderStatus === "preparing";
+  const parentAllowsCancel =
+    parentAllowsPreparation || orderStatus === "ready";
+  const canStart = status === "pending" && parentAllowsPreparation;
+  const canReady =
+    (status === "pending" || status === "preparing") &&
+    parentAllowsPreparation;
+  const canCancel =
+    (status === "pending" || status === "preparing") && parentAllowsCancel;
 
   return (
     <Card variant="glass" padding="lg" className="min-h-[34rem]">

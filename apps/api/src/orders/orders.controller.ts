@@ -16,6 +16,7 @@ import { StaffAuthContext } from '../staff-auth/staff-auth.types';
 import { RequiredPermission } from '../staff/required-permission.decorator';
 import { StaffPermissionGuard } from '../staff/staff-permission.guard';
 import { StaffScopedAccessService } from '../staff/staff-scoped-access.service';
+import { CancelOrderDto } from './dto/cancel-order.dto';
 import { CashierAcceptOrderDto } from './dto/cashier-accept-order.dto';
 import { CashierOrdersQueryDto } from './dto/cashier-orders-query.dto';
 import { CashierRejectOrderDto } from './dto/cashier-reject-order.dto';
@@ -54,6 +55,13 @@ export class OrdersController {
     return this.ordersService.findCashierOrders(params.branchId, query ?? {});
   }
 
+  @Get('branches/:branchId/orders/ready-to-serve')
+  @UseGuards(StaffSessionGuard, StaffPermissionGuard)
+  @RequiredPermission('orders.serve', { branchIdParam: 'branchId' })
+  findReadyToServeOrders(@Param() params: BranchIdParamDto) {
+    return this.ordersService.findReadyToServeOrders(params.branchId);
+  }
+
   @Get('orders/:orderId')
   @UseGuards(StaffSessionGuard)
   async findOne(
@@ -82,7 +90,11 @@ export class OrdersController {
       params.orderId,
     );
 
-    return this.ordersService.accept(params.orderId, body ?? {});
+    return this.ordersService.accept(
+      params.orderId,
+      body ?? {},
+      currentStaff.staffUser.id,
+    );
   }
 
   @Post('orders/:orderId/cashier/reject')
@@ -98,7 +110,11 @@ export class OrdersController {
       params.orderId,
     );
 
-    return this.ordersService.reject(params.orderId, body ?? {});
+    return this.ordersService.reject(
+      params.orderId,
+      body ?? {},
+      currentStaff.staffUser.id,
+    );
   }
 
   @Post('orders/:orderId/serve')
@@ -114,7 +130,11 @@ export class OrdersController {
       params.orderId,
     );
 
-    return this.ordersService.serve(params.orderId, body ?? {});
+    return this.ordersService.serve(
+      params.orderId,
+      body ?? {},
+      currentStaff.staffUser.id,
+    );
   }
 
   @Post('orders/:orderId/complete')
@@ -130,7 +150,31 @@ export class OrdersController {
       params.orderId,
     );
 
-    return this.ordersService.complete(params.orderId, body ?? {});
+    return this.ordersService.complete(
+      params.orderId,
+      body ?? {},
+      currentStaff.staffUser.id,
+    );
+  }
+
+  @Post('orders/:orderId/cancel')
+  @UseGuards(StaffSessionGuard)
+  async cancel(
+    @CurrentStaff() currentStaff: StaffAuthContext,
+    @Param() params: OrderIdParamDto,
+    @Body() body: CancelOrderDto = {},
+  ) {
+    await this.staffScopedAccessService.assertCanForOrder(
+      currentStaff.staffUser.id,
+      'orders.complete',
+      params.orderId,
+    );
+
+    return this.ordersService.cancel(
+      params.orderId,
+      body ?? {},
+      currentStaff.staffUser.id,
+    );
   }
 
   @Get('table-sessions/:sessionId/orders')

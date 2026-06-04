@@ -23,6 +23,7 @@ export const REALTIME_EVENT_TYPES = [
   'order_submitted',
   'order_accepted',
   'order_rejected',
+  'order_cancelled',
   'order_preparation_started',
   'order_preparation_ready',
   'order_served',

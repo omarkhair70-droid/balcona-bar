@@ -9,6 +9,7 @@ import {
   CardHeader,
   CardTitle
 } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/ui/empty-state";
 import { LoadingState } from "@/components/ui/loading-state";
 import {
@@ -18,11 +19,14 @@ import {
   getOrderEvents,
   getOrderFloor,
   getOrderItems,
+  getOrderNextExpectedRole,
   getOrderNumber,
+  getOrderProgressStep,
   getOrderStatus,
   getOrderSubmittedAt,
   getOrderTable,
-  getOrderTotals
+  getOrderTotals,
+  orderAllowsAction
 } from "@/features/staff/cashier-data";
 import {
   formatDateTime,
@@ -43,8 +47,12 @@ type CashierOrderDetailPanelProps = {
   error?: Error;
   acceptPending?: boolean;
   rejectPending?: boolean;
+  cancelPending?: boolean;
+  completePending?: boolean;
   onAccept: () => void;
   onReject: (reason?: string | null) => void;
+  onCancel: (reason: string) => void;
+  onComplete: () => void;
 };
 
 export function CashierOrderDetailPanel({
@@ -53,15 +61,25 @@ export function CashierOrderDetailPanel({
   error,
   acceptPending,
   rejectPending,
+  cancelPending,
+  completePending,
   onAccept,
-  onReject
+  onReject,
+  onCancel,
+  onComplete
 }: CashierOrderDetailPanelProps) {
   const [rejectReason, setRejectReason] = useState("");
+  const [cancelReason, setCancelReason] = useState("");
   const status = order ? getOrderStatus(order) : undefined;
   const totals = order ? getOrderTotals(order) : undefined;
   const items = order ? getOrderItems(order) : [];
   const events = order ? getOrderEvents(order) : [];
-  const canAct = status === "submitted";
+  const canAccept = order ? orderAllowsAction(order, "accept") : false;
+  const canReject = order ? orderAllowsAction(order, "reject") : false;
+  const canCancel = order ? orderAllowsAction(order, "cancel") : false;
+  const canComplete = order ? orderAllowsAction(order, "complete") : false;
+  const progressStep = order ? getOrderProgressStep(order) : "";
+  const nextExpectedRole = order ? getOrderNextExpectedRole(order) : "";
 
   return (
     <Card variant="glass" padding="lg" className="min-h-[34rem]">
@@ -120,6 +138,20 @@ export function CashierOrderDetailPanel({
               {getOrderCustomerNote(order) ? (
                 <div className="mt-4 rounded-card border border-warning/40 bg-warning/10 p-3 text-sm text-warning">
                   {getOrderCustomerNote(order)}
+                </div>
+              ) : null}
+              {progressStep || nextExpectedRole ? (
+                <div className="mt-4 flex flex-wrap gap-2">
+                  {progressStep ? (
+                    <Badge variant="default">
+                      {humanizeStatus(progressStep)}
+                    </Badge>
+                  ) : null}
+                  {nextExpectedRole ? (
+                    <Badge variant="muted">
+                      Next: {humanizeStatus(nextExpectedRole)}
+                    </Badge>
+                  ) : null}
                 </div>
               ) : null}
             </div>
@@ -203,13 +235,22 @@ export function CashierOrderDetailPanel({
             </section>
 
             <CashierActionBar
-              canAct={canAct}
+              canAccept={canAccept}
+              canReject={canReject}
+              canCancel={canCancel}
+              canComplete={canComplete}
               rejectReason={rejectReason}
+              cancelReason={cancelReason}
               acceptPending={acceptPending}
               rejectPending={rejectPending}
+              cancelPending={cancelPending}
+              completePending={completePending}
               onRejectReasonChange={setRejectReason}
+              onCancelReasonChange={setCancelReason}
               onAccept={onAccept}
               onReject={() => onReject(rejectReason.trim() || null)}
+              onCancel={() => onCancel(cancelReason.trim())}
+              onComplete={onComplete}
             />
 
             <section className="grid gap-3">

@@ -34,6 +34,11 @@ import {
   getAttentionSessionId,
   getAttentionStatus
 } from "@/features/staff/attention-data";
+import {
+  getOrderId,
+  getOrderNumber,
+  getOrderStatus
+} from "@/features/staff/cashier-data";
 import { StaffPageShell } from "@/features/staff/staff-page-shell";
 import {
   formatDateTime,
@@ -53,6 +58,7 @@ import {
   getBranchAttentionQueue,
   getBranchRealtimeEvents,
   getBranchWaiterCalls,
+  getReadyToServeOrders,
   getTableSessionAttention,
   getWaiterCallDetail,
   muteTableSessionAttention,
@@ -60,6 +66,7 @@ import {
   recalculateTableSessionAttention,
   resolveTableSessionAttention,
   resolveWaiterCall,
+  serveOrder,
   staffLogout
 } from "@/lib/api/endpoints";
 import { staffQueryKeys } from "@/lib/api/query-keys";
@@ -308,6 +315,12 @@ function WaiterDashboardContent() {
     enabled: Boolean(selectedBranchId && accessToken),
     staleTime: 15_000
   });
+  const readyOrdersQuery = useQuery({
+    queryKey: staffQueryKeys.branchOrders(selectedBranchId, "ready"),
+    queryFn: () => getReadyToServeOrders(selectedBranchId ?? "", accessToken),
+    enabled: Boolean(selectedBranchId && accessToken),
+    staleTime: 10_000
+  });
   const waiterCalls = useMemo(
     () => waiterCallsQuery.data?.waiterCalls ?? emptyRecords,
     [waiterCallsQuery.data?.waiterCalls]
@@ -323,6 +336,10 @@ function WaiterDashboardContent() {
   const allAttentionQueue = useMemo(
     () => allAttentionQuery.data?.attentionQueue ?? attentionQueue,
     [allAttentionQuery.data?.attentionQueue, attentionQueue]
+  );
+  const readyOrders = useMemo(
+    () => readyOrdersQuery.data?.orders ?? emptyRecords,
+    [readyOrdersQuery.data?.orders]
   );
   const selectedWaiterCallStillVisible = useMemo(
     () =>
@@ -400,6 +417,20 @@ function WaiterDashboardContent() {
       });
     }
   };
+  const invalidateOrderState = (orderId?: string) => {
+    void queryClient.invalidateQueries({
+      queryKey: staffQueryKeys.branchOrders(selectedBranchId)
+    });
+    void queryClient.invalidateQueries({
+      queryKey: staffQueryKeys.branchRealtime(selectedBranchId)
+    });
+
+    if (orderId) {
+      void queryClient.invalidateQueries({
+        queryKey: staffQueryKeys.order(orderId)
+      });
+    }
+  };
   const invalidateAttentionState = (sessionId?: string) => {
     void queryClient.invalidateQueries({
       queryKey: staffQueryKeys.staffAttentionQueue(selectedBranchId)
@@ -435,6 +466,19 @@ function WaiterDashboardContent() {
       setNotice({
         tone: "error",
         message: `Waiter call could not be acknowledged. ${error.message}`
+      });
+    }
+  });
+  const serveOrderMutation = useMutation({
+    mutationFn: (orderId: string) => serveOrder(orderId, {}, accessToken),
+    onSuccess: (_, orderId) => {
+      setNotice({ tone: "success", message: "Order marked served." });
+      invalidateOrderState(orderId);
+    },
+    onError: (error: Error) => {
+      setNotice({
+        tone: "error",
+        message: `Order could not be served. ${error.message}`
       });
     }
   });
@@ -670,6 +714,57 @@ function WaiterDashboardContent() {
       </Card>
 
       <NoticeBanner notice={notice} />
+
+      <Card variant="quiet">
+        <CardHeader>
+          <CardTitle>Ready orders</CardTitle>
+          <CardDescription>
+            Serve only orders the backend has moved to ready. Accepted or
+            preparing orders stay with kitchen/barista until ready.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+          {readyOrders.length === 0 ? (
+            <p className="rounded-card border border-dashed bg-surface/70 p-4 text-sm text-muted-foreground">
+              Waiting on kitchen/barista. Ready orders will appear here.
+            </p>
+          ) : null}
+          {readyOrders.map((order, index) => {
+            const orderId = getOrderId(order);
+            const status = getOrderStatus(order);
+
+            return (
+              <div
+                key={orderId || String(index)}
+                className="rounded-card border bg-surface/75 p-4"
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <p className="text-sm font-semibold text-foreground">
+                      {getOrderNumber(order)}
+                    </p>
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      {humanizeStatus(status)}
+                    </p>
+                  </div>
+                  <Button
+                    size="sm"
+                    onClick={() => orderId && serveOrderMutation.mutate(orderId)}
+                    disabled={
+                      !orderId ||
+                      status !== "ready" ||
+                      serveOrderMutation.isPending
+                    }
+                  >
+                    <HandPlatter className="size-4" aria-hidden="true" />
+                    Serve
+                  </Button>
+                </div>
+              </div>
+            );
+          })}
+        </CardContent>
+      </Card>
 
       <section className="grid gap-5 xl:grid-cols-[minmax(20rem,28rem)_1fr]">
         <WaiterCallQueue

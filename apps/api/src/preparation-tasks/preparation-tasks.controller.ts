@@ -84,7 +84,10 @@ export class PreparationTasksController {
       params.taskId,
     );
 
-    return this.preparationTasksService.start(params.taskId, body ?? {});
+    return this.preparationTasksService.start(params.taskId, {
+      ...(body ?? {}),
+      staffUserId: currentStaff.staffUser.id,
+    });
   }
 
   @Post('preparation-tasks/:taskId/ready')
@@ -100,7 +103,10 @@ export class PreparationTasksController {
       params.taskId,
     );
 
-    return this.preparationTasksService.markReady(params.taskId, body ?? {});
+    return this.preparationTasksService.markReady(params.taskId, {
+      ...(body ?? {}),
+      staffUserId: currentStaff.staffUser.id,
+    });
   }
 
   @Post('preparation-tasks/:taskId/cancel')
@@ -116,6 +122,9 @@ export class PreparationTasksController {
       params.taskId,
     );
 
-    return this.preparationTasksService.cancel(params.taskId, body ?? {});
+    return this.preparationTasksService.cancel(params.taskId, {
+      ...(body ?? {}),
+      staffUserId: currentStaff.staffUser.id,
+    });
   }
 }

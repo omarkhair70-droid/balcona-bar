@@ -950,6 +950,24 @@ export type CashierOrdersResult = {
   orders: Record<string, unknown>[];
 };
 
+export type OrderLifecycleAction =
+  | "accept"
+  | "reject"
+  | "serve"
+  | "complete"
+  | "cancel"
+  | string;
+
+export type OrderLifecycleSummary = {
+  status: string;
+  isTerminal: boolean;
+  allowedActions: OrderLifecycleAction[];
+  blockedReasons: Record<string, string>;
+  nextExpectedRole: string;
+  progressStep: string;
+  customerLabel?: string;
+};
+
 export type OrderDetailResult = Record<string, unknown> & {
   order?: Record<string, unknown>;
   company?: CompanySummary;
@@ -961,6 +979,7 @@ export type OrderDetailResult = Record<string, unknown> & {
   events?: Record<string, unknown>[];
   preparationTasks?: Record<string, unknown>[];
   totals?: Record<string, unknown>;
+  lifecycle?: OrderLifecycleSummary;
 };
 
 export type CashierAcceptOrderPayload = {
@@ -970,6 +989,16 @@ export type CashierAcceptOrderPayload = {
 export type CashierRejectOrderPayload = {
   reason?: string | null;
   staffUserId?: string;
+};
+
+export type OrderLifecycleActionPayload = {
+  staffUserId?: string;
+  note?: string | null;
+};
+
+export type CancelOrderPayload = {
+  staffUserId?: string;
+  reason?: string | null;
 };
 
 export type BranchBillRequestStatusFilter =

@@ -23,6 +23,13 @@ import { CashierAcceptOrderDto } from './dto/cashier-accept-order.dto';
 import { CashierOrdersQueryDto } from './dto/cashier-orders-query.dto';
 import { CashierRejectOrderDto } from './dto/cashier-reject-order.dto';
 import { OrderLifecycleActionDto } from './dto/order-lifecycle-action.dto';
+import { CancelOrderDto } from './dto/cancel-order.dto';
+import {
+  explainDeniedTransition,
+  getOrderLifecycleState,
+  OrderLifecycleAction,
+  OrderLifecycleDeniedReason,
+} from './order-lifecycle.policy';
 import { SubmitCartDto } from './dto/submit-cart.dto';
 
 const IDEMPOTENCY_KEY_MAX_LENGTH = 128;
@@ -36,15 +43,6 @@ const SUBMITTED_SESSION_ORDER_STATUSES: OrderStatus[] = [
   OrderStatus.completed,
   OrderStatus.cashier_rejected,
   OrderStatus.cancelled,
-];
-const SERVABLE_ORDER_STATUSES: OrderStatus[] = [
-  OrderStatus.cashier_accepted,
-  OrderStatus.preparing,
-  OrderStatus.ready,
-];
-const COMPLETABLE_ORDER_STATUSES: OrderStatus[] = [
-  OrderStatus.served,
-  OrderStatus.ready,
 ];
 
 type PrismaExecutor = PrismaService | Prisma.TransactionClient;
@@ -96,7 +94,12 @@ export class OrdersService {
         await this.cartService.getValidatedDraftCartForSubmit(sessionId, tx);
       const orderNumber = await this.generateOrderNumber(session.branchId, tx);
       const submittedAt = new Date();
-      const submittedMetadata: Record<string, string> = { cartId: cart.id };
+      const submittedMetadata: Record<string, string> = {
+        cartId: cart.id,
+        action: 'submit',
+        nextStatus: OrderStatus.submitted,
+        source: 'customer',
+      };
 
       if (idempotencyKey) {
         submittedMetadata.idempotencyKey = idempotencyKey;
@@ -206,13 +209,47 @@ export class OrdersService {
     };
   }
 
+  async findReadyToServeOrders(branchId: string) {
+    const branch = await this.prisma.branch.findUnique({
+      where: { id: branchId },
+      select: this.branchSelect(),
+    });
+
+    if (!branch) {
+      throw new NotFoundException('Branch not found');
+    }
+
+    const orders = await this.prisma.order.findMany({
+      where: {
+        branchId,
+        status: OrderStatus.ready,
+      },
+      orderBy: [{ readyAt: 'asc' }, { submittedAt: 'asc' }],
+      include: this.orderInclude(),
+    });
+
+    return {
+      branch,
+      status: OrderStatus.ready,
+      orders: orders.map((order) => this.toOrderResponse(order)),
+    };
+  }
+
   async findOne(orderId: string) {
     return this.getOrderResponse(orderId, this.prisma);
   }
 
-  async accept(orderId: string, body: CashierAcceptOrderDto = {}) {
+  async accept(
+    orderId: string,
+    body: CashierAcceptOrderDto = {},
+    authenticatedStaffUserId?: string,
+  ) {
     return this.prisma.$transaction(async (tx) => {
-      await this.assertStaffUserExists(body.staffUserId, tx);
+      const actorStaffUserId = await this.resolveStaffActor(
+        authenticatedStaffUserId,
+        body.staffUserId,
+        tx,
+      );
 
       const order = await tx.order.findUnique({
         where: { id: orderId },
@@ -223,32 +260,38 @@ export class OrdersService {
         throw new NotFoundException('Order not found');
       }
 
-      if (order.status !== OrderStatus.submitted) {
-        throw new BadRequestException('Only submitted orders can be accepted');
-      }
+      this.assertLifecycleTransition(order, 'accept');
 
       const now = new Date();
 
-      await tx.order.update({
-        where: { id: order.id },
+      const updatedOrder = await tx.order.updateMany({
+        where: { id: order.id, status: order.status },
         data: {
           status: OrderStatus.cashier_accepted,
           cashierAcceptedAt: now,
         },
       });
 
+      this.assertFreshTransition(updatedOrder.count);
+
       await tx.orderEvent.create({
         data: {
           orderId: order.id,
           type: OrderEventType.cashier_accepted,
           actorType: OrderEventActorType.staff,
-          actorStaffUserId: body.staffUserId,
+          actorStaffUserId,
+          metadata: this.transitionMetadata(
+            order.status,
+            OrderStatus.cashier_accepted,
+            'accept',
+            'cashier',
+          ),
         },
       });
 
       await this.preparationTasksService.createTasksForAcceptedOrder(
         order.id,
-        body.staffUserId,
+        actorStaffUserId,
         tx,
       );
 
@@ -268,9 +311,17 @@ export class OrdersService {
     });
   }
 
-  async reject(orderId: string, body: CashierRejectOrderDto = {}) {
+  async reject(
+    orderId: string,
+    body: CashierRejectOrderDto = {},
+    authenticatedStaffUserId?: string,
+  ) {
     return this.prisma.$transaction(async (tx) => {
-      await this.assertStaffUserExists(body.staffUserId, tx);
+      const actorStaffUserId = await this.resolveStaffActor(
+        authenticatedStaffUserId,
+        body.staffUserId,
+        tx,
+      );
 
       const order = await tx.order.findUnique({
         where: { id: orderId },
@@ -281,15 +332,13 @@ export class OrdersService {
         throw new NotFoundException('Order not found');
       }
 
-      if (order.status !== OrderStatus.submitted) {
-        throw new BadRequestException('Only submitted orders can be rejected');
-      }
+      this.assertLifecycleTransition(order, 'reject');
 
       const rejectionReason = this.normalizeOptionalText(body.reason);
       const now = new Date();
 
-      await tx.order.update({
-        where: { id: order.id },
+      const updatedOrder = await tx.order.updateMany({
+        where: { id: order.id, status: order.status },
         data: {
           status: OrderStatus.cashier_rejected,
           cashierRejectedAt: now,
@@ -297,13 +346,21 @@ export class OrdersService {
         },
       });
 
+      this.assertFreshTransition(updatedOrder.count);
+
       await tx.orderEvent.create({
         data: {
           orderId: order.id,
           type: OrderEventType.cashier_rejected,
           actorType: OrderEventActorType.staff,
-          actorStaffUserId: body.staffUserId,
-          metadata: rejectionReason ? { reason: rejectionReason } : undefined,
+          actorStaffUserId,
+          metadata: this.transitionMetadata(
+            order.status,
+            OrderStatus.cashier_rejected,
+            'reject',
+            'cashier',
+            rejectionReason ? { reason: rejectionReason } : undefined,
+          ),
         },
       });
 
@@ -324,9 +381,17 @@ export class OrdersService {
     });
   }
 
-  async serve(orderId: string, body: OrderLifecycleActionDto = {}) {
+  async serve(
+    orderId: string,
+    body: OrderLifecycleActionDto = {},
+    authenticatedStaffUserId?: string,
+  ) {
     return this.prisma.$transaction(async (tx) => {
-      await this.assertStaffUserExists(body.staffUserId, tx);
+      const actorStaffUserId = await this.resolveStaffActor(
+        authenticatedStaffUserId,
+        body.staffUserId,
+        tx,
+      );
 
       const order = await tx.order.findUnique({
         where: { id: orderId },
@@ -345,44 +410,35 @@ export class OrdersService {
         throw new NotFoundException('Order not found');
       }
 
-      if (!SERVABLE_ORDER_STATUSES.includes(order.status)) {
-        throw new BadRequestException(
-          'Only accepted, preparing, or ready orders can be served',
-        );
-      }
-
-      if (
-        order.preparationTasks.length > 0 &&
-        order.preparationTasks.some(
-          (task) => task.status !== PreparationTaskStatus.ready,
-        )
-      ) {
-        throw new BadRequestException(
-          'Orders with preparation tasks can only be served after all active tasks are ready',
-        );
-      }
+      this.assertLifecycleTransition(order, 'serve');
 
       const note = this.normalizeOptionalText(body.note);
       const now = new Date();
 
-      await tx.order.update({
-        where: { id: order.id },
+      const updatedOrder = await tx.order.updateMany({
+        where: { id: order.id, status: order.status },
         data: {
           status: OrderStatus.served,
           servedAt: now,
-          servedByStaffUserId: body.staffUserId,
+          servedByStaffUserId: actorStaffUserId,
         },
       });
+
+      this.assertFreshTransition(updatedOrder.count);
 
       await tx.orderEvent.create({
         data: {
           orderId: order.id,
           type: OrderEventType.served,
-          actorType: body.staffUserId
-            ? OrderEventActorType.staff
-            : OrderEventActorType.system,
-          actorStaffUserId: body.staffUserId,
-          metadata: note ? { note } : undefined,
+          actorType: OrderEventActorType.staff,
+          actorStaffUserId,
+          metadata: this.transitionMetadata(
+            order.status,
+            OrderStatus.served,
+            'serve',
+            'waiter',
+            note ? { note } : undefined,
+          ),
         },
       });
 
@@ -399,9 +455,17 @@ export class OrdersService {
     });
   }
 
-  async complete(orderId: string, body: OrderLifecycleActionDto = {}) {
+  async complete(
+    orderId: string,
+    body: OrderLifecycleActionDto = {},
+    authenticatedStaffUserId?: string,
+  ) {
     return this.prisma.$transaction(async (tx) => {
-      await this.assertStaffUserExists(body.staffUserId, tx);
+      const actorStaffUserId = await this.resolveStaffActor(
+        authenticatedStaffUserId,
+        body.staffUserId,
+        tx,
+      );
 
       const order = await tx.order.findUnique({
         where: { id: orderId },
@@ -412,34 +476,36 @@ export class OrdersService {
         throw new NotFoundException('Order not found');
       }
 
-      if (!COMPLETABLE_ORDER_STATUSES.includes(order.status)) {
-        throw new BadRequestException(
-          'Only served or ready orders can be completed',
-        );
-      }
+      this.assertLifecycleTransition(order, 'complete');
 
       const note = this.normalizeOptionalText(body.note);
       const now = new Date();
 
-      await tx.order.update({
-        where: { id: order.id },
+      const updatedOrder = await tx.order.updateMany({
+        where: { id: order.id, status: order.status },
         data: {
           status: OrderStatus.completed,
           completedAt: now,
-          completedByStaffUserId: body.staffUserId,
+          completedByStaffUserId: actorStaffUserId,
           completionNote: note,
         },
       });
+
+      this.assertFreshTransition(updatedOrder.count);
 
       await tx.orderEvent.create({
         data: {
           orderId: order.id,
           type: OrderEventType.completed,
-          actorType: body.staffUserId
-            ? OrderEventActorType.staff
-            : OrderEventActorType.system,
-          actorStaffUserId: body.staffUserId,
-          metadata: note ? { note } : undefined,
+          actorType: OrderEventActorType.staff,
+          actorStaffUserId,
+          metadata: this.transitionMetadata(
+            order.status,
+            OrderStatus.completed,
+            'complete',
+            'cashier',
+            note ? { note } : undefined,
+          ),
         },
       });
 
@@ -449,6 +515,88 @@ export class OrdersService {
         tx,
         'order_completed',
         { orderId: order.id },
+      );
+
+      return this.getOrderResponse(order.id, tx);
+    });
+  }
+
+  async cancel(
+    orderId: string,
+    body: CancelOrderDto = {},
+    authenticatedStaffUserId?: string,
+  ) {
+    return this.prisma.$transaction(async (tx) => {
+      const actorStaffUserId = await this.resolveStaffActor(
+        authenticatedStaffUserId,
+        body.staffUserId,
+        tx,
+      );
+      const reason = this.normalizeOptionalText(body.reason);
+
+      if (!reason) {
+        throw this.lifecycleBadRequest(
+          'cancellation_requires_reason',
+          'Cancellation requires a reason',
+        );
+      }
+
+      const order = await tx.order.findUnique({
+        where: { id: orderId },
+        select: {
+          id: true,
+          tableSessionId: true,
+          status: true,
+          preparationTasks: {
+            where: { status: { not: PreparationTaskStatus.cancelled } },
+            select: { id: true, status: true },
+          },
+        },
+      });
+
+      if (!order) {
+        throw new NotFoundException('Order not found');
+      }
+
+      this.assertLifecycleTransition(order, 'cancel');
+
+      const updatedOrder = await tx.order.updateMany({
+        where: { id: order.id, status: order.status },
+        data: {
+          status: OrderStatus.cancelled,
+        },
+      });
+
+      this.assertFreshTransition(updatedOrder.count);
+
+      await tx.orderEvent.create({
+        data: {
+          orderId: order.id,
+          type: OrderEventType.cancelled,
+          actorType: OrderEventActorType.staff,
+          actorStaffUserId,
+          metadata: this.transitionMetadata(
+            order.status,
+            OrderStatus.cancelled,
+            'cancel',
+            'cashier',
+            { reason },
+          ),
+        },
+      });
+
+      await this.preparationTasksService.cancelActiveTasksForOrderCancellation(
+        order.id,
+        actorStaffUserId,
+        reason,
+        tx,
+      );
+      await this.realtimeEventsService.recordOrderCancelled(order.id, tx);
+      await this.recalculateAttention(
+        order.tableSessionId,
+        tx,
+        'order_cancelled',
+        { orderId: order.id, reason },
       );
 
       return this.getOrderResponse(order.id, tx);
@@ -564,6 +712,71 @@ export class OrdersService {
     if (!staffUser) {
       throw new NotFoundException('Staff user not found');
     }
+  }
+
+  private async resolveStaffActor(
+    authenticatedStaffUserId: string | undefined,
+    bodyStaffUserId: string | undefined,
+    tx: PrismaExecutor,
+  ) {
+    const staffUserId = authenticatedStaffUserId ?? bodyStaffUserId;
+
+    if (!staffUserId) {
+      throw this.lifecycleBadRequest(
+        'missing_staff_actor',
+        'Staff actor is required for this order transition',
+      );
+    }
+
+    await this.assertStaffUserExists(staffUserId, tx);
+
+    return staffUserId;
+  }
+
+  private assertLifecycleTransition(
+    order: { status: OrderStatus; preparationTasks?: { status: PreparationTaskStatus }[] },
+    action: OrderLifecycleAction,
+  ) {
+    const reason = explainDeniedTransition(order, action);
+
+    if (reason) {
+      throw this.lifecycleBadRequest(reason);
+    }
+  }
+
+  private assertFreshTransition(updatedCount: number) {
+    if (updatedCount === 0) {
+      throw this.lifecycleBadRequest(
+        'stale_order_state',
+        'Order state changed before the transition could be saved',
+      );
+    }
+  }
+
+  private lifecycleBadRequest(
+    code: OrderLifecycleDeniedReason,
+    message: string = code,
+  ) {
+    return new BadRequestException({
+      code,
+      message,
+    });
+  }
+
+  private transitionMetadata(
+    previousStatus: OrderStatus,
+    nextStatus: OrderStatus,
+    action: OrderLifecycleAction,
+    source: 'cashier' | 'kitchen' | 'waiter' | 'system' | 'customer',
+    extra?: Record<string, unknown>,
+  ) {
+    return {
+      previousStatus,
+      nextStatus,
+      action,
+      source,
+      ...extra,
+    };
   }
 
   private async recalculateAttention(
@@ -703,6 +916,10 @@ export class OrdersService {
         itemCount: order.itemCount,
         currency: order.currency,
       },
+      lifecycle: getOrderLifecycleState({
+        status: order.status,
+        preparationTasks: preparationTasks ?? [],
+      }),
       ...(idempotency ? { idempotency } : {}),
     };
   }
