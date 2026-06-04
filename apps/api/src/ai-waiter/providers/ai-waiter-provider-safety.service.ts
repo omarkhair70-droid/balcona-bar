@@ -547,6 +547,7 @@ export class AiWaiterProviderSafetyService {
 
   private intentValue(value: unknown): GroqAiWaiterPlan["intent"] {
     const allowed: GroqAiWaiterPlan["intent"][] = [
+      "open_conversation",
       "recommendation",
       "specific_item_request",
       "cart_proposal",

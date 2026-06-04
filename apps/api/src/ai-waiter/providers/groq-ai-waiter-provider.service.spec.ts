@@ -1,9 +1,15 @@
 import { ConfigService } from "@nestjs/config";
-import { AiWaiterMessageKind } from "@prisma/client";
+import {
+  AiWaiterMessageKind,
+  AiWaiterToolCallStatus,
+  AiWaiterToolName,
+} from "@prisma/client";
 import { AiWaiterContext } from "../ai-waiter.types";
 import { AiWaiterProviderSafetyService } from "./ai-waiter-provider-safety.service";
 import { AiWaiterProviderError } from "./groq-ai-waiter.types";
 import { GroqAiWaiterProviderService } from "./groq-ai-waiter-provider.service";
+
+const longMessage = `${"study ".repeat(80)}keep this trimmed`;
 
 const context: AiWaiterContext = {
   tableSession: {
@@ -12,6 +18,7 @@ const context: AiWaiterContext = {
     branchId: "branch-1",
     tableId: "table-1",
     status: "active",
+    partySize: 3,
   },
   branch: {
     id: "branch-1",
@@ -20,13 +27,34 @@ const context: AiWaiterContext = {
     slug: "main",
   },
   effectiveExperience: {},
-  cartSummary: { items: [] },
+  cartSummary: {
+    items: [
+      { quantity: 2 },
+      { quantity: 1 },
+    ],
+    totals: {
+      itemCount: 2,
+      totalQuantity: 3,
+    },
+  },
   recentMessages: [
     {
-      role: "assistant",
-      kind: "status",
-      content: "Welcome",
+      role: "customer",
+      kind: "text",
+      content: "first message should be omitted",
       createdAt: new Date("2026-01-01T00:00:00.000Z"),
+    },
+    {
+      role: "assistant",
+      kind: "text",
+      content: longMessage,
+      createdAt: new Date("2026-01-01T00:01:00.000Z"),
+    },
+    {
+      role: "customer",
+      kind: "text",
+      content: "عايز حاجة تساعدني أذاكر",
+      createdAt: new Date("2026-01-01T00:02:00.000Z"),
     },
   ],
   menuItems: [
@@ -57,6 +85,15 @@ const context: AiWaiterContext = {
         },
       ],
     },
+    ...Array.from({ length: 6 }, (_, index) => ({
+      id: `item-extra-${index + 1}`,
+      slug: `extra-${index + 1}`,
+      name: `Extra Item ${index + 1}`,
+      description: `Extra item ${index + 1} description`,
+      currency: "EGP",
+      isFeatured: false,
+      modifierGroups: [],
+    })),
   ],
 };
 
@@ -66,7 +103,7 @@ function config(overrides: Record<string, unknown> = {}) {
     "aiWaiter.groq.model": "test-model",
     "aiWaiter.groq.timeoutMs": 1000,
     "aiWaiter.groq.maxRetries": 1,
-    "aiWaiter.groq.maxContextItems": 8,
+    "aiWaiter.groq.maxContextItems": undefined,
     "aiWaiter.groq.dryRun": false,
     ...overrides,
   };
@@ -76,30 +113,9 @@ function config(overrides: Record<string, unknown> = {}) {
   } as unknown as ConfigService;
 }
 
-function validPlanResponse(content?: string) {
+function groqResponse(content: string) {
   return {
-    choices: [
-      {
-        message: {
-          content:
-            content ??
-            JSON.stringify({
-              customerMessage: "عايز حاجة ساقعة",
-              language: "ar-EG",
-              intent: "recommendation",
-              confidence: 0.86,
-              assistantMessage: "أنصحك بليمون نعناع من المنيو المتاح.",
-              suggestedActions: ["show_menu", "choose_item"],
-              menuItemCandidates: [{ menuItemId: "item-lemon-mint" }],
-              proposedCart: null,
-              missingRequiredModifier: null,
-              safety: {
-                requiresHumanFallback: false,
-              },
-            }),
-        },
-      },
-    ],
+    choices: [{ message: { content } }],
     usage: {
       prompt_tokens: 100,
       completion_tokens: 50,
@@ -108,18 +124,27 @@ function validPlanResponse(content?: string) {
   };
 }
 
-function contextWithMenuItemCount(count: number): AiWaiterContext {
+function actionResponse(
+  visibleText: string,
+  action: Record<string, unknown>,
+) {
+  return `${visibleText}\n\nBALCONA_ACTION_JSON:\n${JSON.stringify(action)}`;
+}
+
+function createProvider(overrides: Record<string, unknown> = {}) {
+  return new GroqAiWaiterProviderService(
+    config(overrides),
+    new AiWaiterProviderSafetyService(),
+  );
+}
+
+function requestBody(fetchMock: jest.Mock) {
+  const [, init] = fetchMock.mock.calls[0];
+
   return {
-    ...context,
-    menuItems: Array.from({ length: count }, (_, index) => ({
-      id: `item-${index + 1}`,
-      slug: `item-${index + 1}`,
-      name: `Menu Item ${index + 1}`,
-      description: `Menu item ${index + 1} description`,
-      currency: "EGP",
-      isFeatured: index < 2,
-      modifierGroups: context.menuItems[0]?.modifierGroups ?? [],
-    })),
+    init,
+    body: JSON.parse(String(init.body)),
+    bodyText: String(init.body),
   };
 }
 
@@ -131,207 +156,280 @@ describe("GroqAiWaiterProviderService", () => {
     global.fetch = fetchMock as unknown as typeof fetch;
   });
 
-  it("sends Groq request with auth, compact menu context, and JSON response format", async () => {
+  it("accepts plain Arabic text as open chat without falling back to stub", async () => {
     fetchMock.mockResolvedValue(
-      new Response(JSON.stringify(validPlanResponse()), { status: 200 }),
-    );
-    const provider = new GroqAiWaiterProviderService(
-      config(),
-      new AiWaiterProviderSafetyService(),
+      new Response(
+        JSON.stringify(groqResponse("فاهمك. تحب حاجة رايقة ولا حاجة تفوقك؟")),
+        { status: 200 },
+      ),
     );
 
-    const result = await provider.respond(context, {
-      message: "عايز حاجة ساقعة",
+    const result = await createProvider().respond(context, {
+      message: "أنا مخنوق",
       language: "ar-EG",
     });
-    const [, init] = fetchMock.mock.calls[0];
-    const body = JSON.parse(String(init.body));
-    const contextMessage = JSON.parse(body.messages[1].content);
 
-    expect(init.headers.Authorization).toBe("Bearer test-groq-key");
-    expect(body.model).toBe("test-model");
-    expect(body.temperature).toBe(0.2);
-    expect(body.response_format).toEqual({ type: "json_object" });
-    expect(contextMessage.menuItems[0]).toMatchObject({
-      id: "item-lemon-mint",
-      slug: "lemon-mint",
-      name: "Lemon Mint",
-    });
-    expect(Object.keys(contextMessage.menuItems[0]).sort()).toEqual([
-      "description",
-      "id",
-      "isFeatured",
-      "name",
-      "slug",
-    ]);
-    expect(String(init.body)).not.toContain("modifierGroups");
-    expect(String(init.body)).not.toContain("options");
-    expect(String(init.body)).not.toContain("test-groq-key");
+    expect(result.kind).toBe(AiWaiterMessageKind.text);
+    expect(result.content).toContain("فاهمك");
     expect(result.metadata).toMatchObject({
       provider: "groq",
-      model: "test-model",
-      promptTokens: 100,
-      totalTokens: 150,
-      requestBodySizeBytes: Buffer.byteLength(String(init.body), "utf8"),
+      mode: "open_chat",
+      normalizationUsed: true,
+      fallbackUsed: false,
     });
   });
 
-  it("keeps request context compact with GROQ_MAX_CONTEXT_ITEMS=8", async () => {
-    fetchMock.mockResolvedValue(
-      new Response(JSON.stringify(validPlanResponse()), { status: 200 }),
-    );
-    const provider = new GroqAiWaiterProviderService(
-      config({ "aiWaiter.groq.maxContextItems": 8 }),
-      new AiWaiterProviderSafetyService(),
-    );
-
-    await provider.respond(contextWithMenuItemCount(20), {
-      message: "recommend",
-      language: "en",
-    });
-    const [, init] = fetchMock.mock.calls[0];
-    const body = JSON.parse(String(init.body));
-    const contextMessage = JSON.parse(body.messages[1].content);
-
-    expect(contextMessage.menuItems).toHaveLength(8);
-    expect(contextMessage.omittedMenuItemCount).toBe(12);
-    expect(String(init.body)).not.toContain("modifierGroups");
-    expect(String(init.body)).not.toContain("options");
-    expect(Buffer.byteLength(String(init.body), "utf8")).toBeLessThan(12_000);
-  });
-
-  it("retries once on 429 and then parses a valid response", async () => {
-    fetchMock
-      .mockResolvedValueOnce(new Response("rate limited", { status: 429 }))
-      .mockResolvedValueOnce(
-        new Response(JSON.stringify(validPlanResponse()), { status: 200 }),
-      );
-    const provider = new GroqAiWaiterProviderService(
-      config(),
-      new AiWaiterProviderSafetyService(),
-    );
-
-    const result = await provider.respond(context, {
-      message: "recommend",
-      language: "en",
-    });
-
-    expect(fetchMock).toHaveBeenCalledTimes(2);
-    expect(result.content).toContain("ليمون");
-  });
-
-  it("retries invalid JSON once with a JSON-only instruction and then succeeds", async () => {
-    fetchMock
-      .mockResolvedValueOnce(
-        new Response(JSON.stringify(validPlanResponse("not json")), {
-          status: 200,
-        }),
-      )
-      .mockResolvedValueOnce(
-        new Response(JSON.stringify(validPlanResponse()), { status: 200 }),
-      );
-    const provider = new GroqAiWaiterProviderService(
-      config(),
-      new AiWaiterProviderSafetyService(),
-    );
-
-    const result = await provider.respond(context, {
-      message: "hello",
-      language: "en",
-    });
-    const [, retryInit] = fetchMock.mock.calls[1];
-    const retryBody = JSON.parse(String(retryInit.body));
-    const retryInput = JSON.parse(retryBody.messages[2].content);
-
-    expect(fetchMock).toHaveBeenCalledTimes(2);
-    expect(retryInput.retryInstruction).toContain("valid JSON only");
-    expect(result.metadata).toMatchObject({ jsonRetryUsed: true });
-  });
-
-  it("normalizes missing arrays and safety before safety validation", async () => {
+  it("accepts plain English text as open chat", async () => {
     fetchMock.mockResolvedValue(
       new Response(
         JSON.stringify(
-          validPlanResponse(
+          groqResponse("A calm study session pairs well with something light."),
+        ),
+        { status: 200 },
+      ),
+    );
+
+    const result = await createProvider().respond(context, {
+      message: "I want to study",
+      language: "en",
+    });
+
+    expect(result.kind).toBe(AiWaiterMessageKind.text);
+    expect(result.content).toContain("study session");
+    expect(result.metadata).toMatchObject({
+      provider: "groq",
+      mode: "open_chat",
+    });
+  });
+
+  it.each([
+    ["general safe question", "What is a good way to focus for 30 minutes?"],
+    ["caption request", "أكيد. جرب: فوق الدوشة، القعدة هنا بتاخد نفس."],
+    ["small talk", "أنا معاك. نحلي القعدة بحاجة بسيطة؟"],
+  ])("accepts %s as open chat", async (_label, responseText) => {
+    fetchMock.mockResolvedValue(
+      new Response(JSON.stringify(groqResponse(responseText)), { status: 200 }),
+    );
+
+    const result = await createProvider().respond(context, {
+      message: "chat with me",
+      language: "mixed",
+    });
+
+    expect(result.kind).toBe(AiWaiterMessageKind.text);
+    expect(result.content).toBe(responseText);
+    expect(result.metadata?.mode).toBe("open_chat");
+  });
+
+  it("accepts partial JSON with assistantMessage", async () => {
+    fetchMock.mockResolvedValue(
+      new Response(
+        JSON.stringify(
+          groqResponse(
             JSON.stringify({
-              customerMessage: "عايز حاجة ساقعة",
-              language: "ar-EG",
               intent: "recommendation",
-              confidence: 0.72,
-              assistantMessage: "تمام، أرشحلك حاجة ساقعة من المنيو.",
+              assistantMessage: "تمام، Lemon Mint اختيار منعش.",
             }),
           ),
         ),
         { status: 200 },
       ),
     );
-    const provider = new GroqAiWaiterProviderService(
-      config(),
-      new AiWaiterProviderSafetyService(),
-    );
 
-    const result = await provider.respond(context, {
+    const result = await createProvider().respond(context, {
       message: "عايز حاجة ساقعة",
       language: "ar-EG",
     });
 
-    expect(fetchMock).toHaveBeenCalledTimes(1);
     expect(result.kind).toBe(AiWaiterMessageKind.menu_suggestion);
-    expect(result.suggestedActions).toContain("show_menu");
+    expect(result.content).toContain("Lemon Mint");
     expect(result.metadata).toMatchObject({
-      confidence: 0.72,
-      jsonRetryUsed: false,
-      safety: {
-        requiresHumanFallback: false,
-        allergyOrHealthConcern: false,
-        refusedUnsafeRequest: false,
-      },
+      mode: "menu_recommendation",
+      normalizationUsed: true,
     });
   });
 
-  it("normalizes assistantMessage and intent only into a complete safe plan", async () => {
+  it.each([
+    ["message", { message: "Message alias works." }],
+    ["response", { response: "Response alias works." }],
+    ["content", { content: "Content alias works." }],
+  ])("accepts partial JSON with %s alias", async (_field, payload) => {
+    fetchMock.mockResolvedValue(
+      new Response(JSON.stringify(groqResponse(JSON.stringify(payload))), {
+        status: 200,
+      }),
+    );
+
+    const result = await createProvider().respond(context, {
+      message: "hello",
+      language: "en",
+    });
+
+    expect(result.kind).toBe(AiWaiterMessageKind.text);
+    expect(result.content).toContain("works");
+    expect(result.metadata?.mode).toBe("open_chat");
+  });
+
+  it("strips hidden action block and maps valid create_cart_proposal", async () => {
     fetchMock.mockResolvedValue(
       new Response(
         JSON.stringify(
-          validPlanResponse(
-            JSON.stringify({
-              assistantMessage: "I can help with the available menu.",
-              intent: "clarification",
+          groqResponse(
+            actionResponse("تمام، أقدر أجهز Lemon Mint كاقتراح في الكارت.", {
+              action: "create_cart_proposal",
+              items: [
+                {
+                  menuItemId: "item-lemon-mint",
+                  quantity: 1,
+                  modifierOptionIds: [],
+                },
+              ],
+              reason: "customer_requested_item",
             }),
           ),
         ),
         { status: 200 },
       ),
     );
-    const provider = new GroqAiWaiterProviderService(
-      config(),
-      new AiWaiterProviderSafetyService(),
-    );
 
-    const result = await provider.respond(context, {
-      message: "hello",
-      language: "en",
+    const result = await createProvider().respond(context, {
+      message: "هات Lemon Mint",
+      language: "mixed",
     });
 
-    expect(fetchMock).toHaveBeenCalledTimes(1);
-    expect(result.kind).toBe(AiWaiterMessageKind.text);
-    expect(result.content).toBe("I can help with the available menu.");
-    expect(result.metadata).toMatchObject({
-      intent: "clarification",
-      confidence: 0.5,
-      safety: {
-        requiresHumanFallback: false,
+    expect(result.kind).toBe(AiWaiterMessageKind.cart_proposal);
+    expect(result.content).not.toContain("BALCONA_ACTION_JSON");
+    expect(result.proposal?.items).toEqual([
+      {
+        menuItemId: "item-lemon-mint",
+        quantity: 1,
+        modifierOptionIds: [],
+        customerNote: undefined,
       },
+    ]);
+    expect(result.metadata).toMatchObject({
+      mode: "commerce_action",
+      provider: "groq",
     });
   });
 
-  it("keeps price fields unsafe after normalization", async () => {
+  it("rejects fake item action but keeps safe visible text", async () => {
     fetchMock.mockResolvedValue(
       new Response(
         JSON.stringify(
-          validPlanResponse(
+          groqResponse(
+            actionResponse("أقدر أساعدك نختار حاجة من المنيو المتاح.", {
+              action: "create_cart_proposal",
+              items: [{ menuItemId: "fake-item", quantity: 1 }],
+            }),
+          ),
+        ),
+        { status: 200 },
+      ),
+    );
+
+    const result = await createProvider().respond(context, {
+      message: "add fake",
+      language: "en",
+    });
+
+    expect(result.kind).toBe(AiWaiterMessageKind.text);
+    expect(result.content).toContain("المنيو المتاح");
+    expect(result.proposal).toBeUndefined();
+    expect(result.metadata).toMatchObject({
+      actionRejected: true,
+      fallbackUsed: false,
+    });
+    expect(result.metadata?.safetyFlags).toContain("unknown_menu_item_rejected");
+  });
+
+  it("rejects invalid modifier action but keeps safe visible text", async () => {
+    fetchMock.mockResolvedValue(
+      new Response(
+        JSON.stringify(
+          groqResponse(
+            actionResponse("أقدر أجهزلك اقتراح بسيط.", {
+              action: "create_cart_proposal",
+              items: [
+                {
+                  menuItemId: "item-lemon-mint",
+                  quantity: 1,
+                  modifierOptionIds: ["fake-option"],
+                },
+              ],
+            }),
+          ),
+        ),
+        { status: 200 },
+      ),
+    );
+
+    const result = await createProvider().respond(context, {
+      message: "add with bad modifier",
+      language: "en",
+    });
+
+    expect(result.kind).toBe(AiWaiterMessageKind.text);
+    expect(result.metadata?.actionRejected).toBe(true);
+    expect(result.metadata?.safetyFlags).toContain("unknown_modifier_rejected");
+  });
+
+  it("rejects oversized quantity action but keeps safe visible text", async () => {
+    fetchMock.mockResolvedValue(
+      new Response(
+        JSON.stringify(
+          groqResponse(
+            actionResponse("خلينا نبدأ باقتراح معقول ونعدله سوا.", {
+              action: "create_cart_proposal",
+              items: [{ menuItemId: "item-lemon-mint", quantity: 99 }],
+            }),
+          ),
+        ),
+        { status: 200 },
+      ),
+    );
+
+    const result = await createProvider().respond(context, {
+      message: "add 99",
+      language: "en",
+    });
+
+    expect(result.kind).toBe(AiWaiterMessageKind.text);
+    expect(result.metadata?.actionRejected).toBe(true);
+    expect(result.metadata?.safetyFlags).toContain("quantity_limit_enforced");
+  });
+
+  it("rejects final_order_submit hidden action", async () => {
+    fetchMock.mockResolvedValue(
+      new Response(
+        JSON.stringify(
+          groqResponse(
+            actionResponse("أقدر أساعدك تراجع الاختيارات الأول.", {
+              action: "final_order_submit",
+            }),
+          ),
+        ),
+        { status: 200 },
+      ),
+    );
+
+    const result = await createProvider().respond(context, {
+      message: "submit",
+      language: "en",
+    });
+
+    expect(result.kind).toBe(AiWaiterMessageKind.text);
+    expect(result.metadata?.actionRejected).toBe(true);
+    expect(result.metadata?.safetyFlags).toContain("unsafe_action_rejected");
+  });
+
+  it("rejects price fields from partial JSON", async () => {
+    fetchMock.mockResolvedValue(
+      new Response(
+        JSON.stringify(
+          groqResponse(
             JSON.stringify({
-              assistantMessage: "This costs 100.",
+              assistantMessage: "This is a nice choice.",
               intent: "recommendation",
               priceMinor: 100,
             }),
@@ -340,12 +438,8 @@ describe("GroqAiWaiterProviderService", () => {
         { status: 200 },
       ),
     );
-    const provider = new GroqAiWaiterProviderService(
-      config(),
-      new AiWaiterProviderSafetyService(),
-    );
 
-    const result = await provider.respond(context, {
+    const result = await createProvider().respond(context, {
       message: "price?",
       language: "en",
     });
@@ -355,134 +449,232 @@ describe("GroqAiWaiterProviderService", () => {
     expect(result.metadata?.safetyFlags).toContain("price_field_rejected");
   });
 
-  it("keeps fake menu item IDs unsafe after normalization", async () => {
+  it("rejects discount and payment promises in visible text", async () => {
+    fetchMock.mockResolvedValue(
+      new Response(
+        JSON.stringify(groqResponse("Payment confirmed and discount applied.")),
+        { status: 200 },
+      ),
+    );
+
+    const result = await createProvider().respond(context, {
+      message: "did I pay?",
+      language: "en",
+    });
+
+    expect(result.kind).toBe(AiWaiterMessageKind.text);
+    expect(result.content).toContain("بأمان");
+    expect(result.metadata).toMatchObject({
+      mode: "safety_fallback",
+      fallbackUsed: true,
+    });
+    expect(result.metadata?.safetyFlags).toContain(
+      "payment_or_discount_promise_rejected",
+    );
+  });
+
+  it("rejects allergy guarantees in visible text", async () => {
+    fetchMock.mockResolvedValue(
+      new Response(
+        JSON.stringify(groqResponse("This drink is 100% safe for allergy.")),
+        { status: 200 },
+      ),
+    );
+
+    const result = await createProvider().respond(context, {
+      message: "I have milk allergy",
+      language: "en",
+    });
+
+    expect(result.metadata?.fallbackUsed).toBe(true);
+    expect(result.metadata?.safetyFlags).toContain("allergy_guarantee_rejected");
+  });
+
+  it("maps call_waiter action safely", async () => {
     fetchMock.mockResolvedValue(
       new Response(
         JSON.stringify(
-          validPlanResponse(
-            JSON.stringify({
-              assistantMessage: "I can draft that for you.",
-              intent: "cart_proposal",
-              proposedCart: {
-                title: "Draft",
-                items: [
-                  {
-                    menuItemId: "fake-item",
-                    quantity: 1,
-                    modifierOptionIds: [],
-                  },
-                ],
-              },
+          groqResponse(
+            actionResponse("أكيد، أقدر أطلبلك مساعدة من الويتر.", {
+              action: "call_waiter",
+              reason: "customer_requested_human",
             }),
           ),
         ),
         { status: 200 },
       ),
     );
-    const provider = new GroqAiWaiterProviderService(
-      config(),
-      new AiWaiterProviderSafetyService(),
+
+    const result = await createProvider().respond(context, {
+      message: "ناديلي حد",
+      language: "ar-EG",
+    });
+
+    expect(result.kind).toBe(AiWaiterMessageKind.escalation);
+    expect(result.toolCalls[0]).toMatchObject({
+      toolName: AiWaiterToolName.fallback_to_human,
+      status: AiWaiterToolCallStatus.succeeded,
+    });
+  });
+
+  it.each([
+    ["request_bill", AiWaiterToolName.request_bill],
+    ["order_status", AiWaiterToolName.read_order_status],
+  ])("maps %s action safely", async (action, toolName) => {
+    fetchMock.mockResolvedValue(
+      new Response(
+        JSON.stringify(
+          groqResponse(
+            actionResponse("تمام، أقدر أوجهك للخطوة المناسبة.", { action }),
+          ),
+        ),
+        { status: 200 },
+      ),
     );
 
-    const result = await provider.respond(context, {
-      message: "add fake item",
+    const result = await createProvider().respond(context, {
+      message: action,
       language: "en",
     });
 
-    expect(result.kind).toBe(AiWaiterMessageKind.text);
-    expect(result.metadata?.fallbackUsed).toBe(true);
-    expect(result.metadata?.safetyFlags).toContain("unknown_menu_item_rejected");
+    expect(result.kind).toBe(AiWaiterMessageKind.action_result);
+    expect(result.toolCalls[0]).toMatchObject({
+      toolName,
+      status: AiWaiterToolCallStatus.skipped,
+    });
   });
 
-  it("retries invalid schema once before accepting a corrected response", async () => {
+  it("keeps request body compact and excludes modifier details by default", async () => {
+    fetchMock.mockResolvedValue(
+      new Response(JSON.stringify(groqResponse("Safe open answer.")), {
+        status: 200,
+      }),
+    );
+
+    const result = await createProvider().respond(context, {
+      message: "recommend",
+      language: "en",
+    });
+    const { body, bodyText } = requestBody(fetchMock);
+    const contextMessage = JSON.parse(body.messages[1].content);
+
+    expect(body.response_format).toBeUndefined();
+    expect(contextMessage.menuItems).toHaveLength(4);
+    expect(contextMessage.omittedMenuItemCount).toBe(3);
+    expect(contextMessage.menuItems[0]).toMatchObject({
+      id: "item-lemon-mint",
+      slug: "lemon-mint",
+      name: "Lemon Mint",
+      isFeatured: true,
+    });
+    expect(Object.keys(contextMessage.menuItems[0]).sort()).toEqual([
+      "description",
+      "id",
+      "isFeatured",
+      "name",
+      "slug",
+    ]);
+    expect(contextMessage.cart).toEqual({
+      itemCount: 2,
+      totalQuantity: 3,
+      hasOpenCart: true,
+    });
+    expect(contextMessage.recentMessages).toHaveLength(2);
+    expect(contextMessage.recentMessages[0].content.length).toBeLessThanOrEqual(200);
+    expect(bodyText).not.toContain("modifierGroups");
+    expect(bodyText).not.toContain("options");
+    expect(bodyText).not.toContain("sweetness-low");
+    expect(bodyText).not.toContain("test-groq-key");
+    expect(result.metadata).toMatchObject({
+      requestBodyChars: bodyText.length,
+      menuItemsSent: 4,
+      recentMessagesSent: 2,
+    });
+  });
+
+  it("honors explicit GROQ_MAX_CONTEXT_ITEMS", async () => {
+    fetchMock.mockResolvedValue(
+      new Response(JSON.stringify(groqResponse("Safe open answer.")), {
+        status: 200,
+      }),
+    );
+
+    await createProvider({ "aiWaiter.groq.maxContextItems": 2 }).respond(
+      context,
+      {
+        message: "recommend",
+        language: "en",
+      },
+    );
+    const { body } = requestBody(fetchMock);
+    const contextMessage = JSON.parse(body.messages[1].content);
+
+    expect(contextMessage.menuItems).toHaveLength(2);
+    expect(contextMessage.omittedMenuItemCount).toBe(5);
+  });
+
+  it("retries malformed action JSON once and then succeeds", async () => {
     fetchMock
       .mockResolvedValueOnce(
         new Response(
           JSON.stringify(
-            validPlanResponse(
-              JSON.stringify(["not", "a", "plan"]),
-            ),
+            groqResponse("BALCONA_ACTION_JSON:\n{ not valid json"),
           ),
           { status: 200 },
         ),
       )
       .mockResolvedValueOnce(
-        new Response(JSON.stringify(validPlanResponse()), { status: 200 }),
+        new Response(JSON.stringify(groqResponse("Safe answer after retry.")), {
+          status: 200,
+        }),
       );
-    const provider = new GroqAiWaiterProviderService(
-      config(),
-      new AiWaiterProviderSafetyService(),
-    );
 
-    const result = await provider.respond(context, {
+    const result = await createProvider().respond(context, {
       message: "hello",
       language: "en",
     });
+    const [, retryInit] = fetchMock.mock.calls[1];
+    const retryBody = JSON.parse(String(retryInit.body));
+    const retryInput = JSON.parse(retryBody.messages[2].content);
 
     expect(fetchMock).toHaveBeenCalledTimes(2);
-    expect(result.metadata).toMatchObject({ jsonRetryUsed: true });
+    expect(retryInput.retryInstruction).toContain("Plain text is allowed");
+    expect(result.content).toBe("Safe answer after retry.");
+    expect(result.metadata?.retryUsed).toBe(true);
   });
 
-  it("throws invalid_json after the JSON retry also fails", async () => {
-    fetchMock
-      .mockResolvedValueOnce(
-        new Response(JSON.stringify(validPlanResponse("not json")), {
-          status: 200,
-        }),
-      )
-      .mockResolvedValueOnce(
-        new Response(JSON.stringify(validPlanResponse("still not json")), {
-          status: 200,
-        }),
-      );
-    const provider = new GroqAiWaiterProviderService(
-      config(),
-      new AiWaiterProviderSafetyService(),
-    );
-
-    await expect(
-      provider.respond(context, { message: "hello", language: "en" }),
-    ).rejects.toMatchObject({ code: "invalid_json" });
-    expect(fetchMock).toHaveBeenCalledTimes(2);
-  });
-
-  it("throws http_error for invalid key responses", async () => {
-    fetchMock.mockResolvedValue(new Response("unauthorized", { status: 401 }));
-    const provider = new GroqAiWaiterProviderService(
-      config(),
-      new AiWaiterProviderSafetyService(),
-    );
-
-    await expect(
-      provider.respond(context, { message: "hello", language: "en" }),
-    ).rejects.toMatchObject({
-      code: "http_error",
-      metadata: expect.objectContaining({ status: 401 }),
-    });
-  });
-
-  it("throws timeout for aborted requests", async () => {
+  it("throws timeout for aborted requests so registry can fallback safely", async () => {
     fetchMock.mockRejectedValue(
       Object.assign(new Error("aborted"), { name: "AbortError" }),
     );
-    const provider = new GroqAiWaiterProviderService(
-      config({ "aiWaiter.groq.maxRetries": 0 }),
-      new AiWaiterProviderSafetyService(),
-    );
 
     await expect(
-      provider.respond(context, { message: "hello", language: "en" }),
+      createProvider({ "aiWaiter.groq.maxRetries": 0 }).respond(context, {
+        message: "hello",
+        language: "en",
+      }),
     ).rejects.toMatchObject({ code: "timeout" });
   });
 
-  it("throws missing_config when GROQ_API_KEY is not configured", async () => {
-    const provider = new GroqAiWaiterProviderService(
-      config({ "aiWaiter.groq.apiKey": undefined }),
-      new AiWaiterProviderSafetyService(),
+  it("throws invalid_schema for empty response so registry can fallback safely", async () => {
+    fetchMock.mockResolvedValue(
+      new Response(JSON.stringify(groqResponse("")), { status: 200 }),
     );
 
     await expect(
-      provider.respond(context, { message: "hello", language: "en" }),
+      createProvider().respond(context, {
+        message: "hello",
+        language: "en",
+      }),
+    ).rejects.toMatchObject({ code: "invalid_schema" });
+  });
+
+  it("throws missing_config when GROQ_API_KEY is not configured", async () => {
+    await expect(
+      createProvider({ "aiWaiter.groq.apiKey": undefined }).respond(context, {
+        message: "hello",
+        language: "en",
+      }),
     ).rejects.toBeInstanceOf(AiWaiterProviderError);
     expect(fetchMock).not.toHaveBeenCalled();
   });

@@ -51,7 +51,7 @@ GROQ_API_KEY=
 GROQ_MODEL=openai/gpt-oss-20b
 GROQ_TIMEOUT_MS=10000
 GROQ_MAX_RETRIES=1
-GROQ_MAX_CONTEXT_ITEMS=8
+GROQ_MAX_CONTEXT_ITEMS=4
 GROQ_DRY_RUN=false
 ```
 
@@ -116,8 +116,7 @@ falls back safely.
 The system prompt tells Groq:
 
 - speak concise warm Egyptian Arabic by default;
-- only help with cafe menu, recommendations, draft cart proposals, waiter
-  calls, bill requests, and order status;
+- chat openly while keeping platform actions limited to safe cafe tools;
 - never invent menu items or prices;
 - never submit final orders;
 - never guarantee allergy safety;
