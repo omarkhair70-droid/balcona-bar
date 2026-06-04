@@ -63,6 +63,32 @@ export function getOrderEvents(value: unknown) {
   return getRecordArray(getOrderEnvelopeRecord(value).events);
 }
 
+export function getOrderLifecycle(value: unknown) {
+  return getRecord(getOrderEnvelopeRecord(value).lifecycle);
+}
+
+export function getOrderAllowedActions(value: unknown) {
+  return getRecordArray(getOrderLifecycle(value)?.allowedActions)
+    .map((action) => (typeof action === "string" ? action : ""))
+    .filter(Boolean);
+}
+
+export function orderAllowsAction(value: unknown, action: string) {
+  return getOrderAllowedActions(value).includes(action);
+}
+
+export function getOrderNextExpectedRole(value: unknown) {
+  return getRecordString(getOrderLifecycle(value), "nextExpectedRole");
+}
+
+export function getOrderProgressStep(value: unknown) {
+  return getRecordString(getOrderLifecycle(value), "progressStep");
+}
+
+export function getOrderCustomerStatusLabel(value: unknown) {
+  return getRecordString(getOrderLifecycle(value), "customerLabel");
+}
+
 export function getOrderTable(value: unknown) {
   return getRecord(getOrderEnvelopeRecord(value).table);
 }

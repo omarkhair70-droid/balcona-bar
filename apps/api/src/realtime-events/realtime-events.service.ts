@@ -389,6 +389,14 @@ export class RealtimeEventsService {
     return this.recordOrderEvent(orderId, RealtimeEventType.order_rejected, tx);
   }
 
+  async recordOrderCancelled(orderId: string, tx: PrismaExecutor) {
+    return this.recordOrderEvent(
+      orderId,
+      RealtimeEventType.order_cancelled,
+      tx,
+    );
+  }
+
   async recordOrderPreparationStarted(orderId: string, tx: PrismaExecutor) {
     return this.recordOrderEvent(
       orderId,

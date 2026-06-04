@@ -16,6 +16,10 @@ import { TableAttentionService } from '../autopilot/table-attention.service';
 import { PresenceNotificationsService } from '../presence-notifications/presence-notifications.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { RealtimeEventsService } from '../realtime-events/realtime-events.service';
+import {
+  explainDeniedTransition,
+  isTerminalOrderStatus,
+} from '../orders/order-lifecycle.policy';
 import { BranchPreparationTasksQueryDto } from './dto/branch-preparation-tasks-query.dto';
 import { CancelPreparationTaskDto } from './dto/cancel-preparation-task.dto';
 import { PreparationTaskActionDto } from './dto/preparation-task-action.dto';
@@ -48,6 +52,8 @@ export class PreparationTasksService {
         id: true,
         companyId: true,
         branchId: true,
+        status: true,
+        tableSessionId: true,
         items: {
           select: {
             id: true,
@@ -69,6 +75,16 @@ export class PreparationTasksService {
       throw new NotFoundException('Order not found');
     }
 
+    if (isTerminalOrderStatus(order.status)) {
+      throw this.preparationBadRequest('parent_order_terminal');
+    }
+
+    if (order.status !== OrderStatus.cashier_accepted) {
+      throw this.preparationBadRequest('parent_order_not_accepted');
+    }
+
+    let activeTaskCount = 0;
+
     for (const item of order.items) {
       if (!ACTIONABLE_STATIONS.includes(item.menuItem.station)) {
         continue;
@@ -80,6 +96,7 @@ export class PreparationTasksService {
       });
 
       if (existingTask) {
+        activeTaskCount += 1;
         continue;
       }
 
@@ -112,6 +129,16 @@ export class PreparationTasksService {
       await this.realtimeEventsService.recordPreparationTaskCreated(
         task.id,
         tx,
+      );
+      activeTaskCount += 1;
+    }
+
+    if (activeTaskCount === 0) {
+      await this.syncOrderPreparationReady(
+        order.id,
+        staffUserId,
+        tx,
+        'no_active_preparation_tasks',
       );
     }
   }
@@ -185,10 +212,10 @@ export class PreparationTasksService {
 
       const task = await this.findTaskStatus(taskId, tx);
 
+      this.assertParentOrderActionable(task.order.status, 'start');
+
       if (task.status !== PreparationTaskStatus.pending) {
-        throw new BadRequestException(
-          'Only pending preparation tasks can be started',
-        );
+        throw this.preparationBadRequest('task_not_actionable');
       }
 
       await tx.preparationTask.update({
@@ -237,12 +264,18 @@ export class PreparationTasksService {
 
       const task = await this.findTaskStatus(taskId, tx);
 
+      this.assertParentOrderActionable(task.order.status, 'ready');
+
       if (
         task.status !== PreparationTaskStatus.pending &&
         task.status !== PreparationTaskStatus.preparing
       ) {
-        throw new BadRequestException(
-          'Only pending or preparing preparation tasks can be marked ready',
+        throw this.preparationBadRequest(
+          task.status === PreparationTaskStatus.ready
+            ? 'task_already_ready'
+            : task.status === PreparationTaskStatus.cancelled
+              ? 'task_already_cancelled'
+              : 'task_not_actionable',
         );
       }
 
@@ -285,12 +318,16 @@ export class PreparationTasksService {
 
       const task = await this.findTaskStatus(taskId, tx);
 
+      this.assertParentOrderActionable(task.order.status, 'cancel');
+
       if (
         task.status === PreparationTaskStatus.ready ||
         task.status === PreparationTaskStatus.cancelled
       ) {
-        throw new BadRequestException(
-          'Ready or cancelled preparation tasks cannot be cancelled',
+        throw this.preparationBadRequest(
+          task.status === PreparationTaskStatus.cancelled
+            ? 'task_already_cancelled'
+            : 'task_not_actionable',
         );
       }
 
@@ -328,6 +365,72 @@ export class PreparationTasksService {
     });
   }
 
+  async cancelActiveTasksForOrderCancellation(
+    orderId: string,
+    staffUserId: string,
+    reason: string,
+    tx: Prisma.TransactionClient,
+  ) {
+    const tasks = await tx.preparationTask.findMany({
+      where: {
+        orderId,
+        status: {
+          in: [PreparationTaskStatus.pending, PreparationTaskStatus.preparing],
+        },
+      },
+      select: { id: true },
+    });
+
+    if (tasks.length === 0) {
+      return [];
+    }
+
+    const now = new Date();
+    const cancelledTaskIds: string[] = [];
+
+    for (const task of tasks) {
+      const updatedTask = await tx.preparationTask.updateMany({
+        where: {
+          id: task.id,
+          status: {
+            in: [
+              PreparationTaskStatus.pending,
+              PreparationTaskStatus.preparing,
+            ],
+          },
+        },
+        data: {
+          status: PreparationTaskStatus.cancelled,
+          cancelledAt: now,
+        },
+      });
+
+      if (updatedTask.count === 0) {
+        continue;
+      }
+
+      await tx.preparationTaskEvent.create({
+        data: {
+          preparationTaskId: task.id,
+          type: PreparationTaskEventType.cancelled,
+          actorStaffUserId: staffUserId,
+          metadata: {
+            reason,
+            source: 'order_cancellation',
+            orderId,
+          },
+        },
+      });
+      await this.realtimeEventsService.recordPreparationTaskCancelled(
+        task.id,
+        tx,
+      );
+      cancelledTaskIds.push(task.id);
+    }
+
+    return cancelledTaskIds;
+  }
+
   private async findTaskStatus(taskId: string, tx: PrismaExecutor) {
     const task = await tx.preparationTask.findUnique({
       where: { id: taskId },
@@ -338,6 +441,7 @@ export class PreparationTasksService {
         order: {
           select: {
             tableSessionId: true,
+            status: true,
           },
         },
       },
@@ -379,6 +483,12 @@ export class PreparationTasksService {
           ? OrderEventActorType.staff
           : OrderEventActorType.system,
         actorStaffUserId: staffUserId,
+        metadata: {
+          previousStatus: OrderStatus.cashier_accepted,
+          nextStatus: OrderStatus.preparing,
+          action: 'start_preparation',
+          source: staffUserId ? 'kitchen' : 'system',
+        },
       },
     });
     await this.realtimeEventsService.recordOrderPreparationStarted(orderId, tx);
@@ -388,6 +498,7 @@ export class PreparationTasksService {
     orderId: string,
     staffUserId: string | undefined,
     tx: Prisma.TransactionClient,
+    reason?: string,
   ) {
     const order = await tx.order.findUnique({
       where: { id: orderId },
@@ -401,15 +512,35 @@ export class PreparationTasksService {
       },
     });
 
-    if (!order || order.preparationTasks.length === 0) {
+    if (!order) {
       return;
     }
 
-    if (
-      !order.preparationTasks.every(
-        (task) => task.status === PreparationTaskStatus.ready,
-      )
-    ) {
+    if (!reason) {
+      if (order.preparationTasks.length === 0) {
+        return;
+      }
+
+      if (
+        !order.preparationTasks.every(
+          (task) => task.status === PreparationTaskStatus.ready,
+        )
+      ) {
+        return;
+      }
+    }
+
+    const deniedReason = explainDeniedTransition(
+      {
+        status: order.status,
+        preparationTasks: reason
+          ? []
+          : order.preparationTasks.map((task) => ({ status: task.status })),
+      },
+      'system_preparation_ready',
+    );
+
+    if (deniedReason) {
       return;
     }
 
@@ -439,6 +570,13 @@ export class PreparationTasksService {
           ? OrderEventActorType.staff
           : OrderEventActorType.system,
         actorStaffUserId: staffUserId,
+        metadata: {
+          previousStatus: order.status,
+          nextStatus: OrderStatus.ready,
+          action: 'system_preparation_ready',
+          source: 'system',
+          ...(reason ? { reason } : {}),
+        },
       },
     });
     await this.realtimeEventsService.recordOrderPreparationReady(orderId, tx);
@@ -473,6 +611,42 @@ export class PreparationTasksService {
     if (!staffUser) {
       throw new NotFoundException('Staff user not found');
     }
+  }
+
+  private assertParentOrderActionable(
+    orderStatus: OrderStatus,
+    action: 'start' | 'ready' | 'cancel',
+  ) {
+    if (orderStatus === OrderStatus.cancelled) {
+      throw this.preparationBadRequest('order_cancelled');
+    }
+
+    if (
+      orderStatus === OrderStatus.cashier_rejected ||
+      orderStatus === OrderStatus.completed ||
+      orderStatus === OrderStatus.served ||
+      isTerminalOrderStatus(orderStatus)
+    ) {
+      throw this.preparationBadRequest('parent_order_terminal');
+    }
+
+    if (action === 'cancel') {
+      return;
+    }
+
+    if (
+      orderStatus !== OrderStatus.cashier_accepted &&
+      orderStatus !== OrderStatus.preparing
+    ) {
+      throw this.preparationBadRequest('parent_order_not_accepted');
+    }
+  }
+
+  private preparationBadRequest(code: string) {
+    return new BadRequestException({
+      code,
+      message: code,
+    });
   }
 
   private async recalculateAttention(

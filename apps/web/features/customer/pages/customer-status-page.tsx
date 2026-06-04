@@ -42,6 +42,16 @@ function getOrderKey(order: Record<string, unknown>, index: number) {
 }
 
 function getOrderStatus(order: Record<string, unknown>) {
+  const lifecycle =
+    typeof order.lifecycle === "object" && order.lifecycle !== null
+      ? (order.lifecycle as Record<string, unknown>)
+      : undefined;
+  const customerLabel = getRecordString(lifecycle, "customerLabel");
+
+  if (customerLabel) {
+    return customerLabel;
+  }
+
   return getRecordString(order, "status", "submitted").replaceAll("_", " ");
 }
 

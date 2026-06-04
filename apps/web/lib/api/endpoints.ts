@@ -30,6 +30,7 @@ import type {
   CashierOrdersQuery,
   CashierOrdersResult,
   CashierRejectOrderPayload,
+  CancelOrderPayload,
   CompanySummary,
   BranchMutationResult,
   CreateMenuCategoryPayload,
@@ -62,6 +63,7 @@ import type {
   ModifierOptionMutationResult,
   MuteAttentionPayload,
   OrderDetailResult,
+  OrderLifecycleActionPayload,
   OrderPreparationTasksResult,
   PreparationTaskActionPayload,
   PreparationTaskDetailResult,
@@ -918,6 +920,13 @@ export function getCashierOrders(
   );
 }
 
+export function getReadyToServeOrders(branchId: string, token?: string) {
+  return apiRequest<CashierOrdersResult>(
+    `/branches/${branchId}/orders/ready-to-serve`,
+    { token }
+  );
+}
+
 export function getOrderDetail(orderId: string, token?: string) {
   return apiRequest<OrderDetailResult>(`/orders/${orderId}`, { token });
 }
@@ -944,6 +953,51 @@ export function rejectOrder(
 ) {
   return apiRequest<OrderDetailResult, CashierRejectOrderPayload>(
     `/orders/${orderId}/cashier/reject`,
+    {
+      method: "POST",
+      body: payload,
+      token
+    }
+  );
+}
+
+export function serveOrder(
+  orderId: string,
+  payload: OrderLifecycleActionPayload = {},
+  token?: string
+) {
+  return apiRequest<OrderDetailResult, OrderLifecycleActionPayload>(
+    `/orders/${orderId}/serve`,
+    {
+      method: "POST",
+      body: payload,
+      token
+    }
+  );
+}
+
+export function completeOrder(
+  orderId: string,
+  payload: OrderLifecycleActionPayload = {},
+  token?: string
+) {
+  return apiRequest<OrderDetailResult, OrderLifecycleActionPayload>(
+    `/orders/${orderId}/complete`,
+    {
+      method: "POST",
+      body: payload,
+      token
+    }
+  );
+}
+
+export function cancelOrder(
+  orderId: string,
+  payload: CancelOrderPayload,
+  token?: string
+) {
+  return apiRequest<OrderDetailResult, CancelOrderPayload>(
+    `/orders/${orderId}/cancel`,
     {
       method: "POST",
       body: payload,

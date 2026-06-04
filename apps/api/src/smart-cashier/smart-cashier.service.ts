@@ -546,6 +546,9 @@ export class SmartCashierService {
         type: OrderEventType.cashier_accepted,
         actorType: OrderEventActorType.system,
         metadata: {
+          previousStatus: OrderStatus.submitted,
+          nextStatus: OrderStatus.cashier_accepted,
+          action: 'accept',
           source: 'smart_cashier_auto_accept',
           decision: AutoAcceptDecision.auto_accepted,
         },

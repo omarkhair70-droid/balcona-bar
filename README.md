@@ -1,6 +1,6 @@
 # balcona-bar
 
-Balcona Bar is organized as a monorepo for the Cafe AI Waiter App / Smart Cafe Operating System. The backend core is complete through Phase 24, UI Phase 1 adds the first Next.js web foundation for customer and staff experiences, UI Phase 2 adds the customer PWA core, UI Phase 3 adds the customer AI waiter experience, UI Phase 4 adds the cashier dashboard core, UI Phase 5 adds the kitchen/barista dashboard core, UI Phase 6 adds the waiter dashboard and attention queue, UI Phase 7 adds the owner/manager command center, UI Phase 8 adds full demo hardening plus Balkona demo mode, Production Phase 1 adds deployable platform foundation files, Production Phase 2 adds AWS infrastructure foundation scaffolding without deploying resources, Production Phase 3A adds public demo deploy readiness plus CI/CD guardrails without deploying resources, Production Phase 3B adds the first public AWS demo preflight deploy pack without deploying resources, Product Phase 4A starts the full Cafe OS product completion track, Product Phase 4B adds branch-scoped menu admin and availability management, Product Phase 4C adds branch, tables, and QR management, Product Phase 4E.G0-G3 add a Groq AI waiter provider with safe backend validation, deep menu grounding, and modifier-turn ordering intelligence, and Product Phase 4S.0 enforces staff roles, permissions, and branch access on the current staff product surfaces.
+Balcona Bar is organized as a monorepo for the Cafe AI Waiter App / Smart Cafe Operating System. The backend core is complete through Phase 24, UI Phase 1 adds the first Next.js web foundation for customer and staff experiences, UI Phase 2 adds the customer PWA core, UI Phase 3 adds the customer AI waiter experience, UI Phase 4 adds the cashier dashboard core, UI Phase 5 adds the kitchen/barista dashboard core, UI Phase 6 adds the waiter dashboard and attention queue, UI Phase 7 adds the owner/manager command center, UI Phase 8 adds full demo hardening plus Balkona demo mode, Production Phase 1 adds deployable platform foundation files, Production Phase 2 adds AWS infrastructure foundation scaffolding without deploying resources, Production Phase 3A adds public demo deploy readiness plus CI/CD guardrails without deploying resources, Production Phase 3B adds the first public AWS demo preflight deploy pack without deploying resources, Product Phase 4A starts the full Cafe OS product completion track, Product Phase 4B adds branch-scoped menu admin and availability management, Product Phase 4C adds branch, tables, and QR management, Product Phase 4E.G0-G3 add a Groq AI waiter provider with safe backend validation, deep menu grounding, and modifier-turn ordering intelligence, Product Phase 4S.0 enforces staff roles, permissions, and branch access on the current staff product surfaces, and Product Phase 4O.0 hardens order lifecycle transitions across cashier, preparation, waiter, and customer status flows.
 
 ## Layout
 
@@ -119,7 +119,7 @@ Balcona Bar is organized as a monorepo for the Cafe AI Waiter App / Smart Cafe O
    After a customer submits an order and the cashier accepts it, the backend
    creates preparation tasks. Kitchen or barista staff can start a task and mark
    it ready from the preparation dashboard. When all active preparation tasks
-   for an order are ready, the backend can move the order toward ready state.
+   for an order are ready, the backend moves the order to ready state.
 
 14. Open the waiter dashboard demo:
 
@@ -128,9 +128,9 @@ Balcona Bar is organized as a monorepo for the Cafe AI Waiter App / Smart Cafe O
    ```
 
    From `/customer`, create a service call or request the bill. Waiter staff
-   can open `/staff/waiter`, acknowledge the call, resolve it, and review table
-   attention signals for waiter calls, bill requests, ready orders not served,
-   preparation delays, and AI waiter escalations.
+   can open `/staff/waiter`, acknowledge the call, resolve it, serve ready
+   orders, and review table attention signals for waiter calls, bill requests,
+   ready orders not served, preparation delays, and AI waiter escalations.
 
 15. Open the owner/manager command center:
 
@@ -277,6 +277,29 @@ See
 `docs/architecture/product-phase-4s0-staff-roles-permissions-branch-access.md`
 for enforcement boundaries, reason codes, tests, known limitations, and the next
 recommended SaaS admin hardening phase.
+
+## Product Phase 4O.0 status
+
+Product Phase 4O.0 hardens the operational order lifecycle across cashier,
+preparation, waiter, and customer status surfaces:
+
+- a shared lifecycle policy defines allowed order transitions and stable denial
+  reason codes;
+- cashier accept/reject, waiter serve, cashier completion, and staff
+  cancellation are guarded by both staff access and lifecycle state;
+- completion is allowed only after service;
+- serving is allowed only after the order reaches ready state;
+- cancellation requires a visible reason and is allowed only before service;
+- active preparation tasks are cancelled when the parent order is cancelled;
+- preparation start and ready sync now respect parent-order state;
+- order responses include lifecycle summaries for reusable frontend gating;
+- cashier, kitchen/barista, waiter, and customer status screens consume the
+  lifecycle state without changing payment, POS, AI, or admin scope.
+
+See
+`docs/architecture/product-phase-4o0-order-lifecycle-hardening.md` for the state
+machine, transition rules, reason codes, smoke test, known limitations, and next
+recommended Bill + Manual Payment phase.
 
 ## UI Phase 1 status
 
@@ -1401,4 +1424,5 @@ begin.
 - Product Phase 4E.G2 deep menu grounding and smart tool selection: `docs/architecture/product-phase-4eg2-deep-menu-grounding-smart-tool-selection.md`
 - Product Phase 4E.G3 complete ordering intelligence: `docs/architecture/product-phase-4eg3-complete-ordering-intelligence.md`
 - Product Phase 4S.0 staff roles, permissions, and branch access: `docs/architecture/product-phase-4s0-staff-roles-permissions-branch-access.md`
+- Product Phase 4O.0 order lifecycle hardening: `docs/architecture/product-phase-4o0-order-lifecycle-hardening.md`
 - Real cafe readiness checklist: `docs/product/real-cafe-readiness-checklist.md`
