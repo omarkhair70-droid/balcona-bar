@@ -1,4 +1,5 @@
 export type GroqAiWaiterIntent =
+  | "open_conversation"
   | "recommendation"
   | "specific_item_request"
   | "cart_proposal"

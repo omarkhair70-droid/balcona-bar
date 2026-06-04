@@ -51,7 +51,7 @@ GROQ_API_KEY=
 GROQ_MODEL=openai/gpt-oss-20b
 GROQ_TIMEOUT_MS=10000
 GROQ_MAX_RETRIES=1
-GROQ_MAX_CONTEXT_ITEMS=80
+GROQ_MAX_CONTEXT_ITEMS=4
 GROQ_DRY_RUN=false
 ```
 
@@ -116,8 +116,7 @@ falls back safely.
 The system prompt tells Groq:
 
 - speak concise warm Egyptian Arabic by default;
-- only help with cafe menu, recommendations, draft cart proposals, waiter
-  calls, bill requests, and order status;
+- chat openly while keeping platform actions limited to safe cafe tools;
 - never invent menu items or prices;
 - never submit final orders;
 - never guarantee allergy safety;
@@ -129,8 +128,10 @@ The context sent to Groq is compact and API-side only:
 - table session id/status/party size;
 - current cart summary;
 - recent AI waiter messages;
-- available/visible menu item snapshots with ids, names, slugs, currency, and
-  modifier groups/options;
+- available/visible menu item snapshots with ids, names, slugs, descriptions,
+  and featured flags;
+- modifier groups/options are omitted from the default context until a narrower
+  modifier-selection turn needs them;
 - policy flags that backend prices and final order submission are forbidden.
 
 Secrets and unnecessary customer PII are not sent.
