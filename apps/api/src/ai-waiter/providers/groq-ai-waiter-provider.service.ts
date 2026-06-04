@@ -10,6 +10,10 @@ import {
   AiWaiterProvider,
   AiWaiterProviderResult,
 } from "../ai-waiter.types";
+import {
+  AiWaiterMenuGroundingService,
+  MenuGroundingResult,
+} from "../grounding/ai-waiter-menu-grounding.service";
 import { AiWaiterProviderSafetyService } from "./ai-waiter-provider-safety.service";
 import {
   AiWaiterProviderError,
@@ -33,6 +37,11 @@ type GroqRequestStats = {
   requestBodyChars: number;
   menuItemsSent: number;
   recentMessagesSent: number;
+  totalMenuItemsAvailable: number;
+  groundingMode: MenuGroundingResult["groundingMode"];
+  topMatchReasons: string[];
+  exactMatchFound: boolean;
+  omittedMenuItemCount: number;
 };
 
 type GroqFetchMetadata = {
@@ -46,6 +55,7 @@ type GroqPlanResponse = {
   content: string;
   usage?: GroqChatCompletionResponse["usage"];
   stats: GroqRequestStats;
+  grounding: MenuGroundingResult;
   rateLimit: {
     retryAfter: string | null;
     remaining: string | null;
@@ -87,7 +97,7 @@ const GROQ_CHAT_COMPLETIONS_URL =
 const DEFAULT_GROQ_MODEL = "openai/gpt-oss-20b";
 const DEFAULT_TIMEOUT_MS = 10_000;
 const DEFAULT_MAX_RETRIES = 1;
-const DEFAULT_MAX_CONTEXT_ITEMS = 4;
+const DEFAULT_MAX_CONTEXT_ITEMS = 12;
 const MAX_RECENT_MESSAGES = 2;
 const MAX_RECENT_MESSAGE_CHARS = 200;
 const MAX_MENU_DESCRIPTION_CHARS = 160;
@@ -133,6 +143,7 @@ export class GroqAiWaiterProviderService implements AiWaiterProvider {
   constructor(
     private readonly configService: ConfigService,
     private readonly safetyService: AiWaiterProviderSafetyService,
+    private readonly menuGroundingService: AiWaiterMenuGroundingService,
   ) {}
 
   async respond(
@@ -142,13 +153,20 @@ export class GroqAiWaiterProviderService implements AiWaiterProvider {
     const apiKey = this.configService.get<string>("aiWaiter.groq.apiKey");
 
     if (!apiKey) {
-      throw new AiWaiterProviderError("GROQ_API_KEY is not configured", "missing_config");
+      throw new AiWaiterProviderError(
+        "GROQ_API_KEY is not configured",
+        "missing_config",
+      );
     }
 
     if (this.configService.get<boolean>("aiWaiter.groq.dryRun")) {
-      throw new AiWaiterProviderError("GROQ_DRY_RUN is enabled", "missing_config", {
-        dryRun: true,
-      });
+      throw new AiWaiterProviderError(
+        "GROQ_DRY_RUN is enabled",
+        "missing_config",
+        {
+          dryRun: true,
+        },
+      );
     }
 
     const model =
@@ -253,30 +271,36 @@ export class GroqAiWaiterProviderService implements AiWaiterProvider {
         const content = json.choices?.[0]?.message?.content;
 
         if (!this.stringValue(content)) {
-          throw new AiWaiterProviderError("Groq returned empty content", "invalid_schema", {
-            latencyMs,
-            attempt,
-            ...requestBody.stats,
-          });
+          throw new AiWaiterProviderError(
+            "Groq returned empty content",
+            "invalid_schema",
+            {
+              latencyMs,
+              attempt,
+              ...requestBody.stats,
+            },
+          );
         }
 
         return {
           content: content ?? "",
           usage: json.usage,
           stats: requestBody.stats,
+          grounding: requestBody.grounding,
           rateLimit: this.safeRateLimitHeaders(response),
         };
       } catch (error) {
         if (error instanceof AiWaiterProviderError) {
           lastError = error;
-        } else if (
-          error instanceof Error &&
-          error.name === "AbortError"
-        ) {
-          lastError = new AiWaiterProviderError("Groq request timed out", "timeout", {
-            attempt,
-            ...requestBody.stats,
-          });
+        } else if (error instanceof Error && error.name === "AbortError") {
+          lastError = new AiWaiterProviderError(
+            "Groq request timed out",
+            "timeout",
+            {
+              attempt,
+              ...requestBody.stats,
+            },
+          );
         } else {
           lastError = new AiWaiterProviderError(
             error instanceof Error ? error.message : "Groq network error",
@@ -287,13 +311,19 @@ export class GroqAiWaiterProviderService implements AiWaiterProvider {
 
         this.logProviderError(lastError);
 
-        if (attempt >= maxRetries || !["timeout", "network_error"].includes(lastError.code)) {
+        if (
+          attempt >= maxRetries ||
+          !["timeout", "network_error"].includes(lastError.code)
+        ) {
           throw lastError;
         }
       }
     }
 
-    throw lastError ?? new AiWaiterProviderError("Groq request failed", "network_error");
+    throw (
+      lastError ??
+      new AiWaiterProviderError("Groq request failed", "network_error")
+    );
   }
 
   private async fetchCompletion(apiKey: string, body: string) {
@@ -325,7 +355,10 @@ export class GroqAiWaiterProviderService implements AiWaiterProvider {
     input: { message: string; language: string };
     outputRetryAttempt: number;
   }) {
-    const contextPayload = this.contextPayload(input.context);
+    const contextPayload = this.contextPayload(
+      input.context,
+      input.input.message,
+    );
     const body = JSON.stringify({
       model: input.model,
       temperature: 0.45,
@@ -339,21 +372,36 @@ export class GroqAiWaiterProviderService implements AiWaiterProvider {
             customerMessage: input.input.message,
             requestedLanguage: input.input.language,
             retryInstruction:
-              input.outputRetryAttempt > 0
-                ? JSON_RETRY_INSTRUCTION
-                : undefined,
+              input.outputRetryAttempt > 0 ? JSON_RETRY_INSTRUCTION : undefined,
           }),
         },
       ],
     });
+    const stats = {
+      requestBodyChars: body.length,
+      menuItemsSent: contextPayload.grounding.candidates.length,
+      recentMessagesSent: contextPayload.recentMessagesSent,
+      totalMenuItemsAvailable: contextPayload.grounding.totalMenuItemsAvailable,
+      groundingMode: contextPayload.grounding.groundingMode,
+      topMatchReasons: contextPayload.grounding.topMatchReasons,
+      exactMatchFound: contextPayload.grounding.exactMatchFound,
+      omittedMenuItemCount: contextPayload.grounding.omittedMenuItemCount,
+    };
+
+    this.logger.debug({
+      provider: "groq",
+      requestBodyChars: stats.requestBodyChars,
+      menuItemsSent: stats.menuItemsSent,
+      recentMessagesSent: stats.recentMessagesSent,
+      totalMenuItemsAvailable: stats.totalMenuItemsAvailable,
+      groundingMode: stats.groundingMode,
+      omittedMenuItemCount: stats.omittedMenuItemCount,
+    });
 
     return {
       body,
-      stats: {
-        requestBodyChars: body.length,
-        menuItemsSent: contextPayload.menuItemsSent,
-        recentMessagesSent: contextPayload.recentMessagesSent,
-      },
+      stats,
+      grounding: contextPayload.grounding,
     };
   }
 
@@ -371,6 +419,7 @@ export class GroqAiWaiterProviderService implements AiWaiterProvider {
       response.content,
       input.customerInput,
       context,
+      response.grounding,
     );
     const latencyMs = Date.now() - input.startedAt;
     const metadata = {
@@ -387,6 +436,11 @@ export class GroqAiWaiterProviderService implements AiWaiterProvider {
       requestBodyChars: response.stats.requestBodyChars,
       menuItemsSent: response.stats.menuItemsSent,
       recentMessagesSent: response.stats.recentMessagesSent,
+      totalMenuItemsAvailable: response.stats.totalMenuItemsAvailable,
+      groundingMode: response.stats.groundingMode,
+      topMatchReasons: response.stats.topMatchReasons,
+      exactMatchFound: response.stats.exactMatchFound,
+      omittedMenuItemCount: response.stats.omittedMenuItemCount,
       promptTokens: response.usage?.prompt_tokens,
       completionTokens: response.usage?.completion_tokens,
       totalTokens: response.usage?.total_tokens,
@@ -433,11 +487,16 @@ export class GroqAiWaiterProviderService implements AiWaiterProvider {
     rawContent: string,
     input: { message: string; language: string },
     context: AiWaiterContext,
+    grounding: MenuGroundingResult,
   ): NormalizedGroqOutput {
     const actionExtraction = this.extractActionBlock(rawContent);
     const rawJson = this.tryParseJson(actionExtraction.visibleContent);
     const rawRecord = this.isRecord(rawJson) ? rawJson : undefined;
-    const language = this.languageValue(rawRecord?.language, input.language, input.message);
+    const language = this.languageValue(
+      rawRecord?.language,
+      input.language,
+      input.message,
+    );
     const visibleText = this.visibleTextFromOutput(
       actionExtraction.visibleContent,
       rawRecord,
@@ -450,7 +509,9 @@ export class GroqAiWaiterProviderService implements AiWaiterProvider {
       action.rejectionReason !== undefined;
     const safetyFlags = [
       ...(visibleUnsafeReason ? [visibleUnsafeReason] : []),
-      ...(actionExtraction.actionParseError ? [actionExtraction.actionParseError] : []),
+      ...(actionExtraction.actionParseError
+        ? [actionExtraction.actionParseError]
+        : []),
       ...(action.rejectionReason ? [action.rejectionReason] : []),
     ];
 
@@ -491,7 +552,25 @@ export class GroqAiWaiterProviderService implements AiWaiterProvider {
       action.block,
       actionExtraction.actionBlock,
     );
-    const mode = this.modeForPlan(plan, action.block, actionRejected, rawRecord, context);
+    const groundingRejectionReason = this.groundingRejectionReason(
+      plan,
+      action.block,
+      grounding,
+    );
+    const finalActionRejected =
+      actionRejected || groundingRejectionReason !== undefined;
+
+    if (groundingRejectionReason) {
+      safetyFlags.push(groundingRejectionReason);
+    }
+
+    const mode = this.modeForPlan(
+      plan,
+      action.block,
+      finalActionRejected,
+      rawRecord,
+      context,
+    );
 
     return {
       visibleText,
@@ -499,7 +578,7 @@ export class GroqAiWaiterProviderService implements AiWaiterProvider {
       plan,
       actionBlock: action.block,
       normalizationUsed: true,
-      actionRejected,
+      actionRejected: finalActionRejected,
       safetyFlags,
     };
   }
@@ -521,7 +600,10 @@ export class GroqAiWaiterProviderService implements AiWaiterProvider {
       language,
       intent,
       confidence: this.numberValue(rawPlan.confidence, 0.5, 0, 1),
-      assistantMessage: this.stringValue(visibleText, this.defaultAssistantMessage(language)),
+      assistantMessage: this.stringValue(
+        visibleText,
+        this.defaultAssistantMessage(language),
+      ),
       suggestedActions: this.suggestedActionsFor(rawPlan, actionBlock),
       menuItemCandidates: this.recordArray(rawPlan.menuItemCandidates).map(
         (item) => ({
@@ -606,30 +688,62 @@ export class GroqAiWaiterProviderService implements AiWaiterProvider {
       "Hard platform rules: never submit final orders, change prices, invent prices, invent discounts, confirm payment, issue refunds, guarantee allergy safety, mutate the database directly, expose secrets, or pretend staff confirmed something.",
       "The AI can speak openly. The backend controls actions.",
       "For ordinary conversation, reply with plain customer-facing text. Plain text is valid.",
+      "The backend searches the full branch menu internally and sends you a compact relevantMenuItems list.",
+      "Use only relevantMenuItems when naming confirmed menu matches or creating action proposals.",
+      "If a requested item is not in relevantMenuItems, do not invent it. Ask one short clarification or suggest checking the menu.",
+      "For vague recommendations such as cold drink, dessert, or caffeine, recommend from relevantMenuItems and ask one useful follow-up unless the customer clearly chose a specific item.",
+      "For exact high-confidence item requests, you may create a cart proposal, but only with menuItemId values from relevantMenuItems.",
+      "For bill, waiter, or order status requests, use the matching safe action without menu items.",
+      "For allergies or health concerns, never guarantee safety; offer human waiter fallback.",
       "For real platform actions only, optionally append this hidden backend block after the visible answer:",
       "BALCONA_ACTION_JSON:",
       '{ "action": "create_cart_proposal" | "call_waiter" | "request_bill" | "order_status" | "none", "items": [{ "menuItemId": "...", "quantity": 1, "modifierOptionIds": [], "notes": "..." }], "reason": "..." }',
       "Never show the action block as part of the customer-facing answer. The backend strips it.",
       "Allowed action names: none, create_cart_proposal, call_waiter, request_bill, order_status.",
       "Disallowed action names: final_order_submit, submit_order, pay, take_payment, refund, discount, change_price, update_price, delete_order, confirm_payment, and any direct database mutation.",
-      "Menu item ids must come only from the compact menu context. Never invent menu item ids.",
+      "Menu item ids must come only from relevantMenuItems. Never invent menu item ids.",
+      "Expected structured JSON example when JSON is useful:",
+      JSON.stringify({
+        customerMessage: "...",
+        language: "ar-EG",
+        intent: "recommendation",
+        confidence: 0.8,
+        assistantMessage: "تمام، أرشحلك حاجة منعشة من الاختيارات المتاحة.",
+        suggestedActions: ["show_menu"],
+        menuItemCandidates: [],
+        proposedCart: null,
+        missingRequiredModifier: null,
+        safety: {
+          requiresHumanFallback: false,
+          allergyOrHealthConcern: false,
+          refusedUnsafeRequest: false,
+        },
+        debug: {},
+      }),
       "Do not include prices, payment confirmations, final order submission, markdown tables, or chain-of-thought.",
       "If the customer is unsure, ask one short useful question. Suggest pairings and next steps naturally without pressure.",
     ].join("\n");
   }
 
-  private contextPayload(context: AiWaiterContext) {
+  private contextPayload(context: AiWaiterContext, customerMessage: string) {
     const maxItems = this.numberConfig(
       "aiWaiter.groq.maxContextItems",
       DEFAULT_MAX_CONTEXT_ITEMS,
     );
-    const menuItems = context.menuItems.slice(0, maxItems).map((item) => ({
+    const grounding = this.menuGroundingService.rankCandidates(context, {
+      message: customerMessage,
+      maxCandidates: maxItems,
+    });
+    const relevantMenuItems = grounding.candidates.map((item) => ({
       id: item.id,
       slug: item.slug,
       name: item.name,
-      description: this.truncateText(item.description ?? "", MAX_MENU_DESCRIPTION_CHARS),
+      description: this.truncateText(
+        item.description ?? "",
+        MAX_MENU_DESCRIPTION_CHARS,
+      ),
       isFeatured: item.isFeatured,
-      category: this.optionalString((item as unknown as { category?: unknown }).category),
+      category: item.category,
     }));
     const recentMessages = context.recentMessages
       .slice(-MAX_RECENT_MESSAGES)
@@ -654,16 +768,25 @@ export class GroqAiWaiterProviderService implements AiWaiterProvider {
         cart: this.compactCartSummary(context.cartSummary),
         recentMessages,
         menuPolicy: {
-          onlyUseMenuItemIdsFromThisList: true,
+          onlyUseRelevantMenuItemIds: true,
           pricesAreBackendOnly: true,
           finalOrderSubmitIsForbidden: true,
           actionBlockIsOptional: true,
+          fullMenuWasSearchedByBackend: true,
+          missingItemRequiresClarification: true,
         },
-        menuItems,
-        omittedMenuItemCount: Math.max(0, context.menuItems.length - menuItems.length),
+        grounding: {
+          mode: grounding.groundingMode,
+          totalMenuItemsAvailable: grounding.totalMenuItemsAvailable,
+          menuItemsSent: relevantMenuItems.length,
+          omittedMenuItemCount: grounding.omittedMenuItemCount,
+          exactMatchFound: grounding.exactMatchFound,
+          topMatchReasons: grounding.topMatchReasons,
+        },
+        relevantMenuItems,
       },
-      menuItemsSent: menuItems.length,
       recentMessagesSent: recentMessages.length,
+      grounding,
     };
   }
 
@@ -829,7 +952,11 @@ export class GroqAiWaiterProviderService implements AiWaiterProvider {
     actionBlock: BalconaActionBlock | undefined,
   ) {
     if (actionBlock?.action === "create_cart_proposal") {
-      return ["apply_cart_proposal", "reject_cart_proposal", "escalate_to_waiter"];
+      return [
+        "apply_cart_proposal",
+        "reject_cart_proposal",
+        "escalate_to_waiter",
+      ];
     }
 
     if (actionBlock?.action === "call_waiter") {
@@ -859,6 +986,30 @@ export class GroqAiWaiterProviderService implements AiWaiterProvider {
     }
 
     return this.normalizeProposedCart(rawPlan.proposedCart);
+  }
+
+  private groundingRejectionReason(
+    plan: GroqAiWaiterPlan,
+    actionBlock: BalconaActionBlock | undefined,
+    grounding: MenuGroundingResult,
+  ) {
+    const groundedItemIds = new Set(
+      grounding.candidates.map((candidate) => candidate.id),
+    );
+    const actionItems =
+      actionBlock?.action === "create_cart_proposal"
+        ? (actionBlock.items ?? [])
+        : [];
+    const planItems = plan.proposedCart?.items ?? [];
+    const proposalItems = [...actionItems, ...planItems];
+
+    if (proposalItems.length === 0) {
+      return undefined;
+    }
+
+    return proposalItems.some((item) => !groundedItemIds.has(item.menuItemId))
+      ? "ungrounded_menu_item_rejected"
+      : undefined;
   }
 
   private intentValue(
@@ -910,22 +1061,64 @@ export class GroqAiWaiterProviderService implements AiWaiterProvider {
     }
 
     const unsafePatterns: Array<[RegExp, string]> = [
-      [/\b(discount|refund)\s+(confirmed|applied|issued|processed)\b/, "payment_or_discount_promise_rejected"],
-      [/\b(payment|paid)\s+(confirmed|successful|received)\b/, "payment_or_discount_promise_rejected"],
-      [/\b(final\s+)?order\s+(submitted|placed|confirmed)\b/, "unsafe_action_rejected"],
-      [/\b(price|total)\s+(changed|updated|lowered|reduced)\b/, "price_field_rejected"],
-      [/(^|[^-\w])free\s+(item|order|drink|dessert|coffee|meal|beverage|upgrade)\b/, "payment_or_discount_promise_rejected"],
-      [/\b(giveaway|complimentary|on the house|for free)\b/, "payment_or_discount_promise_rejected"],
-      [/\b(give|send|add)\s+(you\s+)?(a\s+)?free\b/, "payment_or_discount_promise_rejected"],
-      [/\b(allergy|allergen).*(guaranteed safe|100% safe|totally safe)\b/, "allergy_guarantee_rejected"],
-      [/\b(guaranteed safe|100% safe|totally safe).*(allergy|allergen)\b/, "allergy_guarantee_rejected"],
-      [/\b(staff|manager|barista|waiter)\s+(confirmed|approved)\b/, "staff_confirmation_rejected"],
-      [/\b(api[_-]?key|secret key|groq_api_key|bearer\s+[a-z0-9._-]+)\b/, "secret_exposure_rejected"],
-      [/\bbypass\s+(the\s+)?(system|backend|validation|guardrails)\b/, "unsafe_instruction_rejected"],
+      [
+        /\b(discount|refund)\s+(confirmed|applied|issued|processed)\b/,
+        "payment_or_discount_promise_rejected",
+      ],
+      [
+        /\b(payment|paid)\s+(confirmed|successful|received)\b/,
+        "payment_or_discount_promise_rejected",
+      ],
+      [
+        /\b(final\s+)?order\s+(submitted|placed|confirmed)\b/,
+        "unsafe_action_rejected",
+      ],
+      [
+        /\b(price|total)\s+(changed|updated|lowered|reduced)\b/,
+        "price_field_rejected",
+      ],
+      [
+        /(^|[^-\w])free\s+(item|order|drink|dessert|coffee|meal|beverage|upgrade)\b/,
+        "payment_or_discount_promise_rejected",
+      ],
+      [
+        /\b(giveaway|complimentary|on the house|for free)\b/,
+        "payment_or_discount_promise_rejected",
+      ],
+      [
+        /\b(give|send|add)\s+(you\s+)?(a\s+)?free\b/,
+        "payment_or_discount_promise_rejected",
+      ],
+      [
+        /\b(allergy|allergen).*(guaranteed safe|100% safe|totally safe)\b/,
+        "allergy_guarantee_rejected",
+      ],
+      [
+        /\b(guaranteed safe|100% safe|totally safe).*(allergy|allergen)\b/,
+        "allergy_guarantee_rejected",
+      ],
+      [
+        /\b(staff|manager|barista|waiter)\s+(confirmed|approved)\b/,
+        "staff_confirmation_rejected",
+      ],
+      [
+        /\b(api[_-]?key|secret key|groq_api_key|bearer\s+[a-z0-9._-]+)\b/,
+        "secret_exposure_rejected",
+      ],
+      [
+        /\bbypass\s+(the\s+)?(system|backend|validation|guardrails)\b/,
+        "unsafe_instruction_rejected",
+      ],
       [/(تم|اتأكد)\s+(الدفع|الطلب)/, "payment_or_discount_promise_rejected"],
-      [/(خصم|استرداد|ريفاند)\s+(اتطبق|اتأكد|تم)/, "payment_or_discount_promise_rejected"],
+      [
+        /(خصم|استرداد|ريفاند)\s+(اتطبق|اتأكد|تم)/,
+        "payment_or_discount_promise_rejected",
+      ],
       [/(آمن|امن|مضمون).*(حساسية|الحساسية)/, "allergy_guarantee_rejected"],
-      [/(مجاني|هدية|على حسابنا|من غير فلوس)/, "payment_or_discount_promise_rejected"],
+      [
+        /(مجاني|هدية|على حسابنا|من غير فلوس)/,
+        "payment_or_discount_promise_rejected",
+      ],
     ];
 
     return unsafePatterns.find(([pattern]) => pattern.test(normalized))?.[1];
@@ -983,9 +1176,7 @@ export class GroqAiWaiterProviderService implements AiWaiterProvider {
       items.reduce(
         (sum, item) =>
           sum +
-          (this.isRecord(item)
-            ? this.numberValue(item.quantity, 0, 0)
-            : 0),
+          (this.isRecord(item) ? this.numberValue(item.quantity, 0, 0) : 0),
         0,
       ),
       0,
@@ -1117,7 +1308,10 @@ export class GroqAiWaiterProviderService implements AiWaiterProvider {
       return "ar-EG";
     }
 
-    if (/^[\x00-\x7F]+$/.test(message) && !this.looksLikeFrancoArabic(message)) {
+    if (
+      /^[\x00-\x7F]+$/.test(message) &&
+      !this.looksLikeFrancoArabic(message)
+    ) {
       return "en";
     }
 
@@ -1129,7 +1323,9 @@ export class GroqAiWaiterProviderService implements AiWaiterProvider {
   }
 
   private looksLikeFrancoArabic(value: string) {
-    return /\b(3ayez|عايز|7aga|sokar|mesh|mafeesh|keda|enta|ana|2ahwa)\b/i.test(value);
+    return /\b(3ayez|عايز|7aga|sokar|mesh|mafeesh|keda|enta|ana|2ahwa)\b/i.test(
+      value,
+    );
   }
 
   private hasUnsafeCommerceKeys(value: Record<string, unknown>) {
@@ -1142,7 +1338,9 @@ export class GroqAiWaiterProviderService implements AiWaiterProvider {
 
   private metadataSafetyFlags(metadata: Record<string, unknown> | undefined) {
     return Array.isArray(metadata?.safetyFlags)
-      ? metadata.safetyFlags.filter((flag): flag is string => typeof flag === "string")
+      ? metadata.safetyFlags.filter(
+          (flag): flag is string => typeof flag === "string",
+        )
       : ["action_validation_rejected"];
   }
 
@@ -1161,9 +1359,12 @@ export class GroqAiWaiterProviderService implements AiWaiterProvider {
 
   private async delayForRetry(retryAfter: string | null) {
     const seconds = retryAfter ? Number.parseInt(retryAfter, 10) : 0;
-    const delayMs = Number.isFinite(seconds) && seconds > 0 ? seconds * 1000 : 250;
+    const delayMs =
+      Number.isFinite(seconds) && seconds > 0 ? seconds * 1000 : 250;
 
-    await new Promise((resolve) => setTimeout(resolve, Math.min(delayMs, 1500)));
+    await new Promise((resolve) =>
+      setTimeout(resolve, Math.min(delayMs, 1500)),
+    );
   }
 
   private safeRateLimitHeaders(response: Response) {
@@ -1191,6 +1392,11 @@ export class GroqAiWaiterProviderService implements AiWaiterProvider {
       requestBodyChars: error.metadata.requestBodyChars,
       menuItemsSent: error.metadata.menuItemsSent,
       recentMessagesSent: error.metadata.recentMessagesSent,
+      totalMenuItemsAvailable: error.metadata.totalMenuItemsAvailable,
+      groundingMode: error.metadata.groundingMode,
+      omittedMenuItemCount: error.metadata.omittedMenuItemCount,
+      topMatchReasons: error.metadata.topMatchReasons,
+      exactMatchFound: error.metadata.exactMatchFound,
       model: this.configService.get<string>("aiWaiter.groq.model"),
     });
   }

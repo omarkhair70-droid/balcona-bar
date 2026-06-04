@@ -29,6 +29,11 @@ export interface AiWaiterMenuItemSnapshot {
   description?: string | null;
   currency: string;
   isFeatured: boolean;
+  category?: {
+    id?: string;
+    name?: string;
+    slug?: string;
+  } | null;
   modifierGroups: AiWaiterModifierGroupSnapshot[];
 }
 

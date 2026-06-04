@@ -38,13 +38,17 @@ export default () => ({
   },
   aiWaiter: {
     provider: process.env.AI_WAITER_PROVIDER ?? 'stub',
+    menuSnapshotLimit: Number.parseInt(
+      process.env.AI_WAITER_MENU_SNAPSHOT_LIMIT ?? '200',
+      10,
+    ),
     groq: {
       apiKey: process.env.GROQ_API_KEY || undefined,
       model: process.env.GROQ_MODEL ?? 'openai/gpt-oss-20b',
       timeoutMs: Number.parseInt(process.env.GROQ_TIMEOUT_MS ?? '10000', 10),
       maxRetries: Number.parseInt(process.env.GROQ_MAX_RETRIES ?? '1', 10),
       maxContextItems: Number.parseInt(
-        process.env.GROQ_MAX_CONTEXT_ITEMS ?? '4',
+        process.env.GROQ_MAX_CONTEXT_ITEMS ?? '12',
         10,
       ),
       dryRun: process.env.GROQ_DRY_RUN === 'true',
