@@ -97,3 +97,11 @@ export interface AiWaiterProviderResult {
   toolCalls: AiWaiterProviderToolCall[];
   metadata?: Record<string, unknown>;
 }
+
+export interface AiWaiterProvider {
+  readonly name: string;
+  respond(
+    context: AiWaiterContext,
+    input: { message: string; language: string },
+  ): Promise<AiWaiterProviderResult> | AiWaiterProviderResult;
+}

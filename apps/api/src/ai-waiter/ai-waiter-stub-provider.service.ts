@@ -7,6 +7,7 @@ import {
 import {
   AiWaiterContext,
   AiWaiterMenuItemSnapshot,
+  AiWaiterProvider,
   AiWaiterProviderResult,
 } from "./ai-waiter.types";
 
@@ -42,7 +43,9 @@ const RECOMMENDATION_KEYWORDS = [
 ];
 
 @Injectable()
-export class AiWaiterStubProviderService {
+export class AiWaiterStubProviderService implements AiWaiterProvider {
+  readonly name = "stub";
+
   respond(
     context: AiWaiterContext,
     input: { message: string; language: string },
@@ -85,6 +88,23 @@ export class AiWaiterStubProviderService {
     }
 
     return this.clarifyingResult(input.message);
+  }
+
+  safeFallbackResult(reason = "provider_unavailable") {
+    return {
+      content:
+        "حصلت مشكلة بسيطة في الويتر الذكي. أقدر أساعدك بالمنيو الأساسي أو أنادي ويتر.",
+      kind: AiWaiterMessageKind.text,
+      suggestedActions: ["show_menu", "escalate_to_waiter"],
+      toolCalls: [
+        {
+          toolName: AiWaiterToolName.fallback_to_human,
+          status: AiWaiterToolCallStatus.skipped,
+          output: { reason },
+        },
+      ],
+      metadata: { provider: "stub", fallbackUsed: true, reason },
+    } satisfies AiWaiterProviderResult;
   }
 
   private recommendationResult(menuItems: AiWaiterMenuItemSnapshot[]) {

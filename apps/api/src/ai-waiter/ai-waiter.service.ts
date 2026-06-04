@@ -39,7 +39,7 @@ import { ListAiWaiterSessionsQueryDto } from "./dto/list-ai-waiter-sessions-quer
 import { RejectCartProposalDto } from "./dto/reject-cart-proposal.dto";
 import { SendAiWaiterMessageDto } from "./dto/send-ai-waiter-message.dto";
 import { StartAiWaiterDto } from "./dto/start-ai-waiter.dto";
-import { AiWaiterStubProviderService } from "./ai-waiter-stub-provider.service";
+import { AiWaiterProviderRegistry } from "./providers/ai-waiter-provider-registry.service";
 
 const DEFAULT_LANGUAGE = "ar-EG";
 const DEFAULT_MESSAGE_LIMIT = 50;
@@ -53,7 +53,7 @@ export class AiWaiterService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly contextService: AiWaiterContextService,
-    private readonly stubProvider: AiWaiterStubProviderService,
+    private readonly providerRegistry: AiWaiterProviderRegistry,
     private readonly cartService: CartService,
     private readonly waiterCallsService: WaiterCallsService,
     private readonly realtimeEventsService: RealtimeEventsService,
@@ -178,7 +178,7 @@ export class AiWaiterService {
       tableSession,
       session.id,
     );
-    const providerResult = this.stubProvider.respond(context, {
+    const providerResult = await this.providerRegistry.respond(context, {
       message: normalizedMessage,
       language,
     });
@@ -590,7 +590,8 @@ export class AiWaiterService {
           language,
           providerMode: AiWaiterProviderMode.stub,
           contextMetadata: this.toJsonValue({
-            source: "phase_18_stub_provider",
+            configuredProvider: this.providerRegistry.getConfiguredProviderName(),
+            persistedProviderMode: AiWaiterProviderMode.stub,
           }),
         },
       });
@@ -605,7 +606,10 @@ export class AiWaiterService {
           language,
           content:
             "أهلاً بيك. أقدر أرشحلك من المنيو أو أجهزلك اقتراح للسلة، والأسعار والطلب النهائي هيتأكدوا من السيستم.",
-          metadata: this.toJsonValue({ provider: "stub" }),
+          metadata: this.toJsonValue({
+            provider: this.providerRegistry.getConfiguredProviderName(),
+            persistedProviderMode: AiWaiterProviderMode.stub,
+          }),
         },
       });
       const updatedSession = await tx.aiWaiterSession.update({
@@ -625,7 +629,11 @@ export class AiWaiterService {
           messageId: welcome.id,
         },
         RealtimeEventType.ai_waiter_session_started,
-        { language, providerMode: AiWaiterProviderMode.stub },
+        {
+          language,
+          providerMode: AiWaiterProviderMode.stub,
+          configuredProvider: this.providerRegistry.getConfiguredProviderName(),
+        },
         tx,
       );
 
@@ -643,6 +651,17 @@ export class AiWaiterService {
     inputTokens: number;
   }) {
     const outputTokens = this.estimateTokens(input.providerResult.content);
+    const providerMetadata = input.providerResult.metadata ?? {};
+    const providerName =
+      typeof providerMetadata.provider === "string"
+        ? providerMetadata.provider
+        : this.providerRegistry.getConfiguredProviderName();
+    const modelName =
+      typeof providerMetadata.model === "string"
+        ? providerMetadata.model
+        : providerName === "groq"
+          ? "groq-unknown"
+          : "deterministic-stub-v1";
     const result = await this.prisma.$transaction(async (tx) => {
       const session = await tx.aiWaiterSession.findUnique({
         where: { id: input.sessionId },
@@ -705,11 +724,13 @@ export class AiWaiterService {
           tableSessionId: session.tableSessionId,
           aiWaiterSessionId: session.id,
           providerMode: AiWaiterProviderMode.stub,
-          modelName: "deterministic-stub-v1",
+          modelName,
           inputTokens: input.inputTokens,
           outputTokens,
           estimatedCostMicros: 0,
           metadata: this.toJsonValue({
+            provider: providerName,
+            fallbackUsed: providerMetadata.fallbackUsed === true,
             menuItemCount: input.context.menuItems.length,
             recentMessageCount: input.context.recentMessages.length,
           }),
@@ -807,7 +828,10 @@ export class AiWaiterService {
           providerResult.proposal.expiresAt ??
           new Date(Date.now() + PROPOSAL_TTL_MS),
         validationSnapshot: this.toJsonValue({
-          createdBy: "deterministic-stub-v1",
+          createdBy:
+            typeof providerResult.metadata?.provider === "string"
+              ? providerResult.metadata.provider
+              : "ai_waiter_provider",
           pricingAuthority: "backend_cart_validation_only",
         }),
       },

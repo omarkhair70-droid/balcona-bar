@@ -17,6 +17,11 @@ enum NodeEnvironment {
   Production = 'production',
 }
 
+enum AiWaiterProvider {
+  Stub = 'stub',
+  Groq = 'groq',
+}
+
 class EnvironmentVariables {
   @IsEnum(NodeEnvironment)
   @IsOptional()
@@ -93,6 +98,40 @@ class EnvironmentVariables {
   @IsBooleanString()
   @IsOptional()
   JOBS_ENABLED?: string;
+
+  @IsEnum(AiWaiterProvider)
+  @IsOptional()
+  AI_WAITER_PROVIDER?: AiWaiterProvider;
+
+  @IsString()
+  @IsOptional()
+  GROQ_API_KEY?: string;
+
+  @IsString()
+  @IsOptional()
+  GROQ_MODEL?: string;
+
+  @IsInt()
+  @Min(1000)
+  @Max(60000)
+  @IsOptional()
+  GROQ_TIMEOUT_MS?: number;
+
+  @IsInt()
+  @Min(0)
+  @Max(3)
+  @IsOptional()
+  GROQ_MAX_RETRIES?: number;
+
+  @IsInt()
+  @Min(1)
+  @Max(200)
+  @IsOptional()
+  GROQ_MAX_CONTEXT_ITEMS?: number;
+
+  @IsBooleanString()
+  @IsOptional()
+  GROQ_DRY_RUN?: string;
 }
 
 export function validateEnvironment(config: Record<string, unknown>) {
