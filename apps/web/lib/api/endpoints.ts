@@ -15,7 +15,12 @@ import type {
   BranchBillRequestsQuery,
   BranchBillRequestsResult,
   BranchAdminOverviewResult,
+  BranchKitchenTicketsQuery,
+  BranchKitchenTicketsResult,
   BranchMenuResult,
+  BranchPrintJobsQuery,
+  BranchPrintJobsResult,
+  BranchPrinterStationsResult,
   BranchPreparationTasksQuery,
   BranchPreparationTasksResult,
   BranchRealtimeEventsQuery,
@@ -61,16 +66,20 @@ import type {
   MenuItemDetailResult,
   ModifierGroupMutationResult,
   ModifierOptionMutationResult,
+  MarkPrintJobFailedPayload,
+  KitchenTicketDetailResult,
   MuteAttentionPayload,
   OrderDetailResult,
   OrderLifecycleActionPayload,
   OrderPreparationTasksResult,
   PreparationTaskActionPayload,
   PreparationTaskDetailResult,
+  PrintJobDetailResult,
   QrTokenMutationResult,
   RebuildBranchAttentionResult,
   RecalculateAttentionPayload,
   RejectAiCartProposalPayload,
+  ReprintKitchenTicketPayload,
   RequestBillPayload,
   FloorMutationResult,
   ResolveAttentionPayload,
@@ -1110,6 +1119,111 @@ export function getOrderPreparationTasks(orderId: string, token?: string) {
   return apiRequest<OrderPreparationTasksResult>(
     `/orders/${orderId}/preparation-tasks`,
     { token }
+  );
+}
+
+export function getBranchKitchenTickets(
+  branchId: string,
+  query: BranchKitchenTicketsQuery = {},
+  token?: string
+) {
+  return apiRequest<BranchKitchenTicketsResult>(
+    `/branches/${branchId}/kitchen-tickets`,
+    {
+      query,
+      token
+    }
+  );
+}
+
+export function getKitchenTicketDetail(ticketId: string, token?: string) {
+  return apiRequest<KitchenTicketDetailResult>(`/kitchen-tickets/${ticketId}`, {
+    token
+  });
+}
+
+export function reprintKitchenTicket(
+  ticketId: string,
+  payload: ReprintKitchenTicketPayload = {},
+  token?: string
+) {
+  return apiRequest<PrintJobDetailResult, ReprintKitchenTicketPayload>(
+    `/kitchen-tickets/${ticketId}/reprint`,
+    {
+      method: "POST",
+      body: payload,
+      token
+    }
+  );
+}
+
+export function getBranchPrintJobs(
+  branchId: string,
+  query: BranchPrintJobsQuery = {},
+  token?: string
+) {
+  return apiRequest<BranchPrintJobsResult>(`/branches/${branchId}/print-jobs`, {
+    query,
+    token
+  });
+}
+
+export function markPrintJobPrinting(printJobId: string, token?: string) {
+  return apiRequest<PrintJobDetailResult>(
+    `/print-jobs/${printJobId}/mark-printing`,
+    {
+      method: "POST",
+      token
+    }
+  );
+}
+
+export function markPrintJobPrinted(printJobId: string, token?: string) {
+  return apiRequest<PrintJobDetailResult>(
+    `/print-jobs/${printJobId}/mark-printed`,
+    {
+      method: "POST",
+      token
+    }
+  );
+}
+
+export function markPrintJobFailed(
+  printJobId: string,
+  payload: MarkPrintJobFailedPayload = {},
+  token?: string
+) {
+  return apiRequest<PrintJobDetailResult, MarkPrintJobFailedPayload>(
+    `/print-jobs/${printJobId}/mark-failed`,
+    {
+      method: "POST",
+      body: payload,
+      token
+    }
+  );
+}
+
+export function retryPrintJob(printJobId: string, token?: string) {
+  return apiRequest<PrintJobDetailResult>(`/print-jobs/${printJobId}/retry`, {
+    method: "POST",
+    token
+  });
+}
+
+export function getBranchPrinterStations(branchId: string, token?: string) {
+  return apiRequest<BranchPrinterStationsResult>(
+    `/branches/${branchId}/printer-stations`,
+    { token }
+  );
+}
+
+export function testPrinterStation(printerStationId: string, token?: string) {
+  return apiRequest<PrintJobDetailResult>(
+    `/printer-stations/${printerStationId}/test-print`,
+    {
+      method: "POST",
+      token
+    }
   );
 }
 

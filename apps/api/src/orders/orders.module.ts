@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { AutopilotModule } from '../autopilot/autopilot.module';
 import { CartModule } from '../cart/cart.module';
+import { KitchenTicketsModule } from '../kitchen-tickets/kitchen-tickets.module';
 import { PresenceNotificationsModule } from '../presence-notifications/presence-notifications.module';
 import { PreparationTasksModule } from '../preparation-tasks/preparation-tasks.module';
 import { PrismaModule } from '../prisma/prisma.module';
@@ -15,6 +16,7 @@ import { OrdersService } from './orders.service';
     PrismaModule,
     AutopilotModule,
     CartModule,
+    KitchenTicketsModule,
     PreparationTasksModule,
     PresenceNotificationsModule,
     RealtimeEventsModule,

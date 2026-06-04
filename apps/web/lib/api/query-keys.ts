@@ -51,6 +51,34 @@ export const staffQueryKeys = {
     "preparation-task",
     taskId
   ],
+  kitchenTickets: (
+    branchId?: string,
+    station?: string,
+    status?: string,
+    type?: string
+  ) =>
+    station === undefined && status === undefined && type === undefined
+      ? ["staff", "kitchen-tickets", branchId]
+      : ["staff", "kitchen-tickets", branchId, station, status, type],
+  kitchenTicket: (ticketId?: string) => [
+    "staff",
+    "kitchen-ticket",
+    ticketId
+  ],
+  printJobs: (
+    branchId?: string,
+    station?: string,
+    status?: string,
+    kind?: string
+  ) =>
+    station === undefined && status === undefined && kind === undefined
+      ? ["staff", "print-jobs", branchId]
+      : ["staff", "print-jobs", branchId, station, status, kind],
+  printerStations: (branchId?: string) => [
+    "staff",
+    "printer-stations",
+    branchId
+  ],
   orderPreparationTasks: (orderId?: string) => [
     "staff",
     "order-preparation-tasks",

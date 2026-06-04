@@ -978,6 +978,7 @@ export type OrderDetailResult = Record<string, unknown> & {
   items?: Record<string, unknown>[];
   events?: Record<string, unknown>[];
   preparationTasks?: Record<string, unknown>[];
+  kitchenTickets?: Record<string, unknown>[];
   totals?: Record<string, unknown>;
   lifecycle?: OrderLifecycleSummary;
 };
@@ -1060,7 +1061,12 @@ export type BranchRealtimeEventsResult = {
   events: Record<string, unknown>[];
 };
 
-export type PreparationStation = "barista" | "kitchen" | "dessert" | "all" | string;
+export type PreparationStation =
+  | "barista"
+  | "kitchen"
+  | "dessert"
+  | "all"
+  | string;
 
 export type PreparationTaskStatus =
   | "pending"
@@ -1108,6 +1114,111 @@ export type PreparationTaskDetailResult = Record<string, unknown> & {
 export type PreparationTaskActionPayload = {
   staffUserId?: string;
   note?: string;
+};
+
+export type KitchenTicketStatus =
+  | "queued"
+  | "in_progress"
+  | "ready"
+  | "served"
+  | "cancelled"
+  | "voided"
+  | "all"
+  | string;
+
+export type KitchenTicketType =
+  | "kitchen_order"
+  | "barista_order"
+  | "dessert_order"
+  | "receipt"
+  | "void"
+  | "reprint"
+  | "all"
+  | string;
+
+export type BranchKitchenTicketsQuery = {
+  station?: PreparationStation;
+  status?: KitchenTicketStatus;
+  type?: KitchenTicketType;
+  limit?: number;
+};
+
+export type BranchKitchenTicketsResult = {
+  branch: BranchSummary;
+  filters?: Record<string, unknown>;
+  tickets: Record<string, unknown>[];
+};
+
+export type KitchenTicketDetailResult = Record<string, unknown> & {
+  ticket?: Record<string, unknown>;
+  company?: CompanySummary;
+  branch?: BranchSummary;
+  order?: Record<string, unknown>;
+  tableSession?: Record<string, unknown>;
+  floor?: Record<string, unknown> | null;
+  table?: Record<string, unknown>;
+  items?: Record<string, unknown>[];
+  printJobs?: Record<string, unknown>[];
+  lifecycle?: Record<string, unknown>;
+};
+
+export type ReprintKitchenTicketPayload = {
+  reason?: string | null;
+};
+
+export type PrintJobStatus =
+  | "pending"
+  | "printing"
+  | "printed"
+  | "failed"
+  | "cancelled"
+  | "reprint_requested"
+  | "all"
+  | string;
+
+export type PrintJobKind =
+  | "kitchen_ticket"
+  | "barista_ticket"
+  | "dessert_ticket"
+  | "receipt"
+  | "void_ticket"
+  | "all"
+  | string;
+
+export type BranchPrintJobsQuery = {
+  station?: PreparationStation;
+  status?: PrintJobStatus;
+  kind?: PrintJobKind;
+  limit?: number;
+};
+
+export type BranchPrintJobsResult = {
+  branch: BranchSummary;
+  filters?: Record<string, unknown>;
+  printJobs: Record<string, unknown>[];
+};
+
+export type PrintJobDetailResult = Record<string, unknown> & {
+  printJob?: Record<string, unknown>;
+  company?: CompanySummary;
+  branch?: BranchSummary;
+  printerStation?: Record<string, unknown> | null;
+  kitchenTicket?: Record<string, unknown> | null;
+  order?: Record<string, unknown> | null;
+  events?: Record<string, unknown>[];
+};
+
+export type MarkPrintJobFailedPayload = {
+  errorMessage?: string | null;
+};
+
+export type PrinterStationResult = {
+  printerStation: Record<string, unknown>;
+};
+
+export type BranchPrinterStationsResult = {
+  branch: BranchSummary;
+  printerStations: Record<string, unknown>[];
 };
 
 export type CancelPreparationTaskPayload = {

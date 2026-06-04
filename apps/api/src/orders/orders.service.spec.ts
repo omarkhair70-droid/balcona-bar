@@ -149,6 +149,10 @@ function buildService(input: {
     recordOrderCompleted: jest.fn().mockResolvedValue({}),
     recordOrderCancelled: jest.fn().mockResolvedValue({}),
   };
+  const kitchenTicketsService = {
+    syncTicketsForOrderServed: jest.fn().mockResolvedValue(1),
+    syncTicketsForOrderCancelled: jest.fn().mockResolvedValue(1),
+  };
   const service = new OrdersService(
     prisma as never,
     {} as never,
@@ -157,6 +161,7 @@ function buildService(input: {
     realtimeEventsService as never,
     {} as never,
     { recalculateForTableSession: jest.fn().mockResolvedValue({}) } as never,
+    kitchenTicketsService as never,
   );
 
   return {
@@ -164,6 +169,7 @@ function buildService(input: {
     tx,
     preparationTasksService,
     realtimeEventsService,
+    kitchenTicketsService,
   };
 }
 

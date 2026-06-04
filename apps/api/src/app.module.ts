@@ -17,10 +17,12 @@ import { CustomerStatusModule } from './customer-status/customer-status.module';
 import { ExperienceModule } from './experience/experience.module';
 import { HealthModule } from './health/health.module';
 import { JobsModule } from './jobs/jobs.module';
+import { KitchenTicketsModule } from './kitchen-tickets/kitchen-tickets.module';
 import { MediaAssetsModule } from './media-assets/media-assets.module';
 import { MenuAdminModule } from './menu-admin/menu-admin.module';
 import { MenuModule } from './menu/menu.module';
 import { OrdersModule } from './orders/orders.module';
+import { PrintJobsModule } from './print-jobs/print-jobs.module';
 import { PresenceNotificationsModule } from './presence-notifications/presence-notifications.module';
 import { PreparationTasksModule } from './preparation-tasks/preparation-tasks.module';
 import { PrismaModule } from './prisma/prisma.module';
@@ -52,6 +54,7 @@ import { WaiterCallsModule } from './waiter-calls/waiter-calls.module';
     RedisModule,
     HealthModule,
     JobsModule,
+    KitchenTicketsModule,
     SystemModule,
     BillRequestsModule,
     BranchAdminModule,
@@ -66,6 +69,7 @@ import { WaiterCallsModule } from './waiter-calls/waiter-calls.module';
     OrdersModule,
     PresenceNotificationsModule,
     PreparationTasksModule,
+    PrintJobsModule,
     RealtimeEventsModule,
     SmartCashierModule,
     TablesModule,

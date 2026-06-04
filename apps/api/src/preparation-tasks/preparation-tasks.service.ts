@@ -13,6 +13,7 @@ import {
   Prisma,
 } from '@prisma/client';
 import { TableAttentionService } from '../autopilot/table-attention.service';
+import { KitchenTicketsService } from '../kitchen-tickets/kitchen-tickets.service';
 import { PresenceNotificationsService } from '../presence-notifications/presence-notifications.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { RealtimeEventsService } from '../realtime-events/realtime-events.service';
@@ -39,6 +40,7 @@ export class PreparationTasksService {
     private readonly presenceNotificationsService: PresenceNotificationsService,
     private readonly realtimeEventsService: RealtimeEventsService,
     private readonly tableAttentionService: TableAttentionService,
+    private readonly kitchenTicketsService: KitchenTicketsService,
   ) {}
 
   async createTasksForAcceptedOrder(
@@ -132,6 +134,12 @@ export class PreparationTasksService {
       );
       activeTaskCount += 1;
     }
+
+    await this.kitchenTicketsService.createTicketsForAcceptedOrder(
+      order.id,
+      staffUserId,
+      tx,
+    );
 
     if (activeTaskCount === 0) {
       await this.syncOrderPreparationReady(
@@ -247,6 +255,7 @@ export class PreparationTasksService {
         body.staffUserId,
         tx,
       );
+      await this.kitchenTicketsService.syncTicketsForTaskStarted(task.id, tx);
       await this.recalculateAttention(
         task.order.tableSessionId,
         tx,
@@ -301,6 +310,7 @@ export class PreparationTasksService {
       );
       await this.realtimeEventsService.recordPreparationTaskReady(task.id, tx);
       await this.syncOrderPreparationReady(task.orderId, body.staffUserId, tx);
+      await this.kitchenTicketsService.syncTicketsForTaskReady(task.id, tx);
       await this.recalculateAttention(
         task.order.tableSessionId,
         tx,
@@ -352,6 +362,12 @@ export class PreparationTasksService {
 
       await this.realtimeEventsService.recordPreparationTaskCancelled(
         task.id,
+        tx,
+      );
+      await this.kitchenTicketsService.syncTicketsForTaskCancelled(
+        task.id,
+        reason,
+        body.staffUserId,
         tx,
       );
       await this.recalculateAttention(
@@ -423,6 +439,12 @@ export class PreparationTasksService {
       });
       await this.realtimeEventsService.recordPreparationTaskCancelled(
         task.id,
+        tx,
+      );
+      await this.kitchenTicketsService.syncTicketsForTaskCancelled(
+        task.id,
+        reason,
+        staffUserId,
         tx,
       );
       cancelledTaskIds.push(task.id);

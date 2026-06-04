@@ -500,6 +500,108 @@ export class RealtimeEventsService {
     );
   }
 
+  async recordKitchenTicketCreated(ticketId: string, tx: PrismaExecutor) {
+    return this.recordKitchenTicketEvent(
+      ticketId,
+      RealtimeEventType.kitchen_ticket_created,
+      tx,
+    );
+  }
+
+  async recordKitchenTicketUpdated(ticketId: string, tx: PrismaExecutor) {
+    return this.recordKitchenTicketEvent(
+      ticketId,
+      RealtimeEventType.kitchen_ticket_updated,
+      tx,
+    );
+  }
+
+  async recordKitchenTicketReady(ticketId: string, tx: PrismaExecutor) {
+    return this.recordKitchenTicketEvent(
+      ticketId,
+      RealtimeEventType.kitchen_ticket_ready,
+      tx,
+    );
+  }
+
+  async recordKitchenTicketCancelled(ticketId: string, tx: PrismaExecutor) {
+    return this.recordKitchenTicketEvent(
+      ticketId,
+      RealtimeEventType.kitchen_ticket_cancelled,
+      tx,
+    );
+  }
+
+  async recordPrintJobCreated(printJobId: string, tx: PrismaExecutor) {
+    return this.recordPrintJobEvent(
+      printJobId,
+      RealtimeEventType.print_job_created,
+      tx,
+    );
+  }
+
+  async recordPrintJobPrinted(printJobId: string, tx: PrismaExecutor) {
+    return this.recordPrintJobEvent(
+      printJobId,
+      RealtimeEventType.print_job_printed,
+      tx,
+    );
+  }
+
+  async recordPrintJobFailed(printJobId: string, tx: PrismaExecutor) {
+    return this.recordPrintJobEvent(
+      printJobId,
+      RealtimeEventType.print_job_failed,
+      tx,
+    );
+  }
+
+  async recordPrintJobReprintRequested(
+    printJobId: string,
+    tx: PrismaExecutor,
+  ) {
+    return this.recordPrintJobEvent(
+      printJobId,
+      RealtimeEventType.print_job_reprint_requested,
+      tx,
+    );
+  }
+
+  async recordPrinterStationUpdated(
+    printerStationId: string,
+    tx: PrismaExecutor,
+  ) {
+    const printerStation = await tx.printerStation.findUnique({
+      where: { id: printerStationId },
+      select: {
+        id: true,
+        companyId: true,
+        branchId: true,
+        station: true,
+        status: true,
+      },
+    });
+
+    if (!printerStation) {
+      return undefined;
+    }
+
+    return this.createRealtimeEvent(
+      {
+        companyId: printerStation.companyId,
+        branchId: printerStation.branchId,
+        type: RealtimeEventType.printer_station_updated,
+        channel: RealtimeEventChannel.branch_preparation,
+        payload: {
+          printerStationId: printerStation.id,
+          station: printerStation.station,
+          status: printerStation.status,
+        },
+      },
+      tx,
+    );
+  }
+
   async recordWaiterCallCreated(waiterCallId: string, tx: PrismaExecutor) {
     return this.recordWaiterCallEvent(
       waiterCallId,
@@ -795,6 +897,90 @@ export class RealtimeEventsService {
     }
 
     return events;
+  }
+
+  private async recordKitchenTicketEvent(
+    ticketId: string,
+    type: RealtimeEventType,
+    tx: PrismaExecutor,
+  ) {
+    const ticket = await tx.kitchenTicket.findUnique({
+      where: { id: ticketId },
+      select: {
+        id: true,
+        companyId: true,
+        branchId: true,
+        orderId: true,
+        tableSessionId: true,
+        station: true,
+        status: true,
+        type: true,
+        displayCode: true,
+      },
+    });
+
+    if (!ticket) {
+      return undefined;
+    }
+
+    return this.createRealtimeEvent(
+      {
+        companyId: ticket.companyId,
+        branchId: ticket.branchId,
+        tableSessionId: ticket.tableSessionId,
+        orderId: ticket.orderId,
+        type,
+        channel: RealtimeEventChannel.branch_preparation,
+        payload: {
+          kitchenTicketId: ticket.id,
+          displayCode: ticket.displayCode,
+          ticketType: ticket.type,
+          station: ticket.station,
+          status: ticket.status,
+        },
+      },
+      tx,
+    );
+  }
+
+  private async recordPrintJobEvent(
+    printJobId: string,
+    type: RealtimeEventType,
+    tx: PrismaExecutor,
+  ) {
+    const printJob = await tx.printJob.findUnique({
+      where: { id: printJobId },
+      select: {
+        id: true,
+        companyId: true,
+        branchId: true,
+        kitchenTicketId: true,
+        orderId: true,
+        kind: true,
+        status: true,
+      },
+    });
+
+    if (!printJob) {
+      return undefined;
+    }
+
+    return this.createRealtimeEvent(
+      {
+        companyId: printJob.companyId,
+        branchId: printJob.branchId,
+        orderId: printJob.orderId,
+        type,
+        channel: RealtimeEventChannel.branch_preparation,
+        payload: {
+          printJobId: printJob.id,
+          kitchenTicketId: printJob.kitchenTicketId,
+          kind: printJob.kind,
+          status: printJob.status,
+        },
+      },
+      tx,
+    );
   }
 
   private async recordWaiterCallEvent(

@@ -8,6 +8,7 @@ import {
   BellRing,
   CheckCircle2,
   ChefHat,
+  ClipboardList,
   Footprints,
   HandPlatter,
   LayoutDashboard,
@@ -36,9 +37,17 @@ import {
 } from "@/features/staff/attention-data";
 import {
   getOrderId,
+  getOrderKitchenTickets,
   getOrderNumber,
   getOrderStatus
 } from "@/features/staff/cashier-data";
+import {
+  getPrintJobStatus,
+  getTicketDisplayCode,
+  getTicketPrintJobs,
+  getTicketStation,
+  getTicketStatus
+} from "@/features/staff/kds-data";
 import { StaffPageShell } from "@/features/staff/staff-page-shell";
 import {
   formatDateTime,
@@ -114,6 +123,8 @@ type MuteAttentionAction = ResolveAttentionAction & {
 const emptyRecords: Record<string, unknown>[] = [];
 const terminalWaiterCallStatuses = new Set(["resolved", "cancelled"]);
 
+type BadgeVariant = "default" | "muted" | "success" | "warning" | "danger";
+
 function attentionQueryStatus(status: AttentionStatusFilter) {
   return status === "active" ? undefined : status;
 }
@@ -134,6 +145,24 @@ function countAttentionByStatus(
   return attentionQueue.filter((attention) =>
     predicate(getAttentionStatus(attention), getAttentionPriority(attention))
   ).length;
+}
+
+function getReadyTicketVariant(status: string): BadgeVariant {
+  if (status === "ready" || status === "served") {
+    return "success";
+  }
+
+  if (status === "cancelled" || status === "voided") {
+    return "danger";
+  }
+
+  return status === "queued" || status === "in_progress" ? "warning" : "muted";
+}
+
+function hasFailedPrint(ticket: Record<string, unknown>) {
+  return getTicketPrintJobs(ticket).some(
+    (printJob) => getPrintJobStatus(printJob) === "failed"
+  );
 }
 
 function NoticeBanner({ notice }: { notice?: Notice }) {
@@ -732,6 +761,7 @@ function WaiterDashboardContent() {
           {readyOrders.map((order, index) => {
             const orderId = getOrderId(order);
             const status = getOrderStatus(order);
+            const kitchenTickets = getOrderKitchenTickets(order);
 
             return (
               <div
@@ -760,6 +790,36 @@ function WaiterDashboardContent() {
                     Serve
                   </Button>
                 </div>
+                {kitchenTickets.length > 0 ? (
+                  <div className="mt-4 flex flex-wrap gap-2">
+                    {kitchenTickets.map((ticket, ticketIndex) => {
+                      const ticketStatus = getTicketStatus(ticket);
+
+                      return (
+                        <Badge
+                          key={getTicketDisplayCode(ticket) || String(ticketIndex)}
+                          variant={
+                            hasFailedPrint(ticket)
+                              ? "warning"
+                              : getReadyTicketVariant(ticketStatus)
+                          }
+                        >
+                          <ClipboardList
+                            className="mr-1 size-3"
+                            aria-hidden="true"
+                          />
+                          {humanizeStatus(getTicketStation(ticket))}:{" "}
+                          {humanizeStatus(ticketStatus)}
+                        </Badge>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <p className="mt-4 text-xs text-muted-foreground">
+                    Backend marked this order ready. No station ticket rows were
+                    returned for the ready list.
+                  </p>
+                )}
               </div>
             );
           })}
