@@ -156,6 +156,13 @@ export class AiWaiterContextService {
         description: true,
         currency: true,
         isFeatured: true,
+        category: {
+          select: {
+            id: true,
+            name: true,
+            slug: true,
+          },
+        },
         modifierGroups: {
           orderBy: { sortOrder: "asc" },
           select: {
@@ -193,6 +200,7 @@ export class AiWaiterContextService {
       description: item.description,
       currency: item.currency,
       isFeatured: item.isFeatured,
+      category: item.category,
       modifierGroups: item.modifierGroups
         .map((join) => join.modifierGroup)
         .filter((group) => group.status === ModifierGroupStatus.active)

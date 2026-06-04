@@ -1,6 +1,6 @@
 # balcona-bar
 
-Balcona Bar is organized as a monorepo for the Cafe AI Waiter App / Smart Cafe Operating System. The backend core is complete through Phase 24, UI Phase 1 adds the first Next.js web foundation for customer and staff experiences, UI Phase 2 adds the customer PWA core, UI Phase 3 adds the customer AI waiter experience, UI Phase 4 adds the cashier dashboard core, UI Phase 5 adds the kitchen/barista dashboard core, UI Phase 6 adds the waiter dashboard and attention queue, UI Phase 7 adds the owner/manager command center, UI Phase 8 adds full demo hardening plus Balkona demo mode, Production Phase 1 adds deployable platform foundation files, Production Phase 2 adds AWS infrastructure foundation scaffolding without deploying resources, Production Phase 3A adds public demo deploy readiness plus CI/CD guardrails without deploying resources, Production Phase 3B adds the first public AWS demo preflight deploy pack without deploying resources, Product Phase 4A starts the full Cafe OS product completion track, Product Phase 4B adds branch-scoped menu admin and availability management, Product Phase 4C adds branch, tables, and QR management, and Product Phase 4E.G0 adds a Groq AI waiter provider behind a safe backend validation loop.
+Balcona Bar is organized as a monorepo for the Cafe AI Waiter App / Smart Cafe Operating System. The backend core is complete through Phase 24, UI Phase 1 adds the first Next.js web foundation for customer and staff experiences, UI Phase 2 adds the customer PWA core, UI Phase 3 adds the customer AI waiter experience, UI Phase 4 adds the cashier dashboard core, UI Phase 5 adds the kitchen/barista dashboard core, UI Phase 6 adds the waiter dashboard and attention queue, UI Phase 7 adds the owner/manager command center, UI Phase 8 adds full demo hardening plus Balkona demo mode, Production Phase 1 adds deployable platform foundation files, Production Phase 2 adds AWS infrastructure foundation scaffolding without deploying resources, Production Phase 3A adds public demo deploy readiness plus CI/CD guardrails without deploying resources, Production Phase 3B adds the first public AWS demo preflight deploy pack without deploying resources, Product Phase 4A starts the full Cafe OS product completion track, Product Phase 4B adds branch-scoped menu admin and availability management, Product Phase 4C adds branch, tables, and QR management, and Product Phase 4E.G0-G2 add a Groq AI waiter provider with safe backend validation plus deep menu grounding.
 
 ## Layout
 
@@ -198,6 +198,30 @@ pnpm --filter @balcona-bar/web lint
 pnpm --filter @balcona-bar/web typecheck
 pnpm web:build
 ```
+
+## Product Phase 4E.G2 status
+
+Product Phase 4E.G2 adds deep menu grounding and smart tool selection for the
+Groq AI waiter provider:
+
+- the API searches the full branch menu before calling Groq;
+- Groq receives `relevantMenuItems`, not a first-N `menuItems` slice;
+- menu candidates are selected with exact names/slugs, aliases, typo handling,
+  category/description tokens, recent-message hints, and cafe intent phrases;
+- the cafe lexicon is domain-specific for Egyptian Arabic, Franco-Arabic,
+  English, and Balcona menu aliases;
+- `GROQ_MAX_CONTEXT_ITEMS` now caps grounded candidates, defaults to `12`, and
+  still has a hard cap of `20`;
+- modifier groups/options remain excluded from the first recommendation turn;
+- cart proposals are rejected if they contain menu item ids outside the
+  backend-grounded candidate set;
+- final order submission, price changes, payment, discounts, fake ids, and
+  allergy guarantees remain blocked by backend safety validation.
+
+See
+`docs/architecture/product-phase-4eg2-deep-menu-grounding-smart-tool-selection.md`
+for grounding behavior, prompt/context changes, safety guardrails, tests, and
+known limitations.
 
 ## UI Phase 1 status
 
@@ -1319,4 +1343,5 @@ begin.
 - AI Waiter real engine spec: `docs/product/ai-waiter-real-engine-spec.md`
 - Product Phase 4B menu admin control center: `docs/product/product-phase-4b-menu-admin-control-center.md`
 - Product Phase 4C branch tables QR management: `docs/product/product-phase-4c-branch-tables-qr-management.md`
+- Product Phase 4E.G2 deep menu grounding and smart tool selection: `docs/architecture/product-phase-4eg2-deep-menu-grounding-smart-tool-selection.md`
 - Real cafe readiness checklist: `docs/product/real-cafe-readiness-checklist.md`
