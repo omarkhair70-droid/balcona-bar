@@ -228,6 +228,41 @@ export class BillsService {
       const note = this.normalizeOptionalText(body.note);
       const reference = this.normalizeOptionalText(body.reference);
       const now = new Date();
+      const settledBill = await tx.bill.updateMany({
+        where: {
+          id: bill.id,
+          status: { in: PAYABLE_BILL_STATUSES },
+          balanceDueMinor: body.amountMinor,
+        },
+        data: {
+          status: BillStatus.paid,
+          paidMinor: bill.totalMinor,
+          balanceDueMinor: 0,
+          paidAt: now,
+          paidByStaffUserId: staffUserId,
+        },
+      });
+
+      if (settledBill.count === 0) {
+        const currentBill = await tx.bill.findUnique({
+          where: { id: bill.id },
+          select: {
+            status: true,
+            balanceDueMinor: true,
+          },
+        });
+
+        if (
+          currentBill?.status === BillStatus.paid ||
+          currentBill?.status === BillStatus.closed
+        ) {
+          throw new BadRequestException('Bill is already paid');
+        }
+
+        throw new BadRequestException(
+          'Bill is no longer payable or the balance changed. Refresh the bill and try again.',
+        );
+      }
 
       await tx.manualPayment.create({
         data: {
@@ -242,16 +277,6 @@ export class BillsService {
           note,
           recordedByStaffUserId: staffUserId,
           recordedAt: now,
-        },
-      });
-      await tx.bill.update({
-        where: { id: bill.id },
-        data: {
-          status: BillStatus.paid,
-          paidMinor: bill.totalMinor,
-          balanceDueMinor: 0,
-          paidAt: now,
-          paidByStaffUserId: staffUserId,
         },
       });
       await this.createBillEvent(

@@ -299,23 +299,25 @@ describe('BillsService', () => {
       bill: {
         findUnique: jest.fn((args) => {
           if (args.where.id) {
-            return args.include ? paidBill : {
-              id: 'bill-1',
-              companyId: 'company-1',
-              branchId: 'branch-1',
-              tableSessionId: 'session-1',
-              billRequestId: 'bill-request-1',
-              status: BillStatus.presented,
-              currency: 'EGP',
-              totalMinor: 18500,
-              paidMinor: 0,
-              balanceDueMinor: 18500,
-            };
+            return args.include
+              ? paidBill
+              : {
+                  id: 'bill-1',
+                  companyId: 'company-1',
+                  branchId: 'branch-1',
+                  tableSessionId: 'session-1',
+                  billRequestId: 'bill-request-1',
+                  status: BillStatus.presented,
+                  currency: 'EGP',
+                  totalMinor: 18500,
+                  paidMinor: 0,
+                  balanceDueMinor: 18500,
+                };
           }
 
           return null;
         }),
-        update: jest.fn().mockResolvedValue({ id: 'bill-1' }),
+        updateMany: jest.fn().mockResolvedValue({ count: 1 }),
       },
       manualPayment: {
         create: jest.fn().mockResolvedValue({ id: 'payment-1' }),
@@ -373,8 +375,13 @@ describe('BillsService', () => {
         }),
       }),
     );
-    expect(tx.bill.update).toHaveBeenCalledWith(
+    expect(tx.bill.updateMany).toHaveBeenCalledWith(
       expect.objectContaining({
+        where: expect.objectContaining({
+          id: 'bill-1',
+          balanceDueMinor: 18500,
+          status: { in: [BillStatus.presented, BillStatus.payment_pending] },
+        }),
         data: expect.objectContaining({
           status: BillStatus.paid,
           paidMinor: 18500,
@@ -388,5 +395,94 @@ describe('BillsService', () => {
       'bill-1',
       tx,
     );
+  });
+
+  it('rejects a duplicate double-submit after another cashier settles the bill', async () => {
+    const findUnique = jest
+      .fn()
+      .mockResolvedValueOnce({
+        id: 'bill-1',
+        companyId: 'company-1',
+        branchId: 'branch-1',
+        tableSessionId: 'session-1',
+        billRequestId: 'bill-request-1',
+        status: BillStatus.presented,
+        currency: 'EGP',
+        totalMinor: 18500,
+        paidMinor: 0,
+        balanceDueMinor: 18500,
+      })
+      .mockResolvedValueOnce({
+        status: BillStatus.paid,
+        balanceDueMinor: 0,
+      });
+    const tx = {
+      staffUser: {
+        findUnique: jest.fn().mockResolvedValue({ id: 'staff-2' }),
+      },
+      bill: {
+        findUnique,
+        updateMany: jest.fn().mockResolvedValue({ count: 0 }),
+      },
+      manualPayment: {
+        create: jest.fn(),
+      },
+    };
+    const { service } = buildService(tx);
+
+    await expect(
+      service.recordManualPayment(
+        'bill-1',
+        {
+          method: BillPaymentMethod.cash,
+          amountMinor: 18500,
+        },
+        'staff-2',
+      ),
+    ).rejects.toThrow('Bill is already paid');
+
+    expect(tx.bill.updateMany).toHaveBeenCalled();
+    expect(tx.manualPayment.create).not.toHaveBeenCalled();
+  });
+
+  it('rejects already paid bills before creating another manual payment', async () => {
+    const tx = {
+      staffUser: {
+        findUnique: jest.fn().mockResolvedValue({ id: 'staff-1' }),
+      },
+      bill: {
+        findUnique: jest.fn().mockResolvedValue({
+          id: 'bill-1',
+          companyId: 'company-1',
+          branchId: 'branch-1',
+          tableSessionId: 'session-1',
+          billRequestId: 'bill-request-1',
+          status: BillStatus.paid,
+          currency: 'EGP',
+          totalMinor: 18500,
+          paidMinor: 18500,
+          balanceDueMinor: 0,
+        }),
+        updateMany: jest.fn(),
+      },
+      manualPayment: {
+        create: jest.fn(),
+      },
+    };
+    const { service } = buildService(tx);
+
+    await expect(
+      service.recordManualPayment(
+        'bill-1',
+        {
+          method: BillPaymentMethod.card_pos,
+          amountMinor: 18500,
+        },
+        'staff-1',
+      ),
+    ).rejects.toThrow('Bill is already paid');
+
+    expect(tx.bill.updateMany).not.toHaveBeenCalled();
+    expect(tx.manualPayment.create).not.toHaveBeenCalled();
   });
 });
