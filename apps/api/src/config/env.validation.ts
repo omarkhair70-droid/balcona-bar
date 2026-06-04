@@ -111,10 +111,6 @@ class EnvironmentVariables {
   @IsOptional()
   GROQ_MODEL?: string;
 
-  @IsString()
-  @IsOptional()
-  GROQ_STRUCTURED_MODEL?: string;
-
   @IsInt()
   @Min(1000)
   @Max(60000)

@@ -207,6 +207,42 @@ describe("AiWaiterProviderSafetyService", () => {
     );
   });
 
+  it("allows sugar-free and caffeine-free cafe phrases", () => {
+    const sugarFreeResult = service.validateAndMapPlan(
+      plan({
+        assistantMessage:
+          "I can suggest a sugar-free drink from the available menu.",
+      }),
+      context,
+    );
+    const caffeineFreeResult = service.validateAndMapPlan(
+      plan({
+        assistantMessage:
+          "I can suggest a caffeine-free option from the available menu.",
+      }),
+      context,
+    );
+
+    expect(sugarFreeResult.kind).toBe(AiWaiterMessageKind.menu_suggestion);
+    expect(sugarFreeResult.metadata?.fallbackUsed).not.toBe(true);
+    expect(caffeineFreeResult.kind).toBe(AiWaiterMessageKind.menu_suggestion);
+    expect(caffeineFreeResult.metadata?.fallbackUsed).not.toBe(true);
+  });
+
+  it("rejects free item promises without rejecting dietary free phrases", () => {
+    const result = service.validateAndMapPlan(
+      plan({
+        assistantMessage: "I can add a free item to your order.",
+      }),
+      context,
+    );
+
+    expect(result.metadata?.fallbackUsed).toBe(true);
+    expect(result.metadata?.safetyFlags).toContain(
+      "payment_or_discount_promise_rejected",
+    );
+  });
+
   it("rejects unknown modifier option IDs", () => {
     const result = service.validateAndMapPlan(
       plan({
@@ -247,8 +283,10 @@ describe("AiWaiterProviderSafetyService", () => {
       context,
     );
 
-    expect(result.kind).toBe(AiWaiterMessageKind.cart_proposal);
-    expect(result.proposal?.items[0]?.quantity).toBe(12);
+    expect(result.kind).toBe(AiWaiterMessageKind.text);
+    expect(result.metadata?.fallbackUsed).toBe(true);
+    expect(result.metadata?.safetyFlags).toContain("quantity_limit_enforced");
+    expect(result.proposal).toBeUndefined();
   });
 
   it("maps bill and waiter intents to safe action results", () => {

@@ -34,12 +34,17 @@ const PRICE_KEYS = [
 const UNSAFE_PRICE_OR_PAYMENT_WORDS = [
   "discount",
   "خصم",
-  "free",
-  "مجاني",
   "refund",
+  "payment",
   "payment confirmed",
   "paid",
   "هخفض السعر",
+];
+const UNSAFE_FREE_PROMISE_PATTERNS = [
+  /(^|[^-\w])free\s+(item|order|drink|dessert|coffee|meal|beverage|upgrade|modifier|latte|tea|juice)\b/,
+  /\b(giveaway|complimentary|on the house|for free)\b/,
+  /\b(give|send|add)\s+(you\s+)?(a\s+)?free\b/,
+  /(مجاني|هدية|على حسابنا|من غير فلوس)/,
 ];
 const ALLERGY_GUARANTEE_WORDS = [
   "allergy safe",
@@ -271,7 +276,7 @@ export class AiWaiterProviderSafetyService {
             title: this.stringValue(proposedCart.title, "AI waiter proposal"),
             items: this.recordArray(proposedCart.items).map((item) => ({
               menuItemId: this.stringValue(item.menuItemId),
-              quantity: Math.round(this.numberValue(item.quantity, 1, 1, MAX_AI_PROPOSAL_QUANTITY)),
+              quantity: Math.round(this.numberValue(item.quantity, 1)),
               modifierOptionIds: this.stringArray(item.modifierOptionIds),
               notes: this.optionalString(item.notes),
             })),
@@ -362,7 +367,7 @@ export class AiWaiterProviderSafetyService {
       return "unsafe_action_rejected";
     }
 
-    if (UNSAFE_PRICE_OR_PAYMENT_WORDS.some((word) => json.includes(word))) {
+    if (this.hasUnsafePriceOrPaymentPromise(json)) {
       return "payment_or_discount_promise_rejected";
     }
 
@@ -478,6 +483,13 @@ export class AiWaiterProviderSafetyService {
     return context.menuItems.find((item) => item.id === menuItemId);
   }
 
+  private hasUnsafePriceOrPaymentPromise(json: string) {
+    return (
+      UNSAFE_PRICE_OR_PAYMENT_WORDS.some((word) => json.includes(word)) ||
+      UNSAFE_FREE_PROMISE_PATTERNS.some((pattern) => pattern.test(json))
+    );
+  }
+
   private stringValue(value: unknown, fallback = "") {
     if (typeof value !== "string") {
       return fallback;
@@ -492,14 +504,27 @@ export class AiWaiterProviderSafetyService {
     return normalized.length > 0 ? normalized : undefined;
   }
 
-  private numberValue(value: unknown, fallback: number, min: number, max: number) {
+  private numberValue(
+    value: unknown,
+    fallback: number,
+    min?: number,
+    max?: number,
+  ) {
     const parsed = typeof value === "number" ? value : Number(value);
 
     if (!Number.isFinite(parsed)) {
       return fallback;
     }
 
-    return Math.min(Math.max(parsed, min), max);
+    if (typeof min === "number" && parsed < min) {
+      return min;
+    }
+
+    if (typeof max === "number" && parsed > max) {
+      return max;
+    }
+
+    return parsed;
   }
 
   private stringArray(value: unknown) {

@@ -41,7 +41,6 @@ export default () => ({
     groq: {
       apiKey: process.env.GROQ_API_KEY || undefined,
       model: process.env.GROQ_MODEL ?? 'openai/gpt-oss-20b',
-      structuredModel: process.env.GROQ_STRUCTURED_MODEL || undefined,
       timeoutMs: Number.parseInt(process.env.GROQ_TIMEOUT_MS ?? '10000', 10),
       maxRetries: Number.parseInt(process.env.GROQ_MAX_RETRIES ?? '1', 10),
       maxContextItems: Number.parseInt(

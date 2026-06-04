@@ -49,7 +49,6 @@ API-only environment variables:
 AI_WAITER_PROVIDER=groq
 GROQ_API_KEY=
 GROQ_MODEL=openai/gpt-oss-20b
-GROQ_STRUCTURED_MODEL=
 GROQ_TIMEOUT_MS=10000
 GROQ_MAX_RETRIES=1
 GROQ_MAX_CONTEXT_ITEMS=80
@@ -144,7 +143,7 @@ Secrets and unnecessary customer PII are not sent.
 - unknown menu item ids are rejected;
 - unknown modifier option ids are rejected;
 - missing required modifiers block cart proposal creation;
-- quantities are bounded;
+- oversized quantities are rejected with a safe fallback;
 - price/discount/payment/refund fields or promises are rejected;
 - final-order-submit actions are rejected;
 - allergy or health concerns force human fallback with no guarantee;

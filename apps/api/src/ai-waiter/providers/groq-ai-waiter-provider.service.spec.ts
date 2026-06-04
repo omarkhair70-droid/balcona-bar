@@ -57,25 +57,27 @@ function config(overrides: Record<string, unknown> = {}) {
   } as unknown as ConfigService;
 }
 
-function validPlanResponse() {
+function validPlanResponse(content?: string) {
   return {
     choices: [
       {
         message: {
-          content: JSON.stringify({
-            customerMessage: "عايز حاجة ساقعة",
-            language: "ar-EG",
-            intent: "recommendation",
-            confidence: 0.86,
-            assistantMessage: "أنصحك بليمون نعناع من المنيو المتاح.",
-            suggestedActions: ["show_menu", "choose_item"],
-            menuItemCandidates: [{ menuItemId: "item-lemon-mint" }],
-            proposedCart: null,
-            missingRequiredModifier: null,
-            safety: {
-              requiresHumanFallback: false,
-            },
-          }),
+          content:
+            content ??
+            JSON.stringify({
+              customerMessage: "عايز حاجة ساقعة",
+              language: "ar-EG",
+              intent: "recommendation",
+              confidence: 0.86,
+              assistantMessage: "أنصحك بليمون نعناع من المنيو المتاح.",
+              suggestedActions: ["show_menu", "choose_item"],
+              menuItemCandidates: [{ menuItemId: "item-lemon-mint" }],
+              proposedCart: null,
+              missingRequiredModifier: null,
+              safety: {
+                requiresHumanFallback: false,
+              },
+            }),
         },
       },
     ],
@@ -150,15 +152,75 @@ describe("GroqAiWaiterProviderService", () => {
     expect(result.content).toContain("ليمون");
   });
 
-  it("throws invalid_json when Groq content is not parseable JSON", async () => {
-    fetchMock.mockResolvedValue(
-      new Response(
-        JSON.stringify({
-          choices: [{ message: { content: "not json" } }],
+  it("retries invalid JSON once with a JSON-only instruction and then succeeds", async () => {
+    fetchMock
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify(validPlanResponse("not json")), {
+          status: 200,
         }),
-        { status: 200 },
-      ),
+      )
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify(validPlanResponse()), { status: 200 }),
+      );
+    const provider = new GroqAiWaiterProviderService(
+      config(),
+      new AiWaiterProviderSafetyService(),
     );
+
+    const result = await provider.respond(context, {
+      message: "hello",
+      language: "en",
+    });
+    const [, retryInit] = fetchMock.mock.calls[1];
+    const retryBody = JSON.parse(String(retryInit.body));
+    const retryInput = JSON.parse(retryBody.messages[2].content);
+
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(retryInput.retryInstruction).toContain("valid JSON only");
+    expect(result.metadata).toMatchObject({ jsonRetryUsed: true });
+  });
+
+  it("retries invalid schema once before accepting a corrected response", async () => {
+    fetchMock
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify(
+            validPlanResponse(
+              JSON.stringify({ assistantMessage: "Missing required schema" }),
+            ),
+          ),
+          { status: 200 },
+        ),
+      )
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify(validPlanResponse()), { status: 200 }),
+      );
+    const provider = new GroqAiWaiterProviderService(
+      config(),
+      new AiWaiterProviderSafetyService(),
+    );
+
+    const result = await provider.respond(context, {
+      message: "hello",
+      language: "en",
+    });
+
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(result.metadata).toMatchObject({ jsonRetryUsed: true });
+  });
+
+  it("throws invalid_json after the JSON retry also fails", async () => {
+    fetchMock
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify(validPlanResponse("not json")), {
+          status: 200,
+        }),
+      )
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify(validPlanResponse("still not json")), {
+          status: 200,
+        }),
+      );
     const provider = new GroqAiWaiterProviderService(
       config(),
       new AiWaiterProviderSafetyService(),
@@ -167,6 +229,7 @@ describe("GroqAiWaiterProviderService", () => {
     await expect(
       provider.respond(context, { message: "hello", language: "en" }),
     ).rejects.toMatchObject({ code: "invalid_json" });
+    expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 
   it("throws http_error for invalid key responses", async () => {

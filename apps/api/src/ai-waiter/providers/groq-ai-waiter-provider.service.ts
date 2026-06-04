@@ -31,12 +31,24 @@ type GroqFetchMetadata = {
   attempt: number;
 };
 
+type GroqPlanResponse = {
+  content: string;
+  usage?: GroqChatCompletionResponse["usage"];
+  rateLimit: {
+    retryAfter: string | null;
+    remaining: string | null;
+    reset: string | null;
+  };
+};
+
 const GROQ_CHAT_COMPLETIONS_URL =
   "https://api.groq.com/openai/v1/chat/completions";
 const DEFAULT_GROQ_MODEL = "openai/gpt-oss-20b";
 const DEFAULT_TIMEOUT_MS = 10_000;
 const DEFAULT_MAX_RETRIES = 1;
 const DEFAULT_MAX_CONTEXT_ITEMS = 80;
+const JSON_RETRY_INSTRUCTION =
+  "The previous response was invalid. Return valid JSON only, matching the requested schema. No markdown. No commentary.";
 
 @Injectable()
 export class GroqAiWaiterProviderService implements AiWaiterProvider {
@@ -68,25 +80,42 @@ export class GroqAiWaiterProviderService implements AiWaiterProvider {
       this.configService.get<string>("aiWaiter.groq.model") ??
       DEFAULT_GROQ_MODEL;
     const startedAt = Date.now();
-    const response = await this.requestPlan({
+    const requestInput = {
       apiKey,
       model,
       context,
       input,
-    });
-    const plan = this.parsePlan(response.content);
-    const latencyMs = Date.now() - startedAt;
+    };
 
-    return this.safetyService.validateAndMapPlan(plan, context, {
-      provider: "groq",
-      model,
-      fallbackUsed: false,
-      latencyMs,
-      promptTokens: response.usage?.prompt_tokens,
-      completionTokens: response.usage?.completion_tokens,
-      totalTokens: response.usage?.total_tokens,
-      rateLimit: response.rateLimit,
+    const firstResponse = await this.requestPlan({
+      ...requestInput,
+      outputRetryAttempt: 0,
     });
+
+    try {
+      return this.mapGroqResponse(firstResponse, context, {
+        model,
+        startedAt,
+        jsonRetryUsed: false,
+      });
+    } catch (error) {
+      if (!this.isInvalidStructuredOutput(error)) {
+        throw error;
+      }
+
+      this.logProviderError(error);
+
+      const retryResponse = await this.requestPlan({
+        ...requestInput,
+        outputRetryAttempt: 1,
+      });
+
+      return this.mapGroqResponse(retryResponse, context, {
+        model,
+        startedAt,
+        jsonRetryUsed: true,
+      });
+    }
   }
 
   private async requestPlan(input: {
@@ -94,7 +123,8 @@ export class GroqAiWaiterProviderService implements AiWaiterProvider {
     model: string;
     context: AiWaiterContext;
     input: { message: string; language: string };
-  }) {
+    outputRetryAttempt: number;
+  }): Promise<GroqPlanResponse> {
     const maxRetries = this.numberConfig(
       "aiWaiter.groq.maxRetries",
       DEFAULT_MAX_RETRIES,
@@ -188,6 +218,7 @@ export class GroqAiWaiterProviderService implements AiWaiterProvider {
       model: string;
       context: AiWaiterContext;
       input: { message: string; language: string };
+      outputRetryAttempt: number;
     },
     attempt: number,
   ) {
@@ -220,8 +251,8 @@ export class GroqAiWaiterProviderService implements AiWaiterProvider {
                 customerMessage: input.input.message,
                 requestedLanguage: input.input.language,
                 retryInstruction:
-                  attempt > 0
-                    ? "Return valid JSON only. No markdown. No commentary."
+                  input.outputRetryAttempt > 0
+                    ? JSON_RETRY_INSTRUCTION
                     : undefined,
               }),
             },
@@ -242,6 +273,90 @@ export class GroqAiWaiterProviderService implements AiWaiterProvider {
       throw new AiWaiterProviderError(
         error instanceof Error ? error.message : "Groq returned invalid JSON",
         "invalid_json",
+      );
+    }
+  }
+
+  private mapGroqResponse(
+    response: GroqPlanResponse,
+    context: AiWaiterContext,
+    input: {
+      model: string;
+      startedAt: number;
+      jsonRetryUsed: boolean;
+    },
+  ) {
+    const plan = this.parsePlan(response.content);
+
+    this.assertStructuredPlanShape(plan);
+
+    const latencyMs = Date.now() - input.startedAt;
+
+    return this.safetyService.validateAndMapPlan(plan, context, {
+      provider: "groq",
+      model: input.model,
+      fallbackUsed: false,
+      latencyMs,
+      jsonRetryUsed: input.jsonRetryUsed,
+      promptTokens: response.usage?.prompt_tokens,
+      completionTokens: response.usage?.completion_tokens,
+      totalTokens: response.usage?.total_tokens,
+      rateLimit: response.rateLimit,
+    });
+  }
+
+  private assertStructuredPlanShape(plan: GroqAiWaiterPlan) {
+    if (!this.isRecord(plan)) {
+      throw new AiWaiterProviderError(
+        "Groq returned JSON that did not match the AI waiter schema",
+        "invalid_schema",
+      );
+    }
+
+    const requiredStringFields = [
+      "customerMessage",
+      "language",
+      "intent",
+      "assistantMessage",
+    ];
+
+    const missingStringField = requiredStringFields.find(
+      (field) => typeof (plan as Record<string, unknown>)[field] !== "string",
+    );
+
+    if (
+      missingStringField ||
+      typeof plan.confidence !== "number" ||
+      !Array.isArray(plan.suggestedActions) ||
+      !Array.isArray(plan.menuItemCandidates) ||
+      !this.isRecord(plan.safety)
+    ) {
+      throw new AiWaiterProviderError(
+        "Groq returned JSON that did not match the AI waiter schema",
+        "invalid_schema",
+        { missingStringField },
+      );
+    }
+
+    if (
+      plan.proposedCart !== null &&
+      plan.proposedCart !== undefined &&
+      (!this.isRecord(plan.proposedCart) || !Array.isArray(plan.proposedCart.items))
+    ) {
+      throw new AiWaiterProviderError(
+        "Groq returned an invalid proposed cart schema",
+        "invalid_schema",
+      );
+    }
+
+    if (
+      plan.missingRequiredModifier !== null &&
+      plan.missingRequiredModifier !== undefined &&
+      !this.isRecord(plan.missingRequiredModifier)
+    ) {
+      throw new AiWaiterProviderError(
+        "Groq returned an invalid modifier clarification schema",
+        "invalid_schema",
       );
     }
   }
@@ -339,6 +454,15 @@ export class GroqAiWaiterProviderService implements AiWaiterProvider {
     return trimmed;
   }
 
+  private isInvalidStructuredOutput(
+    error: unknown,
+  ): error is AiWaiterProviderError {
+    return (
+      error instanceof AiWaiterProviderError &&
+      (error.code === "invalid_json" || error.code === "invalid_schema")
+    );
+  }
+
   private shouldRetry(status: number, attempt: number, maxRetries: number) {
     return attempt < maxRetries && (status === 429 || status >= 500);
   }
@@ -374,5 +498,9 @@ export class GroqAiWaiterProviderService implements AiWaiterProvider {
       requestDuration: error.metadata.latencyMs,
       model: this.configService.get<string>("aiWaiter.groq.model"),
     });
+  }
+
+  private isRecord(value: unknown): value is Record<string, unknown> {
+    return typeof value === "object" && value !== null && !Array.isArray(value);
   }
 }
