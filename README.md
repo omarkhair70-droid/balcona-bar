@@ -1,6 +1,6 @@
 # balcona-bar
 
-Balcona Bar is organized as a monorepo for the Cafe AI Waiter App / Smart Cafe Operating System. The backend core is complete through Phase 24, UI Phase 1 adds the first Next.js web foundation for customer and staff experiences, UI Phase 2 adds the customer PWA core, UI Phase 3 adds the customer AI waiter experience, UI Phase 4 adds the cashier dashboard core, UI Phase 5 adds the kitchen/barista dashboard core, UI Phase 6 adds the waiter dashboard and attention queue, UI Phase 7 adds the owner/manager command center, UI Phase 8 adds full demo hardening plus Balkona demo mode, Production Phase 1 adds deployable platform foundation files, Production Phase 2 adds AWS infrastructure foundation scaffolding without deploying resources, Production Phase 3A adds public demo deploy readiness plus CI/CD guardrails without deploying resources, Production Phase 3B adds the first public AWS demo preflight deploy pack without deploying resources, Product Phase 4A starts the full Cafe OS product completion track, Product Phase 4B adds branch-scoped menu admin and availability management, Product Phase 4C adds branch, tables, and QR management, and Product Phase 4E.G0-G3 add a Groq AI waiter provider with safe backend validation, deep menu grounding, and modifier-turn ordering intelligence.
+Balcona Bar is organized as a monorepo for the Cafe AI Waiter App / Smart Cafe Operating System. The backend core is complete through Phase 24, UI Phase 1 adds the first Next.js web foundation for customer and staff experiences, UI Phase 2 adds the customer PWA core, UI Phase 3 adds the customer AI waiter experience, UI Phase 4 adds the cashier dashboard core, UI Phase 5 adds the kitchen/barista dashboard core, UI Phase 6 adds the waiter dashboard and attention queue, UI Phase 7 adds the owner/manager command center, UI Phase 8 adds full demo hardening plus Balkona demo mode, Production Phase 1 adds deployable platform foundation files, Production Phase 2 adds AWS infrastructure foundation scaffolding without deploying resources, Production Phase 3A adds public demo deploy readiness plus CI/CD guardrails without deploying resources, Production Phase 3B adds the first public AWS demo preflight deploy pack without deploying resources, Product Phase 4A starts the full Cafe OS product completion track, Product Phase 4B adds branch-scoped menu admin and availability management, Product Phase 4C adds branch, tables, and QR management, Product Phase 4E.G0-G3 add a Groq AI waiter provider with safe backend validation, deep menu grounding, and modifier-turn ordering intelligence, and Product Phase 4S.0 enforces staff roles, permissions, and branch access on the current staff product surfaces.
 
 ## Layout
 
@@ -254,6 +254,29 @@ See
 `docs/architecture/product-phase-4eg3-complete-ordering-intelligence.md` for
 item detail grounding, modifier matching, pending state, Groq prompt/context
 changes, guardrails, tests, and limitations.
+
+## Product Phase 4S.0 status
+
+Product Phase 4S.0 enforces staff roles, permissions, and branch access for the
+current operational staff surfaces:
+
+- staff session guard attaches trusted `request.staffUser` context;
+- `/staff/me` and `/staff/me/access` expose current access context;
+- company-level memberships apply across all company branches;
+- branch-level memberships apply only to that branch;
+- inactive staff users and inactive memberships are denied;
+- cashier, kitchen/barista, waiter, bill, attention, smart cashier, menu admin,
+  branch/table/QR, venue zone, analytics, audit, settings, staff overview, and
+  AI waiter staff endpoints are protected by branch/company or entity scope;
+- frontend staff navigation, overview cards, route gates, selected branch, and
+  login landing now follow effective backend access;
+- customer QR, customer cart, customer status, customer waiter/bill, and
+  customer AI waiter routes remain customer-facing.
+
+See
+`docs/architecture/product-phase-4s0-staff-roles-permissions-branch-access.md`
+for enforcement boundaries, reason codes, tests, known limitations, and the next
+recommended SaaS admin hardening phase.
 
 ## UI Phase 1 status
 
@@ -1377,4 +1400,5 @@ begin.
 - Product Phase 4C branch tables QR management: `docs/product/product-phase-4c-branch-tables-qr-management.md`
 - Product Phase 4E.G2 deep menu grounding and smart tool selection: `docs/architecture/product-phase-4eg2-deep-menu-grounding-smart-tool-selection.md`
 - Product Phase 4E.G3 complete ordering intelligence: `docs/architecture/product-phase-4eg3-complete-ordering-intelligence.md`
+- Product Phase 4S.0 staff roles, permissions, and branch access: `docs/architecture/product-phase-4s0-staff-roles-permissions-branch-access.md`
 - Real cafe readiness checklist: `docs/product/real-cafe-readiness-checklist.md`

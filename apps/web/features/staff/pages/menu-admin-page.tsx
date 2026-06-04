@@ -106,6 +106,7 @@ import type {
   UpdateModifierOptionPayload,
   UpsertBranchMenuItemOverridePayload
 } from "@/lib/api/types";
+import { getMenuAdminAccessMode } from "@/lib/staff/staff-access";
 import { useStaffAuthStore } from "@/lib/staff/staff-auth-store";
 import { StaffAuthGate } from "../components/staff-auth-gate";
 import { StaffBranchSelector } from "../components/staff-branch-selector";
@@ -226,6 +227,14 @@ const emptyLinkForm: LinkFormState = {
   modifierGroupId: "",
   sortOrder: "0"
 };
+
+function getVisibleMenuAdminTabs(canManageFullMenu: boolean) {
+  return canManageFullMenu
+    ? menuAdminTabs
+    : menuAdminTabs.filter(
+        (tab) => tab.id === "availability" || tab.id === "preview"
+      );
+}
 
 function FieldLabel({
   label,
@@ -899,6 +908,7 @@ function AvailabilitySection({
   items,
   drafts,
   isSaving,
+  canManageOverrides,
   onDraftChange,
   onSave,
   onClear
@@ -906,6 +916,7 @@ function AvailabilitySection({
   items: MenuAdminItem[];
   drafts: Record<string, AvailabilityDraft>;
   isSaving: boolean;
+  canManageOverrides: boolean;
   onDraftChange: (itemId: string, draft: AvailabilityDraft) => void;
   onSave: (item: MenuAdminItem) => void;
   onClear: (item: MenuAdminItem) => void;
@@ -918,9 +929,14 @@ function AvailabilitySection({
           <CardTitle>Availability management</CardTitle>
           <CardDescription>
             These controls decide what the selected branch can sell right now.
+            {canManageOverrides
+              ? " Changes are saved as branch overrides."
+              : " This account can inspect availability but cannot save branch overrides."}
           </CardDescription>
         </div>
-        <Badge variant="warning">Backend validated</Badge>
+        <Badge variant={canManageOverrides ? "warning" : "muted"}>
+          {canManageOverrides ? "Backend validated" : "Read only"}
+        </Badge>
       </CardHeader>
       <CardContent className="grid gap-3">
         {items.map((item) => {
@@ -963,6 +979,7 @@ function AvailabilitySection({
                     <input
                       type="checkbox"
                       checked={draft.isVisible}
+                      disabled={!canManageOverrides}
                       onChange={(event) =>
                         onDraftChange(item.id, {
                           ...draft,
@@ -977,6 +994,7 @@ function AvailabilitySection({
                     <input
                       type="checkbox"
                       checked={draft.isAvailable}
+                      disabled={!canManageOverrides}
                       onChange={(event) =>
                         onDraftChange(item.id, {
                           ...draft,
@@ -993,6 +1011,7 @@ function AvailabilitySection({
                       step="0.01"
                       min="0"
                       value={draft.priceOverride}
+                      disabled={!canManageOverrides}
                       onChange={(event) =>
                         onDraftChange(item.id, {
                           ...draft,
@@ -1006,7 +1025,7 @@ function AvailabilitySection({
                     <Button
                       size="sm"
                       onClick={() => onSave(item)}
-                      disabled={isSaving}
+                      disabled={isSaving || !canManageOverrides}
                     >
                       <Save className="size-3.5" aria-hidden="true" />
                       Save
@@ -1016,7 +1035,7 @@ function AvailabilitySection({
                         size="sm"
                         variant="secondary"
                         onClick={() => onClear(item)}
-                        disabled={isSaving}
+                        disabled={isSaving || !canManageOverrides}
                       >
                         <Trash2 className="size-3.5" aria-hidden="true" />
                         Clear
@@ -1741,6 +1760,18 @@ function MenuAdminContent() {
   const selectedModifierGroup = overview?.modifierGroups.find(
     (group) => group.id === selectedModifierGroupId
   ) ?? overview?.modifierGroups[0];
+  const menuAccess = getMenuAdminAccessMode({
+    access: effectiveAccess,
+    companyId: overview?.company.id,
+    branchId: selectedBranchId
+  });
+  const visibleTabs = useMemo(
+    () => getVisibleMenuAdminTabs(menuAccess.canManageFullMenu),
+    [menuAccess.canManageFullMenu]
+  );
+  const activeVisibleTab = visibleTabs.some((tab) => tab.id === activeTab)
+    ? activeTab
+    : visibleTabs[0]?.id ?? "availability";
 
   function refreshMenuAdmin() {
     if (!selectedBranchId) {
@@ -1762,6 +1793,12 @@ function MenuAdminContent() {
   function requireMenuAdminScope() {
     if (!overview || !accessToken) {
       throw new Error("Menu admin context is not ready.");
+    }
+
+    if (!menuAccess.canManageFullMenu) {
+      throw new Error(
+        "Full menu management requires company-level menu permissions."
+      );
     }
 
     return {
@@ -2035,6 +2072,10 @@ function MenuAdminContent() {
   }
 
   function handleOverrideSave(item: MenuAdminItem) {
+    if (!menuAccess.canManageBranchOverrides) {
+      return;
+    }
+
     const draft = availabilityDrafts[item.id];
 
     if (!draft) {
@@ -2165,8 +2206,9 @@ function MenuAdminContent() {
             <Badge variant="muted">Branch menu control</Badge>
             <CardTitle>{overview.branch.name}</CardTitle>
             <CardDescription>
-              Manage customer-visible menu data, availability, item routing, and
-              modifier readiness for this branch.
+              {menuAccess.canManageFullMenu
+                ? "Manage customer-visible menu data, availability, item routing, and modifier readiness for this branch."
+                : "Manage branch availability from company-defined menu data for this branch."}
             </CardDescription>
           </div>
           <StaffBranchSelector
@@ -2178,15 +2220,35 @@ function MenuAdminContent() {
         </CardHeader>
       </Card>
 
+      {!menuAccess.canManageFullMenu ? (
+        <Card variant="quiet">
+          <CardHeader>
+            <Badge variant="warning">Branch Availability mode</Badge>
+            <CardTitle>
+              Company menu setup is restricted to company-level staff
+            </CardTitle>
+            <CardDescription>
+              This account can open the branch menu surface because it has
+              branch menu access. Category, item, modifier, and modifier-link
+              creation remain available only to company-level owner,
+              branch_manager, or menu_admin memberships.{" "}
+              {menuAccess.canManageBranchOverrides
+                ? "You can still manage branch availability, visibility, and price overrides here."
+                : "This branch view is read-only because menu branch override permission is not granted."}
+            </CardDescription>
+          </CardHeader>
+        </Card>
+      ) : null}
+
       <MenuAdminMetrics overview={overview} />
       <MutationMessage error={mutationError} />
 
       <div className="flex flex-wrap gap-2 rounded-card border bg-surface/70 p-2">
-        {menuAdminTabs.map((tab) => (
+        {visibleTabs.map((tab) => (
           <Button
             key={tab.id}
             size="sm"
-            variant={activeTab === tab.id ? "primary" : "ghost"}
+            variant={activeVisibleTab === tab.id ? "primary" : "ghost"}
             onClick={() => setActiveTab(tab.id)}
           >
             {tab.id === "categories" ? (
@@ -2209,7 +2271,7 @@ function MenuAdminContent() {
         ))}
       </div>
 
-      {activeTab === "categories" ? (
+      {activeVisibleTab === "categories" ? (
         <CategorySection
           categories={overview.categories}
           form={categoryForm}
@@ -2222,7 +2284,7 @@ function MenuAdminContent() {
         />
       ) : null}
 
-      {activeTab === "items" ? (
+      {activeVisibleTab === "items" ? (
         <ItemSection
           categories={overview.categories}
           items={allItems}
@@ -2243,11 +2305,12 @@ function MenuAdminContent() {
         />
       ) : null}
 
-      {activeTab === "availability" ? (
+      {activeVisibleTab === "availability" ? (
         <AvailabilitySection
           items={allItems}
           drafts={availabilityDrafts}
           isSaving={isMutating}
+          canManageOverrides={menuAccess.canManageBranchOverrides}
           onDraftChange={(itemId, draft) =>
             setAvailabilityDrafts((current) => ({
               ...current,
@@ -2255,11 +2318,15 @@ function MenuAdminContent() {
             }))
           }
           onSave={handleOverrideSave}
-          onClear={(item) => deleteOverrideMutation.mutate(item.id)}
+          onClear={(item) => {
+            if (menuAccess.canManageBranchOverrides) {
+              deleteOverrideMutation.mutate(item.id);
+            }
+          }}
         />
       ) : null}
 
-      {activeTab === "modifiers" ? (
+      {activeVisibleTab === "modifiers" ? (
         <ModifierSection
           items={allItems}
           groups={overview.modifierGroups}
@@ -2297,7 +2364,7 @@ function MenuAdminContent() {
         />
       ) : null}
 
-      {activeTab === "preview" ? (
+      {activeVisibleTab === "preview" ? (
         <PreviewIssuesSection overview={overview} visibleItems={visibleItems} />
       ) : null}
     </div>
@@ -2319,7 +2386,7 @@ export function MenuAdminPage() {
       description="Branch-scoped menu management for categories, items, availability, modifiers, and customer readiness."
       actions={<MenuAdminActions />}
     >
-      <StaffAuthGate>
+      <StaffAuthGate requiredPermissions={["menu.read"]} branchScoped>
         <MenuAdminContent />
       </StaffAuthGate>
     </StaffPageShell>

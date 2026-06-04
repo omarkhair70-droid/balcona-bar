@@ -506,7 +506,7 @@ export function KitchenDashboardPage() {
       description="Live station task board for accepted orders, with preparation state actions and branch realtime refresh."
       actions={<KitchenDashboardActions />}
     >
-      <StaffAuthGate>
+      <StaffAuthGate requiredPermissions={["preparation.read"]} branchScoped>
         <KitchenDashboardContent />
       </StaffAuthGate>
     </StaffPageShell>

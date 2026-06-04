@@ -1,5 +1,8 @@
-import { Controller, Get, Param, Query, Sse } from '@nestjs/common';
+import { Controller, Get, Param, Query, Sse, UseGuards } from '@nestjs/common';
 import { BranchIdParamDto } from '../branches/dto/branch-id-param.dto';
+import { StaffSessionGuard } from '../staff-auth/guards/staff-session.guard';
+import { RequiredPermission } from '../staff/required-permission.decorator';
+import { StaffPermissionGuard } from '../staff/staff-permission.guard';
 import { SessionIdParamDto } from '../table-sessions/dto/session-id-param.dto';
 import { BranchRealtimeEventsQueryDto } from './dto/branch-realtime-events-query.dto';
 import { BranchRealtimeQueryDto } from './dto/branch-realtime-query.dto';
@@ -12,6 +15,8 @@ export class RealtimeEventsController {
   constructor(private readonly realtimeEventsService: RealtimeEventsService) {}
 
   @Sse('branches/:branchId/stream')
+  @UseGuards(StaffSessionGuard, StaffPermissionGuard)
+  @RequiredPermission('menu.read', { branchIdParam: 'branchId' })
   streamBranch(
     @Param() params: BranchIdParamDto,
     @Query() query: BranchRealtimeQueryDto,
@@ -34,6 +39,8 @@ export class RealtimeEventsController {
   }
 
   @Get('branches/:branchId/events')
+  @UseGuards(StaffSessionGuard, StaffPermissionGuard)
+  @RequiredPermission('menu.read', { branchIdParam: 'branchId' })
   findBranchEvents(
     @Param() params: BranchIdParamDto,
     @Query() query: BranchRealtimeEventsQueryDto,

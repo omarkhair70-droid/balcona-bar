@@ -39,7 +39,10 @@ export class StaffPermissionGuard implements CanActivate {
     const staffUserId = request.staffUser?.id;
 
     if (!staffUserId) {
-      throw new ForbiddenException('Staff user context is required');
+      throw new ForbiddenException({
+        code: 'staff_user_context_required',
+        message: 'Staff user context is required',
+      });
     }
 
     await this.staffAccessService.assertCan(staffUserId, metadata.permission, {

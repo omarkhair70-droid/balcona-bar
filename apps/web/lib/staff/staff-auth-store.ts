@@ -89,9 +89,26 @@ export const useStaffAuthStore = create<StaffAuthState>()(
           lastLoadedAt: new Date().toISOString()
         })),
       setSelectedBranchId: (branchId) =>
-        set({
-          selectedBranchId: branchId,
-          lastLoadedAt: new Date().toISOString()
+        set((state) => {
+          const accessibleBranchIds = getAccessibleBranchIds(
+            state.effectiveAccess
+          );
+
+          if (!accessibleBranchIds.has(branchId)) {
+            return {
+              selectedBranchId: resolveSelectedBranchId({
+                access: state.effectiveAccess,
+                currentBranchId: state.selectedBranchId,
+                defaultBranchId: state.defaultBranch?.id ?? null
+              }),
+              lastLoadedAt: new Date().toISOString()
+            };
+          }
+
+          return {
+            selectedBranchId: branchId,
+            lastLoadedAt: new Date().toISOString()
+          };
         }),
       clearSession: () =>
         set({

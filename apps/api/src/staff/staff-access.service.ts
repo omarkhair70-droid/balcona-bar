@@ -115,6 +115,7 @@ export class StaffAccessService {
           this.permissionsForMemberships(memberships),
         ),
       },
+      defaultBranch: branchAccess[0]?.branch ?? null,
     };
   }
 
@@ -182,7 +183,10 @@ export class StaffAccessService {
     const result = await this.can(staffUserId, permission, scope);
 
     if (!result.allowed) {
-      throw new ForbiddenException(result.reason);
+      throw new ForbiddenException({
+        code: result.reason,
+        message: result.reason,
+      });
     }
 
     return result;

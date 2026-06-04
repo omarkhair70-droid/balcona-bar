@@ -3,6 +3,7 @@ import { PresenceNotificationsModule } from '../presence-notifications/presence-
 import { PreparationTasksModule } from '../preparation-tasks/preparation-tasks.module';
 import { PrismaModule } from '../prisma/prisma.module';
 import { RealtimeEventsModule } from '../realtime-events/realtime-events.module';
+import { StaffModule } from '../staff/staff.module';
 import { SmartCashierController } from './smart-cashier.controller';
 import { SmartCashierService } from './smart-cashier.service';
 
@@ -12,6 +13,7 @@ import { SmartCashierService } from './smart-cashier.service';
     PreparationTasksModule,
     PresenceNotificationsModule,
     RealtimeEventsModule,
+    StaffModule,
   ],
   controllers: [SmartCashierController],
   providers: [SmartCashierService],

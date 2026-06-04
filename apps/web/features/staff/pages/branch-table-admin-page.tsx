@@ -1581,7 +1581,7 @@ export function BranchTableAdminPage() {
       description="Operational branch, floor, table, QR token, and customer preview readiness management."
       actions={<BranchTableActions />}
     >
-      <StaffAuthGate>
+      <StaffAuthGate requiredPermissions={["settings.manage"]} branchScoped>
         <BranchTableAdminContent />
       </StaffAuthGate>
     </StaffPageShell>

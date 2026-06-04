@@ -3,6 +3,7 @@ import { AutopilotModule } from "../autopilot/autopilot.module";
 import { CartModule } from "../cart/cart.module";
 import { PrismaModule } from "../prisma/prisma.module";
 import { RealtimeEventsModule } from "../realtime-events/realtime-events.module";
+import { StaffModule } from "../staff/staff.module";
 import { WaiterCallsModule } from "../waiter-calls/waiter-calls.module";
 import { AiWaiterContextService } from "./ai-waiter-context.service";
 import { AiWaiterController } from "./ai-waiter.controller";
@@ -20,6 +21,7 @@ import { GroqAiWaiterProviderService } from "./providers/groq-ai-waiter-provider
     AutopilotModule,
     CartModule,
     RealtimeEventsModule,
+    StaffModule,
     WaiterCallsModule,
   ],
   controllers: [AiWaiterController],

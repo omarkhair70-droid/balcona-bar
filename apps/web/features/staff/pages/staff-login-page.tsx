@@ -17,6 +17,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { StaffPageShell } from "@/features/staff/staff-page-shell";
 import { staffLogin } from "@/lib/api/endpoints";
+import { getDefaultStaffRoute } from "@/lib/staff/staff-access";
 import { useStaffAuthStore } from "@/lib/staff/staff-auth-store";
 
 const loginErrorFallback =
@@ -91,7 +92,9 @@ export function StaffLoginPage() {
       }),
     onSuccess: (result) => {
       setFromLogin(result);
-      router.replace("/staff/cashier");
+      router.replace(
+        getDefaultStaffRoute(result.effectiveAccess, result.defaultBranch?.id)
+      );
     }
   });
   const submitLogin = (event: FormEvent<HTMLFormElement>) => {
