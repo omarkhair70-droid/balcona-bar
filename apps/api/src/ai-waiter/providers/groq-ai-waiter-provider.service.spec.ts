@@ -1,4 +1,5 @@
 import { ConfigService } from "@nestjs/config";
+import { AiWaiterMessageKind } from "@prisma/client";
 import { AiWaiterContext } from "../ai-waiter.types";
 import { AiWaiterProviderSafetyService } from "./ai-waiter-provider-safety.service";
 import { AiWaiterProviderError } from "./groq-ai-waiter.types";
@@ -36,7 +37,25 @@ const context: AiWaiterContext = {
       description: "Cold lemon and mint drink",
       currency: "EGP",
       isFeatured: true,
-      modifierGroups: [],
+      modifierGroups: [
+        {
+          id: "sweetness-group",
+          name: "Sweetness",
+          slug: "sweetness",
+          selectionType: "single",
+          isRequired: false,
+          minSelections: 0,
+          maxSelections: 1,
+          options: [
+            {
+              id: "sweetness-low",
+              groupId: "sweetness-group",
+              name: "Low sugar",
+              slug: "low-sugar",
+            },
+          ],
+        },
+      ],
     },
   ],
 };
@@ -47,7 +66,7 @@ function config(overrides: Record<string, unknown> = {}) {
     "aiWaiter.groq.model": "test-model",
     "aiWaiter.groq.timeoutMs": 1000,
     "aiWaiter.groq.maxRetries": 1,
-    "aiWaiter.groq.maxContextItems": 80,
+    "aiWaiter.groq.maxContextItems": 8,
     "aiWaiter.groq.dryRun": false,
     ...overrides,
   };
@@ -89,6 +108,21 @@ function validPlanResponse(content?: string) {
   };
 }
 
+function contextWithMenuItemCount(count: number): AiWaiterContext {
+  return {
+    ...context,
+    menuItems: Array.from({ length: count }, (_, index) => ({
+      id: `item-${index + 1}`,
+      slug: `item-${index + 1}`,
+      name: `Menu Item ${index + 1}`,
+      description: `Menu item ${index + 1} description`,
+      currency: "EGP",
+      isFeatured: index < 2,
+      modifierGroups: context.menuItems[0]?.modifierGroups ?? [],
+    })),
+  };
+}
+
 describe("GroqAiWaiterProviderService", () => {
   let fetchMock: jest.Mock;
 
@@ -123,13 +157,47 @@ describe("GroqAiWaiterProviderService", () => {
       slug: "lemon-mint",
       name: "Lemon Mint",
     });
+    expect(Object.keys(contextMessage.menuItems[0]).sort()).toEqual([
+      "description",
+      "id",
+      "isFeatured",
+      "name",
+      "slug",
+    ]);
+    expect(String(init.body)).not.toContain("modifierGroups");
+    expect(String(init.body)).not.toContain("options");
     expect(String(init.body)).not.toContain("test-groq-key");
     expect(result.metadata).toMatchObject({
       provider: "groq",
       model: "test-model",
       promptTokens: 100,
       totalTokens: 150,
+      requestBodySizeBytes: Buffer.byteLength(String(init.body), "utf8"),
     });
+  });
+
+  it("keeps request context compact with GROQ_MAX_CONTEXT_ITEMS=8", async () => {
+    fetchMock.mockResolvedValue(
+      new Response(JSON.stringify(validPlanResponse()), { status: 200 }),
+    );
+    const provider = new GroqAiWaiterProviderService(
+      config({ "aiWaiter.groq.maxContextItems": 8 }),
+      new AiWaiterProviderSafetyService(),
+    );
+
+    await provider.respond(contextWithMenuItemCount(20), {
+      message: "recommend",
+      language: "en",
+    });
+    const [, init] = fetchMock.mock.calls[0];
+    const body = JSON.parse(String(init.body));
+    const contextMessage = JSON.parse(body.messages[1].content);
+
+    expect(contextMessage.menuItems).toHaveLength(8);
+    expect(contextMessage.omittedMenuItemCount).toBe(12);
+    expect(String(init.body)).not.toContain("modifierGroups");
+    expect(String(init.body)).not.toContain("options");
+    expect(Buffer.byteLength(String(init.body), "utf8")).toBeLessThan(12_000);
   });
 
   it("retries once on 429 and then parses a valid response", async () => {
@@ -180,13 +248,159 @@ describe("GroqAiWaiterProviderService", () => {
     expect(result.metadata).toMatchObject({ jsonRetryUsed: true });
   });
 
+  it("normalizes missing arrays and safety before safety validation", async () => {
+    fetchMock.mockResolvedValue(
+      new Response(
+        JSON.stringify(
+          validPlanResponse(
+            JSON.stringify({
+              customerMessage: "عايز حاجة ساقعة",
+              language: "ar-EG",
+              intent: "recommendation",
+              confidence: 0.72,
+              assistantMessage: "تمام، أرشحلك حاجة ساقعة من المنيو.",
+            }),
+          ),
+        ),
+        { status: 200 },
+      ),
+    );
+    const provider = new GroqAiWaiterProviderService(
+      config(),
+      new AiWaiterProviderSafetyService(),
+    );
+
+    const result = await provider.respond(context, {
+      message: "عايز حاجة ساقعة",
+      language: "ar-EG",
+    });
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(result.kind).toBe(AiWaiterMessageKind.menu_suggestion);
+    expect(result.suggestedActions).toContain("show_menu");
+    expect(result.metadata).toMatchObject({
+      confidence: 0.72,
+      jsonRetryUsed: false,
+      safety: {
+        requiresHumanFallback: false,
+        allergyOrHealthConcern: false,
+        refusedUnsafeRequest: false,
+      },
+    });
+  });
+
+  it("normalizes assistantMessage and intent only into a complete safe plan", async () => {
+    fetchMock.mockResolvedValue(
+      new Response(
+        JSON.stringify(
+          validPlanResponse(
+            JSON.stringify({
+              assistantMessage: "I can help with the available menu.",
+              intent: "clarification",
+            }),
+          ),
+        ),
+        { status: 200 },
+      ),
+    );
+    const provider = new GroqAiWaiterProviderService(
+      config(),
+      new AiWaiterProviderSafetyService(),
+    );
+
+    const result = await provider.respond(context, {
+      message: "hello",
+      language: "en",
+    });
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(result.kind).toBe(AiWaiterMessageKind.text);
+    expect(result.content).toBe("I can help with the available menu.");
+    expect(result.metadata).toMatchObject({
+      intent: "clarification",
+      confidence: 0.5,
+      safety: {
+        requiresHumanFallback: false,
+      },
+    });
+  });
+
+  it("keeps price fields unsafe after normalization", async () => {
+    fetchMock.mockResolvedValue(
+      new Response(
+        JSON.stringify(
+          validPlanResponse(
+            JSON.stringify({
+              assistantMessage: "This costs 100.",
+              intent: "recommendation",
+              priceMinor: 100,
+            }),
+          ),
+        ),
+        { status: 200 },
+      ),
+    );
+    const provider = new GroqAiWaiterProviderService(
+      config(),
+      new AiWaiterProviderSafetyService(),
+    );
+
+    const result = await provider.respond(context, {
+      message: "price?",
+      language: "en",
+    });
+
+    expect(result.kind).toBe(AiWaiterMessageKind.text);
+    expect(result.metadata?.fallbackUsed).toBe(true);
+    expect(result.metadata?.safetyFlags).toContain("price_field_rejected");
+  });
+
+  it("keeps fake menu item IDs unsafe after normalization", async () => {
+    fetchMock.mockResolvedValue(
+      new Response(
+        JSON.stringify(
+          validPlanResponse(
+            JSON.stringify({
+              assistantMessage: "I can draft that for you.",
+              intent: "cart_proposal",
+              proposedCart: {
+                title: "Draft",
+                items: [
+                  {
+                    menuItemId: "fake-item",
+                    quantity: 1,
+                    modifierOptionIds: [],
+                  },
+                ],
+              },
+            }),
+          ),
+        ),
+        { status: 200 },
+      ),
+    );
+    const provider = new GroqAiWaiterProviderService(
+      config(),
+      new AiWaiterProviderSafetyService(),
+    );
+
+    const result = await provider.respond(context, {
+      message: "add fake item",
+      language: "en",
+    });
+
+    expect(result.kind).toBe(AiWaiterMessageKind.text);
+    expect(result.metadata?.fallbackUsed).toBe(true);
+    expect(result.metadata?.safetyFlags).toContain("unknown_menu_item_rejected");
+  });
+
   it("retries invalid schema once before accepting a corrected response", async () => {
     fetchMock
       .mockResolvedValueOnce(
         new Response(
           JSON.stringify(
             validPlanResponse(
-              JSON.stringify({ assistantMessage: "Missing required schema" }),
+              JSON.stringify(["not", "a", "plan"]),
             ),
           ),
           { status: 200 },

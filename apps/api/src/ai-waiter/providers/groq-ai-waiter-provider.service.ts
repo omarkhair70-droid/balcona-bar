@@ -29,11 +29,13 @@ type GroqFetchMetadata = {
   retryAfter?: string | null;
   latencyMs: number;
   attempt: number;
+  requestBodySizeBytes?: number;
 };
 
 type GroqPlanResponse = {
   content: string;
   usage?: GroqChatCompletionResponse["usage"];
+  requestBodySizeBytes: number;
   rateLimit: {
     retryAfter: string | null;
     remaining: string | null;
@@ -46,7 +48,7 @@ const GROQ_CHAT_COMPLETIONS_URL =
 const DEFAULT_GROQ_MODEL = "openai/gpt-oss-20b";
 const DEFAULT_TIMEOUT_MS = 10_000;
 const DEFAULT_MAX_RETRIES = 1;
-const DEFAULT_MAX_CONTEXT_ITEMS = 80;
+const DEFAULT_MAX_CONTEXT_ITEMS = 8;
 const JSON_RETRY_INSTRUCTION =
   "The previous response was invalid. Return valid JSON only, matching the requested schema. No markdown. No commentary.";
 
@@ -97,6 +99,7 @@ export class GroqAiWaiterProviderService implements AiWaiterProvider {
         model,
         startedAt,
         jsonRetryUsed: false,
+        customerInput: input,
       });
     } catch (error) {
       if (!this.isInvalidStructuredOutput(error)) {
@@ -114,6 +117,7 @@ export class GroqAiWaiterProviderService implements AiWaiterProvider {
         model,
         startedAt,
         jsonRetryUsed: true,
+        customerInput: input,
       });
     }
   }
@@ -129,13 +133,17 @@ export class GroqAiWaiterProviderService implements AiWaiterProvider {
       "aiWaiter.groq.maxRetries",
       DEFAULT_MAX_RETRIES,
     );
+    const requestBody = this.buildCompletionRequestBody(input);
     let lastError: AiWaiterProviderError | undefined;
 
     for (let attempt = 0; attempt <= maxRetries; attempt += 1) {
       const startedAt = Date.now();
 
       try {
-        const response = await this.fetchCompletion(input, attempt);
+        const response = await this.fetchCompletion(
+          input.apiKey,
+          requestBody.body,
+        );
         const latencyMs = Date.now() - startedAt;
 
         if (!response.ok) {
@@ -145,6 +153,7 @@ export class GroqAiWaiterProviderService implements AiWaiterProvider {
             retryAfter,
             latencyMs,
             attempt,
+            requestBodySizeBytes: requestBody.sizeBytes,
           };
           const errorCode =
             response.status === 429
@@ -175,12 +184,14 @@ export class GroqAiWaiterProviderService implements AiWaiterProvider {
           throw new AiWaiterProviderError("Groq returned empty content", "invalid_schema", {
             latencyMs,
             attempt,
+            requestBodySizeBytes: requestBody.sizeBytes,
           });
         }
 
         return {
           content,
           usage: json.usage,
+          requestBodySizeBytes: requestBody.sizeBytes,
           rateLimit: this.safeRateLimitHeaders(response),
         };
       } catch (error) {
@@ -192,12 +203,13 @@ export class GroqAiWaiterProviderService implements AiWaiterProvider {
         ) {
           lastError = new AiWaiterProviderError("Groq request timed out", "timeout", {
             attempt,
+            requestBodySizeBytes: requestBody.sizeBytes,
           });
         } else {
           lastError = new AiWaiterProviderError(
             error instanceof Error ? error.message : "Groq network error",
             "network_error",
-            { attempt },
+            { attempt, requestBodySizeBytes: requestBody.sizeBytes },
           );
         }
 
@@ -212,16 +224,7 @@ export class GroqAiWaiterProviderService implements AiWaiterProvider {
     throw lastError ?? new AiWaiterProviderError("Groq request failed", "network_error");
   }
 
-  private async fetchCompletion(
-    input: {
-      apiKey: string;
-      model: string;
-      context: AiWaiterContext;
-      input: { message: string; language: string };
-      outputRetryAttempt: number;
-    },
-    attempt: number,
-  ) {
+  private async fetchCompletion(apiKey: string, body: string) {
     const timeoutMs = this.numberConfig(
       "aiWaiter.groq.timeoutMs",
       DEFAULT_TIMEOUT_MS,
@@ -234,41 +237,53 @@ export class GroqAiWaiterProviderService implements AiWaiterProvider {
         method: "POST",
         signal: controller.signal,
         headers: {
-          Authorization: `Bearer ${input.apiKey}`,
+          Authorization: `Bearer ${apiKey}`,
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({
-          model: input.model,
-          temperature: 0.2,
-          max_completion_tokens: 900,
-          response_format: { type: "json_object" },
-          messages: [
-            { role: "system", content: this.systemPrompt() },
-            { role: "user", content: this.contextPrompt(input.context) },
-            {
-              role: "user",
-              content: JSON.stringify({
-                customerMessage: input.input.message,
-                requestedLanguage: input.input.language,
-                retryInstruction:
-                  input.outputRetryAttempt > 0
-                    ? JSON_RETRY_INSTRUCTION
-                    : undefined,
-              }),
-            },
-          ],
-        }),
+        body,
       });
     } finally {
       clearTimeout(timeout);
     }
   }
 
-  private parsePlan(content: string): GroqAiWaiterPlan {
-    try {
-      const parsed = JSON.parse(this.extractJson(content));
+  private buildCompletionRequestBody(input: {
+    model: string;
+    context: AiWaiterContext;
+    input: { message: string; language: string };
+    outputRetryAttempt: number;
+  }) {
+    const body = JSON.stringify({
+      model: input.model,
+      temperature: 0.2,
+      max_completion_tokens: 900,
+      response_format: { type: "json_object" },
+      messages: [
+        { role: "system", content: this.systemPrompt() },
+        { role: "user", content: this.contextPrompt(input.context) },
+        {
+          role: "user",
+          content: JSON.stringify({
+            customerMessage: input.input.message,
+            requestedLanguage: input.input.language,
+            retryInstruction:
+              input.outputRetryAttempt > 0
+                ? JSON_RETRY_INSTRUCTION
+                : undefined,
+          }),
+        },
+      ],
+    });
 
-      return parsed as GroqAiWaiterPlan;
+    return {
+      body,
+      sizeBytes: Buffer.byteLength(body, "utf8"),
+    };
+  }
+
+  private parsePlan(content: string): unknown {
+    try {
+      return JSON.parse(this.extractJson(content));
     } catch (error) {
       throw new AiWaiterProviderError(
         error instanceof Error ? error.message : "Groq returned invalid JSON",
@@ -284,11 +299,24 @@ export class GroqAiWaiterProviderService implements AiWaiterProvider {
       model: string;
       startedAt: number;
       jsonRetryUsed: boolean;
+      customerInput: { message: string; language: string };
     },
   ) {
-    const plan = this.parsePlan(response.content);
+    let plan: GroqAiWaiterPlan;
 
-    this.assertStructuredPlanShape(plan);
+    try {
+      const rawPlan = this.parsePlan(response.content);
+      plan = this.normalizeGroqPlan(rawPlan, input.customerInput);
+    } catch (error) {
+      if (error instanceof AiWaiterProviderError) {
+        throw new AiWaiterProviderError(error.message, error.code, {
+          ...error.metadata,
+          requestBodySizeBytes: response.requestBodySizeBytes,
+        });
+      }
+
+      throw error;
+    }
 
     const latencyMs = Date.now() - input.startedAt;
 
@@ -298,6 +326,7 @@ export class GroqAiWaiterProviderService implements AiWaiterProvider {
       fallbackUsed: false,
       latencyMs,
       jsonRetryUsed: input.jsonRetryUsed,
+      requestBodySizeBytes: response.requestBodySizeBytes,
       promptTokens: response.usage?.prompt_tokens,
       completionTokens: response.usage?.completion_tokens,
       totalTokens: response.usage?.total_tokens,
@@ -305,60 +334,55 @@ export class GroqAiWaiterProviderService implements AiWaiterProvider {
     });
   }
 
-  private assertStructuredPlanShape(plan: GroqAiWaiterPlan) {
-    if (!this.isRecord(plan)) {
+  private normalizeGroqPlan(
+    rawPlan: unknown,
+    input: { message: string; language: string },
+  ): GroqAiWaiterPlan {
+    if (!this.isRecord(rawPlan)) {
       throw new AiWaiterProviderError(
         "Groq returned JSON that did not match the AI waiter schema",
         "invalid_schema",
       );
     }
 
-    const requiredStringFields = [
-      "customerMessage",
-      "language",
-      "intent",
-      "assistantMessage",
-    ];
+    const safety = this.isRecord(rawPlan.safety) ? rawPlan.safety : {};
+    const language = this.languageValue(rawPlan.language, input.language);
+    const debug = this.isRecord(rawPlan.debug) ? rawPlan.debug : {};
 
-    const missingStringField = requiredStringFields.find(
-      (field) => typeof (plan as Record<string, unknown>)[field] !== "string",
-    );
-
-    if (
-      missingStringField ||
-      typeof plan.confidence !== "number" ||
-      !Array.isArray(plan.suggestedActions) ||
-      !Array.isArray(plan.menuItemCandidates) ||
-      !this.isRecord(plan.safety)
-    ) {
-      throw new AiWaiterProviderError(
-        "Groq returned JSON that did not match the AI waiter schema",
-        "invalid_schema",
-        { missingStringField },
-      );
-    }
-
-    if (
-      plan.proposedCart !== null &&
-      plan.proposedCart !== undefined &&
-      (!this.isRecord(plan.proposedCart) || !Array.isArray(plan.proposedCart.items))
-    ) {
-      throw new AiWaiterProviderError(
-        "Groq returned an invalid proposed cart schema",
-        "invalid_schema",
-      );
-    }
-
-    if (
-      plan.missingRequiredModifier !== null &&
-      plan.missingRequiredModifier !== undefined &&
-      !this.isRecord(plan.missingRequiredModifier)
-    ) {
-      throw new AiWaiterProviderError(
-        "Groq returned an invalid modifier clarification schema",
-        "invalid_schema",
-      );
-    }
+    return {
+      customerMessage: this.stringValue(rawPlan.customerMessage, input.message),
+      language,
+      intent: this.intentValue(rawPlan.intent),
+      confidence: this.numberValue(rawPlan.confidence, 0.5, 0, 1),
+      assistantMessage: this.stringValue(
+        rawPlan.assistantMessage,
+        this.defaultAssistantMessage(language),
+      ),
+      suggestedActions: this.stringArray(rawPlan.suggestedActions),
+      menuItemCandidates: this.recordArray(rawPlan.menuItemCandidates).map(
+        (item) => ({
+          menuItemId: this.optionalString(item.menuItemId),
+          slug: this.optionalString(item.slug),
+          name: this.optionalString(item.name),
+          reason: this.optionalString(item.reason),
+        }),
+      ),
+      proposedCart: this.normalizeProposedCart(rawPlan.proposedCart),
+      missingRequiredModifier: this.normalizeMissingRequiredModifier(
+        rawPlan.missingRequiredModifier,
+      ),
+      safety: {
+        requiresHumanFallback: safety.requiresHumanFallback === true,
+        reason: this.optionalString(safety.reason),
+        allergyOrHealthConcern: safety.allergyOrHealthConcern === true,
+        refusedUnsafeRequest: safety.refusedUnsafeRequest === true,
+      },
+      debug: {
+        ...debug,
+        normalizedByProvider: true,
+        rawOutputForSafety: rawPlan,
+      },
+    };
   }
 
   private systemPrompt() {
@@ -377,6 +401,24 @@ export class GroqAiWaiterProviderService implements AiWaiterProvider {
       "For discounts, payments, or refunds, do not promise anything; offer staff help.",
       "If unsure, ask a short clarification question.",
       "Return JSON only with this shape: { customerMessage, language, intent, confidence, assistantMessage, suggestedActions, menuItemCandidates, proposedCart, missingRequiredModifier, safety, debug }.",
+      "Example JSON:",
+      "{",
+      '  "customerMessage": "...",',
+      '  "language": "ar-EG",',
+      '  "intent": "recommendation",',
+      '  "confidence": 0.8,',
+      '  "assistantMessage": "تمام...",',
+      '  "suggestedActions": ["show_menu"],',
+      '  "menuItemCandidates": [],',
+      '  "proposedCart": null,',
+      '  "missingRequiredModifier": null,',
+      '  "safety": {',
+      '    "requiresHumanFallback": false,',
+      '    "allergyOrHealthConcern": false,',
+      '    "refusedUnsafeRequest": false',
+      "  },",
+      '  "debug": {}',
+      "}",
       "Do not include prices, payment actions, final order submission actions, markdown, or chain-of-thought.",
     ].join("\n");
   }
@@ -391,23 +433,7 @@ export class GroqAiWaiterProviderService implements AiWaiterProvider {
       slug: item.slug,
       name: item.name,
       description: item.description,
-      currency: item.currency,
       isFeatured: item.isFeatured,
-      modifierGroups: item.modifierGroups.map((group) => ({
-        id: group.id,
-        name: group.name,
-        slug: group.slug,
-        selectionType: group.selectionType,
-        isRequired: group.isRequired,
-        minSelections: group.minSelections,
-        maxSelections: group.maxSelections,
-        options: group.options.map((option) => ({
-          id: option.id,
-          groupId: option.groupId,
-          name: option.name,
-          slug: option.slug,
-        })),
-      })),
     }));
 
     return JSON.stringify({
@@ -496,8 +522,137 @@ export class GroqAiWaiterProviderService implements AiWaiterProvider {
       status: error.metadata.status,
       retryAfter: error.metadata.retryAfter,
       requestDuration: error.metadata.latencyMs,
+      requestBodySizeBytes: error.metadata.requestBodySizeBytes,
       model: this.configService.get<string>("aiWaiter.groq.model"),
     });
+  }
+
+  private normalizeProposedCart(
+    value: unknown,
+  ): GroqAiWaiterPlan["proposedCart"] {
+    if (!this.isRecord(value)) {
+      return null;
+    }
+
+    return {
+      title: this.stringValue(value.title, "AI waiter proposal"),
+      items: this.recordArray(value.items).map((item) => ({
+        menuItemId: this.stringValue(item.menuItemId),
+        quantity: this.numberValue(item.quantity, 1),
+        modifierOptionIds: this.stringArray(item.modifierOptionIds),
+        notes: this.optionalString(item.notes),
+      })),
+    };
+  }
+
+  private normalizeMissingRequiredModifier(
+    value: unknown,
+  ): GroqAiWaiterPlan["missingRequiredModifier"] {
+    if (!this.isRecord(value)) {
+      return null;
+    }
+
+    return {
+      menuItemId: this.stringValue(value.menuItemId),
+      modifierGroupId: this.stringValue(value.modifierGroupId),
+      question: this.stringValue(
+        value.question,
+        this.defaultAssistantMessage("ar-EG"),
+      ),
+    };
+  }
+
+  private defaultAssistantMessage(language: GroqAiWaiterPlan["language"]) {
+    return language === "en"
+      ? "I can help with the available menu or ask a human waiter for you."
+      : "أقدر أساعدك من المنيو المتاح أو أنادي ويتر.";
+  }
+
+  private intentValue(value: unknown): GroqAiWaiterPlan["intent"] {
+    const allowed: GroqAiWaiterPlan["intent"][] = [
+      "recommendation",
+      "specific_item_request",
+      "cart_proposal",
+      "modifier_question",
+      "request_bill",
+      "call_waiter",
+      "order_status",
+      "complaint",
+      "allergy_or_health",
+      "clarification",
+      "out_of_scope",
+    ];
+
+    return typeof value === "string" &&
+      allowed.includes(value as GroqAiWaiterPlan["intent"])
+      ? (value as GroqAiWaiterPlan["intent"])
+      : "clarification";
+  }
+
+  private languageValue(
+    value: unknown,
+    fallback: string,
+  ): GroqAiWaiterPlan["language"] {
+    const normalized = value === undefined ? fallback : value;
+
+    if (normalized === "en" || normalized === "mixed") {
+      return normalized;
+    }
+
+    return "ar-EG";
+  }
+
+  private stringValue(value: unknown, fallback = "") {
+    if (typeof value !== "string") {
+      return fallback;
+    }
+
+    const normalized = value.trim();
+
+    return normalized.length > 0 ? normalized : fallback;
+  }
+
+  private optionalString(value: unknown) {
+    const normalized = this.stringValue(value);
+
+    return normalized.length > 0 ? normalized : undefined;
+  }
+
+  private numberValue(
+    value: unknown,
+    fallback: number,
+    min?: number,
+    max?: number,
+  ) {
+    const parsed = typeof value === "number" ? value : Number(value);
+
+    if (!Number.isFinite(parsed)) {
+      return fallback;
+    }
+
+    if (typeof min === "number" && parsed < min) {
+      return min;
+    }
+
+    if (typeof max === "number" && parsed > max) {
+      return max;
+    }
+
+    return parsed;
+  }
+
+  private stringArray(value: unknown) {
+    return Array.isArray(value)
+      ? value.filter((item): item is string => typeof item === "string")
+      : [];
+  }
+
+  private recordArray(value: unknown) {
+    return Array.isArray(value)
+      ? value.filter((item): item is Record<string, unknown> =>
+          this.isRecord(item),
+        )
+      : [];
   }
 
   private isRecord(value: unknown): value is Record<string, unknown> {
