@@ -762,6 +762,17 @@ export type AiWaiterProviderMetadata = Record<string, unknown> & {
   safetyFlags?: string[];
   fallbackUsed?: boolean;
   latencyMs?: number;
+  pendingModifier?: {
+    menuItemId?: string;
+    modifierGroupId?: string;
+    allowedOptions?: Array<{
+      id?: string;
+      name?: string;
+      slug?: string;
+    }>;
+    selectedModifierOptionIds?: string[];
+    question?: string;
+  };
 };
 
 export type AiWaiterMessageRecord = Record<string, unknown> & {

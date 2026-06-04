@@ -5,6 +5,7 @@ import {
   AiWaiterToolName,
 } from "@prisma/client";
 import { AiWaiterContext } from "../ai-waiter.types";
+import { AiWaiterItemDetailGroundingService } from "../grounding/ai-waiter-item-detail-grounding.service";
 import { AiWaiterMenuGroundingService } from "../grounding/ai-waiter-menu-grounding.service";
 import { AiWaiterProviderSafetyService } from "./ai-waiter-provider-safety.service";
 import { AiWaiterProviderError } from "./groq-ai-waiter.types";
@@ -115,6 +116,79 @@ const context: AiWaiterContext = {
         slug: "desserts",
       },
       modifierGroups: [],
+    },
+    {
+      id: "item-spanish-latte",
+      slug: "spanish-latte",
+      name: "Spanish Latte",
+      description: "Hot or iced Spanish latte",
+      currency: "EGP",
+      isFeatured: true,
+      category: {
+        id: "category-coffee",
+        name: "Coffee",
+        slug: "coffee",
+      },
+      modifierGroups: [
+        {
+          id: "latte-size",
+          name: "Size",
+          slug: "size",
+          selectionType: "single",
+          isRequired: true,
+          minSelections: 1,
+          maxSelections: 1,
+          options: [
+            {
+              id: "latte-small",
+              groupId: "latte-size",
+              name: "Small",
+              slug: "small",
+            },
+            {
+              id: "latte-medium",
+              groupId: "latte-size",
+              name: "Medium",
+              slug: "medium",
+            },
+            {
+              id: "latte-large",
+              groupId: "latte-size",
+              name: "Large",
+              slug: "large",
+            },
+          ],
+        },
+        {
+          id: "latte-sugar",
+          name: "Sugar",
+          slug: "sugar",
+          selectionType: "single",
+          isRequired: true,
+          minSelections: 1,
+          maxSelections: 1,
+          options: [
+            {
+              id: "latte-no-sugar",
+              groupId: "latte-sugar",
+              name: "No sugar",
+              slug: "no-sugar",
+            },
+            {
+              id: "latte-low-sugar",
+              groupId: "latte-sugar",
+              name: "Low sugar",
+              slug: "low-sugar",
+            },
+            {
+              id: "latte-normal-sugar",
+              groupId: "latte-sugar",
+              name: "Normal sugar",
+              slug: "normal-sugar",
+            },
+          ],
+        },
+      ],
     },
     {
       id: "item-matcha-latte",
@@ -239,6 +313,7 @@ function createProvider(overrides: Record<string, unknown> = {}) {
     config(overrides),
     new AiWaiterProviderSafetyService(),
     new AiWaiterMenuGroundingService(),
+    new AiWaiterItemDetailGroundingService(),
   );
 }
 
@@ -415,6 +490,196 @@ describe("GroqAiWaiterProviderService", () => {
       mode: "commerce_action",
       provider: "groq",
     });
+  });
+
+  it("turns exact item requests with required modifiers into a modifier question", async () => {
+    fetchMock.mockResolvedValue(
+      new Response(
+        JSON.stringify(
+          groqResponse(
+            actionResponse("تمام، أقدر أجهزهولك كاقتراح.", {
+              action: "create_cart_proposal",
+              items: [
+                {
+                  menuItemId: "item-spanish-latte",
+                  quantity: 1,
+                  modifierOptionIds: [],
+                },
+              ],
+            }),
+          ),
+        ),
+        { status: 200 },
+      ),
+    );
+
+    const result = await createProvider().respond(context, {
+      message: "هات Spanish Latte",
+      language: "mixed",
+    });
+    const { body, bodyText } = requestBody(fetchMock);
+    const contextMessage = JSON.parse(body.messages[1].content);
+
+    expect(result.kind).toBe(AiWaiterMessageKind.text);
+    expect(result.proposal).toBeUndefined();
+    expect(result.content).toContain("Size");
+    expect(result.metadata).toMatchObject({
+      mode: "modifier_question",
+      itemDetailGroundingMode: "exact_item_detail",
+      itemDetailMenuItemId: "item-spanish-latte",
+      pendingModifierGroupId: "latte-size",
+    });
+    expect(result.metadata?.pendingModifier).toMatchObject({
+      menuItemId: "item-spanish-latte",
+      modifierGroupId: "latte-size",
+      allowedOptions: expect.arrayContaining([
+        expect.objectContaining({ name: "Medium" }),
+      ]),
+    });
+    expect(contextMessage.itemDetailGrounding.item.id).toBe(
+      "item-spanish-latte",
+    );
+    expect(contextMessage.itemDetailGrounding.item.requiredModifierGroups).toHaveLength(
+      2,
+    );
+    expect(bodyText).toContain("latte-medium");
+    expect(bodyText).not.toContain("sweetness-low");
+  });
+
+  it("uses pending modifier answers to complete a valid cart proposal", async () => {
+    const pendingContext: AiWaiterContext = {
+      ...context,
+      recentMessages: [
+        ...context.recentMessages,
+        {
+          role: "assistant",
+          kind: "text",
+          content: "اختار السكر",
+          createdAt: new Date("2026-01-01T00:03:00.000Z"),
+          metadata: {
+            mode: "modifier_question",
+            selectedModifierOptionIds: ["latte-medium"],
+            pendingModifier: {
+              menuItemId: "item-spanish-latte",
+              modifierGroupId: "latte-sugar",
+              allowedOptionIds: [
+                "latte-no-sugar",
+                "latte-low-sugar",
+                "latte-normal-sugar",
+              ],
+              allowedOptions: [
+                {
+                  id: "latte-no-sugar",
+                  name: "No sugar",
+                  slug: "no-sugar",
+                },
+                {
+                  id: "latte-low-sugar",
+                  name: "Low sugar",
+                  slug: "low-sugar",
+                },
+                {
+                  id: "latte-normal-sugar",
+                  name: "Normal sugar",
+                  slug: "normal-sugar",
+                },
+              ],
+              selectedModifierOptionIds: ["latte-medium"],
+              question: "اختار السكر",
+              createdAt: "2026-01-01T00:03:00.000Z",
+            },
+            pendingItem: {
+              id: "item-spanish-latte",
+              name: "Spanish Latte",
+            },
+          },
+        },
+      ],
+    };
+    fetchMock.mockResolvedValue(
+      new Response(
+        JSON.stringify(groqResponse("تمام، هجهزهولك كاقتراح في الكارت.")),
+        { status: 200 },
+      ),
+    );
+
+    const result = await createProvider().respond(pendingContext, {
+      message: "مش مسكر",
+      language: "ar-EG",
+    });
+
+    expect(result.kind).toBe(AiWaiterMessageKind.cart_proposal);
+    expect(result.proposal?.items).toEqual([
+      {
+        menuItemId: "item-spanish-latte",
+        quantity: 1,
+        modifierOptionIds: ["latte-medium", "latte-low-sugar"],
+        customerNote: undefined,
+      },
+    ]);
+    expect(result.metadata).toMatchObject({
+      mode: "commerce_action",
+      itemDetailGroundingMode: "complete_for_proposal",
+      selectedModifierOptionCount: 2,
+    });
+  });
+
+  it("creates a proposal when item and all required modifiers are in the same message", async () => {
+    fetchMock.mockResolvedValue(
+      new Response(
+        JSON.stringify(groqResponse("تمام، هجهزهولك كاقتراح في الكارت.")),
+        { status: 200 },
+      ),
+    );
+
+    const result = await createProvider().respond(context, {
+      message: "هات Spanish Latte medium من غير سكر",
+      language: "mixed",
+    });
+
+    expect(result.kind).toBe(AiWaiterMessageKind.cart_proposal);
+    expect(result.proposal?.items[0]).toMatchObject({
+      menuItemId: "item-spanish-latte",
+      quantity: 1,
+      modifierOptionIds: expect.arrayContaining([
+        "latte-medium",
+        "latte-no-sugar",
+      ]),
+    });
+  });
+
+  it("rejects modifier options outside the selected item detail", async () => {
+    fetchMock.mockResolvedValue(
+      new Response(
+        JSON.stringify(
+          groqResponse(
+            actionResponse("أقدر أساعدك نوضح الاختيارات الأول.", {
+              action: "create_cart_proposal",
+              items: [
+                {
+                  menuItemId: "item-spanish-latte",
+                  quantity: 1,
+                  modifierOptionIds: ["sweetness-low"],
+                },
+              ],
+            }),
+          ),
+        ),
+        { status: 200 },
+      ),
+    );
+
+    const result = await createProvider().respond(context, {
+      message: "هات Spanish Latte",
+      language: "mixed",
+    });
+
+    expect(result.kind).toBe(AiWaiterMessageKind.text);
+    expect(result.proposal).toBeUndefined();
+    expect(result.metadata?.actionRejected).toBe(true);
+    expect(result.metadata?.safetyFlags).toContain(
+      "ungrounded_modifier_option_rejected",
+    );
   });
 
   it("rejects fake item action but keeps safe visible text", async () => {
@@ -702,11 +967,11 @@ describe("GroqAiWaiterProviderService", () => {
 
     expect(body.response_format).toBeUndefined();
     expect(contextMessage.menuItems).toBeUndefined();
-    expect(contextMessage.relevantMenuItems).toHaveLength(12);
+    expect(contextMessage.relevantMenuItems).toHaveLength(8);
     expect(contextMessage.grounding).toMatchObject({
-      menuItemsSent: 12,
-      totalMenuItemsAvailable: 14,
-      omittedMenuItemCount: 2,
+      menuItemsSent: 8,
+      totalMenuItemsAvailable: 15,
+      omittedMenuItemCount: 7,
     });
     expect(contextMessage.relevantMenuItems[0]).toMatchObject({
       id: "item-lemon-mint",
@@ -737,10 +1002,10 @@ describe("GroqAiWaiterProviderService", () => {
     expect(bodyText).not.toContain("test-groq-key");
     expect(result.metadata).toMatchObject({
       requestBodyChars: bodyText.length,
-      menuItemsSent: 12,
+      menuItemsSent: 8,
       recentMessagesSent: 2,
-      totalMenuItemsAvailable: 14,
-      omittedMenuItemCount: 2,
+      totalMenuItemsAvailable: 15,
+      omittedMenuItemCount: 7,
     });
   });
 
@@ -762,7 +1027,7 @@ describe("GroqAiWaiterProviderService", () => {
     const contextMessage = JSON.parse(body.messages[1].content);
 
     expect(contextMessage.relevantMenuItems).toHaveLength(2);
-    expect(contextMessage.grounding.omittedMenuItemCount).toBe(12);
+    expect(contextMessage.grounding.omittedMenuItemCount).toBe(13);
   });
 
   it("grounds exact menu requests from the full menu instead of the first items only", async () => {

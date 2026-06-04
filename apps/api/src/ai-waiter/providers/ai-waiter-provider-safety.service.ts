@@ -338,6 +338,33 @@ export class AiWaiterProviderSafetyService {
         return { ok: false as const, reason: "unknown_modifier_rejected" };
       }
 
+      for (const group of menuItem.modifierGroups) {
+        const selectedCount = group.options.filter((option) =>
+          selectedOptionIds.has(option.id),
+        ).length;
+        const minSelections = group.isRequired
+          ? Math.max(1, group.minSelections)
+          : Math.max(0, group.minSelections);
+
+        if (selectedCount < minSelections) {
+          return { ok: false as const, reason: "missing_required_modifier" };
+        }
+
+        if (selectedCount > group.maxSelections) {
+          return {
+            ok: false as const,
+            reason: "modifier_selection_limit_enforced",
+          };
+        }
+
+        if (group.selectionType === "single" && selectedCount > 1) {
+          return {
+            ok: false as const,
+            reason: "modifier_selection_limit_enforced",
+          };
+        }
+      }
+
       mappedItems.push({
         menuItemId: menuItem.id,
         quantity: item.quantity,
