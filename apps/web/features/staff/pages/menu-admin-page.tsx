@@ -2319,7 +2319,7 @@ export function MenuAdminPage() {
       description="Branch-scoped menu management for categories, items, availability, modifiers, and customer readiness."
       actions={<MenuAdminActions />}
     >
-      <StaffAuthGate>
+      <StaffAuthGate requiredPermissions={["menu.read"]} branchScoped>
         <MenuAdminContent />
       </StaffAuthGate>
     </StaffPageShell>

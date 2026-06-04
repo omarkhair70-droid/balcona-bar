@@ -26,6 +26,7 @@ import {
 import { EmptyState } from "@/components/ui/empty-state";
 import { MetricCard } from "@/components/ui/metric-card";
 import { StaffPageShell } from "@/features/staff/staff-page-shell";
+import { canAccessStaffRoute } from "@/lib/staff/staff-access";
 import { useStaffAuthStore } from "@/lib/staff/staff-auth-store";
 import { StaffAuthGate } from "../components/staff-auth-gate";
 import { StaffBranchSelector } from "../components/staff-branch-selector";
@@ -36,42 +37,48 @@ const staffAreas = [
     href: "/staff/cashier",
     description: "Live order intake, bill requests, and cashier decisions.",
     icon: <Receipt className="size-5" aria-hidden="true" />,
-    state: "Live"
+    state: "Live",
+    requiredPermissions: ["orders.cashier_review"]
   },
   {
     title: "Menu",
     href: "/staff/menu",
     description: "Branch menu availability, item setup, and modifier readiness.",
     icon: <BookOpenText className="size-5" aria-hidden="true" />,
-    state: "Live"
+    state: "Live",
+    requiredPermissions: ["menu.read"]
   },
   {
     title: "Branches",
     href: "/staff/branches",
     description: "Branch setup, floor grouping, tables, QR links, and sessions.",
     icon: <Building2 className="size-5" aria-hidden="true" />,
-    state: "Live"
+    state: "Live",
+    requiredPermissions: ["settings.manage"]
   },
   {
     title: "Kitchen",
     href: "/staff/kitchen",
     description: "Live station tasks for kitchen, barista, and dessert work.",
     icon: <ChefHat className="size-5" aria-hidden="true" />,
-    state: "Live"
+    state: "Live",
+    requiredPermissions: ["preparation.read"]
   },
   {
     title: "Waiter",
     href: "/staff/waiter",
     description: "Live waiter calls, table attention, and floor recovery.",
     icon: <Bell className="size-5" aria-hidden="true" />,
-    state: "Live"
+    state: "Live",
+    requiredPermissions: ["waiter_calls.read"]
   },
   {
     title: "Owner",
     href: "/staff/owner",
     description: "Manager command center for branch pulse and risks.",
     icon: <UsersRound className="size-5" aria-hidden="true" />,
-    state: "Live"
+    state: "Live",
+    requiredPermissions: ["settings.manage"]
   }
 ];
 
@@ -86,6 +93,14 @@ function StaffOverviewContent() {
   const selectedBranch = effectiveAccess?.branches.find(
     (entry) => entry.branch.id === selectedBranchId
   )?.branch;
+  const visibleStaffAreas = staffAreas.filter((area) =>
+    canAccessStaffRoute({
+      access: effectiveAccess,
+      permissions: area.requiredPermissions,
+      branchId: selectedBranchId,
+      branchScoped: true
+    })
+  );
 
   if (!accessToken) {
     return (
@@ -184,7 +199,7 @@ function StaffOverviewContent() {
         </Card>
 
         <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-          {staffAreas.map((area) => (
+          {visibleStaffAreas.map((area) => (
             <Card key={area.href} variant="glass">
               <CardHeader>
                 <div className="flex items-start justify-between gap-3">

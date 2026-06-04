@@ -560,7 +560,7 @@ export function CashierDashboardPage() {
       description="Live branch order intake, cashier decisions, bill request handling, and branch realtime refresh for staff operations."
       actions={<CashierDashboardActions />}
     >
-      <StaffAuthGate>
+      <StaffAuthGate requiredPermissions={["orders.cashier_review"]} branchScoped>
         <CashierDashboardContent />
       </StaffAuthGate>
     </StaffPageShell>

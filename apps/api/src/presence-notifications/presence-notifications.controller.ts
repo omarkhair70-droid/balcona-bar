@@ -1,5 +1,16 @@
-import { Body, Controller, Get, Param, Post, Query } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  Param,
+  Post,
+  Query,
+  UseGuards,
+} from '@nestjs/common';
 import { BranchIdParamDto } from '../branches/dto/branch-id-param.dto';
+import { StaffSessionGuard } from '../staff-auth/guards/staff-session.guard';
+import { RequiredPermission } from '../staff/required-permission.decorator';
+import { StaffPermissionGuard } from '../staff/staff-permission.guard';
 import { SessionIdParamDto } from '../table-sessions/dto/session-id-param.dto';
 import { BranchNotificationsQueryDto } from './dto/branch-notifications-query.dto';
 import { BranchPresenceEventsQueryDto } from './dto/branch-presence-events-query.dto';
@@ -36,6 +47,8 @@ export class PresenceNotificationsController {
   }
 
   @Get('branches/:branchId/presence/events')
+  @UseGuards(StaffSessionGuard, StaffPermissionGuard)
+  @RequiredPermission('presence.read', { branchIdParam: 'branchId' })
   findPresenceEventsForBranch(
     @Param() params: BranchIdParamDto,
     @Query() query: BranchPresenceEventsQueryDto,
@@ -47,6 +60,8 @@ export class PresenceNotificationsController {
   }
 
   @Get('branches/:branchId/notifications')
+  @UseGuards(StaffSessionGuard, StaffPermissionGuard)
+  @RequiredPermission('notifications.read', { branchIdParam: 'branchId' })
   findNotificationsForBranch(
     @Param() params: BranchIdParamDto,
     @Query() query: BranchNotificationsQueryDto,

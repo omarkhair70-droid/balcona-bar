@@ -753,7 +753,7 @@ export function OwnerDashboardPage() {
       description="Executive branch pulse for live orders, preparation, waiter calls, bills, attention risks, and realtime activity."
       actions={<OwnerDashboardActions />}
     >
-      <StaffAuthGate>
+      <StaffAuthGate requiredPermissions={["settings.manage"]} branchScoped>
         <OwnerDashboardContent />
       </StaffAuthGate>
     </StaffPageShell>

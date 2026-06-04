@@ -815,7 +815,7 @@ export function WaiterDashboardPage() {
       description="Live floor operations for waiter calls, table attention, realtime refresh, and service recovery actions."
       actions={<WaiterDashboardActions />}
     >
-      <StaffAuthGate>
+      <StaffAuthGate requiredPermissions={["waiter_calls.read"]} branchScoped>
         <WaiterDashboardContent />
       </StaffAuthGate>
     </StaffPageShell>

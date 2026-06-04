@@ -1,5 +1,19 @@
-import { Body, Controller, Get, Param, Post, Query } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  Param,
+  Post,
+  Query,
+  UseGuards,
+} from '@nestjs/common';
 import { BranchIdParamDto } from '../branches/dto/branch-id-param.dto';
+import { CurrentStaff } from '../staff-auth/decorators/current-staff.decorator';
+import { StaffSessionGuard } from '../staff-auth/guards/staff-session.guard';
+import { StaffAuthContext } from '../staff-auth/staff-auth.types';
+import { RequiredPermission } from '../staff/required-permission.decorator';
+import { StaffPermissionGuard } from '../staff/staff-permission.guard';
+import { StaffScopedAccessService } from '../staff/staff-scoped-access.service';
 import { SessionIdParamDto } from '../table-sessions/dto/session-id-param.dto';
 import { BillRequestIdParamDto } from './dto/bill-request-id-param.dto';
 import { BillStaffActionDto } from './dto/bill-staff-action.dto';
@@ -10,7 +24,10 @@ import { BillRequestsService } from './bill-requests.service';
 
 @Controller()
 export class BillRequestsController {
-  constructor(private readonly billRequestsService: BillRequestsService) {}
+  constructor(
+    private readonly billRequestsService: BillRequestsService,
+    private readonly staffScopedAccessService: StaffScopedAccessService,
+  ) {}
 
   @Post('table-sessions/:sessionId/bill/request')
   requestBill(
@@ -26,6 +43,8 @@ export class BillRequestsController {
   }
 
   @Get('branches/:branchId/bill-requests')
+  @UseGuards(StaffSessionGuard, StaffPermissionGuard)
+  @RequiredPermission('bills.read', { branchIdParam: 'branchId' })
   findForBranch(
     @Param() params: BranchIdParamDto,
     @Query() query: BranchBillRequestsQueryDto = {},
@@ -34,15 +53,33 @@ export class BillRequestsController {
   }
 
   @Get('bill-requests/:billRequestId')
-  findOne(@Param() params: BillRequestIdParamDto) {
+  @UseGuards(StaffSessionGuard)
+  async findOne(
+    @CurrentStaff() currentStaff: StaffAuthContext,
+    @Param() params: BillRequestIdParamDto,
+  ) {
+    await this.staffScopedAccessService.assertCanForBillRequest(
+      currentStaff.staffUser.id,
+      'bills.read',
+      params.billRequestId,
+    );
+
     return this.billRequestsService.findOne(params.billRequestId);
   }
 
   @Post('bill-requests/:billRequestId/acknowledge')
-  acknowledge(
+  @UseGuards(StaffSessionGuard)
+  async acknowledge(
+    @CurrentStaff() currentStaff: StaffAuthContext,
     @Param() params: BillRequestIdParamDto,
     @Body() body: BillStaffActionDto = {},
   ) {
+    await this.staffScopedAccessService.assertCanForBillRequest(
+      currentStaff.staffUser.id,
+      'bills.acknowledge',
+      params.billRequestId,
+    );
+
     return this.billRequestsService.acknowledge(
       params.billRequestId,
       body ?? {},
@@ -50,26 +87,50 @@ export class BillRequestsController {
   }
 
   @Post('bill-requests/:billRequestId/present')
-  present(
+  @UseGuards(StaffSessionGuard)
+  async present(
+    @CurrentStaff() currentStaff: StaffAuthContext,
     @Param() params: BillRequestIdParamDto,
     @Body() body: BillStaffActionDto = {},
   ) {
+    await this.staffScopedAccessService.assertCanForBillRequest(
+      currentStaff.staffUser.id,
+      'bills.present',
+      params.billRequestId,
+    );
+
     return this.billRequestsService.present(params.billRequestId, body ?? {});
   }
 
   @Post('bill-requests/:billRequestId/close')
-  close(
+  @UseGuards(StaffSessionGuard)
+  async close(
+    @CurrentStaff() currentStaff: StaffAuthContext,
     @Param() params: BillRequestIdParamDto,
     @Body() body: BillStaffActionDto = {},
   ) {
+    await this.staffScopedAccessService.assertCanForBillRequest(
+      currentStaff.staffUser.id,
+      'bills.close',
+      params.billRequestId,
+    );
+
     return this.billRequestsService.close(params.billRequestId, body ?? {});
   }
 
   @Post('bill-requests/:billRequestId/cancel')
-  cancel(
+  @UseGuards(StaffSessionGuard)
+  async cancel(
+    @CurrentStaff() currentStaff: StaffAuthContext,
     @Param() params: BillRequestIdParamDto,
     @Body() body: CancelBillRequestDto = {},
   ) {
+    await this.staffScopedAccessService.assertCanForBillRequest(
+      currentStaff.staffUser.id,
+      'bills.cancel',
+      params.billRequestId,
+    );
+
     return this.billRequestsService.cancel(params.billRequestId, body ?? {});
   }
 }

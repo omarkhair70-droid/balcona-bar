@@ -1,5 +1,19 @@
-import { Body, Controller, Get, Param, Post, Query } from "@nestjs/common";
+import {
+  Body,
+  Controller,
+  Get,
+  Param,
+  Post,
+  Query,
+  UseGuards,
+} from "@nestjs/common";
 import { BranchIdParamDto } from "../branches/dto/branch-id-param.dto";
+import { CurrentStaff } from "../staff-auth/decorators/current-staff.decorator";
+import { StaffSessionGuard } from "../staff-auth/guards/staff-session.guard";
+import { StaffAuthContext } from "../staff-auth/staff-auth.types";
+import { RequiredPermission } from "../staff/required-permission.decorator";
+import { StaffPermissionGuard } from "../staff/staff-permission.guard";
+import { StaffScopedAccessService } from "../staff/staff-scoped-access.service";
 import { SessionIdParamDto } from "../table-sessions/dto/session-id-param.dto";
 import { AiWaiterService } from "./ai-waiter.service";
 import { AiWaiterSessionIdParamDto } from "./dto/ai-waiter-session-id-param.dto";
@@ -13,7 +27,10 @@ import { StartAiWaiterDto } from "./dto/start-ai-waiter.dto";
 
 @Controller()
 export class AiWaiterController {
-  constructor(private readonly aiWaiterService: AiWaiterService) {}
+  constructor(
+    private readonly aiWaiterService: AiWaiterService,
+    private readonly staffScopedAccessService: StaffScopedAccessService,
+  ) {}
 
   @Post("table-sessions/:sessionId/ai-waiter/start")
   start(
@@ -71,6 +88,8 @@ export class AiWaiterController {
   }
 
   @Get("branches/:branchId/ai-waiter/sessions")
+  @UseGuards(StaffSessionGuard, StaffPermissionGuard)
+  @RequiredPermission("ai_waiter.read", { branchIdParam: "branchId" })
   listBranchSessions(
     @Param() params: BranchIdParamDto,
     @Query() query: ListAiWaiterSessionsQueryDto,
@@ -82,7 +101,17 @@ export class AiWaiterController {
   }
 
   @Get("ai-waiter/sessions/:aiWaiterSessionId")
-  getSessionDetail(@Param() params: AiWaiterSessionIdParamDto) {
+  @UseGuards(StaffSessionGuard)
+  async getSessionDetail(
+    @CurrentStaff() currentStaff: StaffAuthContext,
+    @Param() params: AiWaiterSessionIdParamDto,
+  ) {
+    await this.staffScopedAccessService.assertCanForAiWaiterSession(
+      currentStaff.staffUser.id,
+      "ai_waiter.read",
+      params.aiWaiterSessionId,
+    );
+
     return this.aiWaiterService.getSessionDetail(params.aiWaiterSessionId);
   }
 }

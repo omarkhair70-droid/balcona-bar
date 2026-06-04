@@ -6,6 +6,7 @@ import { PreparationTasksModule } from '../preparation-tasks/preparation-tasks.m
 import { PrismaModule } from '../prisma/prisma.module';
 import { RealtimeEventsModule } from '../realtime-events/realtime-events.module';
 import { SmartCashierModule } from '../smart-cashier/smart-cashier.module';
+import { StaffModule } from '../staff/staff.module';
 import { OrdersController } from './orders.controller';
 import { OrdersService } from './orders.service';
 
@@ -18,6 +19,7 @@ import { OrdersService } from './orders.service';
     PresenceNotificationsModule,
     RealtimeEventsModule,
     SmartCashierModule,
+    StaffModule,
   ],
   controllers: [OrdersController],
   providers: [OrdersService],
