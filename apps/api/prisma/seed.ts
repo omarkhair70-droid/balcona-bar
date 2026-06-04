@@ -1,4 +1,9 @@
-import { PreparationStation, PrismaClient, StaffRole } from '@prisma/client';
+import {
+  PreparationStation,
+  PrinterAdapterType,
+  PrismaClient,
+  StaffRole,
+} from '@prisma/client';
 
 const prisma = new PrismaClient();
 
@@ -132,6 +137,33 @@ const coldDrinkModifierSlugsByItem: Record<string, string[]> = {
   'lemon-mint': ['size', 'sugar-level', 'extras'],
   'peach-iced-tea': ['size', 'sugar-level', 'extras'],
 };
+
+const printerStationSeed: Array<{
+  name: string;
+  slug: string;
+  station: PreparationStation | null;
+}> = [
+  {
+    name: 'Main Barista Printer',
+    slug: 'main-barista-printer',
+    station: PreparationStation.barista,
+  },
+  {
+    name: 'Main Kitchen Printer',
+    slug: 'main-kitchen-printer',
+    station: PreparationStation.kitchen,
+  },
+  {
+    name: 'Dessert Printer',
+    slug: 'dessert-printer',
+    station: PreparationStation.dessert,
+  },
+  {
+    name: 'Cashier Receipt Printer',
+    slug: 'cashier-receipt-printer',
+    station: null,
+  },
+];
 
 async function seedMenu(companyId: string, branchId: string) {
   const categoryBySlug = new Map<string, { id: string }>();
@@ -329,6 +361,44 @@ async function seedMenu(companyId: string, branchId: string) {
   }
 }
 
+async function seedPrinterStations(companyId: string, branchId: string) {
+  for (const printerStation of printerStationSeed) {
+    await prisma.printerStation.upsert({
+      where: {
+        branchId_slug: {
+          branchId,
+          slug: printerStation.slug,
+        },
+      },
+      update: {
+        name: printerStation.name,
+        station: printerStation.station,
+        adapterType: PrinterAdapterType.mock,
+        status: 'active',
+        isDefault: true,
+        config: {
+          adapter: 'mock',
+          demo: true,
+        },
+      },
+      create: {
+        companyId,
+        branchId,
+        name: printerStation.name,
+        slug: printerStation.slug,
+        station: printerStation.station,
+        adapterType: PrinterAdapterType.mock,
+        status: 'active',
+        isDefault: true,
+        config: {
+          adapter: 'mock',
+          demo: true,
+        },
+      },
+    });
+  }
+}
+
 async function main() {
   const company = await prisma.company.upsert({
     where: { slug: companySlug },
@@ -452,6 +522,7 @@ async function main() {
   }
 
   await seedMenu(company.id, branch.id);
+  await seedPrinterStations(company.id, branch.id);
 }
 
 main()

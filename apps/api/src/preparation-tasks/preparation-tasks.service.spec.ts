@@ -199,6 +199,12 @@ function buildService(input: {
     recordOrderPreparationStarted: jest.fn().mockResolvedValue({}),
     recordOrderPreparationReady: jest.fn().mockResolvedValue({}),
   };
+  const kitchenTicketsService = {
+    createTicketsForAcceptedOrder: jest.fn().mockResolvedValue([]),
+    syncTicketsForTaskStarted: jest.fn().mockResolvedValue(undefined),
+    syncTicketsForTaskReady: jest.fn().mockResolvedValue(undefined),
+    syncTicketsForTaskCancelled: jest.fn().mockResolvedValue(undefined),
+  };
   const service = new PreparationTasksService(
     prisma as never,
     {
@@ -207,9 +213,10 @@ function buildService(input: {
     } as never,
     realtimeEventsService as never,
     { recalculateForTableSession: jest.fn().mockResolvedValue({}) } as never,
+    kitchenTicketsService as never,
   );
 
-  return { service, tx, realtimeEventsService };
+  return { service, tx, realtimeEventsService, kitchenTicketsService };
 }
 
 describe('PreparationTasksService lifecycle hardening', () => {

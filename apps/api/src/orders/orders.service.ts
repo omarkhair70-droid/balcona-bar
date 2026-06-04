@@ -14,6 +14,7 @@ import {
 } from '@prisma/client';
 import { TableAttentionService } from '../autopilot/table-attention.service';
 import { CartService } from '../cart/cart.service';
+import { KitchenTicketsService } from '../kitchen-tickets/kitchen-tickets.service';
 import { PresenceNotificationsService } from '../presence-notifications/presence-notifications.service';
 import { PreparationTasksService } from '../preparation-tasks/preparation-tasks.service';
 import { PrismaService } from '../prisma/prisma.service';
@@ -62,6 +63,7 @@ export class OrdersService {
     private readonly realtimeEventsService: RealtimeEventsService,
     private readonly smartCashierService: SmartCashierService,
     private readonly tableAttentionService: TableAttentionService,
+    private readonly kitchenTicketsService: KitchenTicketsService,
   ) {}
 
   async submitCart(
@@ -446,6 +448,7 @@ export class OrdersService {
         order.id,
         tx,
       );
+      await this.kitchenTicketsService.syncTicketsForOrderServed(order.id, tx);
       await this.realtimeEventsService.recordOrderServed(order.id, tx);
       await this.recalculateAttention(order.tableSessionId, tx, 'order_served', {
         orderId: order.id,
@@ -586,6 +589,12 @@ export class OrdersService {
       });
 
       await this.preparationTasksService.cancelActiveTasksForOrderCancellation(
+        order.id,
+        actorStaffUserId,
+        reason,
+        tx,
+      );
+      await this.kitchenTicketsService.syncTicketsForOrderCancelled(
         order.id,
         actorStaffUserId,
         reason,
@@ -834,6 +843,7 @@ export class OrdersService {
       items,
       events,
       preparationTasks,
+      kitchenTickets,
       ...orderFields
     } = order;
     const { table, ...tableSessionFields } = tableSession;
@@ -910,6 +920,58 @@ export class OrdersService {
           createdAt: event.createdAt,
         })),
       })),
+      kitchenTickets: (kitchenTickets ?? []).map((ticket: any) => ({
+        id: ticket.id,
+        companyId: ticket.companyId,
+        branchId: ticket.branchId,
+        orderId: ticket.orderId,
+        tableSessionId: ticket.tableSessionId,
+        station: ticket.station,
+        type: ticket.type,
+        status: ticket.status,
+        displayCode: ticket.displayCode,
+        sequence: ticket.sequence,
+        orderNumberSnapshot: ticket.orderNumberSnapshot,
+        tableCodeSnapshot: ticket.tableCodeSnapshot,
+        floorNameSnapshot: ticket.floorNameSnapshot,
+        customerNoteSnapshot: ticket.customerNoteSnapshot,
+        printedAt: ticket.printedAt,
+        readyAt: ticket.readyAt,
+        cancelledAt: ticket.cancelledAt,
+        servedAt: ticket.servedAt,
+        createdAt: ticket.createdAt,
+        updatedAt: ticket.updatedAt,
+        items: ticket.items.map((item: any) => ({
+          id: item.id,
+          ticketId: item.ticketId,
+          orderItemId: item.orderItemId,
+          preparationTaskId: item.preparationTaskId,
+          menuItemId: item.menuItemId,
+          itemNameSnapshot: item.itemNameSnapshot,
+          itemSlugSnapshot: item.itemSlugSnapshot,
+          quantity: item.quantity,
+          notes: item.notes,
+          modifiersSnapshot: item.modifiersSnapshot,
+          station: item.station,
+          status: item.status,
+          createdAt: item.createdAt,
+          updatedAt: item.updatedAt,
+        })),
+        printJobs: ticket.printJobs.map((printJob: any) => ({
+          id: printJob.id,
+          printerStationId: printJob.printerStationId,
+          kitchenTicketId: printJob.kitchenTicketId,
+          orderId: printJob.orderId,
+          kind: printJob.kind,
+          status: printJob.status,
+          errorMessage: printJob.errorMessage,
+          attemptCount: printJob.attemptCount,
+          printedAt: printJob.printedAt,
+          failedAt: printJob.failedAt,
+          createdAt: printJob.createdAt,
+          updatedAt: printJob.updatedAt,
+        })),
+      })),
       totals: {
         subtotalMinor: order.subtotalMinor,
         totalQuantity: order.totalQuantity,
@@ -960,6 +1022,17 @@ export class OrdersService {
         include: {
           events: {
             orderBy: [{ createdAt: 'asc' as const }],
+          },
+        },
+      },
+      kitchenTickets: {
+        orderBy: [{ createdAt: 'asc' as const }],
+        include: {
+          items: {
+            orderBy: [{ createdAt: 'asc' as const }],
+          },
+          printJobs: {
+            orderBy: [{ createdAt: 'desc' as const }],
           },
         },
       },

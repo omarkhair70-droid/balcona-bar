@@ -91,6 +91,55 @@ enum PreparationTaskEventType {
   cancelled
 }
 
+enum KitchenTicketStatus {
+  queued
+  in_progress
+  ready
+  served
+  cancelled
+  voided
+}
+
+enum KitchenTicketType {
+  kitchen_order
+  barista_order
+  dessert_order
+  receipt
+  void
+  reprint
+}
+
+enum PrintJobStatus {
+  pending
+  printing
+  printed
+  failed
+  cancelled
+  reprint_requested
+}
+
+enum PrintJobKind {
+  kitchen_ticket
+  barista_ticket
+  dessert_ticket
+  receipt
+  void_ticket
+}
+
+enum PrinterStationStatus {
+  active
+  inactive
+  maintenance
+}
+
+enum PrinterAdapterType {
+  mock
+  browser_print
+  escpos_lan
+  escpos_usb
+  external
+}
+
 enum TableSessionStatus {
   active
   idle
@@ -314,6 +363,15 @@ enum RealtimeEventType {
   preparation_task_started
   preparation_task_ready
   preparation_task_cancelled
+  kitchen_ticket_created
+  kitchen_ticket_updated
+  kitchen_ticket_ready
+  kitchen_ticket_cancelled
+  print_job_created
+  print_job_printed
+  print_job_failed
+  print_job_reprint_requested
+  printer_station_updated
   waiter_call_created
   waiter_call_acknowledged
   waiter_call_resolved
@@ -629,6 +687,9 @@ model Company {
   orders                    Order[]
   presenceEvents            PresenceEvent[]
   preparationTasks          PreparationTask[]
+  kitchenTickets            KitchenTicket[]
+  printerStations           PrinterStation[]
+  printJobs                 PrintJob[]
   realtimeEvents            RealtimeEvent[]
   smartCashierSettings      BranchSmartCashierSettings[]
   smartCashierReviewRules   SmartCashierReviewRule[]
@@ -675,6 +736,9 @@ model Branch {
   orders                    Order[]
   presenceEvents            PresenceEvent[]
   preparationTasks          PreparationTask[]
+  kitchenTickets            KitchenTicket[]
+  printerStations           PrinterStation[]
+  printJobs                 PrintJob[]
   realtimeEvents            RealtimeEvent[]
   smartCashierSettings      BranchSmartCashierSettings?
   smartCashierReviewRules   SmartCashierReviewRule[]
@@ -752,6 +816,8 @@ model StaffUser {
   cancelledBillRequests    BillRequest[]          @relation("BillRequestCancelledByStaff")
   billRequestEvents        BillRequestEvent[]
   preparationTaskEvents    PreparationTaskEvent[]
+  requestedPrintJobs       PrintJob[]              @relation("PrintJobRequestedByStaff")
+  printJobEvents           PrintJobEvent[]
   waiterCallEvents         WaiterCallEvent[]
   auditLogs                AuditLog[]
 
@@ -851,6 +917,7 @@ model MenuItem {
   branchOverrides         BranchMenuItemOverride[]
   cartItems               CartItem[]
   orderItems              OrderItem[]
+  kitchenTicketItems      KitchenTicketItem[]
   smartCashierReviewRules SmartCashierReviewRule[]
 
   @@unique([companyId, slug])
@@ -1074,6 +1141,7 @@ model TableSession {
   events                    TableSessionEvent[]
   notifications             Notification[]
   orders                    Order[]
+  kitchenTickets            KitchenTicket[]
   presenceEvents            PresenceEvent[]
   realtimeEvents            RealtimeEvent[]
   tableAttentionSnapshot    TableAttentionSnapshot?
@@ -1431,6 +1499,8 @@ model Order {
   events               OrderEvent[]
   notifications        Notification[]
   preparationTasks     PreparationTask[]
+  kitchenTickets       KitchenTicket[]
+  printJobs            PrintJob[]
   realtimeEvents       RealtimeEvent[]
   waiterCalls          WaiterCall[]
 
@@ -1472,6 +1542,7 @@ model OrderItem {
   menuItem        MenuItem                  @relation(fields: [menuItemId], references: [id], onDelete: Restrict)
   modifierOptions OrderItemModifierOption[]
   preparationTask PreparationTask?
+  kitchenTicketItems KitchenTicketItem[]
 
   @@index([orderId])
   @@index([menuItemId])
@@ -1538,6 +1609,7 @@ model PreparationTask {
   order          Order                  @relation(fields: [orderId], references: [id], onDelete: Cascade)
   orderItem      OrderItem              @relation(fields: [orderItemId], references: [id], onDelete: Cascade)
   events         PreparationTaskEvent[]
+  kitchenTicketItems KitchenTicketItem[]
   notifications  Notification[]
   realtimeEvents RealtimeEvent[]
 
@@ -1564,6 +1636,159 @@ model PreparationTaskEvent {
 
   @@index([preparationTaskId])
   @@index([type])
+  @@index([createdAt])
+}
+
+model PrinterStation {
+  id          String               @id @default(uuid())
+  companyId   String
+  branchId    String
+  name        String
+  slug        String
+  station     PreparationStation?
+  adapterType PrinterAdapterType   @default(mock)
+  status      PrinterStationStatus @default(active)
+  isDefault   Boolean              @default(false)
+  config      Json?
+  createdAt   DateTime             @default(now())
+  updatedAt   DateTime             @updatedAt
+
+  company   Company    @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  branch    Branch     @relation(fields: [branchId], references: [id], onDelete: Cascade)
+  printJobs PrintJob[]
+
+  @@unique([branchId, slug])
+  @@index([companyId])
+  @@index([branchId])
+  @@index([branchId, status])
+  @@index([branchId, station, status])
+  @@index([adapterType])
+}
+
+model KitchenTicket {
+  id                   String              @id @default(uuid())
+  companyId            String
+  branchId             String
+  orderId              String
+  tableSessionId       String
+  station              PreparationStation
+  type                 KitchenTicketType
+  status               KitchenTicketStatus @default(queued)
+  displayCode          String
+  sequence             Int
+  orderNumberSnapshot  String
+  tableCodeSnapshot    String?
+  floorNameSnapshot    String?
+  customerNoteSnapshot String?
+  printedAt            DateTime?
+  readyAt              DateTime?
+  cancelledAt          DateTime?
+  servedAt             DateTime?
+  createdAt            DateTime            @default(now())
+  updatedAt            DateTime            @updatedAt
+
+  company      Company             @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  branch       Branch              @relation(fields: [branchId], references: [id], onDelete: Cascade)
+  order        Order               @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  tableSession TableSession        @relation(fields: [tableSessionId], references: [id], onDelete: Cascade)
+  items        KitchenTicketItem[]
+  printJobs    PrintJob[]
+
+  @@unique([orderId, station, type])
+  @@unique([branchId, displayCode])
+  @@index([companyId])
+  @@index([branchId])
+  @@index([branchId, status, station, createdAt])
+  @@index([branchId, type, createdAt])
+  @@index([orderId])
+  @@index([tableSessionId])
+  @@index([station])
+  @@index([status])
+  @@index([createdAt])
+}
+
+model KitchenTicketItem {
+  id                    String              @id @default(uuid())
+  ticketId              String
+  orderItemId           String
+  preparationTaskId     String?
+  menuItemId            String
+  itemNameSnapshot      String
+  itemSlugSnapshot      String
+  quantity              Int
+  notes                 String?
+  modifiersSnapshot     Json?
+  station               PreparationStation
+  status                KitchenTicketStatus @default(queued)
+  createdAt             DateTime            @default(now())
+  updatedAt             DateTime            @updatedAt
+
+  ticket          KitchenTicket   @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  orderItem       OrderItem       @relation(fields: [orderItemId], references: [id], onDelete: Cascade)
+  preparationTask PreparationTask? @relation(fields: [preparationTaskId], references: [id], onDelete: SetNull)
+  menuItem        MenuItem        @relation(fields: [menuItemId], references: [id], onDelete: Restrict)
+
+  @@unique([ticketId, orderItemId])
+  @@index([ticketId])
+  @@index([orderItemId])
+  @@index([preparationTaskId])
+  @@index([menuItemId])
+  @@index([station])
+  @@index([status])
+}
+
+model PrintJob {
+  id                     String          @id @default(uuid())
+  companyId              String
+  branchId               String
+  printerStationId       String?
+  kitchenTicketId        String?
+  orderId                String?
+  kind                   PrintJobKind
+  status                 PrintJobStatus  @default(pending)
+  payload                Json
+  printableText          String?
+  errorMessage           String?
+  attemptCount           Int             @default(0)
+  requestedByStaffUserId String?
+  printedAt              DateTime?
+  failedAt               DateTime?
+  createdAt              DateTime        @default(now())
+  updatedAt              DateTime        @updatedAt
+
+  company              Company         @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  branch               Branch          @relation(fields: [branchId], references: [id], onDelete: Cascade)
+  printerStation       PrinterStation? @relation(fields: [printerStationId], references: [id], onDelete: SetNull)
+  kitchenTicket        KitchenTicket?  @relation(fields: [kitchenTicketId], references: [id], onDelete: SetNull)
+  order                Order?          @relation(fields: [orderId], references: [id], onDelete: SetNull)
+  requestedByStaffUser StaffUser?      @relation("PrintJobRequestedByStaff", fields: [requestedByStaffUserId], references: [id], onDelete: SetNull)
+  events               PrintJobEvent[]
+
+  @@index([companyId])
+  @@index([branchId])
+  @@index([branchId, status, createdAt])
+  @@index([branchId, kind, createdAt])
+  @@index([printerStationId])
+  @@index([kitchenTicketId, status])
+  @@index([orderId])
+  @@index([requestedByStaffUserId])
+  @@index([status])
+  @@index([createdAt])
+}
+
+model PrintJobEvent {
+  id               String         @id @default(uuid())
+  printJobId        String
+  status            PrintJobStatus
+  actorStaffUserId  String?
+  metadata          Json?
+  createdAt         DateTime       @default(now())
+
+  printJob       PrintJob   @relation(fields: [printJobId], references: [id], onDelete: Cascade)
+  actorStaffUser StaffUser? @relation(fields: [actorStaffUserId], references: [id], onDelete: SetNull)
+
+  @@index([printJobId])
+  @@index([status])
   @@index([createdAt])
 }
 

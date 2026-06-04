@@ -66,6 +66,60 @@ export class StaffScopedAccessService {
     );
   }
 
+  async assertCanForKitchenTicket(
+    staffUserId: string,
+    permission: StaffPermission,
+    ticketId: string,
+  ) {
+    const ticket = await this.prisma.kitchenTicket.findUnique({
+      where: { id: ticketId },
+      select: { companyId: true, branchId: true },
+    });
+
+    return this.assertCanForRecord(
+      staffUserId,
+      permission,
+      ticket,
+      'Kitchen ticket',
+    );
+  }
+
+  async assertCanForPrintJob(
+    staffUserId: string,
+    permission: StaffPermission,
+    printJobId: string,
+  ) {
+    const printJob = await this.prisma.printJob.findUnique({
+      where: { id: printJobId },
+      select: { companyId: true, branchId: true },
+    });
+
+    return this.assertCanForRecord(
+      staffUserId,
+      permission,
+      printJob,
+      'Print job',
+    );
+  }
+
+  async assertCanForPrinterStation(
+    staffUserId: string,
+    permission: StaffPermission,
+    printerStationId: string,
+  ) {
+    const printerStation = await this.prisma.printerStation.findUnique({
+      where: { id: printerStationId },
+      select: { companyId: true, branchId: true },
+    });
+
+    return this.assertCanForRecord(
+      staffUserId,
+      permission,
+      printerStation,
+      'Printer station',
+    );
+  }
+
   async assertCanForWaiterCall(
     staffUserId: string,
     permission: StaffPermission,

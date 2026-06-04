@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { AlertTriangle, Clock3, ListChecks } from "lucide-react";
+import { AlertTriangle, ClipboardList, Clock3, ListChecks, Printer } from "lucide-react";
 import {
   Card,
   CardContent,
@@ -19,6 +19,7 @@ import {
   getOrderEvents,
   getOrderFloor,
   getOrderItems,
+  getOrderKitchenTickets,
   getOrderNextExpectedRole,
   getOrderNumber,
   getOrderProgressStep,
@@ -37,6 +38,15 @@ import {
   getTableLabel,
   humanizeStatus
 } from "@/features/staff/staff-format";
+import {
+  getPrintJobStatus,
+  getTicketDisplayCode,
+  getTicketItems,
+  getTicketLocationLabel,
+  getTicketPrintJobs,
+  getTicketStation,
+  getTicketStatus
+} from "@/features/staff/kds-data";
 import type { OrderDetailResult } from "@/lib/api/types";
 import { CashierActionBar } from "./cashier-action-bar";
 import { CashierOrderStatusPill } from "./cashier-order-status-pill";
@@ -54,6 +64,39 @@ type CashierOrderDetailPanelProps = {
   onCancel: (reason: string) => void;
   onComplete: () => void;
 };
+
+type BadgeVariant = "default" | "muted" | "success" | "warning" | "danger";
+
+function getTicketStatusVariant(status: string): BadgeVariant {
+  if (status === "ready" || status === "served") {
+    return "success";
+  }
+
+  if (status === "cancelled" || status === "voided") {
+    return "danger";
+  }
+
+  return status === "queued" ? "warning" : "default";
+}
+
+function getTicketPrintSummary(ticket: Record<string, unknown>) {
+  const printJobs = getTicketPrintJobs(ticket);
+  const statuses = printJobs.map(getPrintJobStatus);
+
+  if (statuses.includes("failed")) {
+    return { label: "Print failed", variant: "danger" as const };
+  }
+
+  if (statuses.includes("pending") || statuses.includes("printing")) {
+    return { label: "Print pending", variant: "warning" as const };
+  }
+
+  if (statuses.includes("printed")) {
+    return { label: "Printed", variant: "success" as const };
+  }
+
+  return { label: "No print job", variant: "muted" as const };
+}
 
 export function CashierOrderDetailPanel({
   order,
@@ -74,6 +117,7 @@ export function CashierOrderDetailPanel({
   const totals = order ? getOrderTotals(order) : undefined;
   const items = order ? getOrderItems(order) : [];
   const events = order ? getOrderEvents(order) : [];
+  const kitchenTickets = order ? getOrderKitchenTickets(order) : [];
   const canAccept = order ? orderAllowsAction(order, "accept") : false;
   const canReject = order ? orderAllowsAction(order, "reject") : false;
   const canCancel = order ? orderAllowsAction(order, "cancel") : false;
@@ -229,6 +273,55 @@ export function CashierOrderDetailPanel({
                         ))}
                       </div>
                     ) : null}
+                  </div>
+                );
+              })}
+            </section>
+
+            <section className="grid gap-3">
+              <h3 className="flex items-center gap-2 text-sm font-semibold text-foreground">
+                <ClipboardList className="size-4 text-primary" aria-hidden="true" />
+                Kitchen tickets
+              </h3>
+              {kitchenTickets.length === 0 ? (
+                <p className="rounded-card border border-dashed bg-surface/70 p-4 text-sm text-muted-foreground">
+                  Ticket rows appear here after the order is accepted and routed
+                  to barista, kitchen, or dessert stations.
+                </p>
+              ) : null}
+              {kitchenTickets.map((ticket, index) => {
+                const ticketStatus = getTicketStatus(ticket);
+                const printSummary = getTicketPrintSummary(ticket);
+
+                return (
+                  <div
+                    key={getRecordString(ticket, "id") || String(index)}
+                    className="rounded-card border bg-surface/75 p-4"
+                  >
+                    <div className="flex flex-wrap items-start justify-between gap-3">
+                      <div>
+                        <p className="text-sm font-semibold text-foreground">
+                          {getTicketDisplayCode(ticket)}
+                        </p>
+                        <p className="mt-1 text-xs text-muted-foreground">
+                          {humanizeStatus(getTicketStation(ticket))} /{" "}
+                          {getTicketLocationLabel(ticket)}
+                        </p>
+                      </div>
+                      <div className="flex flex-wrap justify-end gap-2">
+                        <Badge variant={getTicketStatusVariant(ticketStatus)}>
+                          {humanizeStatus(ticketStatus)}
+                        </Badge>
+                        <Badge variant={printSummary.variant}>
+                          <Printer className="mr-1 size-3" aria-hidden="true" />
+                          {printSummary.label}
+                        </Badge>
+                      </div>
+                    </div>
+                    <p className="mt-3 text-xs text-muted-foreground">
+                      {getTicketItems(ticket).length} ticket item
+                      {getTicketItems(ticket).length === 1 ? "" : "s"}
+                    </p>
                   </div>
                 );
               })}

@@ -63,6 +63,10 @@ export function getOrderEvents(value: unknown) {
   return getRecordArray(getOrderEnvelopeRecord(value).events);
 }
 
+export function getOrderKitchenTickets(value: unknown) {
+  return getRecordArray(getOrderEnvelopeRecord(value).kitchenTickets);
+}
+
 export function getOrderLifecycle(value: unknown) {
   return getRecord(getOrderEnvelopeRecord(value).lifecycle);
 }
