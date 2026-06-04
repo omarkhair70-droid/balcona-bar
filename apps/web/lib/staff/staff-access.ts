@@ -26,6 +26,25 @@ export function hasStaffPermission(
   );
 }
 
+export function hasCompanyStaffPermission(
+  access: StaffEffectiveAccess | undefined,
+  permission: StaffPermission,
+  companyId?: string
+) {
+  if (!access || !companyId) {
+    return false;
+  }
+
+  return Boolean(
+    access.companies
+      .find(
+        (entry) =>
+          entry.company.id === companyId && entry.branchScope === "all_branches"
+      )
+      ?.permissions.includes(permission)
+  );
+}
+
 export function hasAnyStaffPermission(
   access: StaffEffectiveAccess | undefined,
   permissions: StaffPermission[],
@@ -83,4 +102,54 @@ export function getDefaultStaffRoute(
   }
 
   return "/staff";
+}
+
+export function getMenuAdminAccessMode(input: {
+  access?: StaffEffectiveAccess;
+  companyId?: string;
+  branchId?: string;
+}) {
+  const canReadBranchMenu = hasStaffPermission(
+    input.access,
+    "menu.read",
+    input.branchId
+  );
+  const canManageBranchOverrides = hasStaffPermission(
+    input.access,
+    "menu.manage_branch_overrides",
+    input.branchId
+  );
+  const canManageCompanyCategories = hasCompanyStaffPermission(
+    input.access,
+    "menu.manage_categories",
+    input.companyId
+  );
+  const canManageCompanyItems = hasCompanyStaffPermission(
+    input.access,
+    "menu.manage_items",
+    input.companyId
+  );
+  const canManageCompanyModifiers = hasCompanyStaffPermission(
+    input.access,
+    "menu.manage_modifiers",
+    input.companyId
+  );
+  const canManageFullMenu =
+    canManageCompanyCategories &&
+    canManageCompanyItems &&
+    canManageCompanyModifiers;
+
+  return {
+    canReadBranchMenu,
+    canManageBranchOverrides,
+    canManageCompanyCategories,
+    canManageCompanyItems,
+    canManageCompanyModifiers,
+    canManageFullMenu,
+    mode: canManageFullMenu
+      ? "full_menu_management"
+      : canManageBranchOverrides
+        ? "branch_availability"
+        : "read_only"
+  } as const;
 }

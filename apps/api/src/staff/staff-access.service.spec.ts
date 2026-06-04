@@ -133,7 +133,7 @@ describe('StaffAccessService', () => {
     expect(result.reason).toBe('staff_user_inactive');
   });
 
-  it('requires a company-level membership for company-scoped permissions', async () => {
+  it('allows branch-level menu admins to manage branch availability only', async () => {
     const { service } = buildService(
       buildStaffUser({
         memberships: [
@@ -142,11 +142,66 @@ describe('StaffAccessService', () => {
       }),
     );
 
-    const result = await service.can('staff-1', 'menu.manage_items', {
-      companyId: company.id,
+    await expect(
+      service.can('staff-1', 'menu.read', {
+        branchId: branchOne.id,
+      }),
+    ).resolves.toMatchObject({
+      allowed: true,
+      reason: 'permission_granted_by_branch_membership',
     });
 
-    expect(result.allowed).toBe(false);
-    expect(result.reason).toBe('no_active_membership_for_scope');
+    await expect(
+      service.can('staff-1', 'menu.manage_branch_overrides', {
+        branchId: branchOne.id,
+      }),
+    ).resolves.toMatchObject({
+      allowed: true,
+      reason: 'permission_granted_by_branch_membership',
+    });
+
+    for (const permission of [
+      'menu.manage_categories',
+      'menu.manage_items',
+      'menu.manage_modifiers',
+    ] as const) {
+      await expect(
+        service.can('staff-1', permission, {
+          companyId: company.id,
+        }),
+      ).resolves.toMatchObject({
+        allowed: false,
+        reason: 'no_active_membership_for_scope',
+      });
+    }
+  });
+
+  it('allows company-level owner, menu admin, and branch manager roles to manage the full company menu', async () => {
+    for (const role of [
+      StaffRole.owner,
+      StaffRole.menu_admin,
+      StaffRole.branch_manager,
+    ]) {
+      const { service } = buildService(
+        buildStaffUser({
+          memberships: [buildMembership({ branch: null, role })],
+        }),
+      );
+
+      for (const permission of [
+        'menu.manage_categories',
+        'menu.manage_items',
+        'menu.manage_modifiers',
+      ] as const) {
+        await expect(
+          service.can('staff-1', permission, {
+            companyId: company.id,
+          }),
+        ).resolves.toMatchObject({
+          allowed: true,
+          reason: 'permission_granted_by_company_membership',
+        });
+      }
+    }
   });
 });
