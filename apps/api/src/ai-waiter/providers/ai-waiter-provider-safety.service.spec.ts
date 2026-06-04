@@ -43,6 +43,12 @@ const context: AiWaiterContext = {
               name: "Medium",
               slug: "medium",
             },
+            {
+              id: "size-large",
+              groupId: "size-group",
+              name: "Large",
+              slug: "large",
+            },
           ],
         },
       ],
@@ -263,6 +269,30 @@ describe("AiWaiterProviderSafetyService", () => {
 
     expect(result.metadata?.fallbackUsed).toBe(true);
     expect(result.metadata?.safetyFlags).toContain("unknown_modifier_rejected");
+  });
+
+  it("rejects modifier selections that exceed group max selections", () => {
+    const result = service.validateAndMapPlan(
+      plan({
+        intent: "cart_proposal",
+        proposedCart: {
+          title: "Latte proposal",
+          items: [
+            {
+              menuItemId: "item-latte",
+              quantity: 1,
+              modifierOptionIds: ["size-medium", "size-large"],
+            },
+          ],
+        },
+      }),
+      context,
+    );
+
+    expect(result.metadata?.fallbackUsed).toBe(true);
+    expect(result.metadata?.safetyFlags).toContain(
+      "modifier_selection_limit_enforced",
+    );
   });
 
   it("enforces quantity limits", () => {

@@ -234,10 +234,115 @@ export class AiWaiterContextService {
         kind: true,
         content: true,
         createdAt: true,
+        metadata: true,
       },
     });
 
-    return messages.reverse();
+    return messages.reverse().map((message) => ({
+      role: message.role,
+      kind: message.kind,
+      content: message.content,
+      createdAt: message.createdAt,
+      metadata: this.compactRecentMetadata(message.metadata),
+    }));
+  }
+
+  private compactRecentMetadata(value: unknown) {
+    if (!this.isRecord(value)) {
+      return undefined;
+    }
+
+    const metadata: Record<string, unknown> = {};
+    const copiedKeys = [
+      "provider",
+      "mode",
+      "groundingMode",
+      "itemDetailGroundingMode",
+      "itemDetailMenuItemId",
+      "actionRejected",
+      "fallbackUsed",
+      "safetyFlags",
+      "pendingModifierGroupId",
+      "selectedModifierOptionIds",
+    ];
+
+    for (const key of copiedKeys) {
+      const entry = value[key];
+
+      if (
+        typeof entry === "string" ||
+        typeof entry === "boolean" ||
+        (Array.isArray(entry) &&
+          entry.every((item) => typeof item === "string"))
+      ) {
+        metadata[key] = entry;
+      }
+    }
+
+    const pendingModifier = this.compactPendingModifier(
+      value.pendingModifier,
+    );
+
+    if (pendingModifier) {
+      metadata.mode = "modifier_question";
+      metadata.pendingModifier = pendingModifier;
+    }
+
+    const pendingItem = this.compactPendingItem(value.pendingItem);
+
+    if (pendingItem) {
+      metadata.pendingItem = pendingItem;
+    }
+
+    return Object.keys(metadata).length > 0 ? metadata : undefined;
+  }
+
+  private compactPendingModifier(value: unknown) {
+    if (!this.isRecord(value)) {
+      return undefined;
+    }
+
+    const allowedOptions = Array.isArray(value.allowedOptions)
+      ? value.allowedOptions
+          .filter((option): option is Record<string, unknown> =>
+            this.isRecord(option),
+          )
+          .slice(0, 8)
+          .map((option) => ({
+            id: this.stringValue(option.id),
+            name: this.stringValue(option.name),
+            slug: this.stringValue(option.slug),
+          }))
+          .filter((option) => option.id && option.name)
+      : [];
+    const menuItemId = this.stringValue(value.menuItemId);
+    const modifierGroupId = this.stringValue(value.modifierGroupId);
+    const question = this.stringValue(value.question);
+
+    if (!menuItemId || !modifierGroupId || allowedOptions.length === 0) {
+      return undefined;
+    }
+
+    return {
+      menuItemId,
+      modifierGroupId,
+      allowedOptionIds: allowedOptions.map((option) => option.id),
+      allowedOptions,
+      selectedModifierOptionIds: this.stringArray(value.selectedModifierOptionIds),
+      question,
+      createdAt: this.stringValue(value.createdAt),
+    };
+  }
+
+  private compactPendingItem(value: unknown) {
+    if (!this.isRecord(value)) {
+      return undefined;
+    }
+
+    const id = this.stringValue(value.id);
+    const name = this.stringValue(value.name);
+
+    return id && name ? { id, name } : undefined;
   }
 
   private tableSessionSelect() {
@@ -268,5 +373,19 @@ export class AiWaiterContextService {
     const parsed = typeof value === "number" ? value : Number(value);
 
     return Number.isFinite(parsed) && parsed > 0 ? Math.floor(parsed) : 200;
+  }
+
+  private isRecord(value: unknown): value is Record<string, unknown> {
+    return typeof value === "object" && value !== null && !Array.isArray(value);
+  }
+
+  private stringValue(value: unknown) {
+    return typeof value === "string" ? value.trim() : "";
+  }
+
+  private stringArray(value: unknown) {
+    return Array.isArray(value)
+      ? value.filter((item): item is string => typeof item === "string")
+      : [];
   }
 }

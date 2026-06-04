@@ -7,6 +7,7 @@ import { WaiterCallsModule } from "../waiter-calls/waiter-calls.module";
 import { AiWaiterContextService } from "./ai-waiter-context.service";
 import { AiWaiterController } from "./ai-waiter.controller";
 import { AiWaiterService } from "./ai-waiter.service";
+import { AiWaiterItemDetailGroundingService } from "./grounding/ai-waiter-item-detail-grounding.service";
 import { AiWaiterStubProviderService } from "./ai-waiter-stub-provider.service";
 import { AiWaiterMenuGroundingService } from "./grounding/ai-waiter-menu-grounding.service";
 import { AiWaiterProviderRegistry } from "./providers/ai-waiter-provider-registry.service";
@@ -26,6 +27,7 @@ import { GroqAiWaiterProviderService } from "./providers/groq-ai-waiter-provider
     AiWaiterService,
     AiWaiterContextService,
     AiWaiterStubProviderService,
+    AiWaiterItemDetailGroundingService,
     AiWaiterMenuGroundingService,
     AiWaiterProviderRegistry,
     AiWaiterProviderSafetyService,

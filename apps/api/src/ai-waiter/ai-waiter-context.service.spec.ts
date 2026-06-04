@@ -37,6 +37,9 @@ describe("AiWaiterContextService", () => {
           ),
         ),
       },
+      aiWaiterMessage: {
+        findMany: jest.fn().mockResolvedValue([]),
+      },
     } as unknown as PrismaService;
     const cartService = {
       getCart: jest.fn().mockResolvedValue({}),
@@ -88,5 +91,99 @@ describe("AiWaiterContextService", () => {
       id: "item-61",
       name: "Deep Menu Item 61 Mango",
     });
+  });
+
+  it("includes only compact pending modifier metadata in recent messages", async () => {
+    const prisma = {
+      experienceProfile: {
+        findFirst: jest.fn().mockResolvedValue(null),
+      },
+      menuItem: {
+        findMany: jest.fn().mockResolvedValue([]),
+      },
+      aiWaiterMessage: {
+        findMany: jest.fn().mockResolvedValue([
+          {
+            role: "assistant",
+            kind: "text",
+            content: "اختار الحجم",
+            createdAt: new Date("2026-01-01T00:00:00.000Z"),
+            metadata: {
+              mode: "modifier_question",
+              provider: "groq",
+              rawPrompt: "should not leak",
+              pendingModifier: {
+                menuItemId: "item-1",
+                modifierGroupId: "size",
+                allowedOptions: [
+                  { id: "small", name: "Small", slug: "small" },
+                  { id: "medium", name: "Medium", slug: "medium" },
+                ],
+                selectedModifierOptionIds: ["previous-option"],
+                question: "اختار الحجم",
+                createdAt: "2026-01-01T00:00:00.000Z",
+              },
+              pendingItem: {
+                id: "item-1",
+                name: "Spanish Latte",
+              },
+            },
+          },
+        ]),
+      },
+    } as unknown as PrismaService;
+    const cartService = {
+      getCart: jest.fn().mockResolvedValue({}),
+    } as unknown as CartService;
+    const configService = {
+      get: jest.fn((key: string) =>
+        key === "aiWaiter.menuSnapshotLimit" ? 200 : undefined,
+      ),
+    } as unknown as ConfigService;
+    const service = new AiWaiterContextService(
+      prisma,
+      cartService,
+      configService,
+    );
+
+    const result = await service.buildContext(
+      {
+        id: "session-1",
+        companyId: "company-1",
+        branchId: "branch-1",
+        tableId: "table-1",
+        status: "active",
+        guestLabel: null,
+        partySize: 2,
+        expiresAt: null,
+        branch: {
+          id: "branch-1",
+          companyId: "company-1",
+          name: "Balcona Main",
+          slug: "main",
+        },
+      },
+      "ai-session-1",
+    );
+
+    expect(result.recentMessages[0].metadata).toMatchObject({
+      mode: "modifier_question",
+      provider: "groq",
+      pendingModifier: {
+        menuItemId: "item-1",
+        modifierGroupId: "size",
+        allowedOptions: [
+          { id: "small", name: "Small", slug: "small" },
+          { id: "medium", name: "Medium", slug: "medium" },
+        ],
+      },
+      pendingItem: {
+        id: "item-1",
+        name: "Spanish Latte",
+      },
+    });
+    expect(JSON.stringify(result.recentMessages[0].metadata)).not.toContain(
+      "rawPrompt",
+    );
   });
 });

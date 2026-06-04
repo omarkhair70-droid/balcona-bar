@@ -48,7 +48,7 @@ Candidate scoring uses:
 - a small recent-message hint for follow-up turns;
 - fallback featured/category-diverse candidates when no phrase matches.
 
-The default Groq candidate cap is 12 and the hard cap is 20. If a query matches
+The default Groq candidate cap is 8 and the hard cap is 20. If a query matches
 only a few items, the result is filled with safe fallback candidates up to the
 configured cap so Groq still has useful menu context without receiving the full
 menu snapshot.
@@ -156,7 +156,7 @@ current request before it can be proposed.
 AI_WAITER_PROVIDER=groq
 AI_WAITER_MENU_SNAPSHOT_LIMIT=200
 GROQ_MODEL=openai/gpt-oss-20b
-GROQ_MAX_CONTEXT_ITEMS=12
+GROQ_MAX_CONTEXT_ITEMS=8
 GROQ_TIMEOUT_MS=10000
 GROQ_MAX_RETRIES=1
 GROQ_DRY_RUN=false

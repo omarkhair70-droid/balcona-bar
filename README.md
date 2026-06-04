@@ -1,6 +1,6 @@
 # balcona-bar
 
-Balcona Bar is organized as a monorepo for the Cafe AI Waiter App / Smart Cafe Operating System. The backend core is complete through Phase 24, UI Phase 1 adds the first Next.js web foundation for customer and staff experiences, UI Phase 2 adds the customer PWA core, UI Phase 3 adds the customer AI waiter experience, UI Phase 4 adds the cashier dashboard core, UI Phase 5 adds the kitchen/barista dashboard core, UI Phase 6 adds the waiter dashboard and attention queue, UI Phase 7 adds the owner/manager command center, UI Phase 8 adds full demo hardening plus Balkona demo mode, Production Phase 1 adds deployable platform foundation files, Production Phase 2 adds AWS infrastructure foundation scaffolding without deploying resources, Production Phase 3A adds public demo deploy readiness plus CI/CD guardrails without deploying resources, Production Phase 3B adds the first public AWS demo preflight deploy pack without deploying resources, Product Phase 4A starts the full Cafe OS product completion track, Product Phase 4B adds branch-scoped menu admin and availability management, Product Phase 4C adds branch, tables, and QR management, and Product Phase 4E.G0-G2 add a Groq AI waiter provider with safe backend validation plus deep menu grounding.
+Balcona Bar is organized as a monorepo for the Cafe AI Waiter App / Smart Cafe Operating System. The backend core is complete through Phase 24, UI Phase 1 adds the first Next.js web foundation for customer and staff experiences, UI Phase 2 adds the customer PWA core, UI Phase 3 adds the customer AI waiter experience, UI Phase 4 adds the cashier dashboard core, UI Phase 5 adds the kitchen/barista dashboard core, UI Phase 6 adds the waiter dashboard and attention queue, UI Phase 7 adds the owner/manager command center, UI Phase 8 adds full demo hardening plus Balkona demo mode, Production Phase 1 adds deployable platform foundation files, Production Phase 2 adds AWS infrastructure foundation scaffolding without deploying resources, Production Phase 3A adds public demo deploy readiness plus CI/CD guardrails without deploying resources, Production Phase 3B adds the first public AWS demo preflight deploy pack without deploying resources, Product Phase 4A starts the full Cafe OS product completion track, Product Phase 4B adds branch-scoped menu admin and availability management, Product Phase 4C adds branch, tables, and QR management, and Product Phase 4E.G0-G3 add a Groq AI waiter provider with safe backend validation, deep menu grounding, and modifier-turn ordering intelligence.
 
 ## Layout
 
@@ -212,7 +212,7 @@ Groq AI waiter provider:
   English, and Balcona menu aliases;
 - `AI_WAITER_MENU_SNAPSHOT_LIMIT` controls the backend menu snapshot searched
   for grounding and defaults to `200`;
-- `GROQ_MAX_CONTEXT_ITEMS` now caps grounded candidates, defaults to `12`, and
+- `GROQ_MAX_CONTEXT_ITEMS` now caps grounded candidates, defaults to `8`, and
   still has a hard cap of `20`;
 - modifier groups/options remain excluded from the first recommendation turn;
 - cart proposals are rejected if they contain menu item ids outside the
@@ -224,6 +224,36 @@ See
 `docs/architecture/product-phase-4eg2-deep-menu-grounding-smart-tool-selection.md`
 for grounding behavior, prompt/context changes, safety guardrails, tests, and
 known limitations.
+
+## Product Phase 4E.G3 status
+
+Product Phase 4E.G3 adds complete ordering intelligence for required modifier
+turns while keeping Groq context compact and backend validation strict:
+
+- exact/high-confidence item requests can load compact details for one selected
+  item only;
+- required modifier groups create a visible modifier question before any cart
+  proposal;
+- pending modifier metadata is persisted on AI waiter messages without a
+  database migration;
+- English, Egyptian Arabic, Franco-Arabic, and mixed answers are matched to
+  existing modifier option names/slugs only;
+- item plus modifier answers in one message can create a valid cart proposal
+  after all required groups are satisfied;
+- optional modifiers do not block proposal creation;
+- quick reply chips render customer-safe option labels and send normal message
+  text back to the API;
+- safety validation now enforces item-scoped modifier IDs plus min/max and
+  single-selection limits;
+- menu admin readiness warnings for broken required modifiers remain the setup
+  handoff surface;
+- Groq still cannot submit final orders, change prices, invent IDs, bypass cart
+  validation, or expose hidden action blocks.
+
+See
+`docs/architecture/product-phase-4eg3-complete-ordering-intelligence.md` for
+item detail grounding, modifier matching, pending state, Groq prompt/context
+changes, guardrails, tests, and limitations.
 
 ## UI Phase 1 status
 
@@ -1346,4 +1376,5 @@ begin.
 - Product Phase 4B menu admin control center: `docs/product/product-phase-4b-menu-admin-control-center.md`
 - Product Phase 4C branch tables QR management: `docs/product/product-phase-4c-branch-tables-qr-management.md`
 - Product Phase 4E.G2 deep menu grounding and smart tool selection: `docs/architecture/product-phase-4eg2-deep-menu-grounding-smart-tool-selection.md`
+- Product Phase 4E.G3 complete ordering intelligence: `docs/architecture/product-phase-4eg3-complete-ordering-intelligence.md`
 - Real cafe readiness checklist: `docs/product/real-cafe-readiness-checklist.md`

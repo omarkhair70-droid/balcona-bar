@@ -48,7 +48,7 @@ export default () => ({
       timeoutMs: Number.parseInt(process.env.GROQ_TIMEOUT_MS ?? '10000', 10),
       maxRetries: Number.parseInt(process.env.GROQ_MAX_RETRIES ?? '1', 10),
       maxContextItems: Number.parseInt(
-        process.env.GROQ_MAX_CONTEXT_ITEMS ?? '12',
+        process.env.GROQ_MAX_CONTEXT_ITEMS ?? '8',
         10,
       ),
       dryRun: process.env.GROQ_DRY_RUN === 'true',

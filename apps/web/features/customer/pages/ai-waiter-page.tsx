@@ -234,6 +234,11 @@ export function AiWaiterPage({ sessionId }: AiWaiterPageProps) {
     setMessage(prompt);
   }
 
+  function handleQuickReply(reply: string) {
+    setLocalError("");
+    sendMutation.mutate(reply);
+  }
+
   return (
     <CustomerSessionScreen
       sessionId={sessionId}
@@ -349,6 +354,8 @@ export function AiWaiterPage({ sessionId }: AiWaiterPageProps) {
                 key={`${getStringKey(item)}-${index}`}
                 message={item}
                 dir={activeLanguage.dir}
+                isReplyDisabled={sendMutation.isPending}
+                onQuickReply={handleQuickReply}
               />
             ))}
             {sendMutation.isPending ? (

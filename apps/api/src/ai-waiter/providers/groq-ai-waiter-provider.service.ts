@@ -11,6 +11,10 @@ import {
   AiWaiterProviderResult,
 } from "../ai-waiter.types";
 import {
+  AiWaiterItemDetailGroundingService,
+  ItemDetailGroundingResult,
+} from "../grounding/ai-waiter-item-detail-grounding.service";
+import {
   AiWaiterMenuGroundingService,
   MenuGroundingResult,
 } from "../grounding/ai-waiter-menu-grounding.service";
@@ -42,6 +46,12 @@ type GroqRequestStats = {
   topMatchReasons: string[];
   exactMatchFound: boolean;
   omittedMenuItemCount: number;
+  itemDetailGroundingMode: ItemDetailGroundingResult["mode"];
+  itemDetailMenuItemId?: string;
+  requiredModifierGroupCount: number;
+  optionalModifierGroupCount: number;
+  selectedModifierOptionCount: number;
+  pendingModifierGroupId?: string;
 };
 
 type GroqFetchMetadata = {
@@ -56,6 +66,7 @@ type GroqPlanResponse = {
   usage?: GroqChatCompletionResponse["usage"];
   stats: GroqRequestStats;
   grounding: MenuGroundingResult;
+  itemDetailGrounding: ItemDetailGroundingResult;
   rateLimit: {
     retryAfter: string | null;
     remaining: string | null;
@@ -97,7 +108,7 @@ const GROQ_CHAT_COMPLETIONS_URL =
 const DEFAULT_GROQ_MODEL = "openai/gpt-oss-20b";
 const DEFAULT_TIMEOUT_MS = 10_000;
 const DEFAULT_MAX_RETRIES = 1;
-const DEFAULT_MAX_CONTEXT_ITEMS = 12;
+const DEFAULT_MAX_CONTEXT_ITEMS = 8;
 const MAX_RECENT_MESSAGES = 2;
 const MAX_RECENT_MESSAGE_CHARS = 200;
 const MAX_MENU_DESCRIPTION_CHARS = 160;
@@ -144,6 +155,7 @@ export class GroqAiWaiterProviderService implements AiWaiterProvider {
     private readonly configService: ConfigService,
     private readonly safetyService: AiWaiterProviderSafetyService,
     private readonly menuGroundingService: AiWaiterMenuGroundingService,
+    private readonly itemDetailGroundingService: AiWaiterItemDetailGroundingService,
   ) {}
 
   async respond(
@@ -287,6 +299,7 @@ export class GroqAiWaiterProviderService implements AiWaiterProvider {
           usage: json.usage,
           stats: requestBody.stats,
           grounding: requestBody.grounding,
+          itemDetailGrounding: requestBody.itemDetailGrounding,
           rateLimit: this.safeRateLimitHeaders(response),
         };
       } catch (error) {
@@ -386,6 +399,18 @@ export class GroqAiWaiterProviderService implements AiWaiterProvider {
       topMatchReasons: contextPayload.grounding.topMatchReasons,
       exactMatchFound: contextPayload.grounding.exactMatchFound,
       omittedMenuItemCount: contextPayload.grounding.omittedMenuItemCount,
+      itemDetailGroundingMode: contextPayload.itemDetailGrounding.mode,
+      itemDetailMenuItemId: contextPayload.itemDetailGrounding.item?.id,
+      requiredModifierGroupCount:
+        contextPayload.itemDetailGrounding.item?.requiredModifierGroups.length ??
+        0,
+      optionalModifierGroupCount:
+        contextPayload.itemDetailGrounding.item?.optionalModifierGroups.length ??
+        0,
+      selectedModifierOptionCount:
+        contextPayload.itemDetailGrounding.selectedModifierOptionIds.length,
+      pendingModifierGroupId:
+        contextPayload.itemDetailGrounding.pendingModifier?.modifierGroupId,
     };
 
     this.logger.debug({
@@ -396,12 +421,19 @@ export class GroqAiWaiterProviderService implements AiWaiterProvider {
       totalMenuItemsAvailable: stats.totalMenuItemsAvailable,
       groundingMode: stats.groundingMode,
       omittedMenuItemCount: stats.omittedMenuItemCount,
+      itemDetailGroundingMode: stats.itemDetailGroundingMode,
+      itemDetailMenuItemId: stats.itemDetailMenuItemId,
+      requiredModifierGroupCount: stats.requiredModifierGroupCount,
+      optionalModifierGroupCount: stats.optionalModifierGroupCount,
+      selectedModifierOptionCount: stats.selectedModifierOptionCount,
+      pendingModifierGroupId: stats.pendingModifierGroupId,
     });
 
     return {
       body,
       stats,
       grounding: contextPayload.grounding,
+      itemDetailGrounding: contextPayload.itemDetailGrounding,
     };
   }
 
@@ -420,6 +452,7 @@ export class GroqAiWaiterProviderService implements AiWaiterProvider {
       input.customerInput,
       context,
       response.grounding,
+      response.itemDetailGrounding,
     );
     const latencyMs = Date.now() - input.startedAt;
     const metadata = {
@@ -441,6 +474,12 @@ export class GroqAiWaiterProviderService implements AiWaiterProvider {
       topMatchReasons: response.stats.topMatchReasons,
       exactMatchFound: response.stats.exactMatchFound,
       omittedMenuItemCount: response.stats.omittedMenuItemCount,
+      itemDetailGroundingMode: response.stats.itemDetailGroundingMode,
+      itemDetailMenuItemId: response.stats.itemDetailMenuItemId,
+      requiredModifierGroupCount: response.stats.requiredModifierGroupCount,
+      optionalModifierGroupCount: response.stats.optionalModifierGroupCount,
+      selectedModifierOptionCount: response.stats.selectedModifierOptionCount,
+      pendingModifierGroupId: response.stats.pendingModifierGroupId,
       promptTokens: response.usage?.prompt_tokens,
       completionTokens: response.usage?.completion_tokens,
       totalTokens: response.usage?.total_tokens,
@@ -460,14 +499,33 @@ export class GroqAiWaiterProviderService implements AiWaiterProvider {
       });
     }
 
-    const mapped = this.safetyService.validateAndMapPlan(
-      normalized.plan,
-      context,
+    const modifierQuestion = this.modifierQuestionResult(
+      normalized,
+      response.itemDetailGrounding,
       metadata,
     );
 
+    if (modifierQuestion) {
+      return modifierQuestion;
+    }
+
+    const plan = this.planWithDeterministicModifierCompletion(
+      normalized.plan,
+      response.itemDetailGrounding,
+    );
+    const mode =
+      plan === normalized.plan ? normalized.mode : "commerce_action";
+    const mapped = this.safetyService.validateAndMapPlan(
+      plan,
+      context,
+      {
+        ...metadata,
+        mode,
+      },
+    );
+
     if (
-      normalized.mode === "commerce_action" &&
+      mode === "commerce_action" &&
       mapped.metadata?.fallbackUsed === true &&
       normalized.visibleText.length > 0
     ) {
@@ -488,6 +546,7 @@ export class GroqAiWaiterProviderService implements AiWaiterProvider {
     input: { message: string; language: string },
     context: AiWaiterContext,
     grounding: MenuGroundingResult,
+    itemDetailGrounding: ItemDetailGroundingResult,
   ): NormalizedGroqOutput {
     const actionExtraction = this.extractActionBlock(rawContent);
     const rawJson = this.tryParseJson(actionExtraction.visibleContent);
@@ -556,6 +615,7 @@ export class GroqAiWaiterProviderService implements AiWaiterProvider {
       plan,
       action.block,
       grounding,
+      itemDetailGrounding,
     );
     const finalActionRejected =
       actionRejected || groundingRejectionReason !== undefined;
@@ -669,6 +729,154 @@ export class GroqAiWaiterProviderService implements AiWaiterProvider {
     };
   }
 
+  private modifierQuestionResult(
+    normalized: NormalizedGroqOutput,
+    itemDetail: ItemDetailGroundingResult,
+    metadata: Record<string, unknown>,
+  ): AiWaiterProviderResult | undefined {
+    if (
+      itemDetail.mode === "none" ||
+      itemDetail.missingRequiredGroups.length === 0 ||
+      !itemDetail.item
+    ) {
+      return undefined;
+    }
+
+    const pendingModifier =
+      itemDetail.pendingModifier ??
+      this.pendingModifierFromMissingGroup(itemDetail);
+
+    if (!pendingModifier) {
+      return undefined;
+    }
+
+    return {
+      content: pendingModifier.question,
+      kind: AiWaiterMessageKind.text,
+      suggestedActions: ["answer_required_modifier", "escalate_to_waiter"],
+      toolCalls: [
+        {
+          toolName: AiWaiterToolName.create_cart_proposal,
+          status: AiWaiterToolCallStatus.skipped,
+          input: {
+            menuItemId: itemDetail.item.id,
+            modifierGroupId: pendingModifier.modifierGroupId,
+          },
+          output: {
+            reason: "missing_required_options",
+          },
+        },
+      ],
+      metadata: {
+        ...metadata,
+        mode: "modifier_question",
+        intent: "modifier_question",
+        confidence: normalized.plan.confidence,
+        safety: normalized.plan.safety,
+        pendingModifier,
+        pendingItem: {
+          id: itemDetail.item.id,
+          name: itemDetail.item.name,
+        },
+        selectedModifierOptionIds: itemDetail.selectedModifierOptionIds,
+        missingRequiredGroups: itemDetail.missingRequiredGroups.map((group) => ({
+          id: group.id,
+          name: group.name,
+          slug: group.slug,
+          minSelections: group.minSelections,
+          maxSelections: group.maxSelections,
+        })),
+        itemDetailGroundingMode: itemDetail.mode,
+        itemDetailMenuItemId: itemDetail.item.id,
+        requiredModifierGroupCount: itemDetail.item.requiredModifierGroups.length,
+        optionalModifierGroupCount: itemDetail.item.optionalModifierGroups.length,
+        selectedModifierOptionCount: itemDetail.selectedModifierOptionIds.length,
+        pendingModifierGroupId: pendingModifier.modifierGroupId,
+      },
+    };
+  }
+
+  private pendingModifierFromMissingGroup(
+    itemDetail: ItemDetailGroundingResult,
+  ) {
+    const group = itemDetail.missingRequiredGroups[0];
+
+    if (!itemDetail.item || !group) {
+      return undefined;
+    }
+
+    return {
+      menuItemId: itemDetail.item.id,
+      modifierGroupId: group.id,
+      allowedOptionIds: group.options.map((option) => option.id),
+      allowedOptions: group.options,
+      selectedModifierOptionIds: itemDetail.selectedModifierOptionIds,
+      question: `تمام، ${itemDetail.item.name}. اختار ${group.name}: ${group.options
+        .map((option) => option.name)
+        .join(" / ")}؟`,
+      createdAt: new Date().toISOString(),
+    };
+  }
+
+  private planWithDeterministicModifierCompletion(
+    plan: GroqAiWaiterPlan,
+    itemDetail: ItemDetailGroundingResult,
+  ): GroqAiWaiterPlan {
+    if (
+      !itemDetail.item ||
+      itemDetail.missingRequiredGroups.length > 0 ||
+      itemDetail.selectedModifierOptionIds.length === 0
+    ) {
+      return plan;
+    }
+
+    const selectedModifierOptionIds = Array.from(
+      new Set(itemDetail.selectedModifierOptionIds),
+    );
+    const proposedCart = plan.proposedCart?.items.length
+      ? {
+          title: plan.proposedCart.title,
+          items: plan.proposedCart.items.map((item) =>
+            item.menuItemId === itemDetail.item?.id
+              ? {
+                  ...item,
+                  modifierOptionIds: Array.from(
+                    new Set([
+                      ...(item.modifierOptionIds ?? []),
+                      ...selectedModifierOptionIds,
+                    ]),
+                  ),
+                }
+              : item,
+          ),
+        }
+      : {
+          title: "AI waiter proposal",
+          items: [
+            {
+              menuItemId: itemDetail.item.id,
+              quantity: 1,
+              modifierOptionIds: selectedModifierOptionIds,
+            },
+          ],
+        };
+
+    return {
+      ...plan,
+      intent: "cart_proposal",
+      proposedCart,
+      suggestedActions: [
+        "apply_cart_proposal",
+        "reject_cart_proposal",
+        "escalate_to_waiter",
+      ],
+      assistantMessage: this.stringValue(
+        plan.assistantMessage,
+        `تمام، هجهز ${itemDetail.item.name} كاقتراح في الكارت. راجع الكارت قبل تأكيد الطلب.`,
+      ),
+    };
+  }
+
   private systemPrompt() {
     return [
       "You are Balcona Bar's AI Brain - an intelligent companion, premium cafe assistant, and smart waiter.",
@@ -692,7 +900,14 @@ export class GroqAiWaiterProviderService implements AiWaiterProvider {
       "Use only relevantMenuItems when naming confirmed menu matches or creating action proposals.",
       "If a requested item is not in relevantMenuItems, do not invent it. Ask one short clarification or suggest checking the menu.",
       "For vague recommendations such as cold drink, dessert, or caffeine, recommend from relevantMenuItems and ask one useful follow-up unless the customer clearly chose a specific item.",
-      "For exact high-confidence item requests, you may create a cart proposal, but only with menuItemId values from relevantMenuItems.",
+      "For broad recommendations, do not ask modifier questions yet.",
+      "For exact high-confidence item requests, check itemDetailGrounding before proposing.",
+      "If itemDetailGrounding has missingRequiredGroups or pendingModifier, ask the modifier question first and do not create a cart proposal yet.",
+      "If itemDetailGrounding has selectedModifierOptionIds and no missingRequiredGroups, use only those backend-provided modifier option ids in any cart proposal.",
+      "Use only modifier option ids from itemDetailGrounding. Never invent modifier ids and never expose internal ids to the customer.",
+      "If a proposal is incomplete or a modifier answer is unclear, ask one short clarification or offer a human waiter.",
+      "Optional modifiers can be suggested, but they must not block a valid proposal.",
+      "For exact high-confidence item requests without required modifiers, you may create a cart proposal, but only with menuItemId values from relevantMenuItems.",
       "For bill, waiter, or order status requests, use the matching safe action without menu items.",
       "For allergies or health concerns, never guarantee safety; offer human waiter fallback.",
       "For real platform actions only, optionally append this hidden backend block after the visible answer:",
@@ -702,6 +917,7 @@ export class GroqAiWaiterProviderService implements AiWaiterProvider {
       "Allowed action names: none, create_cart_proposal, call_waiter, request_bill, order_status.",
       "Disallowed action names: final_order_submit, submit_order, pay, take_payment, refund, discount, change_price, update_price, delete_order, confirm_payment, and any direct database mutation.",
       "Menu item ids must come only from relevantMenuItems. Never invent menu item ids.",
+      "Modifier option ids must come only from itemDetailGrounding for the selected item. Never invent modifier option ids.",
       "Expected structured JSON example when JSON is useful:",
       JSON.stringify({
         customerMessage: "...",
@@ -734,6 +950,11 @@ export class GroqAiWaiterProviderService implements AiWaiterProvider {
       message: customerMessage,
       maxCandidates: maxItems,
     });
+    const itemDetailGrounding = this.itemDetailGroundingService.build({
+      context,
+      message: customerMessage,
+      grounding,
+    });
     const relevantMenuItems = grounding.candidates.map((item) => ({
       id: item.id,
       slug: item.slug,
@@ -751,7 +972,22 @@ export class GroqAiWaiterProviderService implements AiWaiterProvider {
         role: message.role,
         kind: message.kind,
         content: this.truncateText(message.content, MAX_RECENT_MESSAGE_CHARS),
+        metadata: message.metadata,
       }));
+    const compactItemDetail =
+      itemDetailGrounding.mode === "none"
+        ? undefined
+        : {
+            mode: itemDetailGrounding.mode,
+            item: itemDetailGrounding.item,
+            pendingModifier: itemDetailGrounding.pendingModifier,
+            pendingItem: itemDetailGrounding.pendingItem,
+            selectedModifierOptionIds:
+              itemDetailGrounding.selectedModifierOptionIds,
+            missingRequiredGroups: itemDetailGrounding.missingRequiredGroups,
+            confidence: itemDetailGrounding.confidence,
+            reasons: itemDetailGrounding.reasons,
+          };
 
     return {
       payload: {
@@ -774,6 +1010,7 @@ export class GroqAiWaiterProviderService implements AiWaiterProvider {
           actionBlockIsOptional: true,
           fullMenuWasSearchedByBackend: true,
           missingItemRequiresClarification: true,
+          modifierDetailsAreSelectedItemOnly: true,
         },
         grounding: {
           mode: grounding.groundingMode,
@@ -784,9 +1021,11 @@ export class GroqAiWaiterProviderService implements AiWaiterProvider {
           topMatchReasons: grounding.topMatchReasons,
         },
         relevantMenuItems,
+        itemDetailGrounding: compactItemDetail,
       },
       recentMessagesSent: recentMessages.length,
       grounding,
+      itemDetailGrounding,
     };
   }
 
@@ -992,10 +1231,15 @@ export class GroqAiWaiterProviderService implements AiWaiterProvider {
     plan: GroqAiWaiterPlan,
     actionBlock: BalconaActionBlock | undefined,
     grounding: MenuGroundingResult,
+    itemDetailGrounding: ItemDetailGroundingResult,
   ) {
     const groundedItemIds = new Set(
       grounding.candidates.map((candidate) => candidate.id),
     );
+
+    if (itemDetailGrounding.item) {
+      groundedItemIds.add(itemDetailGrounding.item.id);
+    }
     const actionItems =
       actionBlock?.action === "create_cart_proposal"
         ? (actionBlock.items ?? [])
@@ -1007,9 +1251,33 @@ export class GroqAiWaiterProviderService implements AiWaiterProvider {
       return undefined;
     }
 
-    return proposalItems.some((item) => !groundedItemIds.has(item.menuItemId))
-      ? "ungrounded_menu_item_rejected"
-      : undefined;
+    if (proposalItems.some((item) => !groundedItemIds.has(item.menuItemId))) {
+      return "ungrounded_menu_item_rejected";
+    }
+
+    if (itemDetailGrounding.item) {
+      const allowedModifierOptionIds = new Set(
+        [
+          ...itemDetailGrounding.item.requiredModifierGroups,
+          ...itemDetailGrounding.item.optionalModifierGroups,
+        ].flatMap((group) => group.options.map((option) => option.id)),
+      );
+      const selectedItemProposals = proposalItems.filter(
+        (item) => item.menuItemId === itemDetailGrounding.item?.id,
+      );
+
+      if (
+        selectedItemProposals.some((item) =>
+          (item.modifierOptionIds ?? []).some(
+            (optionId) => !allowedModifierOptionIds.has(optionId),
+          ),
+        )
+      ) {
+        return "ungrounded_modifier_option_rejected";
+      }
+    }
+
+    return undefined;
   }
 
   private intentValue(

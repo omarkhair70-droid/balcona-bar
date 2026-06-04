@@ -89,6 +89,25 @@ export function getMessageContent(message: Record<string, unknown>) {
   );
 }
 
+export function getPendingModifierQuickReplies(
+  message: Record<string, unknown>
+) {
+  const metadata = getNestedRecord(message, "metadata");
+  const pendingModifier = getNestedRecord(metadata, "pendingModifier");
+  const options = getRecordArray(pendingModifier?.allowedOptions);
+  const labels = new Set<string>();
+
+  for (const option of options) {
+    const label = getString(option, "name").trim();
+
+    if (label) {
+      labels.add(label);
+    }
+  }
+
+  return Array.from(labels).slice(0, 8);
+}
+
 export function getRecordDateLabel(record: Record<string, unknown>) {
   const raw = getString(record, "createdAt") || getString(record, "updatedAt");
 

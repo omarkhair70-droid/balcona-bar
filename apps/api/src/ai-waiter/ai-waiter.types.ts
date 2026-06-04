@@ -42,6 +42,7 @@ export interface AiWaiterRecentMessage {
   kind: string;
   content: string;
   createdAt: Date;
+  metadata?: Record<string, unknown>;
 }
 
 export interface AiWaiterContext {
