@@ -14,6 +14,7 @@ import {
   TableSessionStatus,
 } from '@prisma/client';
 import { TableAttentionService } from '../autopilot/table-attention.service';
+import { BillsService } from '../bills/bills.service';
 import { PresenceNotificationsService } from '../presence-notifications/presence-notifications.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { RealtimeEventsService } from '../realtime-events/realtime-events.service';
@@ -45,6 +46,7 @@ export class BillRequestsService {
     private readonly presenceNotificationsService: PresenceNotificationsService,
     private readonly realtimeEventsService: RealtimeEventsService,
     private readonly tableAttentionService: TableAttentionService,
+    private readonly billsService: BillsService,
   ) {}
 
   async requestBill(sessionId: string, body: RequestBillDto = {}) {
@@ -56,6 +58,12 @@ export class BillRequestsService {
       const activeBillRequest = await this.findActiveBillRequest(sessionId, tx);
 
       if (activeBillRequest) {
+        await this.billsService.createOrGetBillForBillRequest(
+          activeBillRequest.id,
+          { actorType: 'customer', metadata: { source: 'active_bill_request' } },
+          tx,
+        );
+
         return this.getBillRequestResponse(activeBillRequest.id, tx);
       }
 
@@ -115,6 +123,11 @@ export class BillRequestsService {
         tx,
       );
       await this.realtimeEventsService.recordBillRequested(billRequest.id, tx);
+      await this.billsService.createOrGetBillForBillRequest(
+        billRequest.id,
+        { actorType: 'customer' },
+        tx,
+      );
       await this.recalculateAttention(
         tableSession.id,
         tx,
@@ -142,6 +155,7 @@ export class BillRequestsService {
         }),
         this.findBillableOrders(sessionId, this.prisma),
       ]);
+    const billState = await this.billsService.findForTableSession(sessionId);
 
     return {
       tableSession: this.toTableSessionResponse(tableSession),
@@ -155,6 +169,7 @@ export class BillRequestsService {
         this.toBillableOrderSummary(order),
       ),
       totals: this.getBillableTotals(billableOrders, false),
+      ...billState,
     };
   }
 
@@ -287,6 +302,12 @@ export class BillRequestsService {
         tx,
       );
       await this.realtimeEventsService.recordBillPresented(billRequest.id, tx);
+      await this.billsService.presentBillForBillRequest(
+        billRequest.id,
+        body.staffUserId,
+        note,
+        tx,
+      );
       await this.recalculateAttention(
         billRequest.tableSessionId,
         tx,
@@ -314,35 +335,12 @@ export class BillRequestsService {
       }
 
       const note = this.normalizeOptionalText(body.note);
-      const now = new Date();
-
-      await tx.billRequest.update({
-        where: { id: billRequest.id },
-        data: {
-          status: BillRequestStatus.closed,
-          closedAt: now,
-          closedByStaffUserId: body.staffUserId,
-        },
-      });
-      await this.createBillRequestEvent(
-        billRequest.id,
-        BillRequestEventType.closed,
-        body.staffUserId,
-        note ? { note } : undefined,
-        tx,
-      );
-      await this.completeServedOrdersForBillRequest(
-        billRequest.tableSessionId,
+      await this.billsService.closePaidBillForBillRequest(
         billRequest.id,
         body.staffUserId,
         note,
         tx,
       );
-      await this.presenceNotificationsService.createBillClosedNotification(
-        billRequest.id,
-        tx,
-      );
-      await this.realtimeEventsService.recordBillClosed(billRequest.id, tx);
       await this.recalculateAttention(
         billRequest.tableSessionId,
         tx,
@@ -375,6 +373,12 @@ export class BillRequestsService {
       const reason = this.normalizeOptionalText(body.reason);
       const now = new Date();
 
+      await this.billsService.cancelLinkedUnpaidBillForBillRequest(
+        billRequest.id,
+        body.staffUserId,
+        reason,
+        tx,
+      );
       await tx.billRequest.update({
         where: { id: billRequest.id },
         data: {
@@ -401,65 +405,6 @@ export class BillRequestsService {
 
       return this.getBillRequestResponse(billRequest.id, tx);
     });
-  }
-
-  private async completeServedOrdersForBillRequest(
-    tableSessionId: string,
-    billRequestId: string,
-    staffUserId: string | undefined,
-    note: string | null,
-    tx: Prisma.TransactionClient,
-  ) {
-    const servedOrders = await tx.order.findMany({
-      where: {
-        tableSessionId,
-        status: OrderStatus.served,
-      },
-      select: { id: true },
-    });
-    const now = new Date();
-
-    for (const order of servedOrders) {
-      const updatedOrder = await tx.order.updateMany({
-        where: {
-          id: order.id,
-          status: OrderStatus.served,
-        },
-        data: {
-          status: OrderStatus.completed,
-          completedAt: now,
-          completedByStaffUserId: staffUserId,
-          completionNote: note,
-        },
-      });
-
-      if (updatedOrder.count === 0) {
-        continue;
-      }
-
-      await tx.orderEvent.create({
-        data: {
-          orderId: order.id,
-          type: OrderEventType.completed,
-          actorType: staffUserId
-            ? OrderEventActorType.staff
-            : OrderEventActorType.system,
-          actorStaffUserId: staffUserId,
-          metadata: {
-            source: 'bill_request_closed',
-            billRequestId,
-            ...(note ? { note } : {}),
-          },
-        },
-      });
-      await this.realtimeEventsService.recordOrderCompleted(order.id, tx);
-      await this.recalculateAttention(
-        tableSessionId,
-        tx,
-        'bill_order_completed',
-        { orderId: order.id, billRequestId },
-      );
-    }
   }
 
   private async createBillRequestEvent(
@@ -561,6 +506,9 @@ export class BillRequestsService {
         company: { select: this.companySelect() },
         branch: { select: this.branchSelect() },
         tableSession: { select: this.tableSessionContextSelect() },
+        bill: {
+          include: this.billSummaryInclude(),
+        },
         events: {
           orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
         },
@@ -575,7 +523,7 @@ export class BillRequestsService {
       billRequest.tableSessionId,
       tx,
     );
-    const { company, branch, tableSession, events, ...billRequestFields } =
+    const { company, branch, tableSession, bill, events, ...billRequestFields } =
       billRequest;
 
     return {
@@ -583,6 +531,7 @@ export class BillRequestsService {
       company,
       branch,
       tableSession: this.toTableSessionResponse(tableSession),
+      bill,
       events: events.map((event) => ({
         id: event.id,
         billRequestId: event.billRequestId,
@@ -706,7 +655,7 @@ export class BillRequestsService {
   }
 
   private toBillRequestListItemFromRecord(record: any) {
-    const { tableSession, ...billRequestFields } = record;
+    const { tableSession, bill, ...billRequestFields } = record;
     const { table, ...tableSessionFields } = tableSession;
     const { floor, ...tableFields } = table;
 
@@ -715,6 +664,7 @@ export class BillRequestsService {
       tableSession: tableSessionFields,
       floor,
       table: tableFields,
+      bill,
     };
   }
 
@@ -769,7 +719,22 @@ export class BillRequestsService {
       tableSession: {
         select: this.tableSessionContextSelect(),
       },
+      bill: {
+        include: this.billSummaryInclude(),
+      },
     } satisfies Prisma.BillRequestInclude;
+  }
+
+  private billSummaryInclude() {
+    return {
+      lines: {
+        orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
+      },
+      manualPayments: {
+        orderBy: [{ recordedAt: 'asc' }, { id: 'asc' }],
+      },
+      receipt: true,
+    } satisfies Prisma.BillInclude;
   }
 
   private tableSessionContextSelect() {

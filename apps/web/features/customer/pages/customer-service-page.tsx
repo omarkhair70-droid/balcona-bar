@@ -123,6 +123,14 @@ export function CustomerServicePage({ sessionId }: CustomerServicePageProps) {
     waiterCallsQuery.data?.waiterCalls ?? waiterCallsQuery.data?.calls
   );
   const activeBillRequest = getRecord(billQuery.data?.activeBillRequest);
+  const activeBillEnvelope = getRecord(billQuery.data?.activeBill);
+  const activeBillRecord =
+    getRecord(activeBillEnvelope?.bill) ?? getRecord(billQuery.data?.bill);
+  const activeBillLines = getRecords(
+    activeBillEnvelope?.lines ?? billQuery.data?.lines
+  );
+  const activeBillReceipt =
+    getRecord(activeBillEnvelope?.receipt) ?? getRecord(billQuery.data?.receipt);
   const billTotals = getRecord(billQuery.data?.totals);
   const billOrderCount = getRecordNumber(billTotals, "orderCount");
   const billSubtotalMinor = getRecordNumber(billTotals, "subtotalMinor");
@@ -132,22 +140,54 @@ export function CustomerServicePage({ sessionId }: CustomerServicePageProps) {
     "status",
     "active"
   ).replaceAll("_", " ");
+  const activeBillLifecycleStatus = getRecordString(
+    activeBillRecord,
+    "status",
+    ""
+  ).replaceAll("_", " ");
+  const activeBillNumber = getRecordString(
+    activeBillRecord,
+    "billNumber",
+    "current bill"
+  );
+  const activeBillTotalMinor = getRecordNumber(
+    activeBillRecord,
+    "totalMinor",
+    billSubtotalMinor
+  );
+  const activeBillBalanceDueMinor = getRecordNumber(
+    activeBillRecord,
+    "balanceDueMinor",
+    activeBillTotalMinor
+  );
   const hasNoBillableOrders = billQuery.isSuccess && billOrderCount === 0;
   const isBillRequestDisabled =
-    billMutation.isPending || Boolean(activeBillRequest) || hasNoBillableOrders;
+    billMutation.isPending ||
+    Boolean(activeBillRequest) ||
+    Boolean(activeBillRecord) ||
+    hasNoBillableOrders;
   const billSummary = `${billOrderCount} billable order${
     billOrderCount === 1 ? "" : "s"
   } totaling ${formatMoney(billSubtotalMinor, billCurrency)}.`;
-  const billStateDescription = activeBillRequest
-    ? `Active bill request: ${activeBillStatus}.`
-    : hasNoBillableOrders
-      ? "The bill will be available after your order is accepted or served."
-      : billQuery.data
-        ? billSummary
-        : "No bill request is active yet.";
+  const billStateDescription = activeBillRecord
+    ? `${activeBillNumber} is ${activeBillLifecycleStatus || "being prepared"} with ${formatMoney(
+        activeBillBalanceDueMinor,
+        billCurrency
+      )} remaining.`
+    : activeBillRequest
+      ? `Active bill request: ${activeBillStatus}.`
+      : hasNoBillableOrders
+        ? "The bill will be available after your order is accepted or served."
+        : billQuery.data
+          ? billSummary
+          : "No bill request is active yet.";
   const billButtonLabel = billMutation.isPending
     ? "Requesting..."
-    : activeBillRequest
+    : activeBillReceipt
+      ? "Receipt ready"
+      : activeBillRecord
+        ? "Bill in progress"
+        : activeBillRequest
       ? "Bill requested"
       : hasNoBillableOrders
         ? "Not available yet"
@@ -273,6 +313,57 @@ export function CustomerServicePage({ sessionId }: CustomerServicePageProps) {
                 <div className="mt-3 rounded-card border border-success bg-success/10 p-3 text-sm text-success">
                   Your bill request is already active. Status:{" "}
                   {activeBillStatus}.
+                </div>
+              ) : null}
+              {activeBillRecord ? (
+                <div className="mt-3 rounded-card border bg-background/40 p-3">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <p className="text-sm font-semibold text-foreground">
+                      {activeBillNumber}
+                    </p>
+                    <p className="text-sm font-semibold text-foreground">
+                      {formatMoney(activeBillTotalMinor, billCurrency)}
+                    </p>
+                  </div>
+                  {activeBillLines.length > 0 ? (
+                    <div className="mt-3 grid gap-2">
+                      {activeBillLines.map((line, index) => (
+                        <div
+                          key={String(line.id ?? `bill-line-${index}`)}
+                          className="flex items-start justify-between gap-3 text-sm"
+                        >
+                          <p className="text-foreground">
+                            {getRecordNumber(line, "quantity", 1)} x{" "}
+                            {getRecordString(
+                              line,
+                              "itemNameSnapshot",
+                              "Menu item"
+                            )}
+                          </p>
+                          <p className="shrink-0 font-semibold text-foreground">
+                            {formatMoney(
+                              getRecordNumber(line, "lineTotalMinor"),
+                              getRecordString(line, "currency", billCurrency)
+                            )}
+                          </p>
+                        </div>
+                      ))}
+                    </div>
+                  ) : null}
+                  <div className="mt-3 rounded-card border bg-surface/70 p-3 text-xs text-muted-foreground">
+                    Balance due:{" "}
+                    <span className="font-semibold text-foreground">
+                      {formatMoney(activeBillBalanceDueMinor, billCurrency)}
+                    </span>
+                    . Payment is handled with the cashier at the table.
+                  </div>
+                </div>
+              ) : null}
+              {activeBillReceipt ? (
+                <div className="mt-3 rounded-card border border-success bg-success/10 p-3 text-sm text-success">
+                  Receipt{" "}
+                  {getRecordString(activeBillReceipt, "receiptNumber", "ready")}{" "}
+                  is ready. Thank you.
                 </div>
               ) : null}
               {hasNoBillableOrders ? (

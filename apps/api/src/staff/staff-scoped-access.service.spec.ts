@@ -165,4 +165,30 @@ describe('StaffScopedAccessService', () => {
     ).rejects.toBeInstanceOf(NotFoundException);
     expect(staffAccessService.assertCan).not.toHaveBeenCalled();
   });
+
+  it('resolves bill branch scope before asserting payment permission', async () => {
+    const prisma = {
+      bill: {
+        findUnique: jest.fn().mockResolvedValue({
+          companyId: 'company-1',
+          branchId: 'branch-3',
+        }),
+      },
+    };
+    const staffAccessService = {
+      assertCan: jest.fn().mockResolvedValue({ allowed: true }),
+    };
+    const service = new StaffScopedAccessService(
+      prisma as never,
+      staffAccessService as never,
+    );
+
+    await service.assertCanForBill('staff-1', 'bills.pay', 'bill-1');
+
+    expect(staffAccessService.assertCan).toHaveBeenCalledWith(
+      'staff-1',
+      'bills.pay',
+      { companyId: 'company-1', branchId: 'branch-3' },
+    );
+  });
 });

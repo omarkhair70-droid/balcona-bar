@@ -82,7 +82,7 @@ export class BillRequestsController {
 
     return this.billRequestsService.acknowledge(
       params.billRequestId,
-      body ?? {},
+      { ...(body ?? {}), staffUserId: currentStaff.staffUser.id },
     );
   }
 
@@ -99,7 +99,10 @@ export class BillRequestsController {
       params.billRequestId,
     );
 
-    return this.billRequestsService.present(params.billRequestId, body ?? {});
+    return this.billRequestsService.present(params.billRequestId, {
+      ...(body ?? {}),
+      staffUserId: currentStaff.staffUser.id,
+    });
   }
 
   @Post('bill-requests/:billRequestId/close')
@@ -115,7 +118,10 @@ export class BillRequestsController {
       params.billRequestId,
     );
 
-    return this.billRequestsService.close(params.billRequestId, body ?? {});
+    return this.billRequestsService.close(params.billRequestId, {
+      ...(body ?? {}),
+      staffUserId: currentStaff.staffUser.id,
+    });
   }
 
   @Post('bill-requests/:billRequestId/cancel')
@@ -131,6 +137,9 @@ export class BillRequestsController {
       params.billRequestId,
     );
 
-    return this.billRequestsService.cancel(params.billRequestId, body ?? {});
+    return this.billRequestsService.cancel(params.billRequestId, {
+      ...(body ?? {}),
+      staffUserId: currentStaff.staffUser.id,
+    });
   }
 }

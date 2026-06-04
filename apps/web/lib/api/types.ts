@@ -749,6 +749,12 @@ export type WaiterCallsResult = {
 export type BillResult = Record<string, unknown> & {
   billRequest?: Record<string, unknown> | null;
   activeBillRequest?: Record<string, unknown> | null;
+  bill?: Record<string, unknown> | null;
+  activeBill?: Record<string, unknown> | null;
+  latestBills?: Record<string, unknown>[];
+  lines?: Record<string, unknown>[];
+  manualPayments?: Record<string, unknown>[];
+  receipt?: Record<string, unknown> | null;
   totals?: CartTotals | Record<string, unknown>;
 };
 
@@ -1024,6 +1030,7 @@ export type BranchBillRequestsResult = {
 
 export type BillRequestDetailResult = Record<string, unknown> & {
   billRequest?: Record<string, unknown>;
+  bill?: Record<string, unknown> | null;
   company?: CompanySummary;
   branch?: BranchSummary;
   tableSession?: Record<string, unknown>;
@@ -1038,6 +1045,61 @@ export type BillRequestActionPayload = {
 };
 
 export type CancelBillRequestPayload = {
+  staffUserId?: string;
+  reason?: string;
+};
+
+export type BranchBillStatusFilter =
+  | "draft"
+  | "requested"
+  | "presented"
+  | "payment_pending"
+  | "paid"
+  | "cancelled"
+  | "closed"
+  | "active"
+  | "all";
+
+export type BranchBillsQuery = {
+  status?: BranchBillStatusFilter;
+  limit?: number;
+};
+
+export type BranchBillsResult = {
+  branch: BranchSummary;
+  filters?: Record<string, unknown>;
+  bills: Record<string, unknown>[];
+};
+
+export type BillDetailResult = Record<string, unknown> & {
+  bill?: Record<string, unknown>;
+  company?: CompanySummary;
+  branch?: BranchSummary;
+  tableSession?: Record<string, unknown>;
+  floor?: Record<string, unknown> | null;
+  table?: Record<string, unknown>;
+  billRequest?: Record<string, unknown> | null;
+  lines?: Record<string, unknown>[];
+  manualPayments?: Record<string, unknown>[];
+  receipt?: Record<string, unknown> | null;
+  events?: Record<string, unknown>[];
+  totals?: Record<string, unknown>;
+};
+
+export type BillReceiptResult = Record<string, unknown> & {
+  bill?: Record<string, unknown>;
+  receipt?: Record<string, unknown>;
+  printableText?: string | null;
+};
+
+export type RecordManualPaymentPayload = {
+  method: "cash" | "card_pos" | "wallet_manual" | "other";
+  amountMinor: number;
+  reference?: string | null;
+  note?: string | null;
+};
+
+export type CancelBillPayload = {
   staffUserId?: string;
   reason?: string;
 };

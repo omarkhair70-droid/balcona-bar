@@ -674,6 +674,38 @@ export class RealtimeEventsService {
     );
   }
 
+  async recordBillCreated(billId: string, tx: PrismaExecutor) {
+    return this.recordBillEvent(billId, RealtimeEventType.bill_created, tx);
+  }
+
+  async recordBillPresentedForBill(billId: string, tx: PrismaExecutor) {
+    return this.recordBillEvent(billId, RealtimeEventType.bill_presented, tx);
+  }
+
+  async recordBillPaymentRecorded(billId: string, tx: PrismaExecutor) {
+    return this.recordBillEvent(
+      billId,
+      RealtimeEventType.bill_payment_recorded,
+      tx,
+    );
+  }
+
+  async recordBillPaid(billId: string, tx: PrismaExecutor) {
+    return this.recordBillEvent(billId, RealtimeEventType.bill_paid, tx);
+  }
+
+  async recordBillClosedForBill(billId: string, tx: PrismaExecutor) {
+    return this.recordBillEvent(billId, RealtimeEventType.bill_closed, tx);
+  }
+
+  async recordBillCancelledForBill(billId: string, tx: PrismaExecutor) {
+    return this.recordBillEvent(billId, RealtimeEventType.bill_cancelled, tx);
+  }
+
+  async recordReceiptGenerated(billId: string, tx: PrismaExecutor) {
+    return this.recordBillEvent(billId, RealtimeEventType.receipt_generated, tx);
+  }
+
   private async recordNotificationStateChange(
     notification: NotificationRealtimeContext,
     type: RealtimeEventType,
@@ -1101,6 +1133,86 @@ export class RealtimeEventsService {
         branchId: billRequest.branchId,
         tableSessionId: billRequest.tableSessionId,
         billRequestId: billRequest.id,
+        type,
+        channel: RealtimeEventChannel.session_status,
+        payload,
+      },
+      tx,
+    );
+
+    return [branchEvent, sessionEvent];
+  }
+
+  private async recordBillEvent(
+    billId: string,
+    type: RealtimeEventType,
+    tx: PrismaExecutor,
+  ) {
+    const bill = await tx.bill.findUnique({
+      where: { id: billId },
+      select: {
+        id: true,
+        companyId: true,
+        branchId: true,
+        tableSessionId: true,
+        billRequestId: true,
+        status: true,
+        billNumber: true,
+        currency: true,
+        subtotalMinor: true,
+        totalMinor: true,
+        paidMinor: true,
+        balanceDueMinor: true,
+        orderCount: true,
+        lineCount: true,
+        requestedAt: true,
+        presentedAt: true,
+        paidAt: true,
+        closedAt: true,
+        cancelledAt: true,
+      },
+    });
+
+    if (!bill) {
+      throw new NotFoundException('Bill not found');
+    }
+
+    const payload = {
+      billId: bill.id,
+      billRequestId: bill.billRequestId,
+      billNumber: bill.billNumber,
+      status: bill.status,
+      subtotalMinor: bill.subtotalMinor,
+      totalMinor: bill.totalMinor,
+      paidMinor: bill.paidMinor,
+      balanceDueMinor: bill.balanceDueMinor,
+      orderCount: bill.orderCount,
+      lineCount: bill.lineCount,
+      currency: bill.currency,
+      requestedAt: bill.requestedAt,
+      presentedAt: bill.presentedAt,
+      paidAt: bill.paidAt,
+      closedAt: bill.closedAt,
+      cancelledAt: bill.cancelledAt,
+    };
+    const branchEvent = await this.createRealtimeEvent(
+      {
+        companyId: bill.companyId,
+        branchId: bill.branchId,
+        tableSessionId: bill.tableSessionId,
+        billRequestId: bill.billRequestId,
+        type,
+        channel: RealtimeEventChannel.branch_orders,
+        payload,
+      },
+      tx,
+    );
+    const sessionEvent = await this.createRealtimeEvent(
+      {
+        companyId: bill.companyId,
+        branchId: bill.branchId,
+        tableSessionId: bill.tableSessionId,
+        billRequestId: bill.billRequestId,
         type,
         channel: RealtimeEventChannel.session_status,
         payload,

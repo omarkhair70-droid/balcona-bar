@@ -1,6 +1,6 @@
 # balcona-bar
 
-Balcona Bar is organized as a monorepo for the Cafe AI Waiter App / Smart Cafe Operating System. The backend core is complete through Phase 24, UI Phase 1 adds the first Next.js web foundation for customer and staff experiences, UI Phase 2 adds the customer PWA core, UI Phase 3 adds the customer AI waiter experience, UI Phase 4 adds the cashier dashboard core, UI Phase 5 adds the kitchen/barista dashboard core, UI Phase 6 adds the waiter dashboard and attention queue, UI Phase 7 adds the owner/manager command center, UI Phase 8 adds full demo hardening plus Balkona demo mode, Production Phase 1 adds deployable platform foundation files, Production Phase 2 adds AWS infrastructure foundation scaffolding without deploying resources, Production Phase 3A adds public demo deploy readiness plus CI/CD guardrails without deploying resources, Production Phase 3B adds the first public AWS demo preflight deploy pack without deploying resources, Product Phase 4A starts the full Cafe OS product completion track, Product Phase 4B adds branch-scoped menu admin and availability management, Product Phase 4C adds branch, tables, and QR management, Product Phase 4E.G0-G3 add a Groq AI waiter provider with safe backend validation, deep menu grounding, and modifier-turn ordering intelligence, Product Phase 4S.0 enforces staff roles, permissions, and branch access on the current staff product surfaces, Product Phase 4O.0 hardens order lifecycle transitions across cashier, preparation, waiter, and customer status flows, and Product Phase 4K.0 adds KDS kitchen tickets plus a mock printer foundation for station operations.
+Balcona Bar is organized as a monorepo for the Cafe AI Waiter App / Smart Cafe Operating System. The backend core is complete through Phase 24, UI Phase 1 adds the first Next.js web foundation for customer and staff experiences, UI Phase 2 adds the customer PWA core, UI Phase 3 adds the customer AI waiter experience, UI Phase 4 adds the cashier dashboard core, UI Phase 5 adds the kitchen/barista dashboard core, UI Phase 6 adds the waiter dashboard and attention queue, UI Phase 7 adds the owner/manager command center, UI Phase 8 adds full demo hardening plus Balkona demo mode, Production Phase 1 adds deployable platform foundation files, Production Phase 2 adds AWS infrastructure foundation scaffolding without deploying resources, Production Phase 3A adds public demo deploy readiness plus CI/CD guardrails without deploying resources, Production Phase 3B adds the first public AWS demo preflight deploy pack without deploying resources, Product Phase 4A starts the full Cafe OS product completion track, Product Phase 4B adds branch-scoped menu admin and availability management, Product Phase 4C adds branch, tables, and QR management, Product Phase 4E.G0-G3 add a Groq AI waiter provider with safe backend validation, deep menu grounding, and modifier-turn ordering intelligence, Product Phase 4S.0 enforces staff roles, permissions, and branch access on the current staff product surfaces, Product Phase 4O.0 hardens order lifecycle transitions across cashier, preparation, waiter, and customer status flows, Product Phase 4K.0 adds KDS kitchen tickets plus a mock printer foundation for station operations, and Product Phase 4P.0 adds stable bills, manual cashier payments, and receipt foundations.
 
 ## Layout
 
@@ -167,6 +167,41 @@ pnpm web:build
 pnpm web:lint
 pnpm web:start
 pnpm web:typecheck
+```
+
+## Product Phase 4P.0 status
+
+Product Phase 4P.0 adds the first bill settlement core while keeping payment
+manual and cashier-controlled:
+
+- customer bill requests create a stable linked bill snapshot;
+- bill lines copy order item snapshots instead of recalculating menu prices;
+- cashiers can record exact manual payments by cash, card POS, wallet manual,
+  or other method;
+- paid bills generate receipt payloads and printable text;
+- customer service screens show active bill lines and receipt state;
+- cashier bill request cards show bill lines, totals, payment controls, and
+  receipt state;
+- `bills.pay` is branch-scoped and required for manual payment actions;
+- AI waiter safety continues to reject payment confirmation, refunds,
+  discounts, and final order submission.
+
+Not included in this phase: online payments, webhooks, split bills, refunds,
+tax/e-invoicing, POS sync, cash drawer, inventory, or tenant onboarding.
+
+See
+`docs/architecture/product-phase-4p0-bill-manual-payment-receipt-core.md` for
+data model, flow, safety behavior, and limitations.
+
+Validation commands for this phase:
+
+```bash
+pnpm --filter @balcona-bar/api prisma:generate
+pnpm --filter @balcona-bar/api build
+pnpm --filter @balcona-bar/api test
+pnpm --filter @balcona-bar/web lint
+pnpm --filter @balcona-bar/web typecheck
+pnpm web:build
 ```
 
 ## Product Phase 4E.G0 status

@@ -42,6 +42,12 @@ export const staffQueryKeys = {
     "bill-request",
     billRequestId
   ],
+  branchBills: (branchId?: string, status?: string) =>
+    status === undefined
+      ? ["staff", "branch-bills", branchId]
+      : ["staff", "branch-bills", branchId, status],
+  bill: (billId?: string) => ["staff", "bill", billId],
+  billReceipt: (billId?: string) => ["staff", "bill-receipt", billId],
   preparationTasks: (branchId?: string, station?: string, status?: string) =>
     station === undefined && status === undefined
       ? ["staff", "preparation-tasks", branchId]
