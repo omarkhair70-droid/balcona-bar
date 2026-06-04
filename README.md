@@ -210,6 +210,8 @@ Groq AI waiter provider:
   category/description tokens, recent-message hints, and cafe intent phrases;
 - the cafe lexicon is domain-specific for Egyptian Arabic, Franco-Arabic,
   English, and Balcona menu aliases;
+- `AI_WAITER_MENU_SNAPSHOT_LIMIT` controls the backend menu snapshot searched
+  for grounding and defaults to `200`;
 - `GROQ_MAX_CONTEXT_ITEMS` now caps grounded candidates, defaults to `12`, and
   still has a hard cap of `20`;
 - modifier groups/options remain excluded from the first recommendation turn;

@@ -103,6 +103,12 @@ class EnvironmentVariables {
   @IsOptional()
   AI_WAITER_PROVIDER?: AiWaiterProvider;
 
+  @IsInt()
+  @Min(1)
+  @Max(1000)
+  @IsOptional()
+  AI_WAITER_MENU_SNAPSHOT_LIMIT?: number;
+
   @IsString()
   @IsOptional()
   GROQ_API_KEY?: string;

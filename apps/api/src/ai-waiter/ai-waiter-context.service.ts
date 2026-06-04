@@ -3,6 +3,7 @@ import {
   Injectable,
   NotFoundException,
 } from "@nestjs/common";
+import { ConfigService } from "@nestjs/config";
 import {
   ExperienceProfileScope,
   ExperienceProfileStatus,
@@ -21,6 +22,7 @@ export class AiWaiterContextService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly cartService: CartService,
+    private readonly configService: ConfigService,
   ) {}
 
   async findTableSessionOrThrow(sessionId: string) {
@@ -129,6 +131,7 @@ export class AiWaiterContextService {
   }
 
   private async getMenuSnapshot(companyId: string, branchId: string) {
+    const menuSnapshotLimit = this.menuSnapshotLimit();
     const menuItems = await this.prisma.menuItem.findMany({
       where: {
         companyId,
@@ -148,7 +151,7 @@ export class AiWaiterContextService {
         { name: "asc" },
         { id: "asc" },
       ],
-      take: 60,
+      take: menuSnapshotLimit,
       select: {
         id: true,
         name: true,
@@ -256,5 +259,14 @@ export class AiWaiterContextService {
         },
       },
     };
+  }
+
+  private menuSnapshotLimit() {
+    const value = this.configService.get<number | string>(
+      "aiWaiter.menuSnapshotLimit",
+    );
+    const parsed = typeof value === "number" ? value : Number(value);
+
+    return Number.isFinite(parsed) && parsed > 0 ? Math.floor(parsed) : 200;
   }
 }

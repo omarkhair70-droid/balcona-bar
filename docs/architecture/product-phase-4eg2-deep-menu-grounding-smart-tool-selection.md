@@ -24,8 +24,11 @@ backend code before Groq is called.
 
 ## Menu Grounding Service
 
-`AiWaiterMenuGroundingService` ranks menu candidates from the full
-`AiWaiterContext.menuItems` collection. It returns `MenuGroundingResult`:
+`AiWaiterContextService` loads the backend menu snapshot up to
+`AI_WAITER_MENU_SNAPSHOT_LIMIT`, which defaults to 200 and validates up to
+1000. `AiWaiterMenuGroundingService` ranks menu candidates from that full
+snapshot before any compact Groq payload is built. It returns
+`MenuGroundingResult`:
 
 - `candidates`
 - `totalMenuItemsAvailable`
@@ -45,10 +48,10 @@ Candidate scoring uses:
 - a small recent-message hint for follow-up turns;
 - fallback featured/category-diverse candidates when no phrase matches.
 
-The default candidate cap is 12 and the hard cap is 20. If a query matches only
-a few items, the result is filled with safe fallback candidates up to the
+The default Groq candidate cap is 12 and the hard cap is 20. If a query matches
+only a few items, the result is filled with safe fallback candidates up to the
 configured cap so Groq still has useful menu context without receiving the full
-menu.
+menu snapshot.
 
 ## Cafe Lexicon And Aliases
 
@@ -151,6 +154,7 @@ current request before it can be proposed.
 
 ```env
 AI_WAITER_PROVIDER=groq
+AI_WAITER_MENU_SNAPSHOT_LIMIT=200
 GROQ_MODEL=openai/gpt-oss-20b
 GROQ_MAX_CONTEXT_ITEMS=12
 GROQ_TIMEOUT_MS=10000

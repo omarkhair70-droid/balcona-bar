@@ -38,6 +38,10 @@ export default () => ({
   },
   aiWaiter: {
     provider: process.env.AI_WAITER_PROVIDER ?? 'stub',
+    menuSnapshotLimit: Number.parseInt(
+      process.env.AI_WAITER_MENU_SNAPSHOT_LIMIT ?? '200',
+      10,
+    ),
     groq: {
       apiKey: process.env.GROQ_API_KEY || undefined,
       model: process.env.GROQ_MODEL ?? 'openai/gpt-oss-20b',
