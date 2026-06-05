@@ -1,10 +1,10 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
-import { PrismaService } from '../prisma/prisma.service';
+import { Injectable, NotFoundException } from "@nestjs/common";
+import { PrismaService } from "../prisma/prisma.service";
 import {
   StaffAccessService,
   StaffPermissionScope,
-} from './staff-access.service';
-import { StaffPermission } from './permissions';
+} from "./staff-access.service";
+import { StaffPermission } from "./permissions";
 
 type ScopedRecord = {
   companyId: string;
@@ -48,7 +48,7 @@ export class StaffScopedAccessService {
       select: { companyId: true, branchId: true },
     });
 
-    return this.assertCanForRecord(staffUserId, permission, order, 'Order');
+    return this.assertCanForRecord(staffUserId, permission, order, "Order");
   }
 
   async assertCanForPreparationTask(
@@ -65,7 +65,7 @@ export class StaffScopedAccessService {
       staffUserId,
       permission,
       task,
-      'Preparation task',
+      "Preparation task",
     );
   }
 
@@ -83,7 +83,7 @@ export class StaffScopedAccessService {
       staffUserId,
       permission,
       ticket,
-      'Kitchen ticket',
+      "Kitchen ticket",
     );
   }
 
@@ -101,7 +101,7 @@ export class StaffScopedAccessService {
       staffUserId,
       permission,
       printJob,
-      'Print job',
+      "Print job",
     );
   }
 
@@ -119,7 +119,7 @@ export class StaffScopedAccessService {
       staffUserId,
       permission,
       printerStation,
-      'Printer station',
+      "Printer station",
     );
   }
 
@@ -137,7 +137,7 @@ export class StaffScopedAccessService {
       staffUserId,
       permission,
       waiterCall,
-      'Waiter call',
+      "Waiter call",
     );
   }
 
@@ -155,7 +155,7 @@ export class StaffScopedAccessService {
       staffUserId,
       permission,
       billRequest,
-      'Bill request',
+      "Bill request",
     );
   }
 
@@ -169,7 +169,26 @@ export class StaffScopedAccessService {
       select: { companyId: true, branchId: true },
     });
 
-    return this.assertCanForRecord(staffUserId, permission, bill, 'Bill');
+    return this.assertCanForRecord(staffUserId, permission, bill, "Bill");
+  }
+
+  async assertCanForOnlinePaymentIntent(
+    staffUserId: string,
+    permission: StaffPermission,
+    intentId: string,
+  ) {
+    const onlinePaymentIntent =
+      await this.prisma.onlinePaymentIntent.findUnique({
+        where: { id: intentId },
+        select: { companyId: true, branchId: true },
+      });
+
+    return this.assertCanForRecord(
+      staffUserId,
+      permission,
+      onlinePaymentIntent,
+      "Online payment intent",
+    );
   }
 
   async assertCanForCashierShift(
@@ -186,7 +205,7 @@ export class StaffScopedAccessService {
       staffUserId,
       permission,
       shift,
-      'Cashier shift',
+      "Cashier shift",
     );
   }
 
@@ -204,7 +223,7 @@ export class StaffScopedAccessService {
       staffUserId,
       permission,
       tableSession,
-      'Table session',
+      "Table session",
     );
   }
 
@@ -222,7 +241,7 @@ export class StaffScopedAccessService {
       staffUserId,
       permission,
       aiWaiterSession,
-      'AI waiter session',
+      "AI waiter session",
     );
   }
 
@@ -240,7 +259,7 @@ export class StaffScopedAccessService {
       staffUserId,
       permission,
       category,
-      'Menu category',
+      "Menu category",
     );
   }
 
@@ -254,7 +273,7 @@ export class StaffScopedAccessService {
       select: { companyId: true },
     });
 
-    return this.assertCanForRecord(staffUserId, permission, item, 'Menu item');
+    return this.assertCanForRecord(staffUserId, permission, item, "Menu item");
   }
 
   async assertCanForInventoryItem(
@@ -271,7 +290,7 @@ export class StaffScopedAccessService {
       staffUserId,
       permission,
       item,
-      'Inventory item',
+      "Inventory item",
     );
   }
 
@@ -289,7 +308,7 @@ export class StaffScopedAccessService {
       staffUserId,
       permission,
       modifierGroup,
-      'Modifier group',
+      "Modifier group",
     );
   }
 
@@ -311,7 +330,7 @@ export class StaffScopedAccessService {
       staffUserId,
       permission,
       modifierOption?.group,
-      'Modifier option',
+      "Modifier option",
     );
   }
 
@@ -332,14 +351,14 @@ export class StaffScopedAccessService {
     });
 
     if (!link || link.menuItemId !== itemId) {
-      throw new NotFoundException('Menu item modifier group not found');
+      throw new NotFoundException("Menu item modifier group not found");
     }
 
     return this.assertCanForRecord(
       staffUserId,
       permission,
       link.menuItem,
-      'Menu item modifier group',
+      "Menu item modifier group",
     );
   }
 
@@ -357,7 +376,7 @@ export class StaffScopedAccessService {
       staffUserId,
       permission,
       rule,
-      'Smart cashier rule',
+      "Smart cashier rule",
     );
   }
 
@@ -375,7 +394,7 @@ export class StaffScopedAccessService {
       staffUserId,
       permission,
       venueZone,
-      'Venue zone',
+      "Venue zone",
     );
   }
 

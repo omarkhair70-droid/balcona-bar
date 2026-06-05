@@ -67,8 +67,10 @@ curl -X POST http://localhost:3000/api/v1/staff-auth/dev/bootstrap-password `
 9. Open cashier and accept the submitted order.
 10. Open kitchen/barista and start or mark a preparation task ready.
 11. Open waiter/floor, serve the ready order, then open service from the customer session and request the bill when available.
-12. Open waiter/floor and acknowledge or resolve the call or table attention item.
-13. Open owner/manager and confirm branch pulse, operations snapshot, attention, realtime, and readiness panels load.
+12. Present the bill from cashier, then use either exact manual payment or the customer Pay Online mock checkout.
+13. For Pay Online, confirm mock payment, verify receipt ready, verify manual payment is no longer available for that paid bill, and retrying the mock webhook does not duplicate settlement.
+14. Open waiter/floor and acknowledge or resolve the call or table attention item.
+15. Open owner/manager and confirm branch pulse, operations snapshot, attention, realtime, and readiness panels load.
 
 ## Bill Request Smoke Guard
 
@@ -96,15 +98,16 @@ if (-not $billRequest.billRequest.id -or -not $billRequest.bill.id) {
 - `/customer/session/:sessionId/menu`: add-to-cart failures render visible customer feedback.
 - `/customer/session/:sessionId/cart`: submit failures keep the cart visible and show retry-friendly copy.
 - `/customer/session/:sessionId/service`: waiter-call and bill-request failures show visible feedback, and no-billable-order state explains when the bill becomes available.
+- `/customer/session/:sessionId/service`: presented bills show Pay Online with mock checkout status, visible errors, and receipt-ready state after mock success.
 - `/staff`: operations hub links to cashier, kitchen, waiter, owner, and the Balkona demo launcher.
-- `/staff/cashier`: empty, loading, success, error, and branch states are visible.
+- `/staff/cashier`: empty, loading, success, error, branch states, manual payment, and online payment status are visible.
 - `/staff/kitchen`: task empty, loading, success, error, and branch states are visible.
 - `/staff/waiter`: call, attention, empty, loading, success, error, and branch states are visible.
 - `/staff/owner`: no fake revenue or fake analytics; visible values are derived from existing branch endpoints.
 
 ## Known Limitations
 
-- Payment and POS are intentionally not part of the demo.
+- Real payment gateways, raw card entry, refunds, and POS sync are intentionally not part of the demo; online payment uses a local/dev mock provider only.
 - SaaS admin, tenant admin, company admin, and menu admin UI are intentionally not part of this UI phase.
 - External AI provider integration is outside this phase; the UI renders backend AI waiter contracts defensively.
 - The owner view aggregates existing endpoints client-side and does not claim final paid revenue.

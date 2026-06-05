@@ -2,7 +2,7 @@ import {
   BadRequestException,
   Injectable,
   NotFoundException,
-} from '@nestjs/common';
+} from "@nestjs/common";
 import {
   BillPaymentMethod,
   CashDrawerTransactionSourceType,
@@ -10,18 +10,20 @@ import {
   CashierShiftReportType,
   CashierShiftStatus,
   ManualPaymentStatus,
+  OnlinePaymentIntentStatus,
+  OnlinePaymentProvider,
   Prisma,
-} from '@prisma/client';
-import { PrismaService } from '../prisma/prisma.service';
-import { BranchCashierShiftsQueryDto } from './dto/branch-cashier-shifts-query.dto';
-import { CloseCashierShiftDto } from './dto/close-cashier-shift.dto';
-import { CreateCashAdjustmentDto } from './dto/create-cash-adjustment.dto';
-import { OpenCashierShiftDto } from './dto/open-cashier-shift.dto';
+} from "@prisma/client";
+import { PrismaService } from "../prisma/prisma.service";
+import { BranchCashierShiftsQueryDto } from "./dto/branch-cashier-shifts-query.dto";
+import { CloseCashierShiftDto } from "./dto/close-cashier-shift.dto";
+import { CreateCashAdjustmentDto } from "./dto/create-cash-adjustment.dto";
+import { OpenCashierShiftDto } from "./dto/open-cashier-shift.dto";
 
 const DEFAULT_SHIFT_LIMIT = 20;
-const DEFAULT_SHIFT_CURRENCY = 'EGP';
-const X_REPORT_PREFIX = 'X-';
-const Z_REPORT_PREFIX = 'Z-';
+const DEFAULT_SHIFT_CURRENCY = "EGP";
+const X_REPORT_PREFIX = "X-";
+const Z_REPORT_PREFIX = "Z-";
 
 type PrismaExecutor = PrismaService | Prisma.TransactionClient;
 
@@ -50,7 +52,7 @@ export class CashierShiftsService {
     const branch = await this.findBranch(branchId, this.prisma);
     const shift = await this.prisma.cashierShift.findFirst({
       where: { branchId, status: CashierShiftStatus.open },
-      orderBy: [{ openedAt: 'desc' }, { id: 'desc' }],
+      orderBy: [{ openedAt: "desc" }, { id: "desc" }],
       include: this.shiftStaffInclude(),
     });
 
@@ -84,7 +86,7 @@ export class CashierShiftsService {
 
       if (existingOpenShift) {
         throw new BadRequestException(
-          'A cashier shift is already open for this branch',
+          "A cashier shift is already open for this branch",
         );
       }
 
@@ -140,7 +142,7 @@ export class CashierShiftsService {
 
       if (lockedShift.status !== CashierShiftStatus.open) {
         throw new BadRequestException(
-          'Closed cashier shifts cannot be adjusted',
+          "Closed cashier shifts cannot be adjusted",
         );
       }
 
@@ -148,7 +150,7 @@ export class CashierShiftsService {
 
       if (!note) {
         throw new BadRequestException(
-          'Cash drawer adjustment note is required',
+          "Cash drawer adjustment note is required",
         );
       }
 
@@ -182,7 +184,7 @@ export class CashierShiftsService {
 
       if (shift.status !== CashierShiftStatus.open) {
         throw new BadRequestException(
-          'X reports can only be generated for an open cashier shift',
+          "X reports can only be generated for an open cashier shift",
         );
       }
 
@@ -231,7 +233,7 @@ export class CashierShiftsService {
       const lockedShift = await this.findShiftForMutation(shiftId, tx);
 
       if (lockedShift.status !== CashierShiftStatus.open) {
-        throw new BadRequestException('Cashier shift is already closed');
+        throw new BadRequestException("Cashier shift is already closed");
       }
 
       const closedAt = new Date();
@@ -297,13 +299,13 @@ export class CashierShiftsService {
     query: BranchCashierShiftsQueryDto = {},
   ) {
     const branch = await this.findBranch(branchId, this.prisma);
-    const status = query.status ?? 'all';
+    const status = query.status ?? "all";
     const shifts = await this.prisma.cashierShift.findMany({
       where: {
         branchId,
-        ...(status === 'all' ? {} : { status: status as CashierShiftStatus }),
+        ...(status === "all" ? {} : { status: status as CashierShiftStatus }),
       },
-      orderBy: [{ openedAt: 'desc' }, { id: 'desc' }],
+      orderBy: [{ openedAt: "desc" }, { id: "desc" }],
       take: this.normalizeLimit(query.limit),
       include: this.shiftStaffInclude(),
     });
@@ -334,7 +336,7 @@ export class CashierShiftsService {
         branchId,
         status: CashierShiftStatus.open,
       },
-      orderBy: [{ openedAt: 'desc' }, { id: 'desc' }],
+      orderBy: [{ openedAt: "desc" }, { id: "desc" }],
       select: {
         id: true,
         companyId: true,
@@ -345,13 +347,13 @@ export class CashierShiftsService {
 
     if (!shift) {
       throw new BadRequestException(
-        'Open a cashier shift before recording payments',
+        "Open a cashier shift before recording payments",
       );
     }
 
     if (shift.currency !== currency) {
       throw new BadRequestException(
-        'Open cashier shift currency does not match the bill currency',
+        "Open cashier shift currency does not match the bill currency",
       );
     }
 
@@ -410,16 +412,16 @@ export class CashierShiftsService {
     });
 
     if (!shift) {
-      throw new NotFoundException('Cashier shift not found');
+      throw new NotFoundException("Cashier shift not found");
     }
 
     const drawerTransactions = await tx.cashDrawerTransaction.findMany({
       where: { cashierShiftId: shift.id },
-      orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
+      orderBy: [{ createdAt: "asc" }, { id: "asc" }],
     });
     const reports = await tx.cashierShiftReport.findMany({
       where: { cashierShiftId: shift.id },
-      orderBy: [{ generatedAt: 'desc' }, { id: 'desc' }],
+      orderBy: [{ generatedAt: "desc" }, { id: "desc" }],
     });
     const summary =
       shift.status === CashierShiftStatus.closed && shift.zReportSnapshot
@@ -463,36 +465,64 @@ export class CashierShiftsService {
     });
 
     if (!shift) {
-      throw new NotFoundException('Cashier shift not found');
+      throw new NotFoundException("Cashier shift not found");
     }
 
-    const [manualPayments, drawerTransactions] = await Promise.all([
-      tx.manualPayment.findMany({
-        where: {
-          cashierShiftId: shift.id,
-          status: ManualPaymentStatus.recorded,
-        },
-        orderBy: [{ recordedAt: 'asc' }, { id: 'asc' }],
-        include: {
-          bill: {
-            select: {
-              id: true,
-              billNumber: true,
-              status: true,
-              totalMinor: true,
-              paidMinor: true,
-              balanceDueMinor: true,
-              paidAt: true,
+    const onlinePaymentWindowEnd =
+      closeContext.closedAt ?? shift.closedAt ?? new Date();
+    const [manualPayments, onlinePayments, drawerTransactions] =
+      await Promise.all([
+        tx.manualPayment.findMany({
+          where: {
+            cashierShiftId: shift.id,
+            status: ManualPaymentStatus.recorded,
+          },
+          orderBy: [{ recordedAt: "asc" }, { id: "asc" }],
+          include: {
+            bill: {
+              select: {
+                id: true,
+                billNumber: true,
+                status: true,
+                totalMinor: true,
+                paidMinor: true,
+                balanceDueMinor: true,
+                paidAt: true,
+              },
+            },
+            recordedByStaffUser: { select: this.staffSelect() },
+          },
+        }),
+        tx.onlinePaymentIntent.findMany({
+          where: {
+            branchId: shift.branchId,
+            currency: shift.currency,
+            status: OnlinePaymentIntentStatus.succeeded,
+            succeededAt: {
+              gte: shift.openedAt,
+              lte: onlinePaymentWindowEnd,
             },
           },
-          recordedByStaffUser: { select: this.staffSelect() },
-        },
-      }),
-      tx.cashDrawerTransaction.findMany({
-        where: { cashierShiftId: shift.id },
-        orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
-      }),
-    ]);
+          orderBy: [{ succeededAt: "asc" }, { id: "asc" }],
+          include: {
+            bill: {
+              select: {
+                id: true,
+                billNumber: true,
+                status: true,
+                totalMinor: true,
+                paidMinor: true,
+                balanceDueMinor: true,
+                paidAt: true,
+              },
+            },
+          },
+        }),
+        tx.cashDrawerTransaction.findMany({
+          where: { cashierShiftId: shift.id },
+          orderBy: [{ createdAt: "asc" }, { id: "asc" }],
+        }),
+      ]);
 
     const cashPaymentMinor = this.sumPaymentsByMethod(
       manualPayments,
@@ -509,6 +539,14 @@ export class CashierShiftsService {
     const otherMinor = this.sumPaymentsByMethod(
       manualPayments,
       BillPaymentMethod.other,
+    );
+    const onlineMockMinor = this.sumOnlinePaymentsByProvider(
+      onlinePayments,
+      OnlinePaymentProvider.mock,
+    );
+    const onlineExternalMinor = this.sumOnlinePaymentsByProvider(
+      onlinePayments,
+      OnlinePaymentProvider.external,
     );
     const cashInMinor = this.sumDrawerTransactions(
       drawerTransactions,
@@ -599,6 +637,9 @@ export class CashierShiftsService {
         cardPosMinor,
         walletManualMinor,
         otherMinor,
+        onlineMockMinor,
+        onlineExternalMinor,
+        onlineTotalMinor: onlineMockMinor + onlineExternalMinor,
         totalCollectedMinor:
           cashPaymentMinor + cardPosMinor + walletManualMinor + otherMinor,
       },
@@ -609,6 +650,7 @@ export class CashierShiftsService {
         cardPaymentCount,
         walletPaymentCount,
         otherPaymentCount,
+        onlinePaymentCount: onlinePayments.length,
       },
       operational: {
         paidBills: Array.from(uniqueBillIds).map((billId) => {
@@ -628,6 +670,16 @@ export class CashierShiftsService {
           note: payment.note,
           recordedAt: payment.recordedAt,
           recordedByStaffUser: payment.recordedByStaffUser,
+          bill: payment.bill,
+        })),
+        onlinePayments: onlinePayments.map((payment) => ({
+          id: payment.id,
+          billId: payment.billId,
+          provider: payment.provider,
+          providerIntentId: payment.providerIntentId,
+          amountMinor: payment.amountMinor,
+          currency: payment.currency,
+          succeededAt: payment.succeededAt,
           bill: payment.bill,
         })),
         drawerTransactions,
@@ -675,7 +727,7 @@ export class CashierShiftsService {
     });
 
     if (!shift) {
-      throw new NotFoundException('Cashier shift not found');
+      throw new NotFoundException("Cashier shift not found");
     }
 
     return shift;
@@ -688,7 +740,7 @@ export class CashierShiftsService {
     });
 
     if (!branch) {
-      throw new NotFoundException('Branch not found');
+      throw new NotFoundException("Branch not found");
     }
 
     return branch;
@@ -708,7 +760,7 @@ export class CashierShiftsService {
     });
 
     if (!staffUser) {
-      throw new NotFoundException('Staff user not found');
+      throw new NotFoundException("Staff user not found");
     }
   }
 
@@ -734,7 +786,7 @@ export class CashierShiftsService {
       (await tx.cashierShiftReport.count({ where: { branchId, type } })) + 1;
 
     while (true) {
-      const reportNumber = `${prefix}${String(sequence).padStart(5, '0')}`;
+      const reportNumber = `${prefix}${String(sequence).padStart(5, "0")}`;
       const existing = await tx.cashierShiftReport.findUnique({
         where: {
           branchId_type_reportNumber: {
@@ -757,7 +809,7 @@ export class CashierShiftsService {
   private toSignedAdjustmentAmount(body: CreateCashAdjustmentDto) {
     if (body.type === CashDrawerTransactionType.cash_in) {
       if (body.amountMinor <= 0) {
-        throw new BadRequestException('Cash in amount must be positive');
+        throw new BadRequestException("Cash in amount must be positive");
       }
 
       return body.amountMinor;
@@ -765,14 +817,14 @@ export class CashierShiftsService {
 
     if (body.type === CashDrawerTransactionType.cash_out) {
       if (body.amountMinor <= 0) {
-        throw new BadRequestException('Cash out amount must be positive');
+        throw new BadRequestException("Cash out amount must be positive");
       }
 
       return -body.amountMinor;
     }
 
     if (body.amountMinor === 0) {
-      throw new BadRequestException('Correction amount cannot be zero');
+      throw new BadRequestException("Correction amount cannot be zero");
     }
 
     return body.amountMinor;
@@ -857,5 +909,14 @@ export class CashierShiftsService {
       name: true,
       status: true,
     };
+  }
+
+  private sumOnlinePaymentsByProvider(
+    payments: { provider: OnlinePaymentProvider; amountMinor: number }[],
+    provider: OnlinePaymentProvider,
+  ) {
+    return payments
+      .filter((payment) => payment.provider === provider)
+      .reduce((sum, payment) => sum + payment.amountMinor, 0);
   }
 }

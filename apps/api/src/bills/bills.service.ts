@@ -2,7 +2,7 @@ import {
   BadRequestException,
   Injectable,
   NotFoundException,
-} from '@nestjs/common';
+} from "@nestjs/common";
 import {
   BillEventType,
   BillPaymentMethod,
@@ -11,21 +11,23 @@ import {
   BillRequestStatus,
   BillStatus,
   ManualPaymentStatus,
+  OnlinePaymentIntentStatus,
+  OnlinePaymentProvider,
   OrderEventActorType,
   OrderEventType,
   OrderStatus,
   Prisma,
   TableSessionStatus,
-} from '@prisma/client';
-import { TableAttentionService } from '../autopilot/table-attention.service';
-import { CashierShiftsService } from '../cashier-shifts/cashier-shifts.service';
-import { PresenceNotificationsService } from '../presence-notifications/presence-notifications.service';
-import { PrismaService } from '../prisma/prisma.service';
-import { RealtimeEventsService } from '../realtime-events/realtime-events.service';
-import { BillActionDto } from './dto/bill-action.dto';
-import { BranchBillsQueryDto } from './dto/branch-bills-query.dto';
-import { CancelBillDto } from './dto/cancel-bill.dto';
-import { RecordManualPaymentDto } from './dto/record-manual-payment.dto';
+} from "@prisma/client";
+import { TableAttentionService } from "../autopilot/table-attention.service";
+import { CashierShiftsService } from "../cashier-shifts/cashier-shifts.service";
+import { PresenceNotificationsService } from "../presence-notifications/presence-notifications.service";
+import { PrismaService } from "../prisma/prisma.service";
+import { RealtimeEventsService } from "../realtime-events/realtime-events.service";
+import { BillActionDto } from "./dto/bill-action.dto";
+import { BranchBillsQueryDto } from "./dto/branch-bills-query.dto";
+import { CancelBillDto } from "./dto/cancel-bill.dto";
+import { RecordManualPaymentDto } from "./dto/record-manual-payment.dto";
 
 const ACTIVE_BILL_STATUSES: BillStatus[] = [
   BillStatus.draft,
@@ -55,10 +57,26 @@ const TERMINAL_ORDER_STATUSES: OrderStatus[] = [
   OrderStatus.cancelled,
 ];
 const DEFAULT_BRANCH_BILL_LIMIT = 50;
-const BILL_NUMBER_PREFIX = 'BILL-';
-const RECEIPT_NUMBER_PREFIX = 'RCPT-';
+const BILL_NUMBER_PREFIX = "BILL-";
+const RECEIPT_NUMBER_PREFIX = "RCPT-";
 
 type PrismaExecutor = PrismaService | Prisma.TransactionClient;
+
+export interface OnlinePaymentSettlementInput {
+  billId: string;
+  onlinePaymentIntentId: string;
+  provider: OnlinePaymentProvider;
+  amountMinor: number;
+  providerIntentId?: string | null;
+  providerEventId?: string | null;
+}
+
+export interface OnlinePaymentSettlementResult {
+  settled: boolean;
+  reason?: string;
+  message?: string;
+  billResponse?: unknown;
+}
 
 @Injectable()
 export class BillsService {
@@ -92,16 +110,16 @@ export class BillsService {
     });
 
     if (!branch) {
-      throw new NotFoundException('Branch not found');
+      throw new NotFoundException("Branch not found");
     }
 
-    const status = query.status ?? 'active';
+    const status = query.status ?? "active";
     const bills = await this.prisma.bill.findMany({
       where: {
         branchId,
         ...this.billStatusWhere(status),
       },
-      orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+      orderBy: [{ createdAt: "desc" }, { id: "desc" }],
       take: this.normalizeLimit(query.limit),
       include: this.billListInclude(),
     });
@@ -124,7 +142,7 @@ export class BillsService {
     const response = await this.getBillResponse(billId, this.prisma);
 
     if (!response.receipt) {
-      throw new NotFoundException('Bill receipt not found');
+      throw new NotFoundException("Bill receipt not found");
     }
 
     return {
@@ -145,7 +163,7 @@ export class BillsService {
   ) {
     const bills = await tx.bill.findMany({
       where: { tableSessionId: sessionId },
-      orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+      orderBy: [{ createdAt: "desc" }, { id: "desc" }],
       take: 5,
       include: this.billListInclude(),
     });
@@ -175,7 +193,7 @@ export class BillsService {
   ) {
     const response = await this.createOrGetBillForBillRequest(
       billRequestId,
-      { actorType: 'staff' },
+      { actorType: "staff" },
       tx,
     );
 
@@ -211,7 +229,7 @@ export class BillsService {
       });
 
       if (!bill) {
-        throw new NotFoundException('Bill not found');
+        throw new NotFoundException("Bill not found");
       }
 
       if (!PAYABLE_BILL_STATUSES.includes(bill.status)) {
@@ -219,17 +237,17 @@ export class BillsService {
           bill.status === BillStatus.paid ||
           bill.status === BillStatus.closed
         ) {
-          throw new BadRequestException('Bill is already paid');
+          throw new BadRequestException("Bill is already paid");
         }
 
         throw new BadRequestException(
-          'Only presented bills can receive manual payments',
+          "Only presented bills can receive manual payments",
         );
       }
 
       if (body.amountMinor !== bill.balanceDueMinor) {
         throw new BadRequestException(
-          'Manual payment amount must match the bill balance due',
+          "Manual payment amount must match the bill balance due",
         );
       }
 
@@ -270,11 +288,11 @@ export class BillsService {
           currentBill?.status === BillStatus.paid ||
           currentBill?.status === BillStatus.closed
         ) {
-          throw new BadRequestException('Bill is already paid');
+          throw new BadRequestException("Bill is already paid");
         }
 
         throw new BadRequestException(
-          'Bill is no longer payable or the balance changed. Refresh the bill and try again.',
+          "Bill is no longer payable or the balance changed. Refresh the bill and try again.",
         );
       }
 
@@ -349,13 +367,173 @@ export class BillsService {
       await this.realtimeEventsService.recordBillPaymentRecorded(bill.id, tx);
       await this.realtimeEventsService.recordBillPaid(bill.id, tx);
       await this.realtimeEventsService.recordReceiptGenerated(bill.id, tx);
-      await this.recalculateAttention(bill.tableSessionId, tx, 'bill_paid', {
+      await this.recalculateAttention(bill.tableSessionId, tx, "bill_paid", {
         billId: bill.id,
         billRequestId: bill.billRequestId,
       });
 
       return this.getBillResponse(bill.id, tx);
     });
+  }
+
+  async settleBillWithOnlinePayment(
+    input: OnlinePaymentSettlementInput,
+    tx: Prisma.TransactionClient,
+  ): Promise<OnlinePaymentSettlementResult> {
+    const bill = await tx.bill.findUnique({
+      where: { id: input.billId },
+      select: {
+        id: true,
+        companyId: true,
+        branchId: true,
+        tableSessionId: true,
+        billRequestId: true,
+        status: true,
+        currency: true,
+        totalMinor: true,
+        paidMinor: true,
+        balanceDueMinor: true,
+      },
+    });
+
+    if (!bill) {
+      throw new NotFoundException("Bill not found");
+    }
+
+    if (!PAYABLE_BILL_STATUSES.includes(bill.status)) {
+      if (
+        bill.status === BillStatus.paid ||
+        bill.status === BillStatus.closed
+      ) {
+        return {
+          settled: false,
+          reason: "bill_already_paid",
+          message: "Bill is already paid",
+          billResponse: await this.getBillResponse(bill.id, tx),
+        };
+      }
+
+      return {
+        settled: false,
+        reason: "bill_not_payable",
+        message: "Bill is not payable. Present the bill before online payment.",
+        billResponse: await this.getBillResponse(bill.id, tx),
+      };
+    }
+
+    if (input.amountMinor !== bill.balanceDueMinor) {
+      return {
+        settled: false,
+        reason: "bill_balance_changed",
+        message:
+          "Bill is no longer payable or the balance changed. Refresh the bill and try again.",
+        billResponse: await this.getBillResponse(bill.id, tx),
+      };
+    }
+
+    const now = new Date();
+    const settledBill = await tx.bill.updateMany({
+      where: {
+        id: bill.id,
+        status: { in: PAYABLE_BILL_STATUSES },
+        balanceDueMinor: input.amountMinor,
+      },
+      data: {
+        status: BillStatus.paid,
+        paidMinor: bill.totalMinor,
+        balanceDueMinor: 0,
+        paidAt: now,
+      },
+    });
+
+    if (settledBill.count === 0) {
+      const currentBill = await tx.bill.findUnique({
+        where: { id: bill.id },
+        select: { status: true, balanceDueMinor: true },
+      });
+
+      if (
+        currentBill?.status === BillStatus.paid ||
+        currentBill?.status === BillStatus.closed
+      ) {
+        return {
+          settled: false,
+          reason: "bill_already_paid",
+          message: "Bill is already paid",
+          billResponse: await this.getBillResponse(bill.id, tx),
+        };
+      }
+
+      return {
+        settled: false,
+        reason: "bill_stale",
+        message:
+          "Bill is no longer payable or the balance changed. Refresh the bill and try again.",
+        billResponse: await this.getBillResponse(bill.id, tx),
+      };
+    }
+
+    await this.createBillEvent(
+      bill.id,
+      BillEventType.payment_recorded,
+      undefined,
+      {
+        method:
+          input.provider === OnlinePaymentProvider.mock
+            ? "online_mock"
+            : "online_external",
+        provider: input.provider,
+        onlinePaymentIntentId: input.onlinePaymentIntentId,
+        providerIntentId: input.providerIntentId,
+        providerEventId: input.providerEventId,
+        amountMinor: input.amountMinor,
+      },
+      tx,
+    );
+    await this.createBillEvent(
+      bill.id,
+      BillEventType.paid,
+      undefined,
+      {
+        paidMinor: bill.totalMinor,
+        balanceDueMinor: 0,
+        source: "online_payment",
+        onlinePaymentIntentId: input.onlinePaymentIntentId,
+      },
+      tx,
+    );
+    await this.closeLinkedBillRequestAfterPayment(
+      bill.billRequestId,
+      undefined,
+      null,
+      tx,
+      "online_payment_succeeded",
+    );
+    await this.completeServedOrdersForPaidBill(
+      bill.tableSessionId,
+      bill.id,
+      bill.billRequestId,
+      undefined,
+      null,
+      tx,
+      "online_payment_succeeded",
+    );
+    await this.closeTableSessionIfSettled(bill.tableSessionId, undefined, tx);
+    await this.ensureReceiptForBill(bill.id, undefined, tx);
+    await this.realtimeEventsService.recordBillPaymentRecorded(bill.id, tx);
+    await this.realtimeEventsService.recordBillPaid(bill.id, tx);
+    await this.realtimeEventsService.recordReceiptGenerated(bill.id, tx);
+    await this.recalculateAttention(bill.tableSessionId, tx, "bill_paid", {
+      billId: bill.id,
+      billRequestId: bill.billRequestId,
+      source: "online_payment",
+    });
+
+    return {
+      settled: true,
+      reason: "settled",
+      billResponse: await this.getBillResponse(bill.id, tx),
+    };
   }
 
   async cancel(billId: string, body: CancelBillDto = {}) {
@@ -393,12 +571,12 @@ export class BillsService {
     });
 
     if (!bill) {
-      throw new BadRequestException('Bill has not been generated yet');
+      throw new BadRequestException("Bill has not been generated yet");
     }
 
     if (bill.status !== BillStatus.paid && bill.status !== BillStatus.closed) {
       throw new BadRequestException(
-        'Bill must be paid before it can be closed',
+        "Bill must be paid before it can be closed",
       );
     }
 
@@ -449,12 +627,12 @@ export class BillsService {
     }
 
     if (bill.status === BillStatus.paid || bill.status === BillStatus.closed) {
-      throw new BadRequestException('Paid bills cannot be cancelled');
+      throw new BadRequestException("Paid bills cannot be cancelled");
     }
 
     await this.cancelInternal(
       bill.id,
-      { staffUserId, reason: reason ?? 'Bill request cancelled' },
+      { staffUserId, reason: reason ?? "Bill request cancelled" },
       tx,
     );
 
@@ -493,16 +671,16 @@ export class BillsService {
     });
 
     if (!billRequest) {
-      throw new NotFoundException('Bill request not found');
+      throw new NotFoundException("Bill request not found");
     }
 
     if (billRequest.status === BillRequestStatus.closed) {
-      throw new BadRequestException('Closed bill requests cannot create bills');
+      throw new BadRequestException("Closed bill requests cannot create bills");
     }
 
     if (billRequest.status === BillRequestStatus.cancelled) {
       throw new BadRequestException(
-        'Cancelled bill requests cannot create bills',
+        "Cancelled bill requests cannot create bills",
       );
     }
 
@@ -514,7 +692,7 @@ export class BillsService {
 
     if (totals.orderCount === 0) {
       throw new BadRequestException(
-        'Table session has no accepted, preparing, ready, served, or completed orders to bill',
+        "Table session has no accepted, preparing, ready, served, or completed orders to bill",
       );
     }
 
@@ -523,8 +701,8 @@ export class BillsService {
     const actorType =
       options.actorType ??
       (billRequest.requestedByActorType === BillRequestActorType.customer
-        ? 'customer'
-        : 'system');
+        ? "customer"
+        : "system");
     const bill = await tx.bill.create({
       data: {
         companyId: billRequest.companyId,
@@ -543,7 +721,7 @@ export class BillsService {
         requestedAt: billRequest.requestedAt,
         createdByActorType: actorType,
         metadata: this.toJsonValue({
-          source: 'bill_request',
+          source: "bill_request",
           billRequestId: billRequest.id,
           billRequestSubtotalMinor: billRequest.subtotalMinor,
           billRequestOrderCount: billRequest.orderCount,
@@ -600,11 +778,11 @@ export class BillsService {
     });
 
     if (!bill) {
-      throw new NotFoundException('Bill not found');
+      throw new NotFoundException("Bill not found");
     }
 
     if (bill.status === BillStatus.cancelled) {
-      throw new BadRequestException('Cancelled bills cannot be presented');
+      throw new BadRequestException("Cancelled bills cannot be presented");
     }
 
     if (bill.status === BillStatus.paid || bill.status === BillStatus.closed) {
@@ -633,7 +811,7 @@ export class BillsService {
       tx,
     );
     await this.realtimeEventsService.recordBillPresentedForBill(bill.id, tx);
-    await this.recalculateAttention(bill.tableSessionId, tx, 'bill_presented', {
+    await this.recalculateAttention(bill.tableSessionId, tx, "bill_presented", {
       billId: bill.id,
       billRequestId: bill.billRequestId,
     });
@@ -659,11 +837,11 @@ export class BillsService {
     });
 
     if (!bill) {
-      throw new NotFoundException('Bill not found');
+      throw new NotFoundException("Bill not found");
     }
 
     if (bill.status === BillStatus.paid || bill.status === BillStatus.closed) {
-      throw new BadRequestException('Paid bills cannot be cancelled');
+      throw new BadRequestException("Paid bills cannot be cancelled");
     }
 
     if (bill.status === BillStatus.cancelled) {
@@ -673,7 +851,7 @@ export class BillsService {
     const reason = this.normalizeOptionalText(body.reason);
 
     if (!reason) {
-      throw new BadRequestException('Bill cancellation reason is required');
+      throw new BadRequestException("Bill cancellation reason is required");
     }
 
     const now = new Date();
@@ -695,7 +873,7 @@ export class BillsService {
       tx,
     );
     await this.realtimeEventsService.recordBillCancelledForBill(bill.id, tx);
-    await this.recalculateAttention(bill.tableSessionId, tx, 'bill_cancelled', {
+    await this.recalculateAttention(bill.tableSessionId, tx, "bill_cancelled", {
       billId: bill.id,
       billRequestId: bill.billRequestId,
       reason,
@@ -709,6 +887,7 @@ export class BillsService {
     staffUserId: string | undefined,
     note: string | null,
     tx: Prisma.TransactionClient,
+    source = "manual_payment_recorded",
   ) {
     if (!billRequestId) {
       return;
@@ -749,7 +928,7 @@ export class BillsService {
           : BillRequestActorType.system,
         actorStaffUserId: staffUserId,
         metadata: this.toJsonValue({
-          source: 'manual_payment_recorded',
+          source,
           ...(note ? { note } : {}),
         }),
       },
@@ -762,7 +941,7 @@ export class BillsService {
     await this.recalculateAttention(
       billRequest.tableSessionId,
       tx,
-      'bill_request_closed_after_payment',
+      "bill_request_closed_after_payment",
       { billRequestId: billRequest.id },
     );
   }
@@ -771,9 +950,10 @@ export class BillsService {
     tableSessionId: string,
     billId: string,
     billRequestId: string | null,
-    staffUserId: string,
+    staffUserId: string | undefined,
     note: string | null,
     tx: Prisma.TransactionClient,
+    source = "manual_payment_recorded",
   ) {
     const servedOrders = await tx.order.findMany({
       where: {
@@ -806,10 +986,12 @@ export class BillsService {
         data: {
           orderId: order.id,
           type: OrderEventType.completed,
-          actorType: OrderEventActorType.staff,
+          actorType: staffUserId
+            ? OrderEventActorType.staff
+            : OrderEventActorType.system,
           actorStaffUserId: staffUserId,
           metadata: this.toJsonValue({
-            source: 'manual_payment_recorded',
+            source,
             billId,
             billRequestId,
             ...(note ? { note } : {}),
@@ -820,7 +1002,7 @@ export class BillsService {
       await this.recalculateAttention(
         tableSessionId,
         tx,
-        'bill_order_completed_after_payment',
+        "bill_order_completed_after_payment",
         { orderId: order.id, billId, billRequestId },
       );
     }
@@ -828,7 +1010,7 @@ export class BillsService {
 
   private async closeTableSessionIfSettled(
     tableSessionId: string,
-    staffUserId: string,
+    staffUserId: string | undefined,
     tx: Prisma.TransactionClient,
   ) {
     const openOrderCount = await tx.order.count({
@@ -850,7 +1032,7 @@ export class BillsService {
       data: {
         status: TableSessionStatus.closed,
         closedAt: new Date(),
-        closeReason: `bill_paid:${staffUserId}`,
+        closeReason: `bill_paid:${staffUserId ?? "system"}`,
       },
     });
   }
@@ -875,12 +1057,12 @@ export class BillsService {
     });
 
     if (!bill) {
-      throw new NotFoundException('Bill not found');
+      throw new NotFoundException("Bill not found");
     }
 
     if (bill.status !== BillStatus.paid && bill.status !== BillStatus.closed) {
       throw new BadRequestException(
-        'Receipt can only be generated for paid bills',
+        "Receipt can only be generated for paid bills",
       );
     }
 
@@ -925,7 +1107,7 @@ export class BillsService {
     while (true) {
       const billNumber = `${BILL_NUMBER_PREFIX}${String(sequence).padStart(
         5,
-        '0',
+        "0",
       )}`;
       const existing = await tx.bill.findUnique({
         where: {
@@ -985,7 +1167,7 @@ export class BillsService {
         tableSessionId,
         status: { in: BILLABLE_ORDER_STATUSES },
       },
-      orderBy: [{ submittedAt: 'asc' }, { createdAt: 'asc' }],
+      orderBy: [{ submittedAt: "asc" }, { createdAt: "asc" }],
       select: {
         id: true,
         orderNumber: true,
@@ -1001,7 +1183,7 @@ export class BillsService {
         servedAt: true,
         completedAt: true,
         items: {
-          orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
+          orderBy: [{ createdAt: "asc" }, { id: "asc" }],
           select: {
             id: true,
             menuItemId: true,
@@ -1012,7 +1194,7 @@ export class BillsService {
             lineTotalMinorSnapshot: true,
             currency: true,
             modifierOptions: {
-              orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
+              orderBy: [{ createdAt: "asc" }, { id: "asc" }],
               select: {
                 id: true,
                 modifierGroupId: true,
@@ -1036,7 +1218,7 @@ export class BillsService {
         subtotalMinor: 0,
         orderCount: 0,
         lineCount: 0,
-        currency: 'EGP',
+        currency: "EGP",
       };
     }
 
@@ -1044,14 +1226,14 @@ export class BillsService {
       order.currency,
       ...order.items.map((item: any) => item.currency),
     ]);
-    const currency = currencies[0] ?? 'EGP';
+    const currency = currencies[0] ?? "EGP";
 
     if (
       enforceSingleCurrency &&
       currencies.some((candidate) => candidate !== currency)
     ) {
       throw new BadRequestException(
-        'Billable orders must use the same currency',
+        "Billable orders must use the same currency",
       );
     }
 
@@ -1111,7 +1293,7 @@ export class BillsService {
       data: {
         billId,
         type,
-        actorType: staffUserId ? 'staff' : 'system',
+        actorType: staffUserId ? "staff" : "system",
         actorStaffUserId: staffUserId,
         metadata: this.toJsonValue(metadata ?? {}),
       },
@@ -1163,32 +1345,57 @@ export class BillsService {
         currency: line.currency,
         modifiersSnapshot: line.modifiersSnapshot,
       })),
-      payments: bill.manualPayments
-        .filter(
-          (payment: any) => payment.status === ManualPaymentStatus.recorded,
-        )
-        .map((payment: any) => ({
-          id: payment.id,
-          method: payment.method,
-          amountMinor: payment.amountMinor,
-          currency: payment.currency,
-          reference: payment.reference,
-          note: payment.note,
-          recordedAt: payment.recordedAt,
-        })),
+      payments: [
+        ...bill.manualPayments
+          .filter(
+            (payment: any) => payment.status === ManualPaymentStatus.recorded,
+          )
+          .map((payment: any) => ({
+            id: payment.id,
+            method: payment.method,
+            provider: null,
+            amountMinor: payment.amountMinor,
+            currency: payment.currency,
+            reference: payment.reference,
+            note: payment.note,
+            recordedAt: payment.recordedAt,
+          })),
+        ...(bill.onlinePaymentIntents ?? [])
+          .filter(
+            (payment: any) =>
+              payment.status === OnlinePaymentIntentStatus.succeeded,
+          )
+          .map((payment: any) => ({
+            id: payment.id,
+            method:
+              payment.provider === OnlinePaymentProvider.mock
+                ? "online_mock"
+                : "online_external",
+            provider: payment.provider,
+            amountMinor: payment.amountMinor,
+            currency: payment.currency,
+            reference: payment.providerIntentId,
+            note: null,
+            recordedAt: payment.succeededAt ?? payment.updatedAt,
+          })),
+      ].sort(
+        (left: any, right: any) =>
+          new Date(left.recordedAt).getTime() -
+          new Date(right.recordedAt).getTime(),
+      ),
     };
   }
 
   private toPrintableReceiptText(payload: any) {
     const lines = [
-      payload.company?.name ?? 'Cafe',
-      payload.branch?.name ?? 'Branch',
+      payload.company?.name ?? "Cafe",
+      payload.branch?.name ?? "Branch",
       `Receipt ${payload.receiptNumber}`,
       `Bill ${payload.bill.billNumber}`,
       payload.table
         ? `Table ${payload.table.displayName ?? payload.table.code}`
         : null,
-      '',
+      "",
       ...payload.lines.map(
         (line: any) =>
           `${line.quantity} x ${line.itemNameSnapshot} ${this.formatMinor(
@@ -1196,17 +1403,21 @@ export class BillsService {
             line.currency,
           )}`,
       ),
-      '',
+      "",
       `Subtotal ${this.formatMinor(
         payload.bill.subtotalMinor,
         payload.bill.currency,
       )}`,
       `Total ${this.formatMinor(payload.bill.totalMinor, payload.bill.currency)}`,
       `Paid ${this.formatMinor(payload.bill.paidMinor, payload.bill.currency)}`,
-      'Manual payment recorded by cashier.',
+      payload.payments.some((payment: any) =>
+        String(payment.method).startsWith("online_"),
+      )
+        ? "Online payment confirmed."
+        : "Manual payment recorded by cashier.",
     ].filter((line) => line !== null);
 
-    return lines.join('\n');
+    return lines.join("\n");
   }
 
   private async getBillResponse(billId: string, tx: PrismaExecutor) {
@@ -1216,7 +1427,7 @@ export class BillsService {
     });
 
     if (!bill) {
-      throw new NotFoundException('Bill not found');
+      throw new NotFoundException("Bill not found");
     }
 
     return this.toBillResponse(bill);
@@ -1230,6 +1441,8 @@ export class BillsService {
       billRequest,
       lines,
       manualPayments,
+      onlinePaymentIntents,
+      onlinePaymentEvents,
       receipt,
       events,
       ...billFields
@@ -1247,6 +1460,8 @@ export class BillsService {
       billRequest,
       lines,
       manualPayments,
+      onlinePaymentIntents,
+      onlinePaymentEvents,
       receipt,
       events,
       totals: this.toBillTotals(record),
@@ -1259,6 +1474,7 @@ export class BillsService {
       billRequest,
       lines,
       manualPayments,
+      onlinePaymentIntents,
       receipt,
       ...billFields
     } = record;
@@ -1273,6 +1489,7 @@ export class BillsService {
       billRequest,
       lines,
       manualPayments,
+      onlinePaymentIntents,
       receipt,
       totals: this.toBillTotals(record),
     };
@@ -1294,13 +1511,13 @@ export class BillsService {
   }
 
   private billStatusWhere(
-    status: NonNullable<BranchBillsQueryDto['status']>,
+    status: NonNullable<BranchBillsQueryDto["status"]>,
   ): Prisma.BillWhereInput {
-    if (status === 'all') {
+    if (status === "all") {
       return {};
     }
 
-    if (status === 'active') {
+    if (status === "active") {
       return { status: { in: ACTIVE_BILL_STATUSES } };
     }
 
@@ -1321,7 +1538,7 @@ export class BillsService {
     });
 
     if (!staffUser) {
-      throw new NotFoundException('Staff user not found');
+      throw new NotFoundException("Staff user not found");
     }
   }
 
@@ -1371,10 +1588,13 @@ export class BillsService {
       },
       billRequest: true,
       lines: {
-        orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
+        orderBy: [{ createdAt: "asc" }, { id: "asc" }],
       },
       manualPayments: {
-        orderBy: [{ recordedAt: 'asc' }, { id: 'asc' }],
+        orderBy: [{ recordedAt: "asc" }, { id: "asc" }],
+      },
+      onlinePaymentIntents: {
+        orderBy: [{ createdAt: "asc" }, { id: "asc" }],
       },
       receipt: true,
     } satisfies Prisma.BillInclude;
@@ -1389,14 +1609,20 @@ export class BillsService {
       },
       billRequest: true,
       lines: {
-        orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
+        orderBy: [{ createdAt: "asc" }, { id: "asc" }],
       },
       manualPayments: {
-        orderBy: [{ recordedAt: 'asc' }, { id: 'asc' }],
+        orderBy: [{ recordedAt: "asc" }, { id: "asc" }],
+      },
+      onlinePaymentIntents: {
+        orderBy: [{ createdAt: "asc" }, { id: "asc" }],
+      },
+      onlinePaymentEvents: {
+        orderBy: [{ createdAt: "asc" }, { id: "asc" }],
       },
       receipt: true,
       events: {
-        orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
+        orderBy: [{ createdAt: "asc" }, { id: "asc" }],
       },
     } satisfies Prisma.BillInclude;
   }

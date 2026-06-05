@@ -10,6 +10,7 @@ import {
   getBillLines,
   getBillManualPayments,
   getBillNumber,
+  getBillOnlinePaymentIntents,
   getBillReceipt,
   getBillRequestCreatedAt,
   getBillRequestId,
@@ -112,6 +113,7 @@ export function BillRequestCard({
   const totals = getBillTotals(billRequest);
   const lines = getBillLines(billRequest);
   const manualPayments = getBillManualPayments(billRequest);
+  const onlinePaymentIntents = getBillOnlinePaymentIntents(billRequest);
   const receipt = getBillReceipt(billRequest);
   const currency = getRecordString(totals, "currency", "EGP");
   const subtotalMinor = getRecordNumber(
@@ -149,6 +151,20 @@ export function BillRequestCard({
   const [note, setNote] = useState("");
   const paymentAmountMinor = amountInputToMinor(paymentAmount, balanceDueMinor);
   const paymentAmountMatchesBalance = paymentAmountMinor === balanceDueMinor;
+  const activeOnlinePaymentCount = onlinePaymentIntents.filter((payment) => {
+    const status = getRecordString(payment, "status");
+
+    return status === "pending" || status === "requires_action";
+  }).length;
+  const succeededOnlinePaymentCount = onlinePaymentIntents.filter(
+    (payment) => getRecordString(payment, "status") === "succeeded",
+  ).length;
+  const onlinePaymentBadge =
+    succeededOnlinePaymentCount > 0
+      ? "Online paid"
+      : activeOnlinePaymentCount > 0
+        ? "Online pending"
+        : "Manual only";
   const acknowledgeDisabledReason = !billRequestId
     ? "Acknowledge is unavailable because this request is missing an id."
     : requestStatus !== "open"
@@ -265,7 +281,10 @@ export function BillRequestCard({
       {receipt ? (
         <div className="mt-4 rounded-card border border-success bg-success/10 p-3 text-sm text-success">
           Receipt {getRecordString(receipt, "receiptNumber", "generated")} is
-          ready. Manual payment has been recorded by the cashier.
+          ready.{" "}
+          {succeededOnlinePaymentCount > 0
+            ? "Online payment has been confirmed."
+            : "Manual payment has been recorded by the cashier."}
         </div>
       ) : null}
 
@@ -273,6 +292,24 @@ export function BillRequestCard({
         <div className="mt-3 text-xs text-muted-foreground">
           {manualPayments.length} manual payment
           {manualPayments.length === 1 ? "" : "s"} recorded.
+        </div>
+      ) : null}
+
+      {onlinePaymentIntents.length > 0 ? (
+        <div className="mt-3 rounded-card border bg-background/40 p-3 text-xs text-muted-foreground">
+          <p className="font-semibold text-foreground">Online payments</p>
+          <div className="mt-2 grid gap-1">
+            {onlinePaymentIntents.slice(-3).map((payment, index) => (
+              <p key={getRecordString(payment, "id", `online-${index}`)}>
+                {humanizeStatus(getRecordString(payment, "status"))} via{" "}
+                {getRecordString(payment, "provider", "mock")} ·{" "}
+                {formatMoney(
+                  getRecordNumber(payment, "amountMinor"),
+                  getRecordString(payment, "currency", currency),
+                )}
+              </p>
+            ))}
+          </div>
         </div>
       ) : null}
 
@@ -333,7 +370,17 @@ export function BillRequestCard({
             <p className="text-sm font-semibold text-foreground">
               Manual payment
             </p>
-            <Badge variant="warning">No online payment</Badge>
+            <Badge
+              variant={
+                succeededOnlinePaymentCount > 0
+                  ? "success"
+                  : activeOnlinePaymentCount > 0
+                    ? "warning"
+                    : "muted"
+              }
+            >
+              {onlinePaymentBadge}
+            </Badge>
           </div>
           <div className="grid gap-3 md:grid-cols-3">
             <label className="grid gap-1 text-xs font-medium text-muted-foreground">

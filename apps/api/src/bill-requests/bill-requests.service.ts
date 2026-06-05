@@ -2,7 +2,7 @@ import {
   BadRequestException,
   Injectable,
   NotFoundException,
-} from '@nestjs/common';
+} from "@nestjs/common";
 import {
   BillRequestActorType,
   BillRequestEventType,
@@ -12,16 +12,16 @@ import {
   OrderStatus,
   Prisma,
   TableSessionStatus,
-} from '@prisma/client';
-import { TableAttentionService } from '../autopilot/table-attention.service';
-import { BillsService } from '../bills/bills.service';
-import { PresenceNotificationsService } from '../presence-notifications/presence-notifications.service';
-import { PrismaService } from '../prisma/prisma.service';
-import { RealtimeEventsService } from '../realtime-events/realtime-events.service';
-import { BillStaffActionDto } from './dto/bill-staff-action.dto';
-import { BranchBillRequestsQueryDto } from './dto/branch-bill-requests-query.dto';
-import { CancelBillRequestDto } from './dto/cancel-bill-request.dto';
-import { RequestBillDto } from './dto/request-bill.dto';
+} from "@prisma/client";
+import { TableAttentionService } from "../autopilot/table-attention.service";
+import { BillsService } from "../bills/bills.service";
+import { PresenceNotificationsService } from "../presence-notifications/presence-notifications.service";
+import { PrismaService } from "../prisma/prisma.service";
+import { RealtimeEventsService } from "../realtime-events/realtime-events.service";
+import { BillStaffActionDto } from "./dto/bill-staff-action.dto";
+import { BranchBillRequestsQueryDto } from "./dto/branch-bill-requests-query.dto";
+import { CancelBillRequestDto } from "./dto/cancel-bill-request.dto";
+import { RequestBillDto } from "./dto/request-bill.dto";
 
 const ACTIVE_BILL_REQUEST_STATUSES: BillRequestStatus[] = [
   BillRequestStatus.open,
@@ -60,7 +60,10 @@ export class BillRequestsService {
       if (activeBillRequest) {
         await this.billsService.createOrGetBillForBillRequest(
           activeBillRequest.id,
-          { actorType: 'customer', metadata: { source: 'active_bill_request' } },
+          {
+            actorType: "customer",
+            metadata: { source: "active_bill_request" },
+          },
           tx,
         );
 
@@ -72,7 +75,7 @@ export class BillRequestsService {
 
       if (totals.orderCount === 0) {
         throw new BadRequestException(
-          'Table session has no accepted, preparing, ready, served, or completed orders to bill',
+          "Table session has no accepted, preparing, ready, served, or completed orders to bill",
         );
       }
 
@@ -125,15 +128,12 @@ export class BillRequestsService {
       await this.realtimeEventsService.recordBillRequested(billRequest.id, tx);
       await this.billsService.createOrGetBillForBillRequest(
         billRequest.id,
-        { actorType: 'customer' },
+        { actorType: "customer" },
         tx,
       );
-      await this.recalculateAttention(
-        tableSession.id,
-        tx,
-        'bill_requested',
-        { billRequestId: billRequest.id },
-      );
+      await this.recalculateAttention(tableSession.id, tx, "bill_requested", {
+        billRequestId: billRequest.id,
+      });
 
       return this.getBillRequestResponse(billRequest.id, tx);
     });
@@ -149,7 +149,7 @@ export class BillRequestsService {
         this.findActiveBillRequest(sessionId, this.prisma),
         this.prisma.billRequest.findMany({
           where: { tableSessionId: sessionId },
-          orderBy: [{ requestedAt: 'desc' }, { createdAt: 'desc' }],
+          orderBy: [{ requestedAt: "desc" }, { createdAt: "desc" }],
           take: 5,
           include: this.billRequestListInclude(),
         }),
@@ -183,16 +183,16 @@ export class BillRequestsService {
     });
 
     if (!branch) {
-      throw new NotFoundException('Branch not found');
+      throw new NotFoundException("Branch not found");
     }
 
-    const status = query.status ?? 'active';
+    const status = query.status ?? "active";
     const billRequests = await this.prisma.billRequest.findMany({
       where: {
         branchId,
         ...this.billRequestStatusWhere(status),
       },
-      orderBy: [{ requestedAt: 'asc' }, { createdAt: 'asc' }],
+      orderBy: [{ requestedAt: "asc" }, { createdAt: "asc" }],
       take: this.normalizeLimit(query.limit),
       include: this.billRequestListInclude(),
     });
@@ -224,7 +224,7 @@ export class BillRequestsService {
 
       if (billRequest.status !== BillRequestStatus.open) {
         throw new BadRequestException(
-          'Only open bill requests can be acknowledged',
+          "Only open bill requests can be acknowledged",
         );
       }
 
@@ -253,7 +253,7 @@ export class BillRequestsService {
       await this.recalculateAttention(
         billRequest.tableSessionId,
         tx,
-        'bill_acknowledged',
+        "bill_acknowledged",
         { billRequestId: billRequest.id },
       );
 
@@ -275,7 +275,7 @@ export class BillRequestsService {
         billRequest.status !== BillRequestStatus.acknowledged
       ) {
         throw new BadRequestException(
-          'Only open or acknowledged bill requests can be presented',
+          "Only open or acknowledged bill requests can be presented",
         );
       }
 
@@ -311,7 +311,7 @@ export class BillRequestsService {
       await this.recalculateAttention(
         billRequest.tableSessionId,
         tx,
-        'bill_presented',
+        "bill_presented",
         { billRequestId: billRequest.id },
       );
 
@@ -330,7 +330,7 @@ export class BillRequestsService {
 
       if (!ACTIVE_BILL_REQUEST_STATUSES.includes(billRequest.status)) {
         throw new BadRequestException(
-          'Only open, acknowledged, or presented bill requests can be closed',
+          "Only open, acknowledged, or presented bill requests can be closed",
         );
       }
 
@@ -344,7 +344,7 @@ export class BillRequestsService {
       await this.recalculateAttention(
         billRequest.tableSessionId,
         tx,
-        'bill_closed',
+        "bill_closed",
         { billRequestId: billRequest.id },
       );
 
@@ -366,7 +366,7 @@ export class BillRequestsService {
         billRequest.status === BillRequestStatus.cancelled
       ) {
         throw new BadRequestException(
-          'Closed or cancelled bill requests cannot be cancelled',
+          "Closed or cancelled bill requests cannot be cancelled",
         );
       }
 
@@ -399,7 +399,7 @@ export class BillRequestsService {
       await this.recalculateAttention(
         billRequest.tableSessionId,
         tx,
-        'bill_cancelled',
+        "bill_cancelled",
         { billRequestId: billRequest.id },
       );
 
@@ -434,7 +434,7 @@ export class BillRequestsService {
     });
 
     if (!tableSession) {
-      throw new NotFoundException('Table session not found');
+      throw new NotFoundException("Table session not found");
     }
 
     return tableSession;
@@ -454,7 +454,7 @@ export class BillRequestsService {
     });
 
     if (!billRequest) {
-      throw new NotFoundException('Bill request not found');
+      throw new NotFoundException("Bill request not found");
     }
 
     return billRequest;
@@ -466,7 +466,7 @@ export class BillRequestsService {
         tableSessionId: sessionId,
         status: { in: ACTIVE_BILL_REQUEST_STATUSES },
       },
-      orderBy: [{ requestedAt: 'desc' }, { createdAt: 'desc' }],
+      orderBy: [{ requestedAt: "desc" }, { createdAt: "desc" }],
       include: this.billRequestListInclude(),
     });
   }
@@ -477,7 +477,7 @@ export class BillRequestsService {
         tableSessionId: sessionId,
         status: { in: BILLABLE_ORDER_STATUSES },
       },
-      orderBy: [{ submittedAt: 'asc' }, { createdAt: 'asc' }],
+      orderBy: [{ submittedAt: "asc" }, { createdAt: "asc" }],
       select: {
         id: true,
         orderNumber: true,
@@ -510,21 +510,27 @@ export class BillRequestsService {
           include: this.billSummaryInclude(),
         },
         events: {
-          orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
+          orderBy: [{ createdAt: "asc" }, { id: "asc" }],
         },
       },
     });
 
     if (!billRequest) {
-      throw new NotFoundException('Bill request not found');
+      throw new NotFoundException("Bill request not found");
     }
 
     const billableOrders = await this.findBillableOrders(
       billRequest.tableSessionId,
       tx,
     );
-    const { company, branch, tableSession, bill, events, ...billRequestFields } =
-      billRequest;
+    const {
+      company,
+      branch,
+      tableSession,
+      bill,
+      events,
+      ...billRequestFields
+    } = billRequest;
 
     return {
       billRequest: billRequestFields,
@@ -553,7 +559,7 @@ export class BillRequestsService {
       return {
         subtotalMinor: 0,
         orderCount: 0,
-        currency: 'EGP',
+        currency: "EGP",
       };
     }
 
@@ -564,7 +570,7 @@ export class BillRequestsService {
       orders.some((order) => order.currency !== currency)
     ) {
       throw new BadRequestException(
-        'Billable orders must use the same currency',
+        "Billable orders must use the same currency",
       );
     }
 
@@ -579,13 +585,13 @@ export class BillRequestsService {
   }
 
   private billRequestStatusWhere(
-    status: NonNullable<BranchBillRequestsQueryDto['status']>,
+    status: NonNullable<BranchBillRequestsQueryDto["status"]>,
   ) {
-    if (status === 'all') {
+    if (status === "all") {
       return {};
     }
 
-    if (status === 'active') {
+    if (status === "active") {
       return { status: { in: ACTIVE_BILL_REQUEST_STATUSES } };
     }
 
@@ -598,7 +604,7 @@ export class BillRequestsService {
       status !== TableSessionStatus.idle
     ) {
       throw new BadRequestException(
-        'Bill can only be requested for active or idle table sessions',
+        "Bill can only be requested for active or idle table sessions",
       );
     }
   }
@@ -617,7 +623,7 @@ export class BillRequestsService {
     });
 
     if (!staffUser) {
-      throw new NotFoundException('Staff user not found');
+      throw new NotFoundException("Staff user not found");
     }
   }
 
@@ -640,7 +646,7 @@ export class BillRequestsService {
 
   private async toBillRequestListItem(record: any, tx: PrismaExecutor) {
     const billRequest =
-      'tableSession' in record
+      "tableSession" in record
         ? record
         : await tx.billRequest.findUnique({
             where: { id: record.id },
@@ -648,7 +654,7 @@ export class BillRequestsService {
           });
 
     if (!billRequest) {
-      throw new NotFoundException('Bill request not found');
+      throw new NotFoundException("Bill request not found");
     }
 
     return this.toBillRequestListItemFromRecord(billRequest);
@@ -728,10 +734,13 @@ export class BillRequestsService {
   private billSummaryInclude() {
     return {
       lines: {
-        orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
+        orderBy: [{ createdAt: "asc" }, { id: "asc" }],
       },
       manualPayments: {
-        orderBy: [{ recordedAt: 'asc' }, { id: 'asc' }],
+        orderBy: [{ recordedAt: "asc" }, { id: "asc" }],
+      },
+      onlinePaymentIntents: {
+        orderBy: [{ createdAt: "asc" }, { id: "asc" }],
       },
       receipt: true,
     } satisfies Prisma.BillInclude;

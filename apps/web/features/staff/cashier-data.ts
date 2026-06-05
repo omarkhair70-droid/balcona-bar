@@ -203,6 +203,15 @@ export function getBillManualPayments(value: unknown) {
     : getRecordArray(bill.manualPayments);
 }
 
+export function getBillOnlinePaymentIntents(value: unknown) {
+  const envelope = getBillEnvelopeRecord(value);
+  const bill = getBillRecord(value);
+
+  return getRecordArray(envelope.onlinePaymentIntents).length > 0
+    ? getRecordArray(envelope.onlinePaymentIntents)
+    : getRecordArray(bill.onlinePaymentIntents);
+}
+
 export function getBillReceipt(value: unknown) {
   const envelope = getBillEnvelopeRecord(value);
   const bill = getBillRecord(value);

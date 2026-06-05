@@ -1794,6 +1794,8 @@ export type BillDetailResult = Record<string, unknown> & {
   billRequest?: Record<string, unknown> | null;
   lines?: Record<string, unknown>[];
   manualPayments?: Record<string, unknown>[];
+  onlinePaymentIntents?: Record<string, unknown>[];
+  onlinePaymentEvents?: Record<string, unknown>[];
   receipt?: Record<string, unknown> | null;
   events?: Record<string, unknown>[];
   totals?: Record<string, unknown>;
@@ -1810,6 +1812,55 @@ export type RecordManualPaymentPayload = {
   amountMinor: number;
   reference?: string | null;
   note?: string | null;
+};
+
+export type OnlinePaymentProvider = "mock" | "external";
+
+export type OnlinePaymentIntentStatus =
+  | "pending"
+  | "requires_action"
+  | "succeeded"
+  | "failed"
+  | "cancelled"
+  | "expired";
+
+export type CreateOnlinePaymentIntentPayload = {
+  idempotencyKey?: string;
+  customerReturnUrl?: string;
+};
+
+export type OnlinePaymentIntentResult = Record<string, unknown> & {
+  outcome?: string;
+  onlinePaymentIntent?: Record<string, unknown>;
+  checkout?: {
+    provider?: OnlinePaymentProvider;
+    url?: string | null;
+    expiresAt?: string | null;
+    requiresHostedCheckout?: boolean;
+  } | null;
+  settlement?: {
+    settled?: boolean;
+    reason?: string;
+    message?: string;
+  };
+  bill?: Record<string, unknown> | null;
+};
+
+export type BranchOnlinePaymentStatusFilter =
+  | OnlinePaymentIntentStatus
+  | "active"
+  | "all";
+
+export type BranchOnlinePaymentsQuery = {
+  status?: BranchOnlinePaymentStatusFilter;
+  provider?: OnlinePaymentProvider | "all";
+  limit?: number;
+};
+
+export type BranchOnlinePaymentsResult = {
+  branch: BranchSummary;
+  filters?: Record<string, unknown>;
+  onlinePaymentIntents: Record<string, unknown>[];
 };
 
 export type CashierShiftStatusFilter = "open" | "closed" | "all";
