@@ -38,6 +38,24 @@ function ownerAnalyticsRangeKey(query?: OwnerAnalyticsKeyQuery) {
 
 export const staffQueryKeys = {
   me: () => ["staff", "me"],
+  companyOnboarding: (companyId?: string) => [
+    "staff",
+    "tenant-onboarding",
+    "company",
+    companyId,
+  ],
+  branchOnboarding: (branchId?: string) => [
+    "staff",
+    "tenant-onboarding",
+    "branch",
+    branchId,
+  ],
+  branchLaunchChecklist: (branchId?: string) => [
+    "staff",
+    "tenant-onboarding",
+    "launch-checklist",
+    branchId,
+  ],
   branchOrders: (branchId?: string, status?: string) =>
     status === undefined
       ? ["staff", "branch-orders", branchId]

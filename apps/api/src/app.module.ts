@@ -37,6 +37,7 @@ import { StaffModule } from './staff/staff.module';
 import { SystemModule } from './system/system.module';
 import { TableSessionsModule } from './table-sessions/table-sessions.module';
 import { TablesModule } from './tables/tables.module';
+import { TenantOnboardingModule } from './tenant-onboarding/tenant-onboarding.module';
 import { VenueZonesModule } from './venue-zones/venue-zones.module';
 import { WaiterCallsModule } from './waiter-calls/waiter-calls.module';
 
@@ -83,6 +84,7 @@ import { WaiterCallsModule } from './waiter-calls/waiter-calls.module';
     MenuAdminModule,
     MenuModule,
     TableSessionsModule,
+    TenantOnboardingModule,
     VenueZonesModule,
     WaiterCallsModule,
   ],

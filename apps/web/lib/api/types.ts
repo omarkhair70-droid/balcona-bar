@@ -24,6 +24,297 @@ export type BranchSummary = {
   status?: string;
 };
 
+export type TenantOnboardingReadinessStatus =
+  | "ready"
+  | "missing"
+  | "needs_attention"
+  | "blocked";
+
+export type TenantOnboardingLaunchStatus =
+  | "ready_for_demo"
+  | "ready_for_pilot"
+  | "blocked";
+
+export type TenantOnboardingCheckStatus =
+  | "pending"
+  | "complete"
+  | "blocked"
+  | "skipped";
+
+export type TenantOnboardingCompanyStatus = "active" | "inactive";
+export type TenantOnboardingBranchStatus = "active" | "inactive";
+
+export type TenantOnboardingStaffRole =
+  | "owner"
+  | "branch_manager"
+  | "cashier"
+  | "waiter"
+  | "kitchen"
+  | "barista"
+  | "menu_admin";
+
+export type TenantOnboardingCompany = CompanySummary & {
+  status: TenantOnboardingCompanyStatus | string;
+  createdAt?: string;
+  updatedAt?: string;
+};
+
+export type TenantOnboardingBranch = BranchSummary & {
+  companyId: string;
+  status: TenantOnboardingBranchStatus | string;
+  createdAt?: string;
+  updatedAt?: string;
+  floorsCount?: number;
+  tablesCount?: number;
+};
+
+export type TenantOnboardingFloor = {
+  id: string;
+  branchId: string;
+  name: string;
+  sortOrder: number;
+  createdAt?: string;
+  updatedAt?: string;
+};
+
+export type TenantOnboardingTable = {
+  id: string;
+  branchId: string;
+  floorId?: string | null;
+  code: string;
+  displayName: string;
+  capacity: number;
+  qrToken?: string | null;
+  status: string;
+  createdAt?: string;
+  updatedAt?: string;
+  floor?: TenantOnboardingFloor | null;
+  customerPreviewPath?: string | null;
+};
+
+export type TenantOnboardingChecklistItem = {
+  key: string;
+  label: string;
+  status: TenantOnboardingReadinessStatus;
+  reason: string;
+  actionHref?: string;
+  metadata?: Record<string, unknown>;
+};
+
+export type TenantOnboardingSection = {
+  key: string;
+  label: string;
+  status: TenantOnboardingReadinessStatus;
+  readyCount: number;
+  totalCount: number;
+  percentage: number;
+  items: TenantOnboardingChecklistItem[];
+};
+
+export type TenantOnboardingLaunchSummary = {
+  status: TenantOnboardingLaunchStatus;
+  readyForDemo: boolean;
+  readyForPilot: boolean;
+  blockedReasons: Array<{
+    key: string;
+    label: string;
+    reason: string;
+  }>;
+  missingCriticalCount: number;
+  totalCriticalCount: number;
+};
+
+export type TenantOnboardingRoleCounts = Partial<
+  Record<TenantOnboardingStaffRole | string, number>
+>;
+
+export type CompanyOnboardingResult = {
+  company: TenantOnboardingCompany;
+  branches: TenantOnboardingBranch[];
+  staff: {
+    total: number;
+    roleCounts: TenantOnboardingRoleCounts;
+    companyScopedCount: number;
+    branchScopedCount: number;
+  };
+  menu: {
+    activeCategoryCount: number;
+    activeItemCount: number;
+  };
+  sections: TenantOnboardingSection[];
+  launchSummary: TenantOnboardingLaunchSummary;
+};
+
+export type BranchOnboardingStaffAssignment = {
+  membership: {
+    id: string;
+    companyId: string;
+    branchId?: string | null;
+    role: TenantOnboardingStaffRole | string;
+    status: string;
+  };
+  staffUser: StaffUserSummary & {
+    passwordSetAt?: string | null;
+  };
+};
+
+export type BranchOnboardingResult = {
+  company: TenantOnboardingCompany;
+  branch: TenantOnboardingBranch;
+  generatedAt: string;
+  sections: TenantOnboardingSection[];
+  tables: {
+    floorCount: number;
+    tableCount: number;
+    activeTableCount: number;
+    qrReadyTableCount: number;
+    missingQrTableCount: number;
+    floors: TenantOnboardingFloor[];
+    recentTables: TenantOnboardingTable[];
+  };
+  staff: {
+    total: number;
+    roleCounts: TenantOnboardingRoleCounts;
+    staff: BranchOnboardingStaffAssignment[];
+  };
+  menu: {
+    activeCategoryCount: number;
+    totalItemCount: number;
+    activeItemCount: number;
+    availableItemCount: number;
+    branchOverrideCount: number;
+    activeModifierGroupCount: number;
+    itemModifierLinkCount: number;
+    itemsWithModifiersCount: number;
+    missingPriceItemCount: number;
+    aiWaiterMenuGroundingReady: boolean;
+  };
+  operations: {
+    operatingSettings: Record<string, unknown> | null;
+    smartCashierSettings: Record<string, unknown> | null;
+    featureFlags: Record<string, boolean>;
+    printerStationCount: number;
+    activePrinterStationCount: number;
+    currentOpenShift: Record<string, unknown> | null;
+    cashierShiftCanOpen: boolean;
+  };
+  launchChecklist: TenantOnboardingChecklistItem[];
+  launchSummary: TenantOnboardingLaunchSummary;
+};
+
+export type UpdateCompanyOnboardingProfilePayload = {
+  name?: string;
+  slug?: string;
+  status?: TenantOnboardingCompanyStatus;
+};
+
+export type UpdateBranchOnboardingProfilePayload = {
+  name?: string;
+  slug?: string;
+  address?: string | null;
+  status?: TenantOnboardingBranchStatus;
+};
+
+export type CreateOnboardingFloorPayload = {
+  name: string;
+  sortOrder?: number;
+};
+
+export type BulkCreateOnboardingTablesPayload = {
+  floorLabel: string;
+  tablePrefix: string;
+  startNumber: number;
+  count: number;
+  seats: number;
+};
+
+export type InviteOnboardingStaffPayload = {
+  email: string;
+  name: string;
+  role: TenantOnboardingStaffRole;
+};
+
+export type UpdateReadinessCheckPayload = {
+  key: string;
+  status: TenantOnboardingCheckStatus;
+  note?: string | null;
+};
+
+export type UpdateCompanyOnboardingProfileResult = {
+  company: TenantOnboardingCompany;
+  onboarding: CompanyOnboardingResult;
+};
+
+export type UpdateBranchOnboardingProfileResult = {
+  branch: TenantOnboardingBranch;
+  onboarding: BranchOnboardingResult;
+};
+
+export type CreateOnboardingFloorResult = {
+  branch: TenantOnboardingBranch;
+  floor: TenantOnboardingFloor;
+  created: boolean;
+  onboarding: BranchOnboardingResult;
+};
+
+export type BulkCreateOnboardingTablesResult = {
+  branch: TenantOnboardingBranch;
+  floor: TenantOnboardingFloor;
+  created: TenantOnboardingTable[];
+  skipped: Array<{
+    code: string;
+    displayName: string;
+    reason: string;
+    table?: TenantOnboardingTable;
+  }>;
+  requestedCount: number;
+  createdCount: number;
+  skippedCount: number;
+  onboarding: BranchOnboardingResult;
+};
+
+export type InviteOnboardingStaffResult = {
+  staffUser: StaffUserSummary & {
+    passwordSetAt?: string | null;
+  };
+  membership: Record<string, unknown> & {
+    id: string;
+    staffUserId: string;
+    companyId: string;
+    branchId?: string | null;
+    role: TenantOnboardingStaffRole | string;
+    status: string;
+  };
+  createdStaffUser: boolean;
+  createdMembership: boolean;
+  passwordSetup: {
+    required: boolean;
+    devBootstrapAvailable: boolean;
+    nextStep: string;
+  };
+  onboarding: BranchOnboardingResult;
+};
+
+export type UpdateReadinessCheckResult = {
+  acknowledged: {
+    key: string;
+    status: TenantOnboardingCheckStatus;
+    note?: string | null;
+    actorStaffUserId: string;
+    persisted: boolean;
+  };
+  message: string;
+  onboarding: BranchOnboardingResult;
+};
+
+export type BranchLaunchChecklistResult = {
+  company: TenantOnboardingCompany;
+  branch: TenantOnboardingBranch;
+  launchChecklist: TenantOnboardingChecklistItem[];
+  launchSummary: TenantOnboardingLaunchSummary;
+  generatedAt: string;
+};
+
 export type OwnerAnalyticsPreset = "today" | "last_7_days" | "last_30_days";
 
 export type OwnerAnalyticsQuery = {

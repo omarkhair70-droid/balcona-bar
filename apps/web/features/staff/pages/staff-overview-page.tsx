@@ -11,6 +11,7 @@ import {
   LogIn,
   MonitorPlay,
   Receipt,
+  Rocket,
   ShieldCheck,
   UsersRound
 } from "lucide-react";
@@ -47,6 +48,14 @@ const staffAreas = [
     icon: <BookOpenText className="size-5" aria-hidden="true" />,
     state: "Live",
     requiredPermissions: ["menu.read"]
+  },
+  {
+    title: "Setup",
+    href: "/staff/setup",
+    description: "Tenant onboarding, branch launch checks, tables, QR, and staff readiness.",
+    icon: <Rocket className="size-5" aria-hidden="true" />,
+    state: "Live",
+    requiredPermissions: ["tenant_onboarding.read"]
   },
   {
     title: "Branches",
