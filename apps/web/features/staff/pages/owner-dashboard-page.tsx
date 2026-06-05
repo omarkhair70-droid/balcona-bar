@@ -4,19 +4,21 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
-  AlertTriangle,
-  BellRing,
+  BarChart3,
+  Bot,
   ChefHat,
+  Download,
   LayoutDashboard,
   LogIn,
   LogOut,
-  RefreshCw,
   Receipt,
+  RefreshCw,
+  ShoppingBag,
   Sparkles,
   UserRoundCheck,
   WalletCards
 } from "lucide-react";
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button, buttonVariants } from "@/components/ui/button";
 import {
@@ -27,72 +29,44 @@ import {
   CardTitle
 } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
-import {
-  getAttentionActionLabel,
-  getAttentionReasonMessage,
-  getAttentionRecommendedActions,
-  getAttentionReasons
-} from "@/features/staff/attention-data";
+import { LoadingState } from "@/components/ui/loading-state";
+import { MetricCard } from "@/components/ui/metric-card";
 import { StaffPageShell } from "@/features/staff/staff-page-shell";
 import {
+  formatDateTime,
+  formatMoney,
+  getRecordNumber,
+  getRecordString,
   humanizeStatus
 } from "@/features/staff/staff-format";
 import { useStaffBranchRealtime } from "@/features/staff/use-staff-branch-realtime";
+import { formatErrorMessage } from "@/lib/api/error-message";
 import {
-  buildOwnerHealthSummary,
-  formatVisibleValue,
-  getOwnerAttentionPriority,
-  getOwnerAttentionScore,
-  getOwnerAttentionStatus,
-  getOwnerBillStatus,
-  getOwnerOrderCurrency,
-  getOwnerOrderStatus,
-  getOwnerOrderValueMinor,
-  getOwnerTaskStation,
-  getOwnerTaskStatus,
-  getOwnerWaiterCallPriority,
-  getOwnerWaiterCallStatus,
-  safeCountByStatus
-} from "@/features/staff/owner-data";
-import {
-  getBranchAttentionQueue,
-  getBranchBillRequests,
-  getBranchEffectiveExperience,
-  getBranchMenu,
-  getBranchPreparationTasks,
-  getBranchRealtimeEvents,
-  getBranchWaiterCalls,
-  getCashierOrders,
+  getOwnerAnalyticsDashboard,
+  getOwnerDailyReport,
   staffLogout
 } from "@/lib/api/endpoints";
 import { staffQueryKeys } from "@/lib/api/query-keys";
+import type {
+  OwnerAnalyticsCashierShiftsResult,
+  OwnerAnalyticsCountRow,
+  OwnerAnalyticsDailyReportResult,
+  OwnerAnalyticsDashboardResult,
+  OwnerAnalyticsItemRow,
+  OwnerAnalyticsMoneyRow,
+  OwnerAnalyticsPreset,
+  OwnerAnalyticsTenderRow
+} from "@/lib/api/types";
 import { useStaffAuthStore } from "@/lib/staff/staff-auth-store";
-import { OwnerAttentionSummary } from "../components/owner-attention-summary";
-import { OwnerExperienceReadiness } from "../components/owner-experience-readiness";
-import { OwnerHealthPanel } from "../components/owner-health-panel";
-import { OwnerOperationsSnapshot } from "../components/owner-operations-snapshot";
-import { OwnerPulseMetrics } from "../components/owner-pulse-metrics";
-import { OwnerRecentActivity } from "../components/owner-recent-activity";
 import { StaffAuthGate } from "../components/staff-auth-gate";
 import { StaffBranchSelector } from "../components/staff-branch-selector";
 import { StaffRealtimeStatus } from "../components/staff-realtime-status";
 
-const emptyRecords: Record<string, unknown>[] = [];
-const activeOrderStatuses = new Set([
-  "submitted",
-  "cashier_accepted",
-  "preparing",
-  "ready",
-  "served"
-]);
-const activeBillStatuses = new Set(["open", "acknowledged", "presented"]);
-
-function countBy(
-  records: Record<string, unknown>[],
-  predicate: (record: Record<string, unknown>) => boolean
-) {
-  return records.filter(predicate).length;
-}
+const presetOptions: Array<{ label: string; value: OwnerAnalyticsPreset }> = [
+  { label: "Today", value: "today" },
+  { label: "Last 7 days", value: "last_7_days" },
+  { label: "Last 30 days", value: "last_30_days" }
+];
 
 function OwnerDashboardActions() {
   const router = useRouter();
@@ -165,79 +139,374 @@ function OwnerDashboardActions() {
   );
 }
 
-function OwnerDataWarnings({
-  warnings
+function RangeSelector({
+  preset,
+  onChange
 }: {
-  warnings: Array<{ label: string; error?: Error | null }>;
+  preset: OwnerAnalyticsPreset;
+  onChange: (preset: OwnerAnalyticsPreset) => void;
 }) {
-  const activeWarnings = warnings.filter((warning) => warning.error);
+  return (
+    <div className="flex flex-wrap gap-2">
+      {presetOptions.map((option) => (
+        <Button
+          key={option.value}
+          type="button"
+          variant={option.value === preset ? "primary" : "secondary"}
+          onClick={() => onChange(option.value)}
+        >
+          {option.label}
+        </Button>
+      ))}
+    </div>
+  );
+}
 
-  if (activeWarnings.length === 0) {
+function OwnerDataWarning({
+  label,
+  error
+}: {
+  label: string;
+  error?: unknown;
+}) {
+  if (!error) {
     return null;
   }
 
   return (
     <Card variant="quiet">
       <CardHeader>
-        <CardTitle>Data source warnings</CardTitle>
-        <CardDescription>
-          The dashboard is showing the data that loaded successfully.
-        </CardDescription>
+        <CardTitle>{label} warning</CardTitle>
+        <CardDescription>{formatErrorMessage(error)}</CardDescription>
+      </CardHeader>
+    </Card>
+  );
+}
+
+function EmptyRangeState() {
+  return (
+    <p className="rounded-card border border-dashed bg-surface/70 p-4 text-sm text-muted-foreground">
+      No data in this range yet.
+    </p>
+  );
+}
+
+function CountRowsCard({
+  title,
+  description,
+  rows
+}: {
+  title: string;
+  description?: string;
+  rows: OwnerAnalyticsCountRow[];
+}) {
+  return (
+    <Card variant="quiet">
+      <CardHeader>
+        <CardTitle>{title}</CardTitle>
+        {description ? <CardDescription>{description}</CardDescription> : null}
       </CardHeader>
       <CardContent className="grid gap-2">
-        {activeWarnings.map((warning) => (
-          <p
-            key={warning.label}
-            className="rounded-card border border-warning bg-warning/10 p-3 text-sm text-warning"
-          >
-            <AlertTriangle className="mr-2 inline size-4" aria-hidden="true" />
-            {warning.label} could not load. {warning.error?.message}
-          </p>
-        ))}
+        {rows.length > 0 ? (
+          rows.map((row) => (
+            <div
+              key={row.key}
+              className="flex items-center justify-between gap-4 rounded-card border bg-surface/70 px-4 py-3 text-sm"
+            >
+              <span className="font-medium text-foreground">
+                {humanizeStatus(row.key)}
+              </span>
+              <span className="text-muted-foreground">
+                {row.count.toLocaleString("en")}
+              </span>
+            </div>
+          ))
+        ) : (
+          <EmptyRangeState />
+        )}
       </CardContent>
     </Card>
   );
 }
 
-function ManagerQuickActions({
-  onRefresh
+function MoneyRowsCard({
+  title,
+  description,
+  rows,
+  currency = "EGP"
 }: {
-  onRefresh: () => void;
+  title: string;
+  description?: string;
+  rows: Array<OwnerAnalyticsMoneyRow | OwnerAnalyticsTenderRow>;
+  currency?: string;
 }) {
   return (
     <Card variant="quiet">
       <CardHeader>
-        <Badge variant="muted" className="w-fit">
-          Quick actions
-        </Badge>
-        <CardTitle>Manager navigation</CardTitle>
-        <CardDescription>
-          Read-only shortcuts into existing live staff and customer surfaces.
-        </CardDescription>
+        <CardTitle>{title}</CardTitle>
+        {description ? <CardDescription>{description}</CardDescription> : null}
       </CardHeader>
-      <CardContent className="flex flex-wrap gap-3">
-        <Link href="/staff/cashier" className={buttonVariants({ variant: "secondary" })}>
-          <Receipt className="size-4" aria-hidden="true" />
-          Open cashier
-        </Link>
-        <Link href="/staff/kitchen" className={buttonVariants({ variant: "secondary" })}>
-          <ChefHat className="size-4" aria-hidden="true" />
-          Open kitchen
-        </Link>
-        <Link href="/staff/waiter" className={buttonVariants({ variant: "secondary" })}>
-          <UserRoundCheck className="size-4" aria-hidden="true" />
-          Open waiter
-        </Link>
-        <Link href="/customer" className={buttonVariants({ variant: "ghost" })}>
-          <Sparkles className="size-4" aria-hidden="true" />
-          Customer demo
-        </Link>
-        <Button variant="secondary" onClick={onRefresh}>
-          <RefreshCw className="size-4" aria-hidden="true" />
-          Refresh all
-        </Button>
+      <CardContent className="grid gap-2">
+        {rows.length > 0 ? (
+          rows.map((row) => {
+            const label =
+              "method" in row ? humanizeStatus(row.method) : row.key;
+
+            return (
+              <div
+                key={label}
+                className="grid gap-2 rounded-card border bg-surface/70 px-4 py-3 text-sm sm:grid-cols-[1fr_auto_auto] sm:items-center"
+              >
+                <span className="font-medium text-foreground">{label}</span>
+                <span className="text-muted-foreground">
+                  {row.count.toLocaleString("en")} payments
+                </span>
+                <span className="font-semibold text-foreground">
+                  {formatMoney(row.amountMinor, currency)}
+                </span>
+              </div>
+            );
+          })
+        ) : (
+          <EmptyRangeState />
+        )}
       </CardContent>
     </Card>
+  );
+}
+
+function TopItemsCard({
+  title,
+  rows,
+  currency = "EGP"
+}: {
+  title: string;
+  rows: OwnerAnalyticsItemRow[];
+  currency?: string;
+}) {
+  return (
+    <Card variant="quiet">
+      <CardHeader>
+        <CardTitle>{title}</CardTitle>
+        <CardDescription>Historical paid bill line snapshots.</CardDescription>
+      </CardHeader>
+      <CardContent className="grid gap-2">
+        {rows.length > 0 ? (
+          rows.map((item) => (
+            <div
+              key={`${item.menuItemId ?? item.name}-${item.quantity}-${item.revenueMinor}`}
+              className="grid gap-2 rounded-card border bg-surface/70 px-4 py-3 text-sm md:grid-cols-[1fr_auto_auto]"
+            >
+              <span className="font-medium text-foreground">{item.name}</span>
+              <span className="text-muted-foreground">
+                {item.quantity.toLocaleString("en")} sold
+              </span>
+              <span className="font-semibold text-foreground">
+                {formatMoney(item.revenueMinor, item.currency ?? currency)}
+              </span>
+            </div>
+          ))
+        ) : (
+          <EmptyRangeState />
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+function DurationMetric({
+  label,
+  seconds
+}: {
+  label: string;
+  seconds: number | null;
+}) {
+  return (
+    <div className="rounded-card border bg-surface/70 p-4">
+      <p className="text-xs font-semibold uppercase text-muted-foreground">
+        {label}
+      </p>
+      <p className="mt-2 text-xl font-semibold text-foreground">
+        {formatDuration(seconds)}
+      </p>
+    </div>
+  );
+}
+
+function CashierShiftPanel({
+  data,
+  currency
+}: {
+  data: OwnerAnalyticsCashierShiftsResult;
+  currency: string;
+}) {
+  const currentShift = data.currentOpenShift;
+  const latestZReport = data.latestZReport;
+
+  return (
+    <Card variant="quiet">
+      <CardHeader>
+        <Badge variant="muted" className="w-fit">
+          Cashier shifts
+        </Badge>
+        <CardTitle>Drawer and Z report control</CardTitle>
+        <CardDescription>
+          Current shift, recent closed shifts, over/short, and drawer movement.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="grid gap-4 lg:grid-cols-3">
+        <div className="rounded-card border bg-surface/70 p-4">
+          <p className="text-sm font-semibold text-foreground">
+            Current shift
+          </p>
+          {currentShift ? (
+            <div className="mt-3 grid gap-2 text-sm text-muted-foreground">
+              <p>{humanizeStatus(currentShift.status)}</p>
+              <p>Opened {formatDateTime(currentShift.openedAt)}</p>
+              <p>
+                Expected cash{" "}
+                {formatMoney(currentShift.expectedCashMinor, currency)}
+              </p>
+            </div>
+          ) : (
+            <p className="mt-3 text-sm text-muted-foreground">
+              No open cashier shift.
+            </p>
+          )}
+        </div>
+        <div className="rounded-card border bg-surface/70 p-4">
+          <p className="text-sm font-semibold text-foreground">
+            Latest Z report
+          </p>
+          {latestZReport ? (
+            <div className="mt-3 grid gap-2 text-sm text-muted-foreground">
+              <p>{latestZReport.reportNumber}</p>
+              <p>{formatDateTime(latestZReport.generatedAt)}</p>
+            </div>
+          ) : (
+            <p className="mt-3 text-sm text-muted-foreground">
+              No Z report in this range yet.
+            </p>
+          )}
+        </div>
+        <div className="rounded-card border bg-surface/70 p-4">
+          <p className="text-sm font-semibold text-foreground">
+            Drawer movement
+          </p>
+          <div className="mt-3 grid gap-2 text-sm text-muted-foreground">
+            <p>
+              Cash in{" "}
+              {formatMoney(data.cashDrawerTransactions.cashInMinor, currency)}
+            </p>
+            <p>
+              Cash out{" "}
+              {formatMoney(data.cashDrawerTransactions.cashOutMinor, currency)}
+            </p>
+            <p>
+              Corrections{" "}
+              {formatMoney(data.cashDrawerTransactions.correctionMinor, currency)}
+            </p>
+          </div>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+function DailyReportPanel({
+  report,
+  currency
+}: {
+  report?: OwnerAnalyticsDailyReportResult;
+  currency: string;
+}) {
+  if (!report) {
+    return (
+      <Card variant="quiet">
+        <CardHeader>
+          <CardTitle>Daily report</CardTitle>
+          <CardDescription>No report data loaded yet.</CardDescription>
+        </CardHeader>
+      </Card>
+    );
+  }
+
+  return (
+    <Card variant="quiet">
+      <CardHeader>
+        <Badge variant="muted" className="w-fit">
+          {humanizeStatus(report.reportType)}
+        </Badge>
+        <CardTitle>Readable daily report snapshot</CardTitle>
+        <CardDescription>
+          Generated {formatDateTime(report.generatedAt)} for{" "}
+          {formatDateTime(report.range.from)} to {formatDateTime(report.range.to)}
+          .
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+        <ReportValue
+          label="Collected"
+          value={formatMoney(report.summary.collectedMinor, currency)}
+        />
+        <ReportValue
+          label="Paid bills"
+          value={report.summary.paidBillCount.toLocaleString("en")}
+        />
+        <ReportValue
+          label="Top item"
+          value={report.items.topItemsByQuantity[0]?.name ?? "No data"}
+        />
+        <ReportValue
+          label="Latest Z"
+          value={report.cashierShifts.latestZReport?.reportNumber ?? "No data"}
+        />
+      </CardContent>
+    </Card>
+  );
+}
+
+function ReportValue({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-card border bg-surface/70 p-4">
+      <p className="text-xs font-semibold uppercase text-muted-foreground">
+        {label}
+      </p>
+      <p className="mt-2 text-lg font-semibold text-foreground">{value}</p>
+    </div>
+  );
+}
+
+function formatDuration(seconds: number | null) {
+  if (seconds === null) {
+    return "No data";
+  }
+
+  if (seconds < 60) {
+    return `${seconds}s`;
+  }
+
+  if (seconds < 3600) {
+    return `${Math.round(seconds / 60)}m`;
+  }
+
+  return `${(seconds / 3600).toFixed(1)}h`;
+}
+
+function formatAiCost(micros: number) {
+  if (micros <= 0) {
+    return "0";
+  }
+
+  return (micros / 1_000_000).toFixed(4);
+}
+
+function getDashboardCurrency(data: OwnerAnalyticsDashboardResult) {
+  return (
+    data.summary.activeCashierShift?.currency ??
+    data.summary.latestClosedShift?.currency ??
+    data.items.topItemsByQuantity.find((row) => row.currency)?.currency ??
+    "EGP"
   );
 }
 
@@ -251,249 +520,98 @@ function OwnerDashboardContent() {
     (entry) => entry.branch.id === selectedBranchId
   );
   const selectedBranch = selectedBranchAccess?.branch;
+  const [preset, setPreset] = useState<OwnerAnalyticsPreset>("today");
+  const analyticsQuery = useMemo(() => ({ preset }), [preset]);
   const realtime = useStaffBranchRealtime(selectedBranchId, accessToken);
-  const ordersQuery = useQuery({
-    queryKey: staffQueryKeys.staffOwnerOrders(selectedBranchId),
+  const dashboardQuery = useQuery({
+    queryKey: staffQueryKeys.ownerAnalyticsDashboard(
+      selectedBranchId,
+      analyticsQuery
+    ),
     queryFn: () =>
-      getCashierOrders(selectedBranchId ?? "", { status: "all" }, accessToken),
-    enabled: Boolean(selectedBranchId && accessToken),
-    staleTime: 10_000
-  });
-  const billRequestsQuery = useQuery({
-    queryKey: staffQueryKeys.staffOwnerBillRequests(selectedBranchId),
-    queryFn: () =>
-      getBranchBillRequests(
+      getOwnerAnalyticsDashboard(
         selectedBranchId ?? "",
-        { status: "all", limit: 100 },
-        accessToken
-      ),
-    enabled: Boolean(selectedBranchId && accessToken),
-    staleTime: 10_000
-  });
-  const preparationTasksQuery = useQuery({
-    queryKey: staffQueryKeys.staffOwnerPreparationTasks(selectedBranchId),
-    queryFn: () =>
-      getBranchPreparationTasks(
-        selectedBranchId ?? "",
-        { station: "all", status: "all" },
-        accessToken
-      ),
-    enabled: Boolean(selectedBranchId && accessToken),
-    staleTime: 10_000
-  });
-  const waiterCallsQuery = useQuery({
-    queryKey: staffQueryKeys.staffOwnerWaiterCalls(selectedBranchId),
-    queryFn: () =>
-      getBranchWaiterCalls(
-        selectedBranchId ?? "",
-        { status: "all", type: "all" },
-        accessToken
-      ),
-    enabled: Boolean(selectedBranchId && accessToken),
-    staleTime: 10_000
-  });
-  const attentionQueueQuery = useQuery({
-    queryKey: staffQueryKeys.staffOwnerAttentionQueue(selectedBranchId),
-    queryFn: () =>
-      getBranchAttentionQueue(
-        selectedBranchId ?? "",
-        { status: "all", priority: "all", limit: 100 },
-        accessToken
-      ),
-    enabled: Boolean(selectedBranchId && accessToken),
-    staleTime: 10_000
-  });
-  const realtimeEventsQuery = useQuery({
-    queryKey: staffQueryKeys.branchRealtime(selectedBranchId),
-    queryFn: () =>
-      getBranchRealtimeEvents(
-        selectedBranchId ?? "",
-        { channel: "all", limit: 12 },
+        analyticsQuery,
         accessToken
       ),
     enabled: Boolean(selectedBranchId && accessToken),
     staleTime: 15_000
   });
-  const experienceQuery = useQuery({
-    queryKey: staffQueryKeys.staffOwnerExperience(selectedBranchId),
-    queryFn: () => getBranchEffectiveExperience(selectedBranchId ?? ""),
-    enabled: Boolean(selectedBranchId),
-    staleTime: 60_000
-  });
-  const menuQuery = useQuery({
-    queryKey: staffQueryKeys.staffOwnerMenu(selectedBranchId),
-    queryFn: () => getBranchMenu(selectedBranchId ?? "", accessToken),
+  const reportQuery = useQuery({
+    queryKey: staffQueryKeys.ownerDailyReport(selectedBranchId, analyticsQuery),
+    queryFn: () =>
+      getOwnerDailyReport(selectedBranchId ?? "", analyticsQuery, accessToken),
     enabled: Boolean(selectedBranchId && accessToken),
-    staleTime: 60_000
+    staleTime: 15_000
   });
-  const orders = useMemo(
-    () => ordersQuery.data?.orders ?? emptyRecords,
-    [ordersQuery.data?.orders]
-  );
-  const billRequests = useMemo(
-    () => billRequestsQuery.data?.billRequests ?? emptyRecords,
-    [billRequestsQuery.data?.billRequests]
-  );
-  const preparationTasks = useMemo(
-    () => preparationTasksQuery.data?.tasks ?? emptyRecords,
-    [preparationTasksQuery.data?.tasks]
-  );
-  const waiterCalls = useMemo(
-    () => waiterCallsQuery.data?.waiterCalls ?? emptyRecords,
-    [waiterCallsQuery.data?.waiterCalls]
-  );
-  const attentionQueue = useMemo(
-    () => attentionQueueQuery.data?.attentionQueue ?? emptyRecords,
-    [attentionQueueQuery.data?.attentionQueue]
-  );
-  const visibleValues = orders.map(getOwnerOrderValueMinor);
-  const hasVisibleValue =
-    orders.length === 0 || visibleValues.some((value) => value > 0);
-  const visibleValueMinor = visibleValues.reduce(
-    (sum, value) => sum + value,
-    0
-  );
-  const currency =
-    orders.map(getOwnerOrderCurrency).find(Boolean) ?? "EGP";
-  const activeOrders = countBy(orders, (order) =>
-    activeOrderStatuses.has(getOwnerOrderStatus(order))
-  );
-  const submittedOrders = safeCountByStatus(
-    orders,
-    getOwnerOrderStatus,
-    "submitted"
-  );
-  const readyOrders = safeCountByStatus(orders, getOwnerOrderStatus, "ready");
-  const pendingTasks = safeCountByStatus(
-    preparationTasks,
-    getOwnerTaskStatus,
-    "pending"
-  );
-  const preparingTasks = safeCountByStatus(
-    preparationTasks,
-    getOwnerTaskStatus,
-    "preparing"
-  );
-  const openWaiterCalls = safeCountByStatus(
-    waiterCalls,
-    getOwnerWaiterCallStatus,
-    "open"
-  );
-  const urgentWaiterCalls = countBy(
-    waiterCalls,
-    (call) =>
-      (getOwnerWaiterCallStatus(call) === "open" ||
-        getOwnerWaiterCallStatus(call) === "acknowledged") &&
-      getOwnerWaiterCallPriority(call) >= 3
-  );
-  const openBillRequests = countBy(billRequests, (billRequest) =>
-    activeBillStatuses.has(getOwnerBillStatus(billRequest))
-  );
-  const urgentAttention = countBy(
-    attentionQueue,
-    (attention) =>
-      getOwnerAttentionStatus(attention) === "urgent" ||
-      getOwnerAttentionPriority(attention) === "urgent"
-  );
-  const needsAttention = safeCountByStatus(
-    attentionQueue,
-    getOwnerAttentionStatus,
-    "needs_attention"
-  );
-  const health = buildOwnerHealthSummary({
-    activeOrders,
-    submittedOrders,
-    readyOrders,
-    pendingTasks,
-    preparingTasks,
-    openWaiterCalls,
-    urgentWaiterCalls,
-    openBillRequests,
-    urgentAttention,
-    needsAttention
-  });
-  const topAttention = attentionQueue
-    .filter((attention) => getOwnerAttentionScore(attention) > 0)
-    .slice()
-    .sort((first, second) => getOwnerAttentionScore(second) - getOwnerAttentionScore(first));
-  const topReasons = topAttention
-    .flatMap(getAttentionReasons)
-    .slice(0, 3)
-    .map((reason) => getAttentionReasonMessage(reason));
-  const topActions = topAttention
-    .flatMap(getAttentionRecommendedActions)
-    .slice(0, 3)
-    .map(getAttentionActionLabel);
   const refreshAll = () => {
     if (!selectedBranchId) {
       return;
     }
 
     void queryClient.invalidateQueries({
-      queryKey: staffQueryKeys.staffOwnerOrders(selectedBranchId)
+      queryKey: staffQueryKeys.ownerAnalyticsDashboard(
+        selectedBranchId,
+        analyticsQuery
+      )
     });
     void queryClient.invalidateQueries({
-      queryKey: staffQueryKeys.staffOwnerBillRequests(selectedBranchId)
-    });
-    void queryClient.invalidateQueries({
-      queryKey: staffQueryKeys.staffOwnerPreparationTasks(selectedBranchId)
-    });
-    void queryClient.invalidateQueries({
-      queryKey: staffQueryKeys.staffOwnerWaiterCalls(selectedBranchId)
-    });
-    void queryClient.invalidateQueries({
-      queryKey: staffQueryKeys.staffOwnerAttentionQueue(selectedBranchId)
-    });
-    void queryClient.invalidateQueries({
-      queryKey: staffQueryKeys.staffOwnerExperience(selectedBranchId)
-    });
-    void queryClient.invalidateQueries({
-      queryKey: staffQueryKeys.staffOwnerMenu(selectedBranchId)
-    });
-    void queryClient.invalidateQueries({
-      queryKey: staffQueryKeys.branchRealtime(selectedBranchId)
+      queryKey: staffQueryKeys.ownerDailyReport(selectedBranchId, analyticsQuery)
     });
   };
-  const dataLoading =
-    ordersQuery.isPending ||
-    billRequestsQuery.isPending ||
-    preparationTasksQuery.isPending ||
-    waiterCallsQuery.isPending ||
-    attentionQueueQuery.isPending;
 
   if (!selectedBranchId || !selectedBranch) {
     return (
       <EmptyState
         title="No accessible branch"
-        description="This staff account does not expose a branch for owner operations yet."
+        description="This staff account does not expose a branch for owner analytics yet."
       />
     );
   }
 
+  if (dashboardQuery.isPending) {
+    return <LoadingState label="Loading owner analytics" />;
+  }
+
+  if (dashboardQuery.isError || !dashboardQuery.data) {
+    return (
+      <EmptyState
+        title="Owner analytics could not load"
+        description={formatErrorMessage(dashboardQuery.error)}
+        action={
+          <Button variant="secondary" onClick={refreshAll}>
+            <RefreshCw className="size-4" aria-hidden="true" />
+            Retry
+          </Button>
+        }
+      />
+    );
+  }
+
+  const dashboard = dashboardQuery.data;
+  const summary = dashboard.summary;
+  const sales = dashboard.sales;
+  const orders = dashboard.orders;
+  const items = dashboard.items;
+  const operations = dashboard.operations;
+  const cashierShifts = dashboard.cashierShifts;
+  const aiWaiter = dashboard.aiWaiter;
+  const currency = getDashboardCurrency(dashboard);
+  const topItemName = items.topItemsByQuantity[0]?.name ?? "No data";
+  const cashOverShortTone =
+    cashierShifts.totalOverShortMinor === 0
+      ? "success"
+      : cashierShifts.totalOverShortMinor > 0
+        ? "warning"
+        : "accent";
+
   return (
     <div className="grid gap-5">
-      <OwnerPulseMetrics
-        activeOrders={activeOrders}
-        submittedOrders={submittedOrders}
-        preparingTasks={preparingTasks}
-        readyOrders={readyOrders}
-        openWaiterCalls={openWaiterCalls}
-        openBillRequests={openBillRequests}
-        urgentAttention={urgentAttention}
-        visibleOrderValue={formatVisibleValue(
-          visibleValueMinor,
-          currency,
-          hasVisibleValue
-        )}
-        realtimeState={realtime.state}
-        isLoading={dataLoading}
-      />
-
       <Card variant="quiet">
-        <CardHeader className="gap-4 md:flex md:flex-row md:items-start md:justify-between md:space-y-0">
+        <CardHeader className="gap-4 xl:flex xl:flex-row xl:items-start xl:justify-between xl:space-y-0">
           <div>
             <div className="flex flex-wrap items-center gap-2">
-              <Badge variant="muted">Owner / Manager</Badge>
+              <Badge variant="muted">Owner analytics</Badge>
               <StaffRealtimeStatus
                 state={realtime.state}
                 lastEventType={realtime.lastEventType}
@@ -502,244 +620,279 @@ function OwnerDashboardContent() {
             <CardTitle className="mt-3">{selectedBranch.name}</CardTitle>
             <CardDescription>
               {staffUser?.name || staffUser?.email || "Staff user"} is viewing
-              a client-side branch pulse from existing operational endpoints.
+              recorded branch management analytics from orders, bills, payments,
+              operations, shifts, and AI waiter usage.
             </CardDescription>
           </div>
-          <Button variant="secondary" onClick={refreshAll}>
-            <RefreshCw className="size-4" aria-hidden="true" />
-            Refresh all
-          </Button>
+          <div className="grid gap-3">
+            <RangeSelector preset={preset} onChange={setPreset} />
+            <Button variant="secondary" onClick={refreshAll}>
+              <RefreshCw className="size-4" aria-hidden="true" />
+              Refresh
+            </Button>
+          </div>
         </CardHeader>
       </Card>
 
-      <OwnerDataWarnings
-        warnings={[
-          { label: "Orders", error: ordersQuery.error },
-          { label: "Bill requests", error: billRequestsQuery.error },
-          { label: "Preparation tasks", error: preparationTasksQuery.error },
-          { label: "Waiter calls", error: waiterCallsQuery.error },
-          { label: "Attention queue", error: attentionQueueQuery.error }
-        ]}
-      />
+      <OwnerDataWarning label="Daily report" error={reportQuery.error} />
 
-      <OwnerHealthPanel health={health} branchName={selectedBranch.name} />
-
-      <OwnerOperationsSnapshot
-        lanes={[
-          {
-            title: "Cashier",
-            description: "Order intake and decisions",
-            href: "/staff/cashier",
-            icon: <Receipt className="size-4" aria-hidden="true" />,
-            metrics: [
-              { label: "Submitted", value: submittedOrders },
-              {
-                label: "Accepted",
-                value: safeCountByStatus(
-                  orders,
-                  getOwnerOrderStatus,
-                  "cashier_accepted"
-                )
-              },
-              {
-                label: "Rejected",
-                value: safeCountByStatus(
-                  orders,
-                  getOwnerOrderStatus,
-                  "cashier_rejected"
-                )
-              },
-              {
-                label: "Cancelled",
-                value: safeCountByStatus(
-                  orders,
-                  getOwnerOrderStatus,
-                  "cancelled"
-                )
-              }
-            ]
-          },
-          {
-            title: "Preparation",
-            description: "Kitchen, barista, and dessert flow",
-            href: "/staff/kitchen",
-            icon: <ChefHat className="size-4" aria-hidden="true" />,
-            metrics: [
-              { label: "Pending", value: pendingTasks },
-              { label: "Preparing", value: preparingTasks },
-              {
-                label: "Ready",
-                value: safeCountByStatus(
-                  preparationTasks,
-                  getOwnerTaskStatus,
-                  "ready"
-                )
-              },
-              {
-                label: "Cancelled",
-                value: safeCountByStatus(
-                  preparationTasks,
-                  getOwnerTaskStatus,
-                  "cancelled"
-                )
-              }
-            ]
-          },
-          {
-            title: "Waiter",
-            description: "Service requests and table recovery",
-            href: "/staff/waiter",
-            icon: <BellRing className="size-4" aria-hidden="true" />,
-            metrics: [
-              { label: "Open", value: openWaiterCalls },
-              {
-                label: "Ack",
-                value: safeCountByStatus(
-                  waiterCalls,
-                  getOwnerWaiterCallStatus,
-                  "acknowledged"
-                )
-              },
-              {
-                label: "Resolved",
-                value: safeCountByStatus(
-                  waiterCalls,
-                  getOwnerWaiterCallStatus,
-                  "resolved"
-                )
-              },
-              { label: "Urgent", value: urgentWaiterCalls }
-            ]
-          },
-          {
-            title: "Bills",
-            description: "Bill requests and presentation",
-            href: "/staff/cashier",
-            icon: <WalletCards className="size-4" aria-hidden="true" />,
-            metrics: [
-              {
-                label: "Open",
-                value: safeCountByStatus(
-                  billRequests,
-                  getOwnerBillStatus,
-                  "open"
-                )
-              },
-              {
-                label: "Ack",
-                value: safeCountByStatus(
-                  billRequests,
-                  getOwnerBillStatus,
-                  "acknowledged"
-                )
-              },
-              {
-                label: "Presented",
-                value: safeCountByStatus(
-                  billRequests,
-                  getOwnerBillStatus,
-                  "presented"
-                )
-              },
-              {
-                label: "Closed",
-                value: safeCountByStatus(
-                  billRequests,
-                  getOwnerBillStatus,
-                  "closed"
-                )
-              }
-            ]
-          }
-        ]}
-      />
-
-      <section className="grid gap-5 xl:grid-cols-[1fr_24rem]">
-        <OwnerAttentionSummary
-          attentionItems={attentionQueue}
-          isLoading={attentionQueueQuery.isPending}
-          error={attentionQueueQuery.error ?? undefined}
+      <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+        <MetricCard
+          label="Revenue"
+          value={formatMoney(summary.paidRevenueMinor, currency)}
+          description="Paid revenue from recorded manual payments."
+          icon={<BarChart3 className="size-4" aria-hidden="true" />}
+          tone="success"
         />
+        <MetricCard
+          label="Collected"
+          value={formatMoney(summary.collectedMinor, currency)}
+          description="Cash, card, wallet, and other manual tender recorded."
+          icon={<WalletCards className="size-4" aria-hidden="true" />}
+          tone="primary"
+        />
+        <MetricCard
+          label="Average ticket"
+          value={formatMoney(summary.averageTicketMinor, currency)}
+          description={`${summary.paidBillCount.toLocaleString("en")} paid bills`}
+          icon={<Receipt className="size-4" aria-hidden="true" />}
+          tone="accent"
+        />
+        <MetricCard
+          label="Orders"
+          value={orders.submittedOrderCount.toLocaleString("en")}
+          description={`${summary.servedOrderCount.toLocaleString("en")} served, ${summary.completedOrderCount.toLocaleString("en")} completed`}
+          icon={<ShoppingBag className="size-4" aria-hidden="true" />}
+          tone="muted"
+        />
+        <MetricCard
+          label="Cash over/short"
+          value={formatMoney(cashierShifts.totalOverShortMinor, currency)}
+          description={`${cashierShifts.shiftCount.toLocaleString("en")} closed shifts in range`}
+          icon={<WalletCards className="size-4" aria-hidden="true" />}
+          tone={cashOverShortTone}
+        />
+        <MetricCard
+          label="Open waiter calls"
+          value={summary.openWaiterCallCount.toLocaleString("en")}
+          description={`${summary.activeBillRequestCount.toLocaleString("en")} active bill requests`}
+          icon={<UserRoundCheck className="size-4" aria-hidden="true" />}
+          tone="warning"
+        />
+        <MetricCard
+          label="AI sessions"
+          value={aiWaiter.aiSessionCount.toLocaleString("en")}
+          description={`${aiWaiter.aiMessageCount.toLocaleString("en")} messages, ${aiWaiter.escalatedCount.toLocaleString("en")} escalations`}
+          icon={<Bot className="size-4" aria-hidden="true" />}
+          tone="primary"
+        />
+        <MetricCard
+          label="Top item"
+          value={topItemName}
+          description="Best seller by paid quantity."
+          icon={<Sparkles className="size-4" aria-hidden="true" />}
+          tone="success"
+        />
+      </section>
+
+      <section className="grid gap-5 xl:grid-cols-2">
+        <MoneyRowsCard
+          title="Tender breakdown"
+          description="Recorded manual payment methods."
+          rows={sales.tenderBreakdown}
+          currency={currency}
+        />
+        <MoneyRowsCard
+          title="Revenue by day"
+          description="Manual collections bucketed by recording date."
+          rows={sales.revenueByDay}
+          currency={currency}
+        />
+      </section>
+
+      <section className="grid gap-5 xl:grid-cols-3">
+        <CountRowsCard
+          title="Order status"
+          description="Submitted orders grouped by lifecycle status."
+          rows={orders.orderCountByStatus}
+        />
+        <CountRowsCard
+          title="Bill status"
+          description="Bills created in the selected range."
+          rows={sales.billCountByStatus}
+        />
+        <CountRowsCard
+          title="Waiter calls"
+          description="Service pressure by waiter call status."
+          rows={operations.waiterCallCountsByStatus}
+        />
+      </section>
+
+      <Card variant="quiet">
+        <CardHeader>
+          <Badge variant="muted" className="w-fit">
+            Lifecycle
+          </Badge>
+          <CardTitle>Order timing</CardTitle>
+          <CardDescription>
+            Averages skip orders where a timestamp is not recorded.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
+          <DurationMetric
+            label="Submit to accept"
+            seconds={orders.lifecycleAverages.submittedToAcceptedSeconds}
+          />
+          <DurationMetric
+            label="Accept to prep"
+            seconds={orders.lifecycleAverages.acceptedToPreparingSeconds}
+          />
+          <DurationMetric
+            label="Prep to ready"
+            seconds={orders.lifecycleAverages.preparingToReadySeconds}
+          />
+          <DurationMetric
+            label="Ready to served"
+            seconds={orders.lifecycleAverages.readyToServedSeconds}
+          />
+          <DurationMetric
+            label="Submit to served"
+            seconds={orders.lifecycleAverages.submittedToServedSeconds}
+          />
+        </CardContent>
+      </Card>
+
+      <section className="grid gap-5 xl:grid-cols-2">
+        <TopItemsCard
+          title="Top items by quantity"
+          rows={items.topItemsByQuantity}
+          currency={currency}
+        />
+        <TopItemsCard
+          title="Top items by revenue"
+          rows={items.topItemsByRevenue}
+          currency={currency}
+        />
+      </section>
+
+      <section className="grid gap-5 xl:grid-cols-3">
+        <CountRowsCard
+          title="Preparation tasks"
+          description="Kitchen, barista, dessert, and cashier preparation status."
+          rows={operations.preparationTaskCountsByStatus}
+        />
+        <CountRowsCard
+          title="Kitchen tickets"
+          description="Ticket status across preparation stations."
+          rows={operations.kitchenTicketCountsByStatus}
+        />
+        <CountRowsCard
+          title="Print jobs"
+          description={`${operations.failedPrintJobCount.toLocaleString("en")} failed print jobs in range.`}
+          rows={operations.printJobCountsByStatus}
+        />
+      </section>
+
+      <CashierShiftPanel data={cashierShifts} currency={currency} />
+
+      <section className="grid gap-5 xl:grid-cols-[1fr_1fr_1fr]">
         <Card variant="quiet">
           <CardHeader>
-            <CardTitle>Risk notes</CardTitle>
+            <CardTitle>AI waiter</CardTitle>
             <CardDescription>
-              Top attention reasons and actions visible to managers.
+              Sessions, proposals, escalation reasons, and estimated usage.
             </CardDescription>
           </CardHeader>
           <CardContent className="grid gap-3">
-            <div className="rounded-card border bg-surface/75 p-4">
-              <p className="text-sm font-semibold text-foreground">
-                Top reasons
-              </p>
-              <div className="mt-3 grid gap-2">
-                {(topReasons.length > 0
-                  ? topReasons
-                  : ["No active attention reasons returned"]
-                ).map((reason) => (
-                  <p key={reason} className="text-sm text-muted-foreground">
-                    {reason}
-                  </p>
-                ))}
+            <ReportValue
+              label="Proposals"
+              value={`${aiWaiter.appliedProposalCount.toLocaleString("en")} applied / ${aiWaiter.proposalCount.toLocaleString("en")} total`}
+            />
+            <ReportValue
+              label="Tokens"
+              value={`${aiWaiter.inputTokens.toLocaleString("en")} in / ${aiWaiter.outputTokens.toLocaleString("en")} out`}
+            />
+            <ReportValue
+              label="Estimated cost"
+              value={formatAiCost(aiWaiter.estimatedCostMicros)}
+            />
+          </CardContent>
+        </Card>
+        <CountRowsCard
+          title="AI escalation reasons"
+          description="Only reasons recorded by the backend are shown."
+          rows={aiWaiter.topEscalationReasons}
+        />
+        <Card variant="quiet">
+          <CardHeader>
+            <CardTitle>Latest paid bill</CardTitle>
+            <CardDescription>Top paid bill by recorded total.</CardDescription>
+          </CardHeader>
+          <CardContent>
+            {sales.topPaidBills[0] ? (
+              <div className="grid gap-2 rounded-card border bg-surface/70 p-4 text-sm text-muted-foreground">
+                <p className="font-semibold text-foreground">
+                  {getRecordString(sales.topPaidBills[0], "billNumber", "Bill")}
+                </p>
+                <p>
+                  {formatMoney(
+                    getRecordNumber(sales.topPaidBills[0], "totalMinor"),
+                    currency
+                  )}
+                </p>
+                <p>
+                  {humanizeStatus(
+                    getRecordString(sales.topPaidBills[0], "status")
+                  )}
+                </p>
               </div>
-            </div>
-            <div className="rounded-card border bg-surface/75 p-4">
-              <p className="text-sm font-semibold text-foreground">
-                Suggested actions
-              </p>
-              <div className="mt-3 grid gap-2">
-                {(topActions.length > 0
-                  ? topActions
-                  : ["Keep monitoring realtime branch activity"]
-                ).map((action) => (
-                  <p key={action} className="text-sm text-muted-foreground">
-                    {humanizeStatus(action)}
-                  </p>
-                ))}
-              </div>
-            </div>
+            ) : (
+              <EmptyRangeState />
+            )}
           </CardContent>
         </Card>
       </section>
 
-      <OwnerExperienceReadiness
-        experience={experienceQuery.data}
-        menu={menuQuery.data}
-        experienceLoading={experienceQuery.isPending}
-        menuLoading={menuQuery.isPending}
-        experienceError={experienceQuery.error ?? undefined}
-        menuError={menuQuery.error ?? undefined}
-      />
-
-      <ManagerQuickActions onRefresh={refreshAll} />
-
-      <OwnerRecentActivity
-        events={realtimeEventsQuery.data?.events ?? emptyRecords}
-        isLoading={realtimeEventsQuery.isPending}
-        error={realtimeEventsQuery.error ?? undefined}
-      />
+      <DailyReportPanel report={reportQuery.data} currency={currency} />
 
       <Card variant="quiet">
-        <CardHeader>
-          <CardTitle>Station mix</CardTitle>
-          <CardDescription>
-            Preparation task count by returned station.
-          </CardDescription>
+        <CardHeader className="gap-4 md:flex md:flex-row md:items-center md:justify-between md:space-y-0">
+          <div>
+            <CardTitle>Manager navigation</CardTitle>
+            <CardDescription>
+              Continue operational work in the existing live staff surfaces.
+            </CardDescription>
+          </div>
+          <Badge variant="muted">
+            Generated {formatDateTime(dashboard.generatedAt)}
+          </Badge>
         </CardHeader>
-        <CardContent className="grid gap-3 md:grid-cols-3">
-          {["barista", "kitchen", "dessert"].map((station) => (
-            <div key={station} className="rounded-card border bg-surface/75 p-4">
-              <p className="text-sm font-semibold text-foreground">
-                {humanizeStatus(station)}
-              </p>
-              <p className="mt-2 text-2xl font-semibold text-foreground">
-                {countBy(
-                  preparationTasks,
-                  (task) => getOwnerTaskStation(task) === station
-                )}
-              </p>
-            </div>
-          ))}
+        <CardContent className="flex flex-wrap gap-3">
+          <Link
+            href="/staff/cashier"
+            className={buttonVariants({ variant: "secondary" })}
+          >
+            <Receipt className="size-4" aria-hidden="true" />
+            Open cashier
+          </Link>
+          <Link
+            href="/staff/kitchen"
+            className={buttonVariants({ variant: "secondary" })}
+          >
+            <ChefHat className="size-4" aria-hidden="true" />
+            Open kitchen
+          </Link>
+          <Link
+            href="/staff/waiter"
+            className={buttonVariants({ variant: "secondary" })}
+          >
+            <UserRoundCheck className="size-4" aria-hidden="true" />
+            Open waiter
+          </Link>
+          <Button variant="secondary" onClick={refreshAll}>
+            <Download className="size-4" aria-hidden="true" />
+            Refresh report
+          </Button>
         </CardContent>
       </Card>
     </div>
@@ -750,10 +903,10 @@ export function OwnerDashboardPage() {
   return (
     <StaffPageShell
       title="Owner command center"
-      description="Executive branch pulse for live orders, preparation, waiter calls, bills, attention risks, and realtime activity."
+      description="Branch owner analytics for revenue, orders, items, operations, cashier shifts, and AI waiter usage."
       actions={<OwnerDashboardActions />}
     >
-      <StaffAuthGate requiredPermissions={["settings.manage"]} branchScoped>
+      <StaffAuthGate requiredPermissions={["owner_analytics.read"]} branchScoped>
         <OwnerDashboardContent />
       </StaffAuthGate>
     </StaffPageShell>

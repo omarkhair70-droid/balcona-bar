@@ -75,10 +75,10 @@ const staffAreas = [
   {
     title: "Owner",
     href: "/staff/owner",
-    description: "Manager command center for branch pulse and risks.",
+    description: "Owner analytics for revenue, orders, shifts, and operations.",
     icon: <UsersRound className="size-5" aria-hidden="true" />,
     state: "Live",
-    requiredPermissions: ["settings.manage"]
+    requiredPermissions: ["owner_analytics.read"]
   }
 ];
 

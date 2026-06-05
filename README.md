@@ -1,6 +1,6 @@
 # balcona-bar
 
-Balcona Bar is organized as a monorepo for the Cafe AI Waiter App / Smart Cafe Operating System. The backend core is complete through Phase 24, UI Phase 1 adds the first Next.js web foundation for customer and staff experiences, UI Phase 2 adds the customer PWA core, UI Phase 3 adds the customer AI waiter experience, UI Phase 4 adds the cashier dashboard core, UI Phase 5 adds the kitchen/barista dashboard core, UI Phase 6 adds the waiter dashboard and attention queue, UI Phase 7 adds the owner/manager command center, UI Phase 8 adds full demo hardening plus Balkona demo mode, Production Phase 1 adds deployable platform foundation files, Production Phase 2 adds AWS infrastructure foundation scaffolding without deploying resources, Production Phase 3A adds public demo deploy readiness plus CI/CD guardrails without deploying resources, Production Phase 3B adds the first public AWS demo preflight deploy pack without deploying resources, Product Phase 4A starts the full Cafe OS product completion track, Product Phase 4B adds branch-scoped menu admin and availability management, Product Phase 4C adds branch, tables, and QR management, Product Phase 4E.G0-G3 add a Groq AI waiter provider with safe backend validation, deep menu grounding, and modifier-turn ordering intelligence, Product Phase 4S.0 enforces staff roles, permissions, and branch access on the current staff product surfaces, Product Phase 4O.0 hardens order lifecycle transitions across cashier, preparation, waiter, and customer status flows, Product Phase 4K.0 adds KDS kitchen tickets plus a mock printer foundation for station operations, Product Phase 4P.0 adds stable bills, manual cashier payments, and receipt foundations, and Product Phase 4C.0 adds cashier shifts, cash drawer transactions, and X/Z reports.
+Balcona Bar is organized as a monorepo for the Cafe AI Waiter App / Smart Cafe Operating System. The backend core is complete through Phase 24, UI Phase 1 adds the first Next.js web foundation for customer and staff experiences, UI Phase 2 adds the customer PWA core, UI Phase 3 adds the customer AI waiter experience, UI Phase 4 adds the cashier dashboard core, UI Phase 5 adds the kitchen/barista dashboard core, UI Phase 6 adds the waiter dashboard and attention queue, UI Phase 7 adds the owner/manager command center, UI Phase 8 adds full demo hardening plus Balkona demo mode, Production Phase 1 adds deployable platform foundation files, Production Phase 2 adds AWS infrastructure foundation scaffolding without deploying resources, Production Phase 3A adds public demo deploy readiness plus CI/CD guardrails without deploying resources, Production Phase 3B adds the first public AWS demo preflight deploy pack without deploying resources, Product Phase 4A starts the full Cafe OS product completion track, Product Phase 4B adds branch-scoped menu admin and availability management, Product Phase 4C adds branch, tables, and QR management, Product Phase 4E.G0-G3 add a Groq AI waiter provider with safe backend validation, deep menu grounding, and modifier-turn ordering intelligence, Product Phase 4S.0 enforces staff roles, permissions, and branch access on the current staff product surfaces, Product Phase 4O.0 hardens order lifecycle transitions across cashier, preparation, waiter, and customer status flows, Product Phase 4K.0 adds KDS kitchen tickets plus a mock printer foundation for station operations, Product Phase 4P.0 adds stable bills, manual cashier payments, and receipt foundations, Product Phase 4C.0 adds cashier shifts, cash drawer transactions, and X/Z reports, and Product Phase 4A.0 adds branch-scoped owner analytics and daily reports from real orders, bills, payments, shifts, operations, and AI waiter records.
 
 ## Layout
 
@@ -142,8 +142,10 @@ http://localhost:3001/staff/owner
 ```
 
 The owner dashboard aggregates existing branch endpoints to show order,
-preparation, waiter-call, bill, attention, realtime, menu, and experience
-readiness without requiring a dedicated analytics endpoint.
+preparation, waiter-call, bill, cashier shift, payment, item, and AI waiter
+records through the branch-scoped owner analytics API. Use the Today, Last 7
+days, and Last 30 days presets after completing a local order, bill, manual
+payment, and Z report smoke flow.
 
 16. Open the full Balkona demo launcher:
 
@@ -169,6 +171,30 @@ pnpm web:lint
 pnpm web:start
 pnpm web:typecheck
 ```
+
+## Product Phase 4A.0 status
+
+Product Phase 4A.0 adds production-grade branch owner analytics and reports:
+
+- branch-scoped `/owner-analytics/*` API endpoints guarded by `owner_analytics.read`;
+- summary, sales, orders, items, operations, cashier shift, AI waiter,
+  dashboard, and daily report responses;
+- recorded manual payments as the source of truth for collected revenue;
+- paid bill line snapshots for top items, category breakdowns, and modifier
+  revenue;
+- order lifecycle timing averages that skip missing timestamps;
+- cashier shift, drawer movement, and latest Z report summaries;
+- `/staff/owner` upgraded to a real owner analytics dashboard with safe empty
+  states and readable errors.
+
+Local demo steps: open a cashier shift, submit and accept a customer order,
+mark preparation ready, serve the order, request and present the bill, record a
+manual payment, close the shift with a Z report, then open `/staff/owner` and
+select Today.
+
+See
+`docs/architecture/product-phase-4a0-owner-analytics-reports.md` for metric
+definitions, date range behavior, limitations, and future reporting scope.
 
 ## Product Phase 4P.0 status
 
@@ -504,6 +530,10 @@ UI Phase 7 adds the Owner / Manager Command Center inside the Staff shell:
 - staff overview updated so cashier, kitchen, waiter, and owner surfaces are live
 
 SaaS admin/menu admin, company/tenant admin, staff role management, POS/payment, backend behavior changes, chart libraries, fake revenue, and new dependencies remain outside this phase.
+
+Product Phase 4A.0 supersedes this UI-only aggregation with branch-scoped owner
+analytics and daily report endpoints backed by recorded orders, bills, manual
+payments, cashier shifts, operations, and AI waiter usage.
 
 ## UI Phase 8 status
 
