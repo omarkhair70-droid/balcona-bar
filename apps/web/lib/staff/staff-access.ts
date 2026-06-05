@@ -153,3 +153,44 @@ export function getMenuAdminAccessMode(input: {
         : "read_only"
   } as const;
 }
+
+export function getInventoryAccessMode(input: {
+  access?: StaffEffectiveAccess;
+  companyId?: string;
+  branchId?: string;
+}) {
+  const canReadBranchInventory = hasStaffPermission(
+    input.access,
+    "inventory.read",
+    input.branchId
+  );
+  const canManageBranchStock = hasStaffPermission(
+    input.access,
+    "inventory.manage",
+    input.branchId
+  );
+  const canReadCompanyInventory = hasCompanyStaffPermission(
+    input.access,
+    "inventory.read",
+    input.companyId
+  );
+  const canManageCompanyInventory = hasCompanyStaffPermission(
+    input.access,
+    "inventory.manage",
+    input.companyId
+  );
+
+  return {
+    canReadBranchInventory,
+    canManageBranchStock,
+    canReadCompanyInventory,
+    canManageCompanyInventory,
+    mode: canManageCompanyInventory
+      ? "company_inventory_management"
+      : canManageBranchStock
+        ? "branch_stock_management"
+        : canReadBranchInventory
+          ? "read_only"
+          : "no_access"
+  } as const;
+}

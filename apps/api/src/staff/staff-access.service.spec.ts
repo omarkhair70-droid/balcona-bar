@@ -302,4 +302,87 @@ describe('StaffAccessService', () => {
       reason: 'permission_not_granted',
     });
   });
+
+  it('allows branch-scoped branch managers to manage branch stock only', async () => {
+    const { service } = buildService(
+      buildStaffUser({
+        memberships: [
+          buildMembership({ branch: branchOne, role: StaffRole.branch_manager }),
+        ],
+      }),
+    );
+
+    await expect(
+      service.can('staff-1', 'inventory.manage', {
+        branchId: branchOne.id,
+      }),
+    ).resolves.toMatchObject({
+      allowed: true,
+      reason: 'permission_granted_by_branch_membership',
+    });
+
+    await expect(
+      service.can('staff-1', 'inventory.manage', {
+        companyId: company.id,
+      }),
+    ).resolves.toMatchObject({
+      allowed: false,
+      reason: 'no_active_membership_for_scope',
+    });
+  });
+
+  it('allows company-scoped owner, menu admin, and branch manager roles to manage inventory catalog', async () => {
+    for (const role of [
+      StaffRole.owner,
+      StaffRole.menu_admin,
+      StaffRole.branch_manager,
+    ]) {
+      const { service } = buildService(
+        buildStaffUser({
+          memberships: [buildMembership({ branch: null, role })],
+        }),
+      );
+
+      await expect(
+        service.can('staff-1', 'inventory.manage', {
+          companyId: company.id,
+        }),
+      ).resolves.toMatchObject({
+        allowed: true,
+        reason: 'permission_granted_by_company_membership',
+      });
+    }
+  });
+
+  it('keeps cashier, kitchen, and barista inventory access read-only', async () => {
+    for (const role of [
+      StaffRole.cashier,
+      StaffRole.kitchen,
+      StaffRole.barista,
+    ]) {
+      const { service } = buildService(
+        buildStaffUser({
+          memberships: [buildMembership({ branch: branchOne, role })],
+        }),
+      );
+
+      await expect(
+        service.can('staff-1', 'inventory.read', {
+          branchId: branchOne.id,
+        }),
+      ).resolves.toMatchObject({
+        allowed: true,
+        reason: 'permission_granted_by_branch_membership',
+      });
+
+      await expect(
+        service.can('staff-1', 'inventory.manage', {
+          branchId: branchOne.id,
+        }),
+      ).resolves.toMatchObject({
+        allowed: false,
+        reason: 'permission_not_granted',
+      });
+    }
+  });
 });

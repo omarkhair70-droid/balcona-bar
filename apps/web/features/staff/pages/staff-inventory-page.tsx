@@ -60,7 +60,7 @@ import type {
   MenuAdminItem,
   ReplaceMenuItemInventoryRequirementsPayload
 } from "@/lib/api/types";
-import { hasStaffPermission } from "@/lib/staff/staff-access";
+import { getInventoryAccessMode } from "@/lib/staff/staff-access";
 import { useStaffAuthStore } from "@/lib/staff/staff-auth-store";
 import { StaffAuthGate } from "../components/staff-auth-gate";
 import { StaffBranchSelector } from "../components/staff-branch-selector";
@@ -178,11 +178,16 @@ function StaffInventoryContent() {
   );
   const selectedBranch = selectedBranchAccess?.branch;
   const companyId = selectedBranchAccess?.company.id ?? selectedBranch?.companyId;
-  const canManageInventory = hasStaffPermission(
-    effectiveAccess,
-    "inventory.manage",
-    selectedBranchId
-  );
+  const inventoryAccess = getInventoryAccessMode({
+    access: effectiveAccess,
+    companyId,
+    branchId: selectedBranchId
+  });
+  const {
+    canReadCompanyInventory,
+    canManageBranchStock,
+    canManageCompanyInventory
+  } = inventoryAccess;
   const [itemForm, setItemForm] = useState<ItemFormState>(emptyItemForm);
   const [statusDrafts, setStatusDrafts] = useState<
     Record<string, InventoryItemStatus>
@@ -198,7 +203,7 @@ function StaffInventoryContent() {
   const inventoryItemsQuery = useQuery({
     queryKey: staffQueryKeys.inventoryItems(companyId),
     queryFn: () => getInventoryItems(companyId ?? "", token ?? undefined),
-    enabled: Boolean(companyId && token)
+    enabled: Boolean(companyId && token && canReadCompanyInventory)
   });
   const levelsQuery = useQuery({
     queryKey: staffQueryKeys.branchInventoryLevels(selectedBranchId),
@@ -240,11 +245,20 @@ function StaffInventoryContent() {
     queryKey: staffQueryKeys.menuItemInventoryRequirements(activeMenuItemId),
     queryFn: () =>
       getMenuItemInventoryRequirements(activeMenuItemId, token ?? undefined),
-    enabled: Boolean(activeMenuItemId && token)
+    enabled: Boolean(activeMenuItemId && token && canReadCompanyInventory)
   });
-  const inventoryItems = inventoryItemsQuery.data?.items ?? [];
-  const inventoryItemById = new Map(
-    inventoryItems.map((item) => [item.id, item])
+  const companyInventoryItems = inventoryItemsQuery.data?.items ?? [];
+  const branchInventoryItems =
+    levelsQuery.data?.levels.map((level) => level.item) ?? [];
+  const visibleInventoryItems = canReadCompanyInventory
+    ? companyInventoryItems
+    : branchInventoryItems;
+  const branchStockItems =
+    branchInventoryItems.length > 0
+      ? branchInventoryItems
+      : companyInventoryItems;
+  const branchStockItemById = new Map(
+    branchStockItems.map((item) => [item.id, item])
   );
 
   const invalidateInventory = async () => {
@@ -332,6 +346,11 @@ function StaffInventoryContent() {
     event.preventDefault();
     setFormError(null);
 
+    if (!canManageCompanyInventory) {
+      setFormError("Catalog items require company-level inventory access.");
+      return;
+    }
+
     try {
       void createItemMutation.mutateAsync(toCreatePayload(itemForm));
     } catch (error) {
@@ -342,6 +361,11 @@ function StaffInventoryContent() {
   function handleAdjustLevel(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setFormError(null);
+
+    if (!canManageBranchStock) {
+      setFormError("Branch stock adjustments require branch-level inventory access.");
+      return;
+    }
 
     try {
       void adjustmentMutation.mutateAsync({
@@ -356,12 +380,22 @@ function StaffInventoryContent() {
   function replaceRequirements(
     requirements: ReplaceMenuItemInventoryRequirementsPayload["requirements"]
   ) {
+    if (!canManageCompanyInventory) {
+      setFormError("Menu requirements require company-level inventory access.");
+      return;
+    }
+
     void requirementsMutation.mutateAsync({ requirements });
   }
 
   function handleAddRequirement(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setFormError(null);
+
+    if (!canManageCompanyInventory) {
+      setFormError("Menu requirements require company-level inventory access.");
+      return;
+    }
 
     try {
       const existing = requirementsQuery.data?.requirements ?? [];
@@ -410,7 +444,7 @@ function StaffInventoryContent() {
   }
 
   const isLoading =
-    inventoryItemsQuery.isPending ||
+    (canReadCompanyInventory && inventoryItemsQuery.isPending) ||
     levelsQuery.isPending ||
     alertsQuery.isPending ||
     menuAvailabilityQuery.isPending;
@@ -446,6 +480,13 @@ function StaffInventoryContent() {
             className="rounded-card border border-danger bg-danger/10 p-3 text-sm text-danger"
           >
             {formError}
+          </div>
+        ) : null}
+
+        {canManageBranchStock && !canManageCompanyInventory ? (
+          <div className="rounded-card border border-border bg-muted/40 p-3 text-sm text-muted-foreground">
+            You can adjust branch stock levels, but catalog items and menu
+            requirements require company-level inventory access.
           </div>
         ) : null}
 
@@ -505,7 +546,7 @@ function StaffInventoryContent() {
               </CardDescription>
             </CardHeader>
             <CardContent className="grid gap-4">
-              {canManageInventory ? (
+              {canManageCompanyInventory ? (
                 <form onSubmit={handleCreateItem} className="grid gap-3">
                   <div className="grid gap-3 md:grid-cols-2">
                     <Input
@@ -583,12 +624,14 @@ function StaffInventoryContent() {
                 </form>
               ) : (
                 <div className="rounded-card border border-border bg-muted/40 p-3 text-sm text-muted-foreground">
-                  Read-only stock visibility is available for this role.
+                  {canManageBranchStock
+                    ? "You can adjust branch stock levels, but catalog items and menu requirements require company-level inventory access."
+                    : "Read-only stock visibility is available for this role."}
                 </div>
               )}
 
               <div className="grid gap-3">
-                {inventoryItems.map((item) => (
+                {visibleInventoryItems.map((item) => (
                   <div
                     key={item.id}
                     className="grid gap-3 rounded-card border border-border bg-surface/70 p-3 md:grid-cols-[1fr_auto]"
@@ -610,7 +653,7 @@ function StaffInventoryContent() {
                       >
                         {humanizeInventoryValue(item.status)}
                       </Badge>
-                      {canManageInventory ? (
+                      {canManageCompanyInventory ? (
                         <>
                           <select
                             value={statusDrafts[item.id] ?? item.status}
@@ -649,7 +692,7 @@ function StaffInventoryContent() {
                     </div>
                   </div>
                 ))}
-                {inventoryItems.length === 0 ? (
+                {visibleInventoryItems.length === 0 ? (
                   <EmptyState
                     title="No inventory items yet"
                     description="Create catalog items before branch stock can be tracked."
@@ -667,7 +710,7 @@ function StaffInventoryContent() {
               </CardDescription>
             </CardHeader>
             <CardContent className="grid gap-4">
-              {canManageInventory ? (
+              {canManageBranchStock ? (
                 <form onSubmit={handleAdjustLevel} className="grid gap-3">
                   <div className="grid gap-3 md:grid-cols-2">
                     <select
@@ -682,7 +725,7 @@ function StaffInventoryContent() {
                       required
                     >
                       <option value="">Choose stock item</option>
-                      {inventoryItems.map((item) => (
+                      {branchStockItems.map((item) => (
                         <option key={item.id} value={item.id}>
                           {item.name} ({humanizeInventoryValue(item.unit)})
                         </option>
@@ -733,7 +776,7 @@ function StaffInventoryContent() {
                     )}
                     <Input
                       value={itemUnitLabel(
-                        inventoryItemById.get(adjustmentForm.inventoryItemId)
+                        branchStockItemById.get(adjustmentForm.inventoryItemId)
                       )}
                       readOnly
                       aria-label="Adjustment unit"
@@ -763,7 +806,12 @@ function StaffInventoryContent() {
                     Record adjustment
                   </Button>
                 </form>
-              ) : null}
+              ) : (
+                <div className="rounded-card border border-border bg-muted/40 p-3 text-sm text-muted-foreground">
+                  Stock adjustment requires branch-level inventory management
+                  access.
+                </div>
+              )}
 
               <div className="grid gap-3">
                 {levelsQuery.data?.levels.map((level) => (
@@ -825,7 +873,7 @@ function StaffInventoryContent() {
                   </span>
                 </p>
               ) : null}
-              {canManageInventory && activeMenuItemId ? (
+              {canManageCompanyInventory && activeMenuItemId ? (
                 <form onSubmit={handleAddRequirement} className="grid gap-3">
                   <div className="grid gap-3 md:grid-cols-[1fr_9rem_auto]">
                     <select
@@ -840,7 +888,7 @@ function StaffInventoryContent() {
                       required
                     >
                       <option value="">Choose stock item</option>
-                      {inventoryItems
+                      {companyInventoryItems
                         .filter((item) => item.status !== "archived")
                         .map((item) => (
                           <option key={item.id} value={item.id}>
@@ -883,7 +931,12 @@ function StaffInventoryContent() {
                     Save requirement
                   </Button>
                 </form>
-              ) : null}
+              ) : (
+                <div className="rounded-card border border-border bg-muted/40 p-3 text-sm text-muted-foreground">
+                  Catalog items and menu requirements require company-level
+                  inventory access.
+                </div>
+              )}
               <div className="grid gap-3">
                 {requirementsQuery.data?.requirements.map((requirement) => (
                   <div
@@ -900,7 +953,7 @@ function StaffInventoryContent() {
                         {requirement.isRequired ? "" : " · optional"}
                       </p>
                     </div>
-                    {canManageInventory ? (
+                    {canManageCompanyInventory ? (
                       <Button
                         type="button"
                         variant="secondary"
