@@ -55,6 +55,34 @@ enum MenuItemStatus {
   archived
 }
 
+enum InventoryUnit {
+  piece
+  gram
+  milliliter
+}
+
+enum InventoryItemStatus {
+  active
+  inactive
+  archived
+}
+
+enum InventoryMovementType {
+  opening_balance
+  stock_in
+  stock_out
+  correction
+  waste
+  sale_consumption
+  sale_reversal
+}
+
+enum InventoryStockStatus {
+  in_stock
+  low_stock
+  out_of_stock
+}
+
 enum ModifierGroupStatus {
   active
   inactive
@@ -754,6 +782,10 @@ model Company {
   notifications             Notification[]
   experienceProfiles        ExperienceProfile[]
   contentBlocks             ContentBlock[]
+  inventoryItems            InventoryItem[]
+  inventoryLevels           BranchInventoryLevel[]
+  inventoryMovements        InventoryMovement[]
+  menuItemInventoryRequirements MenuItemInventoryRequirement[]
   orders                    Order[]
   presenceEvents            PresenceEvent[]
   preparationTasks          PreparationTask[]
@@ -809,6 +841,8 @@ model Branch {
   notifications             Notification[]
   experienceProfiles        ExperienceProfile[]
   contentBlocks             ContentBlock[]
+  inventoryLevels           BranchInventoryLevel[]
+  inventoryMovements        InventoryMovement[]
   orders                    Order[]
   presenceEvents            PresenceEvent[]
   preparationTasks          PreparationTask[]
@@ -906,6 +940,7 @@ model StaffUser {
   closedCashierShifts      CashierShift[]          @relation("CashierShiftClosedByStaff")
   cashDrawerTransactions   CashDrawerTransaction[]
   generatedCashierReports  CashierShiftReport[]
+  inventoryMovements       InventoryMovement[]
   billEvents               BillEvent[]
   preparationTaskEvents    PreparationTaskEvent[]
   requestedPrintJobs       PrintJob[]              @relation("PrintJobRequestedByStaff")
@@ -1006,6 +1041,7 @@ model MenuItem {
   company                 Company                  @relation(fields: [companyId], references: [id], onDelete: Cascade)
   category                MenuCategory             @relation(fields: [categoryId], references: [id], onDelete: Restrict)
   modifierGroups          MenuItemModifierGroup[]
+  inventoryRequirements   MenuItemInventoryRequirement[]
   branchOverrides         BranchMenuItemOverride[]
   billLines               BillLine[]
   cartItems               CartItem[]
@@ -1018,6 +1054,102 @@ model MenuItem {
   @@index([categoryId])
   @@index([status])
   @@index([station])
+}
+
+model InventoryItem {
+  id                        String              @id @default(uuid())
+  companyId                 String
+  name                      String
+  sku                       String?
+  unit                      InventoryUnit
+  status                    InventoryItemStatus @default(active)
+  parLevelQuantity          Int?
+  lowStockThresholdQuantity Int?
+  createdAt                 DateTime            @default(now())
+  updatedAt                 DateTime            @updatedAt
+
+  company          Company                        @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  branchLevels     BranchInventoryLevel[]
+  movements        InventoryMovement[]
+  menuRequirements MenuItemInventoryRequirement[]
+
+  @@unique([companyId, sku])
+  @@index([companyId])
+  @@index([status])
+  @@index([companyId, status])
+}
+
+model BranchInventoryLevel {
+  id                        String   @id @default(uuid())
+  companyId                 String
+  branchId                  String
+  inventoryItemId           String
+  quantityOnHand            Int      @default(0)
+  reservedQuantity          Int      @default(0)
+  lowStockThresholdQuantity Int?
+  createdAt                 DateTime @default(now())
+  updatedAt                 DateTime @updatedAt
+
+  company       Company       @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  branch        Branch        @relation(fields: [branchId], references: [id], onDelete: Cascade)
+  inventoryItem InventoryItem @relation(fields: [inventoryItemId], references: [id], onDelete: Cascade)
+
+  @@unique([branchId, inventoryItemId])
+  @@index([companyId])
+  @@index([branchId])
+  @@index([inventoryItemId])
+  @@index([branchId, quantityOnHand])
+}
+
+model InventoryMovement {
+  id              String                @id @default(uuid())
+  companyId       String
+  branchId        String
+  inventoryItemId String
+  staffUserId     String?
+  type            InventoryMovementType
+  quantityDelta   Int
+  quantityAfter   Int
+  unit            InventoryUnit
+  sourceType      String?
+  sourceId        String?
+  note            String?
+  createdAt       DateTime              @default(now())
+
+  company       Company       @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  branch        Branch        @relation(fields: [branchId], references: [id], onDelete: Cascade)
+  inventoryItem InventoryItem @relation(fields: [inventoryItemId], references: [id], onDelete: Restrict)
+  staffUser     StaffUser?    @relation(fields: [staffUserId], references: [id], onDelete: SetNull)
+
+  @@index([companyId])
+  @@index([branchId])
+  @@index([inventoryItemId])
+  @@index([staffUserId])
+  @@index([type])
+  @@index([createdAt])
+  @@index([branchId, createdAt])
+  @@index([sourceType, sourceId])
+}
+
+model MenuItemInventoryRequirement {
+  id                String        @id @default(uuid())
+  companyId         String
+  menuItemId        String
+  inventoryItemId   String
+  quantityRequired  Int
+  unit              InventoryUnit
+  isRequired        Boolean       @default(true)
+  createdAt         DateTime      @default(now())
+  updatedAt         DateTime      @updatedAt
+
+  company       Company       @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  menuItem      MenuItem      @relation(fields: [menuItemId], references: [id], onDelete: Cascade)
+  inventoryItem InventoryItem @relation(fields: [inventoryItemId], references: [id], onDelete: Restrict)
+
+  @@unique([menuItemId, inventoryItemId])
+  @@index([companyId])
+  @@index([menuItemId])
+  @@index([inventoryItemId])
 }
 
 model ModifierGroup {

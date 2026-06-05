@@ -18,6 +18,7 @@ import {
   SmartCashierMode,
   SmartCashierRuleScope,
 } from '@prisma/client';
+import { InventoryService } from '../inventory/inventory.service';
 import { PresenceNotificationsService } from '../presence-notifications/presence-notifications.service';
 import { PreparationTasksService } from '../preparation-tasks/preparation-tasks.service';
 import { PrismaService } from '../prisma/prisma.service';
@@ -52,6 +53,7 @@ const smartCashierOrderSelect = {
     select: {
       id: true,
       menuItemId: true,
+      quantity: true,
       itemNameSnapshot: true,
       modifierOptions: {
         orderBy: [{ createdAt: 'asc' as const }],
@@ -156,6 +158,7 @@ export class SmartCashierService {
     private readonly preparationTasksService: PreparationTasksService,
     private readonly presenceNotificationsService: PresenceNotificationsService,
     private readonly realtimeEventsService: RealtimeEventsService,
+    private readonly inventoryService: InventoryService,
   ) {}
 
   async getBranchSettings(branchId: string) {
@@ -540,6 +543,12 @@ export class SmartCashierService {
       };
     }
 
+    await this.inventoryService.consumeStockForAcceptedOrder(
+      orderId,
+      undefined,
+      tx,
+    );
+
     await tx.orderEvent.create({
       data: {
         orderId,
@@ -675,6 +684,36 @@ export class SmartCashierService {
           },
         );
       }
+    }
+
+    const stockIssues = await this.inventoryService.getStockIssuesForItems(
+      order.companyId,
+      order.branchId,
+      order.items.map((item) => ({
+        menuItemId: item.menuItemId,
+        quantity: item.quantity,
+        orderItemId: item.id,
+        itemNameSnapshot: item.itemNameSnapshot ?? undefined,
+      })),
+      tx,
+    );
+
+    for (const issue of stockIssues) {
+      if (issue.code !== 'item_out_of_stock') {
+        continue;
+      }
+
+      this.addReason(
+        reasons,
+        ManualReviewReasonCode.out_of_stock,
+        issue.message,
+        {
+          orderItemId: issue.orderItemId,
+          menuItemId: issue.menuItemId,
+          itemNameSnapshot: issue.itemNameSnapshot,
+          ...issue.details,
+        },
+      );
     }
 
     const reviewRules = await tx.smartCashierReviewRule.findMany({

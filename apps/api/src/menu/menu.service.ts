@@ -1,9 +1,13 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
+import { InventoryService } from '../inventory/inventory.service';
 import { PrismaService } from '../prisma/prisma.service';
 
 @Injectable()
 export class MenuService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly inventoryService: InventoryService,
+  ) {}
 
   async findCompanyMenu(companySlug: string) {
     const company = await this.prisma.company.findUnique({
@@ -114,6 +118,12 @@ export class MenuService {
         },
       },
     });
+    const stockAvailability = await this.inventoryService.getBranchMenuAvailability(
+      branchId,
+    );
+    const stockAvailabilityByItemId = new Map(
+      stockAvailability.items.map((item) => [item.menuItemId, item]),
+    );
 
     return {
       branch,
@@ -124,7 +134,13 @@ export class MenuService {
         description: category.description,
         sortOrder: category.sortOrder,
         status: category.status,
-        items: category.items.map((item) => this.toBranchMenuItem(item, category)),
+        items: category.items.map((item) =>
+          this.toBranchMenuItem(
+            item,
+            category,
+            stockAvailabilityByItemId.get(item.id),
+          ),
+        ),
       })),
     };
   }
@@ -367,8 +383,16 @@ export class MenuService {
     };
   }
 
-  private toBranchMenuItem(item, category) {
+  private toBranchMenuItem(item, category, stockAvailability?) {
     const override = item.branchOverrides[0];
+    const canOrder =
+      stockAvailability?.canOrder ??
+      Boolean(
+        override?.isAvailable &&
+          override?.isVisible &&
+          item.status === 'active' &&
+          category.status === 'active',
+      );
 
     return {
       id: item.id,
@@ -386,6 +410,11 @@ export class MenuService {
       isFeatured: item.isFeatured,
       isAvailable: override?.isAvailable ?? false,
       isVisible: override?.isVisible ?? false,
+      canOrder,
+      stockStatus: stockAvailability?.stockStatus ?? 'in_stock',
+      stockReasons: stockAvailability?.reasons ?? [],
+      missingRequirements: stockAvailability?.missingRequirements ?? [],
+      lowStockRequirements: stockAvailability?.lowStockRequirements ?? [],
       sortOrder: override?.sortOrder ?? item.sortOrder,
       category: {
         id: category.id,

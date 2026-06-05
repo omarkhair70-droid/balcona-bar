@@ -15,6 +15,7 @@ import {
   TableAttentionStatus,
   WaiterCallStatus,
 } from '@prisma/client';
+import { InventoryService } from '../inventory/inventory.service';
 import { PrismaService } from '../prisma/prisma.service';
 import {
   OwnerAnalyticsPreset,
@@ -168,7 +169,10 @@ type MoneyCountRow = CountRow & { amountMinor: number };
 
 @Injectable()
 export class OwnerAnalyticsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly inventoryService: InventoryService,
+  ) {}
 
   async getSummary(branchId: string, query: OwnerAnalyticsQueryDto = {}) {
     const branch = await this.findBranchOrThrow(branchId);
@@ -181,6 +185,7 @@ export class OwnerAnalyticsService {
       activeCashierShift,
       latestClosedShift,
       latestZReport,
+      inventoryAlerts,
     ] = await Promise.all([
       this.getRecordedPayments(branchId, range),
       this.prisma.order.groupBy({
@@ -225,6 +230,7 @@ export class OwnerAnalyticsService {
         select: cashierShiftReportSelect,
         orderBy: [{ generatedAt: 'desc' }, { id: 'desc' }],
       }),
+      this.inventoryService.getBranchInventoryAlerts(branchId),
     ]);
     const paymentStats = this.summarizePayments(payments);
     const orderCounts = this.orderCountsFromGroupBy(orderStatusCounts);
@@ -252,6 +258,11 @@ export class OwnerAnalyticsService {
       activeCashierShift: this.summarizeShift(activeCashierShift),
       latestClosedShift: this.summarizeShift(latestClosedShift),
       latestZReport: this.summarizeReport(latestZReport),
+      lowStockCount: inventoryAlerts.summary.lowStockCount,
+      outOfStockCount: inventoryAlerts.summary.outOfStockCount,
+      stockBlockedMenuItemCount:
+        inventoryAlerts.summary.stockBlockedMenuItemCount,
+      recentInventoryMovements: inventoryAlerts.recentMovements.slice(0, 5),
       revenueSource: 'recorded_manual_payments',
     };
   }

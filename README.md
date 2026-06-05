@@ -1,6 +1,6 @@
 # balcona-bar
 
-Balcona Bar is organized as a monorepo for the Cafe AI Waiter App / Smart Cafe Operating System. The backend core is complete through Phase 24, UI Phase 1 adds the first Next.js web foundation for customer and staff experiences, UI Phase 2 adds the customer PWA core, UI Phase 3 adds the customer AI waiter experience, UI Phase 4 adds the cashier dashboard core, UI Phase 5 adds the kitchen/barista dashboard core, UI Phase 6 adds the waiter dashboard and attention queue, UI Phase 7 adds the owner/manager command center, UI Phase 8 adds full demo hardening plus Balkona demo mode, Production Phase 1 adds deployable platform foundation files, Production Phase 2 adds AWS infrastructure foundation scaffolding without deploying resources, Production Phase 3A adds public demo deploy readiness plus CI/CD guardrails without deploying resources, Production Phase 3B adds the first public AWS demo preflight deploy pack without deploying resources, Product Phase 4A starts the full Cafe OS product completion track, Product Phase 4B adds branch-scoped menu admin and availability management, Product Phase 4C adds branch, tables, and QR management, Product Phase 4E.G0-G3 add a Groq AI waiter provider with safe backend validation, deep menu grounding, and modifier-turn ordering intelligence, Product Phase 4S.0 enforces staff roles, permissions, and branch access on the current staff product surfaces, Product Phase 4O.0 hardens order lifecycle transitions across cashier, preparation, waiter, and customer status flows, Product Phase 4K.0 adds KDS kitchen tickets plus a mock printer foundation for station operations, Product Phase 4P.0 adds stable bills, manual cashier payments, and receipt foundations, Product Phase 4C.0 adds cashier shifts, cash drawer transactions, and X/Z reports, Product Phase 4A.0 adds branch-scoped owner analytics and daily reports from real orders, bills, payments, shifts, operations, and AI waiter records, and Product Phase 4T.0 adds guarded tenant onboarding and company/branch setup readiness.
+Balcona Bar is organized as a monorepo for the Cafe AI Waiter App / Smart Cafe Operating System. The backend core is complete through Phase 24, UI Phase 1 adds the first Next.js web foundation for customer and staff experiences, UI Phase 2 adds the customer PWA core, UI Phase 3 adds the customer AI waiter experience, UI Phase 4 adds the cashier dashboard core, UI Phase 5 adds the kitchen/barista dashboard core, UI Phase 6 adds the waiter dashboard and attention queue, UI Phase 7 adds the owner/manager command center, UI Phase 8 adds full demo hardening plus Balkona demo mode, Production Phase 1 adds deployable platform foundation files, Production Phase 2 adds AWS infrastructure foundation scaffolding without deploying resources, Production Phase 3A adds public demo deploy readiness plus CI/CD guardrails without deploying resources, Production Phase 3B adds the first public AWS demo preflight deploy pack without deploying resources, Product Phase 4A starts the full Cafe OS product completion track, Product Phase 4B adds branch-scoped menu admin and availability management, Product Phase 4C adds branch, tables, and QR management, Product Phase 4E.G0-G3 add a Groq AI waiter provider with safe backend validation, deep menu grounding, and modifier-turn ordering intelligence, Product Phase 4S.0 enforces staff roles, permissions, and branch access on the current staff product surfaces, Product Phase 4O.0 hardens order lifecycle transitions across cashier, preparation, waiter, and customer status flows, Product Phase 4K.0 adds KDS kitchen tickets plus a mock printer foundation for station operations, Product Phase 4P.0 adds stable bills, manual cashier payments, and receipt foundations, Product Phase 4C.0 adds cashier shifts, cash drawer transactions, and X/Z reports, Product Phase 4A.0 adds branch-scoped owner analytics and daily reports from real orders, bills, payments, shifts, operations, and AI waiter records, Product Phase 4T.0 adds guarded tenant onboarding and company/branch setup readiness, and Product Phase 4I.0 adds inventory and branch stock foundations for menu availability and accepted-order consumption.
 
 ## Layout
 
@@ -219,6 +219,30 @@ Existing local dev, Balkona seed/demo data, customer QR routes, and staff
 operational surfaces remain intact. See
 `docs/architecture/product-phase-4t0-tenant-onboarding-company-setup.md` for the
 endpoint contract, permission model, non-goals, and smoke path.
+
+## Product Phase 4I.0 status
+
+Product Phase 4I.0 adds the first inventory and branch stock foundation:
+
+- company inventory items with SKU, unit, status, par level, and low-stock
+  thresholds;
+- branch inventory levels with manual stock movements and audit history;
+- menu item inventory requirements for stock-grounded availability;
+- customer menu and cart safeguards for sold-out items;
+- accepted-order stock consumption inside the guarded cashier accept
+  transaction;
+- AI waiter menu grounding that excludes stock-blocked items;
+- `/staff/inventory` for stock review, adjustment, and requirement setup;
+- owner analytics and setup readiness inventory signals;
+- `inventory.read` and `inventory.manage` permissions with branch/company scope.
+
+Existing local dev, Balkona demo routes, cashier, KDS, waiter, bills, shifts,
+and owner dashboards remain intact. This phase does not add suppliers, purchase
+orders, COGS, barcode scanning, branch transfers, expiry/batch tracking, online
+payments, or automatic sale reversal. See
+`docs/architecture/product-phase-4i0-inventory-stock-foundation.md` for the data
+model, endpoints, stock movement policy, ordering integration, non-goals, and
+smoke path.
 
 ## Product Phase 4P.0 status
 
@@ -1580,4 +1604,5 @@ begin.
 - Product Phase 4K.0 KDS, kitchen tickets, and printer foundation: `docs/architecture/product-phase-4k0-kds-kitchen-tickets-printer-foundation.md`
 - Product Phase 4C.0 shift, cash drawer, and X/Z reports: `docs/architecture/product-phase-4c0-shift-cash-drawer-xz-reports.md`
 - Product Phase 4T.0 tenant onboarding and company setup: `docs/architecture/product-phase-4t0-tenant-onboarding-company-setup.md`
+- Product Phase 4I.0 inventory and stock foundation: `docs/architecture/product-phase-4i0-inventory-stock-foundation.md`
 - Real cafe readiness checklist: `docs/product/real-cafe-readiness-checklist.md`

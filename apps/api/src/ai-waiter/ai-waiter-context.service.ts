@@ -14,6 +14,7 @@ import {
   TableSessionStatus,
 } from "@prisma/client";
 import { CartService } from "../cart/cart.service";
+import { InventoryService } from "../inventory/inventory.service";
 import { PrismaService } from "../prisma/prisma.service";
 import { AiWaiterContext } from "./ai-waiter.types";
 
@@ -23,6 +24,7 @@ export class AiWaiterContextService {
     private readonly prisma: PrismaService,
     private readonly cartService: CartService,
     private readonly configService: ConfigService,
+    private readonly inventoryService: InventoryService,
   ) {}
 
   async findTableSessionOrThrow(sessionId: string) {
@@ -195,8 +197,16 @@ export class AiWaiterContextService {
         },
       },
     });
+    const availability = await this.inventoryService.getBranchMenuAvailability(
+      branchId,
+    );
+    const availableMenuItemIds = new Set(
+      availability.items
+        .filter((item) => item.canOrder)
+        .map((item) => item.menuItemId),
+    );
 
-    return menuItems.map((item) => ({
+    return menuItems.filter((item) => availableMenuItemIds.has(item.id)).map((item) => ({
       id: item.id,
       name: item.name,
       slug: item.slug,

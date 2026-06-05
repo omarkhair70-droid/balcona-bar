@@ -18,6 +18,7 @@ import { ContentModule } from './content/content.module';
 import { CustomerStatusModule } from './customer-status/customer-status.module';
 import { ExperienceModule } from './experience/experience.module';
 import { HealthModule } from './health/health.module';
+import { InventoryModule } from './inventory/inventory.module';
 import { JobsModule } from './jobs/jobs.module';
 import { KitchenTicketsModule } from './kitchen-tickets/kitchen-tickets.module';
 import { MediaAssetsModule } from './media-assets/media-assets.module';
@@ -57,6 +58,7 @@ import { WaiterCallsModule } from './waiter-calls/waiter-calls.module';
     PrismaModule,
     RedisModule,
     HealthModule,
+    InventoryModule,
     JobsModule,
     KitchenTicketsModule,
     SystemModule,

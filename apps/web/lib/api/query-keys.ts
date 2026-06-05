@@ -262,6 +262,36 @@ export const staffQueryKeys = {
     branchId,
     ownerAnalyticsRangeKey(query),
   ],
+  inventoryItems: (companyId?: string) => [
+    "staff",
+    "inventory",
+    "items",
+    companyId,
+  ],
+  branchInventoryLevels: (branchId?: string) => [
+    "staff",
+    "inventory",
+    "levels",
+    branchId,
+  ],
+  branchInventoryAlerts: (branchId?: string) => [
+    "staff",
+    "inventory",
+    "alerts",
+    branchId,
+  ],
+  menuItemInventoryRequirements: (menuItemId?: string) => [
+    "staff",
+    "inventory",
+    "menu-item-requirements",
+    menuItemId,
+  ],
+  branchInventoryMenuAvailability: (branchId?: string) => [
+    "staff",
+    "inventory",
+    "menu-availability",
+    branchId,
+  ],
   staffMenuAdminOverview: (branchId?: string) => [
     "staff",
     "menu-admin",

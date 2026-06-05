@@ -1,5 +1,6 @@
 import { ConfigService } from "@nestjs/config";
 import { CartService } from "../cart/cart.service";
+import { InventoryService } from "../inventory/inventory.service";
 import { PrismaService } from "../prisma/prisma.service";
 import { AiWaiterContextService } from "./ai-waiter-context.service";
 import { AiWaiterMenuGroundingService } from "./grounding/ai-waiter-menu-grounding.service";
@@ -49,10 +50,19 @@ describe("AiWaiterContextService", () => {
         key === "aiWaiter.menuSnapshotLimit" ? 200 : undefined,
       ),
     } as unknown as ConfigService;
+    const inventoryService = {
+      getBranchMenuAvailability: jest.fn().mockResolvedValue({
+        items: Array.from({ length: 61 }, (_, index) => ({
+          menuItemId: `item-${index + 1}`,
+          canOrder: true,
+        })),
+      }),
+    } as unknown as InventoryService;
     const service = new AiWaiterContextService(
       prisma,
       cartService,
       configService,
+      inventoryService,
     );
 
     const context = await service.buildContext({
@@ -83,6 +93,9 @@ describe("AiWaiterContextService", () => {
       expect.objectContaining({ take: 200 }),
     );
     expect(context.menuItems).toHaveLength(61);
+    expect(inventoryService.getBranchMenuAvailability).toHaveBeenCalledWith(
+      "branch-1",
+    );
     expect(context.menuItems[60]).toMatchObject({
       id: "item-61",
       name: "Deep Menu Item 61 Mango",
@@ -140,10 +153,14 @@ describe("AiWaiterContextService", () => {
         key === "aiWaiter.menuSnapshotLimit" ? 200 : undefined,
       ),
     } as unknown as ConfigService;
+    const inventoryService = {
+      getBranchMenuAvailability: jest.fn().mockResolvedValue({ items: [] }),
+    } as unknown as InventoryService;
     const service = new AiWaiterContextService(
       prisma,
       cartService,
       configService,
+      inventoryService,
     );
 
     const result = await service.buildContext(

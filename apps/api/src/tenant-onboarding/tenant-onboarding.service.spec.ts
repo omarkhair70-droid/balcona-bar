@@ -169,6 +169,12 @@ function createPrisma(overrides: Record<string, unknown> = {}) {
       findMany: jest.fn().mockResolvedValue([]),
       count: jest.fn().mockResolvedValue(0),
     },
+    inventoryItem: {
+      count: jest.fn().mockResolvedValue(0),
+    },
+    branchInventoryLevel: {
+      findMany: jest.fn().mockResolvedValue([]),
+    },
     modifierGroup: {
       count: jest.fn().mockResolvedValue(0),
     },

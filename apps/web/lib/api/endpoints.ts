@@ -22,6 +22,9 @@ import type {
   BranchOnboardingResult,
   BranchCashierShiftsQuery,
   BranchCashierShiftsResult,
+  BranchInventoryAlertsResult,
+  BranchInventoryLevelsResult,
+  BranchInventoryMenuAvailabilityResult,
   BranchAdminOverviewResult,
   BranchKitchenTicketsQuery,
   BranchKitchenTicketsResult,
@@ -69,6 +72,7 @@ import type {
   CreateBranchResult,
   CreateFloorPayload,
   CreateFloorResult,
+  CreateInventoryItemPayload,
   CreateTablePayload,
   CreateTableResult,
   CreateModifierOptionResult,
@@ -128,6 +132,8 @@ import type {
   SubmitCartResult,
   InviteOnboardingStaffPayload,
   InviteOnboardingStaffResult,
+  InventoryItemMutationResult,
+  InventoryItemsResult,
   UpdateBranchOnboardingProfilePayload,
   UpdateBranchOnboardingProfileResult,
   UpdateCompanyOnboardingProfilePayload,
@@ -138,6 +144,7 @@ import type {
   UpdateModifierOptionPayload,
   UpdateBranchPayload,
   UpdateFloorPayload,
+  UpdateInventoryItemPayload,
   UpdateTablePayload,
   TableSessionAttentionResult,
   TableMutationResult,
@@ -146,6 +153,10 @@ import type {
   UpdateReadinessCheckResult,
   UpsertBranchMenuItemOverrideResult,
   UpsertBranchMenuItemOverridePayload,
+  AdjustInventoryLevelPayload,
+  AdjustInventoryLevelResult,
+  MenuItemInventoryRequirementsResult,
+  ReplaceMenuItemInventoryRequirementsPayload,
   WaiterCallDetailResult,
   WaiterCallPayload,
   WaiterCallStaffActionPayload,
@@ -375,6 +386,108 @@ export function getOwnerDailyReport(
 
 export function getBranchMenu(branchId: string, token?: string) {
   return apiRequest<BranchMenuResult>(`/branches/${branchId}/menu`, { token });
+}
+
+export function getInventoryItems(companyId: string, token?: string) {
+  return apiRequest<InventoryItemsResult>(
+    `/companies/${companyId}/inventory/items`,
+    { token },
+  );
+}
+
+export function createInventoryItem(
+  companyId: string,
+  payload: CreateInventoryItemPayload,
+  token?: string,
+) {
+  return apiRequest<InventoryItemMutationResult, CreateInventoryItemPayload>(
+    `/companies/${companyId}/inventory/items`,
+    {
+      method: "POST",
+      body: payload,
+      token,
+    },
+  );
+}
+
+export function updateInventoryItem(
+  inventoryItemId: string,
+  payload: UpdateInventoryItemPayload,
+  token?: string,
+) {
+  return apiRequest<InventoryItemMutationResult, UpdateInventoryItemPayload>(
+    `/inventory/items/${inventoryItemId}`,
+    {
+      method: "PATCH",
+      body: payload,
+      token,
+    },
+  );
+}
+
+export function getBranchInventoryLevels(branchId: string, token?: string) {
+  return apiRequest<BranchInventoryLevelsResult>(
+    `/branches/${branchId}/inventory/levels`,
+    { token },
+  );
+}
+
+export function getBranchInventoryAlerts(branchId: string, token?: string) {
+  return apiRequest<BranchInventoryAlertsResult>(
+    `/branches/${branchId}/inventory/alerts`,
+    { token },
+  );
+}
+
+export function adjustBranchInventoryLevel(
+  branchId: string,
+  inventoryItemId: string,
+  payload: AdjustInventoryLevelPayload,
+  token?: string,
+) {
+  return apiRequest<AdjustInventoryLevelResult, AdjustInventoryLevelPayload>(
+    `/branches/${branchId}/inventory/levels/${inventoryItemId}/adjust`,
+    {
+      method: "POST",
+      body: payload,
+      token,
+    },
+  );
+}
+
+export function getMenuItemInventoryRequirements(
+  menuItemId: string,
+  token?: string,
+) {
+  return apiRequest<MenuItemInventoryRequirementsResult>(
+    `/menu-items/${menuItemId}/inventory-requirements`,
+    { token },
+  );
+}
+
+export function updateMenuItemInventoryRequirements(
+  menuItemId: string,
+  payload: ReplaceMenuItemInventoryRequirementsPayload,
+  token?: string,
+) {
+  return apiRequest<
+    MenuItemInventoryRequirementsResult,
+    ReplaceMenuItemInventoryRequirementsPayload
+  >(`/menu-items/${menuItemId}/inventory-requirements`, {
+    method: "PUT",
+    body: payload,
+    token,
+  });
+}
+
+export function getBranchInventoryMenuAvailability(
+  branchId: string,
+  token?: string,
+) {
+  return apiRequest<BranchInventoryMenuAvailabilityResult>(
+    `/branches/${branchId}/inventory/menu-availability`,
+    { token },
+  );
 }
 
 export function getMenuItemDetail(itemId: string, token?: string) {

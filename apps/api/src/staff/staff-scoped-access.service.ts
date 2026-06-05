@@ -257,6 +257,24 @@ export class StaffScopedAccessService {
     return this.assertCanForRecord(staffUserId, permission, item, 'Menu item');
   }
 
+  async assertCanForInventoryItem(
+    staffUserId: string,
+    permission: StaffPermission,
+    inventoryItemId: string,
+  ) {
+    const item = await this.prisma.inventoryItem.findUnique({
+      where: { id: inventoryItemId },
+      select: { companyId: true },
+    });
+
+    return this.assertCanForRecord(
+      staffUserId,
+      permission,
+      item,
+      'Inventory item',
+    );
+  }
+
   async assertCanForModifierGroup(
     staffUserId: string,
     permission: StaffPermission,

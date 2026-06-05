@@ -7,6 +7,7 @@ import { ConfigService } from '@nestjs/config';
 import {
   BranchStatus,
   CompanyStatus,
+  InventoryItemStatus,
   MenuItemStatus,
   ModifierGroupStatus,
   Prisma,
@@ -599,6 +600,8 @@ export class TenantOnboardingService {
       featureFlags,
       smartCashierSettings,
       currentOpenShift,
+      inventoryItemCount,
+      inventoryLevels,
     ] = await Promise.all([
       tx.floor.findMany({
         where: { branchId: branch.id },
@@ -691,6 +694,27 @@ export class TenantOnboardingService {
         orderBy: [{ openedAt: 'desc' }],
         select: { id: true, status: true, openedAt: true },
       }),
+      tx.inventoryItem.count({
+        where: {
+          companyId: branch.companyId,
+          status: InventoryItemStatus.active,
+        },
+      }),
+      tx.branchInventoryLevel.findMany({
+        where: { branchId: branch.id },
+        select: {
+          id: true,
+          quantityOnHand: true,
+          lowStockThresholdQuantity: true,
+          inventoryItem: {
+            select: {
+              id: true,
+              status: true,
+              lowStockThresholdQuantity: true,
+            },
+          },
+        },
+      }),
     ]);
     const roleCounts = this.countRoles(memberships);
     const activeTables = tables.filter(
@@ -717,6 +741,24 @@ export class TenantOnboardingService {
       (sum, item) => sum + item.branchOverrides.length,
       0,
     );
+    const activeInventoryLevels = inventoryLevels.filter(
+      (level) => level.inventoryItem.status === InventoryItemStatus.active,
+    );
+    const outOfStockInventoryCount = activeInventoryLevels.filter(
+      (level) => level.quantityOnHand <= 0,
+    ).length;
+    const lowStockInventoryCount = activeInventoryLevels.filter((level) => {
+      const threshold =
+        level.lowStockThresholdQuantity ??
+        level.inventoryItem.lowStockThresholdQuantity;
+
+      return (
+        threshold !== null &&
+        threshold !== undefined &&
+        level.quantityOnHand > 0 &&
+        level.quantityOnHand <= threshold
+      );
+    }).length;
     const featureFlagMap = Object.fromEntries(
       featureFlags.map((flag) => [flag.key, flag.enabled]),
     );
@@ -831,6 +873,24 @@ export class TenantOnboardingService {
           ? undefined
           : 'needs_attention',
       ),
+      this.item(
+        'inventory_foundation_ready',
+        'Inventory foundation ready',
+        inventoryItemCount > 0 && activeInventoryLevels.length > 0,
+        inventoryItemCount > 0 && activeInventoryLevels.length > 0
+          ? `${inventoryItemCount} active inventory item${inventoryItemCount === 1 ? '' : 's'} and ${activeInventoryLevels.length} branch stock level${activeInventoryLevels.length === 1 ? '' : 's'} ready.`
+          : 'Add inventory items and opening branch stock before pilot operations.',
+        '/staff/inventory',
+        {
+          inventoryItemCount,
+          trackedLevelCount: activeInventoryLevels.length,
+          lowStockCount: lowStockInventoryCount,
+          outOfStockCount: outOfStockInventoryCount,
+        },
+        inventoryItemCount > 0 && activeInventoryLevels.length > 0
+          ? undefined
+          : 'needs_attention',
+      ),
     ];
     const operationsItems = [
       this.item(
@@ -942,6 +1002,10 @@ export class TenantOnboardingService {
         missingPriceItemCount: missingPriceItems.length,
         aiWaiterMenuGroundingReady:
           availableMenuItems.length >= 3 && missingPriceItems.length === 0,
+        inventoryItemCount,
+        trackedInventoryLevelCount: activeInventoryLevels.length,
+        lowStockCount: lowStockInventoryCount,
+        outOfStockCount: outOfStockInventoryCount,
       },
       operations: {
         operatingSettings,

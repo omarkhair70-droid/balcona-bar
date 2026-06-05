@@ -70,5 +70,29 @@ describe('staff permissions', () => {
     );
     expect(getRolePermissions(StaffRole.cashier)).not.toContain('staff.manage');
   });
+
+  it('allows broad inventory visibility but reserves stock management', () => {
+    expect(STAFF_PERMISSION_SET.has('inventory.read')).toBe(true);
+    expect(STAFF_PERMISSION_SET.has('inventory.manage')).toBe(true);
+
+    for (const role of [
+      StaffRole.owner,
+      StaffRole.branch_manager,
+      StaffRole.menu_admin,
+    ]) {
+      expect(getRolePermissions(role)).toContain('inventory.read');
+      expect(getRolePermissions(role)).toContain('inventory.manage');
+    }
+
+    for (const role of [
+      StaffRole.cashier,
+      StaffRole.waiter,
+      StaffRole.kitchen,
+      StaffRole.barista,
+    ]) {
+      expect(getRolePermissions(role)).toContain('inventory.read');
+      expect(getRolePermissions(role)).not.toContain('inventory.manage');
+    }
+  });
 });
 

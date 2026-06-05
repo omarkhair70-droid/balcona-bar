@@ -6,6 +6,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   BarChart3,
   Bot,
+  Boxes,
   ChefHat,
   Download,
   LayoutDashboard,
@@ -678,6 +679,18 @@ function OwnerDashboardContent() {
           description={`${summary.activeBillRequestCount.toLocaleString("en")} active bill requests`}
           icon={<UserRoundCheck className="size-4" aria-hidden="true" />}
           tone="warning"
+        />
+        <MetricCard
+          label="Stock risk"
+          value={`${summary.lowStockCount ?? 0}/${summary.outOfStockCount ?? 0}`}
+          description={`${summary.stockBlockedMenuItemCount ?? 0} menu items stock-blocked`}
+          icon={<Boxes className="size-4" aria-hidden="true" />}
+          tone={
+            (summary.outOfStockCount ?? 0) > 0 ||
+            (summary.stockBlockedMenuItemCount ?? 0) > 0
+              ? "warning"
+              : "success"
+          }
         />
         <MetricCard
           label="AI sessions"
