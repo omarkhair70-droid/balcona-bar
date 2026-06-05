@@ -602,8 +602,16 @@ function CashierDashboardContent() {
           status={billStatus}
           isLoading={billRequestsQuery.isPending}
           error={billRequestsQuery.error ?? undefined}
-          pendingActionId={billActionMutation.variables?.billRequestId}
-          pendingPaymentId={manualPaymentMutation.variables?.billId}
+          pendingActionId={
+            billActionMutation.isPending
+              ? billActionMutation.variables?.billRequestId
+              : undefined
+          }
+          pendingPaymentId={
+            manualPaymentMutation.isPending
+              ? manualPaymentMutation.variables?.billId
+              : undefined
+          }
           paymentError={
             manualPaymentMutation.isError
               ? manualPaymentMutation.error
