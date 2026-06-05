@@ -4,6 +4,7 @@ import Link from "next/link";
 import {
   Bell,
   BookOpenText,
+  Boxes,
   Building2,
   ChefHat,
   ClipboardCheck,
@@ -48,6 +49,14 @@ const staffAreas = [
     icon: <BookOpenText className="size-5" aria-hidden="true" />,
     state: "Live",
     requiredPermissions: ["menu.read"]
+  },
+  {
+    title: "Inventory",
+    href: "/staff/inventory",
+    description: "Branch stock levels, movement history, and menu stock gates.",
+    icon: <Boxes className="size-5" aria-hidden="true" />,
+    state: "Live",
+    requiredPermissions: ["inventory.read"]
   },
   {
     title: "Setup",

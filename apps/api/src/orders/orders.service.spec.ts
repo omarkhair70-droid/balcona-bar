@@ -102,6 +102,8 @@ function buildService(input: {
     preparationTasks?: { id: string; status: PreparationTaskStatus }[];
   } | null;
   responseStatus?: OrderStatus;
+  updateCount?: number;
+  inventoryRejects?: boolean;
 }) {
   const tx = {
     staffUser: {
@@ -122,7 +124,7 @@ function buildService(input: {
               : null,
         ),
       ),
-      updateMany: jest.fn().mockResolvedValue({ count: 1 }),
+      updateMany: jest.fn().mockResolvedValue({ count: input.updateCount ?? 1 }),
     },
     orderEvent: {
       create: jest.fn().mockResolvedValue({ id: 'event-1' }),
@@ -153,6 +155,11 @@ function buildService(input: {
     syncTicketsForOrderServed: jest.fn().mockResolvedValue(1),
     syncTicketsForOrderCancelled: jest.fn().mockResolvedValue(1),
   };
+  const inventoryService = {
+    consumeStockForAcceptedOrder: input.inventoryRejects
+      ? jest.fn().mockRejectedValue(new Error('Item is out of stock'))
+      : jest.fn().mockResolvedValue({ consumed: true, movements: [] }),
+  };
   const service = new OrdersService(
     prisma as never,
     {} as never,
@@ -162,6 +169,7 @@ function buildService(input: {
     {} as never,
     { recalculateForTableSession: jest.fn().mockResolvedValue({}) } as never,
     kitchenTicketsService as never,
+    inventoryService as never,
   );
 
   return {
@@ -170,10 +178,63 @@ function buildService(input: {
     preparationTasksService,
     realtimeEventsService,
     kitchenTicketsService,
+    inventoryService,
   };
 }
 
 describe('OrdersService lifecycle hardening', () => {
+  it('accepts a submitted order and consumes stock after the guarded update', async () => {
+    const { service, tx, inventoryService, preparationTasksService } =
+      buildService({
+        transitionOrder: { status: OrderStatus.submitted },
+        responseStatus: OrderStatus.cashier_accepted,
+      });
+
+    await service.accept('order-1', {}, 'staff-1');
+
+    expect(tx.order.updateMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: 'order-1', status: OrderStatus.submitted },
+      }),
+    );
+    expect(inventoryService.consumeStockForAcceptedOrder).toHaveBeenCalledWith(
+      'order-1',
+      'staff-1',
+      tx,
+    );
+    expect(preparationTasksService.createTasksForAcceptedOrder).toHaveBeenCalledWith(
+      'order-1',
+      'staff-1',
+      tx,
+    );
+  });
+
+  it('does not consume stock when a duplicate accept sees stale order state', async () => {
+    const { service, inventoryService } = buildService({
+      transitionOrder: { status: OrderStatus.submitted },
+      updateCount: 0,
+    });
+
+    await expectLifecycleCode(
+      service.accept('order-1', {}, 'staff-1'),
+      'stale_order_state',
+    );
+    expect(inventoryService.consumeStockForAcceptedOrder).not.toHaveBeenCalled();
+  });
+
+  it('stops accepted-order side effects when stock consumption rejects', async () => {
+    const { service, inventoryService, preparationTasksService } = buildService({
+      transitionOrder: { status: OrderStatus.submitted },
+      inventoryRejects: true,
+    });
+
+    await expect(service.accept('order-1', {}, 'staff-1')).rejects.toThrow(
+      'Item is out of stock',
+    );
+    expect(inventoryService.consumeStockForAcceptedOrder).toHaveBeenCalled();
+    expect(preparationTasksService.createTasksForAcceptedOrder).not.toHaveBeenCalled();
+  });
+
   it('denies completion before the order is served', async () => {
     const { service } = buildService({
       transitionOrder: { status: OrderStatus.ready },

@@ -12,6 +12,8 @@ export const STAFF_PERMISSIONS = [
   'menu.manage_items',
   'menu.manage_modifiers',
   'menu.manage_branch_overrides',
+  'inventory.read',
+  'inventory.manage',
   'media.read',
   'media.manage',
   'experience.read',
@@ -92,6 +94,8 @@ export const ROLE_PERMISSIONS: Record<StaffRole, readonly StaffPermission[]> = {
     'menu.manage_items',
     'menu.manage_modifiers',
     'menu.manage_branch_overrides',
+    'inventory.read',
+    'inventory.manage',
     'media.read',
     'media.manage',
     'experience.read',
@@ -152,6 +156,7 @@ export const ROLE_PERMISSIONS: Record<StaffRole, readonly StaffPermission[]> = {
   ],
   [StaffRole.cashier]: [
     'menu.read',
+    'inventory.read',
     'media.read',
     'experience.read',
     'content.read',
@@ -182,6 +187,7 @@ export const ROLE_PERMISSIONS: Record<StaffRole, readonly StaffPermission[]> = {
   ],
   [StaffRole.waiter]: [
     'menu.read',
+    'inventory.read',
     'media.read',
     'experience.read',
     'content.read',
@@ -201,6 +207,7 @@ export const ROLE_PERMISSIONS: Record<StaffRole, readonly StaffPermission[]> = {
   ],
   [StaffRole.kitchen]: [
     'menu.read',
+    'inventory.read',
     'media.read',
     'experience.read',
     'content.read',
@@ -214,6 +221,7 @@ export const ROLE_PERMISSIONS: Record<StaffRole, readonly StaffPermission[]> = {
   ],
   [StaffRole.barista]: [
     'menu.read',
+    'inventory.read',
     'media.read',
     'experience.read',
     'content.read',
@@ -234,6 +242,8 @@ export const ROLE_PERMISSIONS: Record<StaffRole, readonly StaffPermission[]> = {
     'menu.manage_items',
     'menu.manage_modifiers',
     'menu.manage_branch_overrides',
+    'inventory.read',
+    'inventory.manage',
     'media.read',
     'media.manage',
     'experience.read',

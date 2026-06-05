@@ -188,6 +188,10 @@ export type BranchOnboardingResult = {
     itemsWithModifiersCount: number;
     missingPriceItemCount: number;
     aiWaiterMenuGroundingReady: boolean;
+    inventoryItemCount?: number;
+    trackedInventoryLevelCount?: number;
+    lowStockCount?: number;
+    outOfStockCount?: number;
   };
   operations: {
     operatingSettings: Record<string, unknown> | null;
@@ -399,6 +403,10 @@ export type OwnerAnalyticsSummaryResult = OwnerAnalyticsBaseResult & {
   activeCashierShift: OwnerAnalyticsShiftSummary | null;
   latestClosedShift: OwnerAnalyticsShiftSummary | null;
   latestZReport: OwnerAnalyticsZReportSummary | null;
+  lowStockCount?: number;
+  outOfStockCount?: number;
+  stockBlockedMenuItemCount?: number;
+  recentInventoryMovements?: InventoryMovement[];
   revenueSource: string;
 };
 
@@ -770,6 +778,11 @@ export type MenuItemSummary = {
   isFeatured?: boolean;
   isAvailable?: boolean;
   isVisible?: boolean;
+  canOrder?: boolean;
+  stockStatus?: InventoryStockStatus;
+  stockReasons?: string[];
+  missingRequirements?: InventoryMissingRequirement[];
+  lowStockRequirements?: InventoryLowStockRequirement[];
   sortOrder?: number;
   category?: MenuCategorySummary;
   modifiers?: MenuModifierGroup[];
@@ -790,6 +803,202 @@ export type MenuItemDetailResult = {
   item: MenuItemSummary;
   category: MenuCategorySummary;
   branchOverrides: Record<string, unknown>[];
+};
+
+export type InventoryUnit = "piece" | "gram" | "milliliter";
+export type InventoryItemStatus = "active" | "inactive" | "archived";
+export type InventoryMovementType =
+  | "opening_balance"
+  | "stock_in"
+  | "stock_out"
+  | "correction"
+  | "waste"
+  | "sale_consumption"
+  | "sale_reversal";
+export type InventoryStockStatus = "in_stock" | "low_stock" | "out_of_stock";
+
+export type InventoryItem = {
+  id: string;
+  companyId: string;
+  name: string;
+  sku?: string | null;
+  unit: InventoryUnit;
+  status: InventoryItemStatus;
+  parLevelQuantity?: number | null;
+  lowStockThresholdQuantity?: number | null;
+  createdAt?: string;
+  updatedAt?: string;
+};
+
+export type InventoryLevel = {
+  id: string | null;
+  branchId: string;
+  inventoryItemId: string;
+  item: InventoryItem;
+  quantityOnHand: number;
+  reservedQuantity: number;
+  lowStockThresholdQuantity?: number | null;
+  stockStatus: InventoryStockStatus;
+  createdAt?: string | null;
+  updatedAt?: string | null;
+};
+
+export type InventoryMovement = {
+  id: string;
+  companyId: string;
+  branchId: string;
+  inventoryItemId: string;
+  staffUserId?: string | null;
+  type: InventoryMovementType;
+  quantityDelta: number;
+  quantityAfter: number;
+  unit: InventoryUnit;
+  sourceType?: string | null;
+  sourceId?: string | null;
+  note?: string | null;
+  createdAt: string;
+  inventoryItem?: InventoryItem;
+};
+
+export type InventoryMissingRequirement = {
+  inventoryItemId: string;
+  name: string;
+  unit: InventoryUnit;
+  quantityRequired: number;
+  quantityOnHand: number;
+  shortageQuantity: number;
+  reason: string;
+};
+
+export type InventoryLowStockRequirement = {
+  inventoryItemId: string;
+  name: string;
+  unit: InventoryUnit;
+  quantityRequired: number;
+  quantityOnHand: number;
+  quantityAfter: number;
+  threshold: number;
+};
+
+export type MenuItemInventoryRequirement = {
+  id: string;
+  companyId: string;
+  menuItemId: string;
+  inventoryItemId: string;
+  quantityRequired: number;
+  unit: InventoryUnit;
+  isRequired: boolean;
+  createdAt?: string;
+  updatedAt?: string;
+  inventoryItem: InventoryItem;
+};
+
+export type InventoryMenuAvailabilityItem = {
+  menuItemId: string;
+  name: string;
+  slug: string;
+  category: MenuCategorySummary;
+  branchVisible: boolean;
+  branchAvailable: boolean;
+  stockStatus: InventoryStockStatus;
+  missingRequirements: InventoryMissingRequirement[];
+  lowStockRequirements: InventoryLowStockRequirement[];
+  canOrder: boolean;
+  reasons: string[];
+};
+
+export type InventoryItemsResult = {
+  company: CompanySummary;
+  items: InventoryItem[];
+};
+
+export type CreateInventoryItemPayload = {
+  name: string;
+  sku?: string | null;
+  unit: InventoryUnit;
+  lowStockThresholdQuantity?: number | null;
+  parLevelQuantity?: number | null;
+};
+
+export type UpdateInventoryItemPayload = Partial<
+  Omit<CreateInventoryItemPayload, "unit">
+> & {
+  status?: InventoryItemStatus;
+};
+
+export type InventoryItemMutationResult = {
+  company: CompanySummary;
+  item: InventoryItem;
+};
+
+export type BranchInventoryLevelsResult = {
+  company: CompanySummary;
+  branch: BranchSummary;
+  levels: InventoryLevel[];
+  summary: {
+    totalInventoryItemCount: number;
+    trackedLevelCount: number;
+    lowStockCount: number;
+    outOfStockCount: number;
+  };
+  lastMovementAt?: string | null;
+};
+
+export type BranchInventoryAlertsResult = {
+  company: CompanySummary;
+  branch: BranchSummary;
+  lowStockLevels: InventoryLevel[];
+  outOfStockLevels: InventoryLevel[];
+  stockBlockedMenuItems: InventoryMenuAvailabilityItem[];
+  recentMovements: InventoryMovement[];
+  summary: {
+    lowStockCount: number;
+    outOfStockCount: number;
+    stockBlockedMenuItemCount: number;
+  };
+};
+
+export type AdjustInventoryLevelPayload = {
+  type: Extract<
+    InventoryMovementType,
+    "opening_balance" | "stock_in" | "stock_out" | "correction" | "waste"
+  >;
+  quantity?: number;
+  finalQuantity?: number;
+  note?: string | null;
+};
+
+export type AdjustInventoryLevelResult = {
+  company: CompanySummary;
+  branch: BranchSummary;
+  level: InventoryLevel;
+  movement: InventoryMovement;
+};
+
+export type MenuItemInventoryRequirementsResult = {
+  item: MenuItemSummary;
+  requirements: MenuItemInventoryRequirement[];
+};
+
+export type ReplaceMenuItemInventoryRequirementsPayload = {
+  requirements: Array<{
+    inventoryItemId: string;
+    quantityRequired: number;
+    isRequired?: boolean;
+  }>;
+};
+
+export type BranchInventoryMenuAvailabilityResult = {
+  company: CompanySummary;
+  branch: BranchSummary;
+  items: InventoryMenuAvailabilityItem[];
+  summary: {
+    itemCount: number;
+    canOrderCount: number;
+    lowStockCount: number;
+    outOfStockCount: number;
+    stockBlockedCount: number;
+  };
 };
 
 export type MenuAdminCategoryStatus = "active" | "inactive";

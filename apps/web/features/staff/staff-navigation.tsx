@@ -1,6 +1,7 @@
 import {
   Bell,
   BookOpenText,
+  Boxes,
   Building2,
   ChartNoAxesCombined,
   ChefHat,
@@ -43,6 +44,14 @@ export const staffNavItems: StaffNavItem[] = [
     authOnly: true,
     branchScoped: true,
     requiredPermissions: ["menu.read"]
+  },
+  {
+    href: "/staff/inventory",
+    label: "Inventory",
+    icon: <Boxes className="size-4" aria-hidden="true" />,
+    authOnly: true,
+    branchScoped: true,
+    requiredPermissions: ["inventory.read"]
   },
   {
     href: "/staff/setup",

@@ -9,7 +9,11 @@ type MenuItemCardProps = {
 };
 
 export function MenuItemCard({ item, onSelect }: MenuItemCardProps) {
-  const isUnavailable = item.isAvailable === false || item.status !== "active";
+  const isUnavailable =
+    item.canOrder === false ||
+    item.isAvailable === false ||
+    item.status !== "active";
+  const isStockBlocked = item.stockStatus === "out_of_stock";
 
   return (
     <button
@@ -36,7 +40,13 @@ export function MenuItemCard({ item, onSelect }: MenuItemCardProps) {
                 {item.description ?? "Prepared for this table experience."}
               </CardDescription>
             </div>
-            {item.isFeatured ? <Badge>Featured</Badge> : null}
+            {isStockBlocked ? (
+              <Badge variant="danger">Sold out</Badge>
+            ) : item.stockStatus === "low_stock" ? (
+              <Badge variant="warning">Low stock</Badge>
+            ) : item.isFeatured ? (
+              <Badge>Featured</Badge>
+            ) : null}
           </div>
           <div className="mt-4 flex items-center justify-between gap-3">
             <span className="text-sm font-semibold text-primary">

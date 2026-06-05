@@ -159,7 +159,19 @@ function createPrisma(overrides: Record<string, unknown> = {}) {
 }
 
 function createService(prismaOverrides: Record<string, unknown> = {}) {
-  return new OwnerAnalyticsService(createPrisma(prismaOverrides));
+  return new OwnerAnalyticsService(
+    createPrisma(prismaOverrides),
+    {
+      getBranchInventoryAlerts: jest.fn().mockResolvedValue({
+        summary: {
+          lowStockCount: 0,
+          outOfStockCount: 0,
+          stockBlockedMenuItemCount: 0,
+        },
+        recentMovements: [],
+      }),
+    } as never,
+  );
 }
 
 describe('OwnerAnalyticsService', () => {
@@ -174,6 +186,7 @@ describe('OwnerAnalyticsService', () => {
     expect(result.cashCollectedMinor).toBe(0);
     expect(result.submittedOrderCount).toBe(0);
     expect(result.activeCashierShift).toBeNull();
+    expect(result.lowStockCount).toBe(0);
   });
 
   it('computes collected totals by manual payment method and safe average ticket', async () => {

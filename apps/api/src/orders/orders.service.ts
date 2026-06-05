@@ -14,6 +14,7 @@ import {
 } from '@prisma/client';
 import { TableAttentionService } from '../autopilot/table-attention.service';
 import { CartService } from '../cart/cart.service';
+import { InventoryService } from '../inventory/inventory.service';
 import { KitchenTicketsService } from '../kitchen-tickets/kitchen-tickets.service';
 import { PresenceNotificationsService } from '../presence-notifications/presence-notifications.service';
 import { PreparationTasksService } from '../preparation-tasks/preparation-tasks.service';
@@ -64,6 +65,7 @@ export class OrdersService {
     private readonly smartCashierService: SmartCashierService,
     private readonly tableAttentionService: TableAttentionService,
     private readonly kitchenTicketsService: KitchenTicketsService,
+    private readonly inventoryService: InventoryService,
   ) {}
 
   async submitCart(
@@ -275,6 +277,11 @@ export class OrdersService {
       });
 
       this.assertFreshTransition(updatedOrder.count);
+      await this.inventoryService.consumeStockForAcceptedOrder(
+        order.id,
+        actorStaffUserId,
+        tx,
+      );
 
       await tx.orderEvent.create({
         data: {

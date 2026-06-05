@@ -1,5 +1,6 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
+import { InventoryService } from '../inventory/inventory.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { AddCartItemDto, SelectedModifierDto } from './dto/add-cart-item.dto';
 import { UpdateCartItemDto } from './dto/update-cart-item.dto';
@@ -14,7 +15,10 @@ type PrismaExecutor = PrismaService | Prisma.TransactionClient;
 
 @Injectable()
 export class CartService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly inventoryService: InventoryService,
+  ) {}
 
   async getCart(sessionId: string) {
     const session = await this.resolveActiveTableSession(sessionId, this.prisma);
@@ -76,6 +80,7 @@ export class CartService {
         select: {
           id: true,
           cartId: true,
+          menuItemId: true,
           unitPriceMinorSnapshot: true,
           cart: {
             select: {
@@ -99,6 +104,12 @@ export class CartService {
       const hasNotes = Object.prototype.hasOwnProperty.call(body, 'notes');
 
       if (body.quantity !== undefined) {
+        await this.inventoryService.assertMenuItemsCanOrder(
+          cartItem.cart.tableSession.companyId,
+          cartItem.cart.tableSession.branchId,
+          [{ menuItemId: cartItem.menuItemId, quantity: body.quantity }],
+          tx,
+        );
         data.quantity = body.quantity;
         data.lineTotalMinorSnapshot = cartItem.unitPriceMinorSnapshot * body.quantity;
       }
@@ -272,6 +283,12 @@ export class CartService {
     }
 
     this.assertMenuItemCanBeAdded(menuItem, session);
+    await this.inventoryService.assertMenuItemsCanOrder(
+      session.companyId,
+      session.branchId,
+      [{ menuItemId: menuItem.id, quantity: body.quantity }],
+      tx,
+    );
 
     const branchOverride = menuItem.branchOverrides[0];
     const effectiveBasePriceMinor = branchOverride.priceOverrideMinor ?? menuItem.basePriceMinor;
@@ -445,6 +462,34 @@ export class CartService {
       subtotalMinor += validation.lineTotalMinor;
       totalQuantity += item.quantity;
     }
+
+    const stockIssues = await this.inventoryService.getStockIssuesForItems(
+      session.companyId,
+      session.branchId,
+      cart.items.map((item) => ({
+        menuItemId: item.menuItemId,
+        quantity: item.quantity,
+        cartItemId: item.id,
+        itemNameSnapshot: item.itemNameSnapshot,
+      })),
+      tx,
+    );
+    const cartItemById = new Map(cart.items.map((item) => [item.id, item]));
+
+    issues.push(
+      ...stockIssues
+        .filter((issue) => issue.code === 'item_out_of_stock')
+        .map((issue) => {
+          const cartItem =
+            (issue.cartItemId ? cartItemById.get(issue.cartItemId) : undefined) ??
+            cart.items.find((item) => item.menuItemId === issue.menuItemId);
+
+          return this.validationIssue(issue.code, issue.message, cartItem, {
+            stockStatus: issue.details?.stockStatus,
+            missingRequirements: issue.details?.missingRequirements,
+          });
+        }),
+    );
 
     return {
       isValid: issues.length === 0,

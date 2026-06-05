@@ -1,6 +1,7 @@
 import { Module } from "@nestjs/common";
 import { AutopilotModule } from "../autopilot/autopilot.module";
 import { CartModule } from "../cart/cart.module";
+import { InventoryModule } from "../inventory/inventory.module";
 import { PrismaModule } from "../prisma/prisma.module";
 import { RealtimeEventsModule } from "../realtime-events/realtime-events.module";
 import { StaffModule } from "../staff/staff.module";
@@ -20,6 +21,7 @@ import { GroqAiWaiterProviderService } from "./providers/groq-ai-waiter-provider
     PrismaModule,
     AutopilotModule,
     CartModule,
+    InventoryModule,
     RealtimeEventsModule,
     StaffModule,
     WaiterCallsModule,

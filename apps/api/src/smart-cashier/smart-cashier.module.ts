@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common';
+import { InventoryModule } from '../inventory/inventory.module';
 import { PresenceNotificationsModule } from '../presence-notifications/presence-notifications.module';
 import { PreparationTasksModule } from '../preparation-tasks/preparation-tasks.module';
 import { PrismaModule } from '../prisma/prisma.module';
@@ -10,6 +11,7 @@ import { SmartCashierService } from './smart-cashier.service';
 @Module({
   imports: [
     PrismaModule,
+    InventoryModule,
     PreparationTasksModule,
     PresenceNotificationsModule,
     RealtimeEventsModule,

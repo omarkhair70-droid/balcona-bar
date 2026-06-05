@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { ShoppingBag, X } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -55,12 +56,19 @@ export function ItemDetailPanel({
   const [notes, setNotes] = useState("");
   const [selections, setSelections] = useState<SelectionState>({});
   const modifierGroups = useMemo(() => item.modifiers ?? [], [item.modifiers]);
+  const canOrder = item.canOrder !== false && item.status === "active";
+  const stockBlocked = item.stockStatus === "out_of_stock";
   const missingRequiredGroups = useMemo(
     () => getMissingRequiredGroups(modifierGroups, selections),
     [modifierGroups, selections]
   );
 
   async function handleAdd() {
+    if (!canOrder) {
+      vibrateWarning();
+      return;
+    }
+
     if (missingRequiredGroups.length > 0) {
       vibrateWarning();
       return;
@@ -94,6 +102,11 @@ export function ItemDetailPanel({
               {item.description ?? "A table-ready selection from the menu."}
             </CardDescription>
           </div>
+          {stockBlocked ? (
+            <Badge variant="danger">Sold out</Badge>
+          ) : item.stockStatus === "low_stock" ? (
+            <Badge variant="warning">Low stock</Badge>
+          ) : null}
           <Button variant="ghost" size="icon" onClick={onClose} aria-label="Close item detail">
             <X className="size-4" aria-hidden="true" />
           </Button>
@@ -134,6 +147,11 @@ export function ItemDetailPanel({
             {missingRequiredGroups.map((group) => group.name).join(", ")}.
           </p>
         ) : null}
+        {!canOrder ? (
+          <div className="rounded-card border border-warning bg-warning/10 p-3 text-sm text-warning">
+            This item is not available for ordering right now.
+          </div>
+        ) : null}
         {errorMessage ? (
           <div
             role="alert"
@@ -144,9 +162,9 @@ export function ItemDetailPanel({
         ) : null}
       </CardContent>
       <CardFooter>
-        <Button onClick={handleAdd} disabled={isAdding}>
+        <Button onClick={handleAdd} disabled={isAdding || !canOrder}>
           <ShoppingBag className="size-4" aria-hidden="true" />
-          {isAdding ? "Adding..." : "Add to cart"}
+          {isAdding ? "Adding..." : canOrder ? "Add to cart" : "Unavailable"}
         </Button>
       </CardFooter>
     </Card>
