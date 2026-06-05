@@ -1273,7 +1273,11 @@ function StaffSetupContent() {
                 <ChecklistPanel
                   items={checklistItems}
                   canManage={canManageBranchOnboarding}
-                  pendingKey={readinessMutation.variables?.key}
+                  pendingKey={
+                    readinessMutation.isPending
+                      ? readinessMutation.variables?.key
+                      : undefined
+                  }
                   onAcknowledge={(item) => readinessMutation.mutate(item)}
                 />
               </CardContent>
