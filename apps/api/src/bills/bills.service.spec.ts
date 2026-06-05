@@ -51,8 +51,6 @@ function billDetail(overrides: Record<string, unknown> = {}) {
       name: 'Main',
       slug: 'main',
       status: 'active',
-      timezone: 'Africa/Cairo',
-      locale: 'en',
     },
     tableSession: {
       id: 'session-1',
@@ -226,6 +224,7 @@ describe('BillsService', () => {
           subtotalMinor: 18500,
           totalMinor: 18500,
           balanceDueMinor: 18500,
+          orderCount: 1,
           lineCount: 1,
           lines: {
             create: [
@@ -234,12 +233,31 @@ describe('BillsService', () => {
                 unitPriceMinor: 16000,
                 modifiersTotalMinor: 2500,
                 lineTotalMinor: 18500,
+                modifiersSnapshot: [
+                  {
+                    id: 'modifier-line-1',
+                    modifierGroupId: 'group-1',
+                    modifierOptionId: 'option-1',
+                    modifierGroupNameSnapshot: 'Milk',
+                    modifierGroupSlugSnapshot: 'milk',
+                    modifierOptionNameSnapshot: 'Oat milk',
+                    modifierOptionSlugSnapshot: 'oat-milk',
+                    priceDeltaMinorSnapshot: 2500,
+                  },
+                ],
               }),
             ],
           },
         }),
       }),
     );
+    expect(tx.bill.findUnique.mock.calls[0][0].include.branch.select).toEqual({
+      id: true,
+      companyId: true,
+      name: true,
+      slug: true,
+      status: true,
+    });
     expect(result.bill.billNumber).toBe('BILL-00001');
     expect(realtimeEventsService.recordBillCreated).toHaveBeenCalledWith(
       'bill-1',

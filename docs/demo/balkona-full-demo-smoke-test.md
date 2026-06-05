@@ -66,9 +66,27 @@ curl -X POST http://localhost:3000/api/v1/staff-auth/dev/bootstrap-password `
 8. Log in as staff with the local/demo account.
 9. Open cashier and accept the submitted order.
 10. Open kitchen/barista and start or mark a preparation task ready.
-11. Open service from the customer session and create a waiter call or request the bill when available.
+11. Open waiter/floor, serve the ready order, then open service from the customer session and request the bill when available.
 12. Open waiter/floor and acknowledge or resolve the call or table attention item.
 13. Open owner/manager and confirm branch pulse, operations snapshot, attention, realtime, and readiness panels load.
+
+## Bill Request Smoke Guard
+
+When validating the billing path through API or a local script, stop immediately
+if bill request creation fails or returns an empty bill request/bill id. Do not
+continue into present or manual payment with blank identifiers.
+
+```powershell
+$billRequest = curl -s -X POST `
+  "http://localhost:3000/api/v1/table-sessions/$sessionId/bill/request" `
+  -H "Content-Type: application/json" `
+  -H "Authorization: Bearer $customerAccessToken" `
+  -d "{}" | ConvertFrom-Json
+
+if (-not $billRequest.billRequest.id -or -not $billRequest.bill.id) {
+  throw "Bill request smoke failed: missing billRequest.id or bill.id"
+}
+```
 
 ## Per-Screen Verification
 
