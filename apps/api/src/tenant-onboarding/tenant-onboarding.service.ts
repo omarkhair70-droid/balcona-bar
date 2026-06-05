@@ -11,11 +11,13 @@ import {
   MenuItemStatus,
   ModifierGroupStatus,
   Prisma,
+  SaasFeatureKey,
   StaffRole,
   StaffStatus,
   TableStatus,
 } from "@prisma/client";
 import { PrismaService } from "../prisma/prisma.service";
+import { SaasService } from "../saas/saas.service";
 import { StaffAccessService } from "../staff/staff-access.service";
 import {
   BulkCreateOnboardingTablesDto,
@@ -159,6 +161,7 @@ export class TenantOnboardingService {
     private readonly prisma: PrismaService,
     private readonly configService: ConfigService,
     private readonly staffAccessService: StaffAccessService,
+    private readonly saasService: SaasService,
   ) {}
 
   async getCompanyOnboarding(companyId: string) {
@@ -286,7 +289,14 @@ export class TenantOnboardingService {
     body: UpdateCompanyOnboardingProfileDto,
   ) {
     try {
-      await this.findCompanyOrThrow(companyId, this.prisma);
+      const existingCompany = await this.findCompanyOrThrow(
+        companyId,
+        this.prisma,
+      );
+      await this.saasService.assertCompanyFeatureEnabled(
+        existingCompany.id,
+        SaasFeatureKey.setup,
+      );
       const data: Prisma.CompanyUpdateInput = {};
 
       if (body.name !== undefined) {
@@ -322,6 +332,10 @@ export class TenantOnboardingService {
   ) {
     try {
       const branch = await this.findBranchOrThrow(branchId, this.prisma);
+      await this.saasService.assertCompanyFeatureEnabled(
+        branch.companyId,
+        SaasFeatureKey.setup,
+      );
       const data: Prisma.BranchUpdateInput = {};
 
       if (body.name !== undefined) {
@@ -363,6 +377,10 @@ export class TenantOnboardingService {
       branchId,
       this.prisma,
     );
+    await this.saasService.assertCompanyFeatureEnabled(
+      branch.companyId,
+      SaasFeatureKey.setup,
+    );
     const name = body.name.trim();
     const existingFloor = await this.prisma.floor.findFirst({
       where: { branchId: branch.id, name },
@@ -393,6 +411,35 @@ export class TenantOnboardingService {
   ) {
     return this.prisma.$transaction(async (tx) => {
       const branch = await this.findBranchWithCompanyOrThrow(branchId, tx);
+      await this.saasService.assertCompanyFeatureEnabled(
+        branch.companyId,
+        SaasFeatureKey.setup,
+      );
+      const prefix = this.normalizeCode(body.tablePrefix);
+      const requestedCodes = Array.from({ length: body.count }, (_, index) => {
+        const number = body.startNumber + index;
+
+        return `${prefix}${String(number).padStart(2, "0")}`;
+      });
+      const existingRequestedTables = await tx.cafeTable.findMany({
+        where: { branchId: branch.id, code: { in: requestedCodes } },
+        select: tableSelect,
+      });
+      const existingTableByCode = new Map(
+        existingRequestedTables.map((table) => [table.code, table]),
+      );
+      const newTableCount = requestedCodes.filter(
+        (code) => !existingTableByCode.has(code),
+      ).length;
+
+      if (newTableCount > 0) {
+        await this.saasService.assertWithinLimit(
+          branch.companyId,
+          "maxTables",
+          newTableCount,
+        );
+      }
+
       const floorName = body.floorLabel.trim();
       const existingFloor = await tx.floor.findFirst({
         where: { branchId: branch.id, name: floorName },
@@ -415,15 +462,9 @@ export class TenantOnboardingService {
         reason: string;
         table?: TableRecord;
       }> = [];
-      const prefix = this.normalizeCode(body.tablePrefix);
 
-      for (let index = 0; index < body.count; index += 1) {
-        const number = body.startNumber + index;
-        const code = `${prefix}${String(number).padStart(2, "0")}`;
-        const existingTable = await tx.cafeTable.findFirst({
-          where: { branchId: branch.id, code },
-          select: tableSelect,
-        });
+      for (const code of requestedCodes) {
+        const existingTable = existingTableByCode.get(code);
 
         if (existingTable) {
           skipped.push({
@@ -475,8 +516,13 @@ export class TenantOnboardingService {
   ) {
     return this.prisma.$transaction(async (tx) => {
       const branch = await this.findBranchWithCompanyOrThrow(branchId, tx);
+      await this.saasService.assertCompanyFeatureEnabled(
+        branch.companyId,
+        SaasFeatureKey.setup,
+      );
       const email = body.email.trim().toLowerCase();
       const role = body.role;
+      const membershipBranchId = role === StaffRole.owner ? null : branch.id;
 
       if (role === StaffRole.owner) {
         await this.staffAccessService.assertCan(
@@ -492,6 +538,40 @@ export class TenantOnboardingService {
         where: { email },
         select: staffUserSelect,
       });
+      const [existingMembership, existingActiveCompanyMembership] =
+        existingStaffUser
+          ? await Promise.all([
+              tx.staffMembership.findFirst({
+                where: {
+                  staffUserId: existingStaffUser.id,
+                  companyId: branch.companyId,
+                  branchId: membershipBranchId,
+                  role,
+                },
+                select: staffMembershipSelect,
+              }),
+              tx.staffMembership.findFirst({
+                where: {
+                  staffUserId: existingStaffUser.id,
+                  companyId: branch.companyId,
+                  status: StaffStatus.active,
+                },
+                select: { id: true },
+              }),
+            ])
+          : [null, null];
+      const willCreateCountedStaffUser =
+        !existingStaffUser ||
+        (!existingMembership && !existingActiveCompanyMembership);
+
+      if (willCreateCountedStaffUser) {
+        await this.saasService.assertWithinLimit(
+          branch.companyId,
+          "maxStaffUsers",
+          1,
+        );
+      }
+
       const staffUser = existingStaffUser
         ? await tx.staffUser.update({
             where: { id: existingStaffUser.id },
@@ -506,16 +586,6 @@ export class TenantOnboardingService {
             },
             select: staffUserSelect,
           });
-      const membershipBranchId = role === StaffRole.owner ? null : branch.id;
-      const existingMembership = await tx.staffMembership.findFirst({
-        where: {
-          staffUserId: staffUser.id,
-          companyId: branch.companyId,
-          branchId: membershipBranchId,
-          role,
-        },
-        select: staffMembershipSelect,
-      });
       const membership =
         existingMembership ??
         (await tx.staffMembership.create({
@@ -773,6 +843,56 @@ export class TenantOnboardingService {
       this.configService.get<boolean>("onlinePayments.mockEnabled") !== false;
     const onlinePaymentProviderIsMock =
       onlinePaymentsEnabled && onlinePaymentProvider === "mock";
+    const saasStatus = await this.saasService.getCompanySaasStatus(
+      branch.companyId,
+    );
+    const saasItems = [
+      this.item(
+        "saas_subscription_active",
+        "Plan subscription active",
+        Boolean(saasStatus.subscription) && saasStatus.blockers.length === 0,
+        saasStatus.subscription
+          ? saasStatus.blockers.length === 0
+            ? `${saasStatus.plan?.name ?? "Current"} plan is ${saasStatus.subscription.status}.`
+            : saasStatus.blockers[0]?.message ??
+              "Subscription has a blocking status."
+          : "Assign a SaaS plan before launch setup can be fully tracked.",
+        "/staff/billing",
+        {
+          planCode: saasStatus.plan?.code ?? null,
+          subscriptionStatus: saasStatus.subscription?.status ?? "unconfigured",
+          warnings: saasStatus.warnings,
+          blockers: saasStatus.blockers,
+        },
+        saasStatus.blockers.length > 0 ? "blocked" : "needs_attention",
+      ),
+      this.item(
+        "saas_setup_enabled",
+        "Setup entitlement enabled",
+        saasStatus.entitlements.setup,
+        saasStatus.entitlements.setup
+          ? "Current plan includes tenant setup tools."
+          : "Setup tools are not enabled on the current plan.",
+        "/staff/billing",
+        { entitlements: saasStatus.entitlements },
+        "blocked",
+      ),
+      this.item(
+        "saas_limits_within_plan",
+        "Usage within plan limits",
+        saasStatus.blockers.every((blocker) => !blocker.metricKey),
+        saasStatus.blockers.some((blocker) => blocker.metricKey)
+          ? "One or more usage metrics exceeds the current plan limit."
+          : saasStatus.warnings.some((warning) => warning.metricKey)
+            ? "One or more usage metrics is close to the current plan limit."
+            : "Current setup usage is within plan limits.",
+        "/staff/billing",
+        { usage: saasStatus.usage, limits: saasStatus.limits },
+        saasStatus.blockers.some((blocker) => blocker.metricKey)
+          ? "blocked"
+          : "needs_attention",
+      ),
+    ];
     const companyProfileItems = this.getCompanyProfileItems(branch.company);
     const branchProfileItems = this.getBranchProfileItems(branch);
     const tablesItems = [
@@ -990,6 +1110,7 @@ export class TenantOnboardingService {
       ...tablesItems,
       ...staffItems,
       ...menuItemsReadiness,
+      ...saasItems,
       ...operationsItems,
     ];
     const sections = [
@@ -998,6 +1119,7 @@ export class TenantOnboardingService {
       this.section("tables_qr", "Tables and QR", tablesItems),
       this.section("staff_setup", "Staff setup", staffItems),
       this.section("menu_readiness", "Menu readiness", menuItemsReadiness),
+      this.section("saas_plan", "Plan and limits", saasItems),
       this.section(
         "operations_readiness",
         "Operations readiness",
@@ -1065,6 +1187,7 @@ export class TenantOnboardingService {
         cashierShiftCanOpen:
           (roleCounts.cashier ?? 0) > 0 && activeTables.length > 0,
       },
+      saas: saasStatus,
       launchChecklist,
       launchSummary: this.launchSummary(launchChecklist),
     };

@@ -12,6 +12,31 @@ enum CompanyStatus {
   inactive
 }
 
+enum SaasPlanStatus {
+  active
+  inactive
+  archived
+}
+
+enum CompanySubscriptionStatus {
+  trialing
+  active
+  past_due
+  suspended
+  cancelled
+}
+
+enum SaasFeatureKey {
+  setup
+  kds
+  inventory
+  online_payments
+  owner_analytics
+  ai_waiter
+  multi_branch
+  advanced_reports
+}
+
 enum BranchStatus {
   active
   inactive
@@ -834,8 +859,82 @@ model Company {
   tableSessions                 TableSession[]
   customerSessionIdentities     CustomerSessionIdentity[]
   deviceSubscriptions           DeviceSubscription[]
+  saasSubscription              CompanySubscription?
+  saasLimitOverrides            CompanyPlanLimitOverride[]
   waiterCalls                   WaiterCall[]
   venueZones                    VenueZone[]
+}
+
+model SaasPlan {
+  id                     String         @id @default(uuid())
+  code                   String         @unique
+  name                   String
+  status                 SaasPlanStatus @default(active)
+  description            String?
+  monthlyPriceMinor      Int?
+  currency               String         @default("EGP")
+  maxBranches            Int?
+  maxTables              Int?
+  maxStaffUsers          Int?
+  maxMenuItems           Int?
+  maxInventoryItems      Int?
+  maxAiMessagesPerMonth  Int?
+  setupEnabled           Boolean        @default(true)
+  kdsEnabled             Boolean        @default(true)
+  inventoryEnabled       Boolean        @default(true)
+  onlinePaymentsEnabled  Boolean        @default(false)
+  ownerAnalyticsEnabled  Boolean        @default(true)
+  aiWaiterEnabled        Boolean        @default(true)
+  multiBranchEnabled     Boolean        @default(false)
+  advancedReportsEnabled Boolean        @default(false)
+  sortOrder              Int            @default(0)
+  metadata               Json?
+  createdAt              DateTime       @default(now())
+  updatedAt              DateTime       @updatedAt
+
+  subscriptions CompanySubscription[]
+
+  @@index([status])
+  @@index([sortOrder])
+}
+
+model CompanySubscription {
+  id                 String                    @id @default(uuid())
+  companyId          String                    @unique
+  planId             String
+  status             CompanySubscriptionStatus @default(trialing)
+  currentPeriodStart DateTime?
+  currentPeriodEnd   DateTime?
+  trialEndsAt        DateTime?
+  suspendedAt        DateTime?
+  cancelledAt        DateTime?
+  cancellationReason String?
+  metadata           Json?
+  createdAt          DateTime                  @default(now())
+  updatedAt          DateTime                  @updatedAt
+
+  company Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  plan    SaasPlan @relation(fields: [planId], references: [id], onDelete: Restrict)
+
+  @@index([planId])
+  @@index([status])
+}
+
+model CompanyPlanLimitOverride {
+  id           String   @id @default(uuid())
+  companyId    String
+  key          String
+  valueInt     Int?
+  valueBoolean Boolean?
+  note         String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@unique([companyId, key])
+  @@index([companyId])
+  @@index([key])
 }
 
 model Branch {

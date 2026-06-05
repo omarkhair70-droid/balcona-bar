@@ -11,6 +11,7 @@ import {
   OnlinePaymentProvider,
   Prisma,
   BillStatus,
+  SaasFeatureKey,
 } from "@prisma/client";
 import { randomUUID } from "crypto";
 import {
@@ -22,6 +23,7 @@ import { CreateOnlinePaymentIntentDto } from "./dto/create-online-payment-intent
 import { MockOnlinePaymentWebhookDto } from "./dto/mock-online-payment-webhook.dto";
 import { PrismaService } from "../prisma/prisma.service";
 import { RealtimeEventsService } from "../realtime-events/realtime-events.service";
+import { SaasService } from "../saas/saas.service";
 
 const ACTIVE_ONLINE_PAYMENT_STATUSES: OnlinePaymentIntentStatus[] = [
   OnlinePaymentIntentStatus.pending,
@@ -72,6 +74,7 @@ export class OnlinePaymentsService {
     private readonly configService: ConfigService,
     private readonly billsService: BillsService,
     private readonly realtimeEventsService: RealtimeEventsService,
+    private readonly saasService: SaasService,
   ) {}
 
   async createIntentForCustomer(
@@ -107,6 +110,10 @@ export class OnlinePaymentsService {
         throw new NotFoundException("Bill not found for this table session");
       }
 
+      await this.saasService.assertCompanyFeatureEnabled(
+        bill.companyId,
+        SaasFeatureKey.online_payments,
+      );
       this.assertBillCanStartOnlinePayment(bill);
 
       if (body.idempotencyKey) {

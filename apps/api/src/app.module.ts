@@ -32,6 +32,7 @@ import { PresenceNotificationsModule } from "./presence-notifications/presence-n
 import { PreparationTasksModule } from "./preparation-tasks/preparation-tasks.module";
 import { PrismaModule } from "./prisma/prisma.module";
 import { RealtimeEventsModule } from "./realtime-events/realtime-events.module";
+import { SaasModule } from "./saas/saas.module";
 import { RedisModule } from "./redis/redis.module";
 import { SmartCashierModule } from "./smart-cashier/smart-cashier.module";
 import { StaffAuthModule } from "./staff-auth/staff-auth.module";
@@ -82,6 +83,7 @@ import { WaiterCallsModule } from "./waiter-calls/waiter-calls.module";
     PreparationTasksModule,
     PrintJobsModule,
     RealtimeEventsModule,
+    SaasModule,
     SmartCashierModule,
     TablesModule,
     StaffModule,

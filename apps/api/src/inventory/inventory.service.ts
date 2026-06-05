@@ -11,8 +11,10 @@ import {
   MenuCategoryStatus,
   MenuItemStatus,
   Prisma,
+  SaasFeatureKey,
 } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
+import { SaasService } from '../saas/saas.service';
 import {
   AdjustInventoryLevelDto,
   CreateInventoryItemDto,
@@ -132,7 +134,10 @@ type LowStockInventoryRequirement = {
 
 @Injectable()
 export class InventoryService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly saasService: SaasService,
+  ) {}
 
   async listInventoryItems(companyId: string) {
     const company = await this.findCompanyOrThrow(companyId, this.prisma);
@@ -150,6 +155,15 @@ export class InventoryService {
     body: CreateInventoryItemDto,
   ) {
     const company = await this.findCompanyOrThrow(companyId, this.prisma);
+    await this.saasService.assertCompanyFeatureEnabled(
+      company.id,
+      SaasFeatureKey.inventory,
+    );
+    await this.saasService.assertWithinLimit(
+      company.id,
+      'maxInventoryItems',
+      1,
+    );
 
     try {
       const item = await this.prisma.inventoryItem.create({
@@ -179,6 +193,10 @@ export class InventoryService {
     const existing = await this.findInventoryItemOrThrow(
       inventoryItemId,
       this.prisma,
+    );
+    await this.saasService.assertCompanyFeatureEnabled(
+      existing.companyId,
+      SaasFeatureKey.inventory,
     );
     const data: Prisma.InventoryItemUpdateInput = {};
 
@@ -315,6 +333,10 @@ export class InventoryService {
       const branch = await this.findBranchOrThrow(branchId, tx);
       const item = await this.findInventoryItemOrThrow(inventoryItemId, tx);
 
+      await this.saasService.assertCompanyFeatureEnabled(
+        branch.companyId,
+        SaasFeatureKey.inventory,
+      );
       this.assertInventoryItemUsableForBranch(item, branch);
       await this.lockInventoryLevel(branch.id, item.id, tx);
 
@@ -401,6 +423,10 @@ export class InventoryService {
   ) {
     return this.prisma.$transaction(async (tx) => {
       const menuItem = await this.findMenuItemOrThrow(menuItemId, tx);
+      await this.saasService.assertCompanyFeatureEnabled(
+        menuItem.companyId,
+        SaasFeatureKey.inventory,
+      );
       const uniqueInventoryIds = [...new Set(body.requirements.map((entry) => entry.inventoryItemId))];
 
       if (uniqueInventoryIds.length !== body.requirements.length) {

@@ -4,6 +4,7 @@ import { CartModule } from "../cart/cart.module";
 import { InventoryModule } from "../inventory/inventory.module";
 import { PrismaModule } from "../prisma/prisma.module";
 import { RealtimeEventsModule } from "../realtime-events/realtime-events.module";
+import { SaasModule } from "../saas/saas.module";
 import { StaffModule } from "../staff/staff.module";
 import { WaiterCallsModule } from "../waiter-calls/waiter-calls.module";
 import { AiWaiterContextService } from "./ai-waiter-context.service";
@@ -23,6 +24,7 @@ import { GroqAiWaiterProviderService } from "./providers/groq-ai-waiter-provider
     CartModule,
     InventoryModule,
     RealtimeEventsModule,
+    SaasModule,
     StaffModule,
     WaiterCallsModule,
   ],

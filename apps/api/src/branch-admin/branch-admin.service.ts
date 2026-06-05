@@ -6,11 +6,13 @@ import {
 import {
   BranchStatus,
   Prisma,
+  SaasFeatureKey,
   TableAttentionStatus,
   TableSessionStatus,
   TableStatus,
 } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
+import { SaasService } from '../saas/saas.service';
 import {
   BranchAdminOverviewQueryDto,
   CreateBranchDto,
@@ -138,7 +140,10 @@ type BranchSetupIssue = {
 
 @Injectable()
 export class BranchAdminService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly saasService: SaasService,
+  ) {}
 
   async getOverview(companyId: string, query: BranchAdminOverviewQueryDto) {
     const company = await this.findCompanyOrThrow(companyId, this.prisma);
@@ -312,6 +317,11 @@ export class BranchAdminService {
     try {
       return await this.prisma.$transaction(async (tx) => {
         const company = await this.findCompanyOrThrow(companyId, tx);
+        await this.saasService.assertCompanyFeatureEnabled(
+          company.id,
+          SaasFeatureKey.setup,
+        );
+        await this.saasService.assertWithinLimit(company.id, 'maxBranches', 1);
         const branch = await tx.branch.create({
           data: {
             companyId: company.id,
@@ -376,6 +386,10 @@ export class BranchAdminService {
 
   async createFloor(branchId: string, body: CreateFloorDto) {
     const branch = await this.findBranchOrThrow(branchId, this.prisma);
+    await this.saasService.assertCompanyFeatureEnabled(
+      branch.companyId,
+      SaasFeatureKey.setup,
+    );
     const floor = await this.prisma.floor.create({
       data: {
         branchId: branch.id,
@@ -415,6 +429,15 @@ export class BranchAdminService {
     try {
       return await this.prisma.$transaction(async (tx) => {
         const branch = await this.findBranchOrThrow(branchId, tx);
+        await this.saasService.assertCompanyFeatureEnabled(
+          branch.companyId,
+          SaasFeatureKey.setup,
+        );
+        await this.saasService.assertWithinLimit(
+          branch.companyId,
+          'maxTables',
+          1,
+        );
         const floor = body.floorId
           ? await this.findFloorOrThrow(body.floorId, tx)
           : null;

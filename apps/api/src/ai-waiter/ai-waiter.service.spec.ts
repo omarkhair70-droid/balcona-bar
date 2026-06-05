@@ -85,6 +85,10 @@ function createService(input: {
   const realtimeEventsService = {
     createRealtimeEvent: jest.fn().mockResolvedValue({}),
   } as unknown as RealtimeEventsService;
+  const saasService = {
+    assertCompanyFeatureEnabled: jest.fn().mockResolvedValue(undefined),
+    assertWithinLimit: jest.fn().mockResolvedValue(undefined),
+  };
 
   return {
     service: new AiWaiterService(
@@ -95,11 +99,13 @@ function createService(input: {
       {} as unknown as WaiterCallsService,
       realtimeEventsService,
       {} as unknown as TableAttentionService,
+      saasService as never,
     ),
     prisma,
     contextService,
     providerRegistry,
     realtimeEventsService,
+    saasService,
   };
 }
 

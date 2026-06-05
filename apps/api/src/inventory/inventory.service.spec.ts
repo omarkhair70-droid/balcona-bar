@@ -78,12 +78,40 @@ function serviceWithTransaction(tx: Record<string, unknown>) {
   };
 
   return {
-    service: new InventoryService(prisma as never),
+    service: new InventoryService(prisma as never, createSaasService() as never),
     prisma,
   };
 }
 
+function createSaasService() {
+  return {
+    assertCompanyFeatureEnabled: jest.fn().mockResolvedValue(undefined),
+    assertWithinLimit: jest.fn().mockResolvedValue(undefined),
+  };
+}
+
 describe('InventoryService', () => {
+  it('blocks inventory item creation when inventory is not enabled on the plan', async () => {
+    const saasService = createSaasService();
+    saasService.assertCompanyFeatureEnabled.mockRejectedValueOnce(
+      new Error('Inventory is not enabled on this plan.'),
+    );
+    const prisma = {
+      company: { findUnique: jest.fn().mockResolvedValue(company) },
+      inventoryItem: { create: jest.fn() },
+    };
+    const service = new InventoryService(prisma as never, saasService as never);
+
+    await expect(
+      service.createInventoryItem(company.id, {
+        name: 'Milk',
+        sku: 'MILK',
+        unit: InventoryUnit.milliliter,
+      }),
+    ).rejects.toThrow('Inventory is not enabled on this plan.');
+    expect(prisma.inventoryItem.create).not.toHaveBeenCalled();
+  });
+
   it('creates a branch level and movement for opening balance', async () => {
     const tx = {
       $executeRaw: jest.fn().mockResolvedValue(1),
@@ -203,10 +231,11 @@ describe('InventoryService', () => {
   });
 
   it('computes low stock and out of stock menu availability without mutating overrides', async () => {
-    const service = new InventoryService({
-      branch: { findUnique: jest.fn().mockResolvedValue(branch) },
-      menuItem: {
-        findMany: jest.fn().mockResolvedValue([
+    const service = new InventoryService(
+      {
+        branch: { findUnique: jest.fn().mockResolvedValue(branch) },
+        menuItem: {
+          findMany: jest.fn().mockResolvedValue([
           {
             id: 'latte',
             name: 'Spanish Latte',
@@ -261,9 +290,11 @@ describe('InventoryService', () => {
               },
             ],
           },
-        ]),
-      },
-    } as never);
+          ]),
+        },
+      } as never,
+      createSaasService() as never,
+    );
 
     const result = await service.getBranchMenuAvailability(branch.id);
 
@@ -322,7 +353,10 @@ describe('InventoryService', () => {
         create: jest.fn().mockResolvedValue(movement(-300, 200)),
       },
     };
-    const service = new InventoryService({} as never);
+    const service = new InventoryService(
+      {} as never,
+      createSaasService() as never,
+    );
 
     const result = await service.consumeStockForAcceptedOrder(
       'order-1',
@@ -389,7 +423,10 @@ describe('InventoryService', () => {
         create: jest.fn(),
       },
     };
-    const service = new InventoryService({} as never);
+    const service = new InventoryService(
+      {} as never,
+      createSaasService() as never,
+    );
 
     await expect(
       service.consumeStockForAcceptedOrder('order-1', 'staff-1', tx as never),

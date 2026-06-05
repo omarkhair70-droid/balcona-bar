@@ -95,6 +95,19 @@ export const staffQueryKeys = {
     "online-payment-intent",
     intentId,
   ],
+  saasPlans: () => ["staff", "saas", "plans"],
+  companySaasStatus: (companyId?: string) => [
+    "staff",
+    "saas",
+    "company",
+    companyId,
+  ],
+  branchSaasStatus: (branchId?: string) => [
+    "staff",
+    "saas",
+    "branch",
+    branchId,
+  ],
   currentCashierShift: (branchId?: string) => [
     "staff",
     "current-cashier-shift",

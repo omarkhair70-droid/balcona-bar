@@ -15,6 +15,7 @@ import {
   Prisma,
   RealtimeEventChannel,
   RealtimeEventType,
+  SaasFeatureKey,
   WaiterCallType,
 } from "@prisma/client";
 import { TableAttentionService } from "../autopilot/table-attention.service";
@@ -25,6 +26,7 @@ import {
 import { CartService } from "../cart/cart.service";
 import { PrismaService } from "../prisma/prisma.service";
 import { RealtimeEventsService } from "../realtime-events/realtime-events.service";
+import { SaasService } from "../saas/saas.service";
 import { WaiterCallsService } from "../waiter-calls/waiter-calls.service";
 import { AiWaiterContextService } from "./ai-waiter-context.service";
 import {
@@ -58,11 +60,16 @@ export class AiWaiterService {
     private readonly waiterCallsService: WaiterCallsService,
     private readonly realtimeEventsService: RealtimeEventsService,
     private readonly tableAttentionService: TableAttentionService,
+    private readonly saasService: SaasService,
   ) {}
 
   async start(sessionId: string, body: StartAiWaiterDto = {}) {
     const tableSession =
       await this.contextService.findOpenTableSessionOrThrow(sessionId);
+    await this.saasService.assertCompanyFeatureEnabled(
+      tableSession.companyId,
+      SaasFeatureKey.ai_waiter,
+    );
     const language = this.normalizeLanguage(body.language);
     const { session } = await this.ensureActiveSession(tableSession, language);
 
@@ -128,6 +135,15 @@ export class AiWaiterService {
   async sendMessage(sessionId: string, body: SendAiWaiterMessageDto) {
     const tableSession =
       await this.contextService.findOpenTableSessionOrThrow(sessionId);
+    await this.saasService.assertCompanyFeatureEnabled(
+      tableSession.companyId,
+      SaasFeatureKey.ai_waiter,
+    );
+    await this.saasService.assertWithinLimit(
+      tableSession.companyId,
+      "maxAiMessagesPerMonth",
+      1,
+    );
     const language = this.normalizeLanguage(body.language);
     const normalizedMessage = this.normalizeRequiredText(
       body.message,

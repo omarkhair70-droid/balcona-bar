@@ -8,6 +8,7 @@ import {
   Bot,
   Boxes,
   ChefHat,
+  CreditCard,
   Download,
   LayoutDashboard,
   LogIn,
@@ -101,6 +102,13 @@ function OwnerDashboardActions() {
       <Link href="/staff" className={buttonVariants({ variant: "ghost" })}>
         <LayoutDashboard className="size-4" aria-hidden="true" />
         Overview
+      </Link>
+      <Link
+        href="/staff/billing"
+        className={buttonVariants({ variant: "ghost" })}
+      >
+        <CreditCard className="size-4" aria-hidden="true" />
+        Billing
       </Link>
       <Link
         href="/staff/cashier"
@@ -881,6 +889,13 @@ function OwnerDashboardContent() {
           </Badge>
         </CardHeader>
         <CardContent className="flex flex-wrap gap-3">
+          <Link
+            href="/staff/billing"
+            className={buttonVariants({ variant: "secondary" })}
+          >
+            <CreditCard className="size-4" aria-hidden="true" />
+            Plan and limits
+          </Link>
           <Link
             href="/staff/cashier"
             className={buttonVariants({ variant: "secondary" })}
