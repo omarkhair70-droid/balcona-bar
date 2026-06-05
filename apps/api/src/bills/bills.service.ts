@@ -1428,8 +1428,6 @@ export class BillsService {
       name: true,
       slug: true,
       status: true,
-      timezone: true,
-      locale: true,
     };
   }
 }
