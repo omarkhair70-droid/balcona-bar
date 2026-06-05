@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { type ReactNode } from "react";
+import { type ReactNode, useEffect } from "react";
 import { BellRing, Droplets, HelpCircle, ReceiptText, Sparkles } from "lucide-react";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -14,6 +14,7 @@ import {
   getWaiterCalls,
   requestBill
 } from "@/lib/api/endpoints";
+import { formatErrorMessage } from "@/lib/api/error-message";
 import { customerQueryKeys } from "@/lib/api/query-keys";
 import type { WaiterCallPayload } from "@/lib/api/types";
 import { useCustomerSessionStore } from "@/lib/customer/customer-session-store";
@@ -131,6 +132,9 @@ export function CustomerServicePage({ sessionId }: CustomerServicePageProps) {
   );
   const activeBillReceipt =
     getRecord(activeBillEnvelope?.receipt) ?? getRecord(billQuery.data?.receipt);
+  const billHasResolvedState = Boolean(
+    activeBillRequest || activeBillRecord || activeBillReceipt
+  );
   const billTotals = getRecord(billQuery.data?.totals);
   const billOrderCount = getRecordNumber(billTotals, "orderCount");
   const billSubtotalMinor = getRecordNumber(billTotals, "subtotalMinor");
@@ -194,6 +198,17 @@ export function CustomerServicePage({ sessionId }: CustomerServicePageProps) {
         : "Request bill";
   const billButtonVariant =
     activeBillRequest || hasNoBillableOrders ? "secondary" : "primary";
+  const showBillRequestError =
+    billMutation.isError &&
+    !activeBillReceipt &&
+    !activeBillRecord &&
+    !activeBillRequest;
+
+  useEffect(() => {
+    if (billHasResolvedState && billMutation.isError) {
+      billMutation.reset();
+    }
+  }, [billHasResolvedState, billMutation]);
 
   return (
     <CustomerSessionScreen
@@ -247,7 +262,7 @@ export function CustomerServicePage({ sessionId }: CustomerServicePageProps) {
           className="mt-4 rounded-card border border-danger bg-danger/10 p-3 text-sm text-danger"
         >
           We could not send that service request. Please try again from the
-          table. {callMutation.error.message}
+          table. {formatErrorMessage(callMutation.error)}
         </div>
       ) : null}
 
@@ -264,7 +279,7 @@ export function CustomerServicePage({ sessionId }: CustomerServicePageProps) {
             {waiterCallsQuery.isError ? (
               <EmptyState
                 title="Service calls could not load"
-                description={waiterCallsQuery.error.message}
+                description={formatErrorMessage(waiterCallsQuery.error)}
               />
             ) : null}
             {waiterCalls.length === 0 && waiterCallsQuery.isSuccess ? (
@@ -300,7 +315,10 @@ export function CustomerServicePage({ sessionId }: CustomerServicePageProps) {
           <CardContent className="grid gap-4">
             {billQuery.isPending ? <LoadingState label="Loading bill" /> : null}
             {billQuery.isError ? (
-              <EmptyState title="Bill could not load" description={billQuery.error.message} />
+              <EmptyState
+                title="Bill could not load"
+                description={formatErrorMessage(billQuery.error)}
+              />
             ) : null}
             <div className="rounded-card border bg-surface/75 p-4">
               <p className="text-sm font-semibold text-foreground">
@@ -372,14 +390,14 @@ export function CustomerServicePage({ sessionId }: CustomerServicePageProps) {
                   served.
                 </div>
               ) : null}
-              {billMutation.isError ? (
+              {showBillRequestError ? (
                 <div
                   role="alert"
                   className="mt-3 rounded-card border border-danger bg-danger/10 p-3 text-sm text-danger"
                 >
                   We could not request the bill yet. The bill may not be
                   available until your order is accepted or served.{" "}
-                  {billMutation.error.message}
+                  {formatErrorMessage(billMutation.error)}
                 </div>
               ) : null}
               <Button

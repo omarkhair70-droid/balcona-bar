@@ -47,6 +47,7 @@ import {
   getTicketStation,
   getTicketStatus
 } from "@/features/staff/kds-data";
+import { formatErrorMessage } from "@/lib/api/error-message";
 import type { OrderDetailResult } from "@/lib/api/types";
 import { CashierActionBar } from "./cashier-action-bar";
 import { CashierOrderStatusPill } from "./cashier-order-status-pill";
@@ -98,6 +99,24 @@ function getTicketPrintSummary(ticket: Record<string, unknown>) {
   return { label: "No print job", variant: "muted" as const };
 }
 
+function getCashierDisabledReason(
+  status: string | undefined,
+  progressStep: string,
+  nextExpectedRole: string
+) {
+  const details = [
+    status ? `status ${humanizeStatus(status)}` : "",
+    progressStep ? `progress ${humanizeStatus(progressStep)}` : "",
+    nextExpectedRole ? `next expected role ${humanizeStatus(nextExpectedRole)}` : ""
+  ].filter(Boolean);
+
+  if (details.length === 0) {
+    return "Cashier actions will unlock when the backend exposes the next lifecycle step.";
+  }
+
+  return `Cashier actions are locked for ${details.join(", ")}.`;
+}
+
 export function CashierOrderDetailPanel({
   order,
   isLoading,
@@ -124,6 +143,11 @@ export function CashierOrderDetailPanel({
   const canComplete = order ? orderAllowsAction(order, "complete") : false;
   const progressStep = order ? getOrderProgressStep(order) : "";
   const nextExpectedRole = order ? getOrderNextExpectedRole(order) : "";
+  const disabledReason = getCashierDisabledReason(
+    status,
+    progressStep,
+    nextExpectedRole
+  );
 
   return (
     <Card variant="glass" padding="lg" className="min-h-[34rem]">
@@ -150,7 +174,7 @@ export function CashierOrderDetailPanel({
         {error ? (
           <EmptyState
             title="Order detail could not load"
-            description={error.message}
+            description={formatErrorMessage(error)}
           />
         ) : null}
         {order ? (
@@ -338,6 +362,7 @@ export function CashierOrderDetailPanel({
               rejectPending={rejectPending}
               cancelPending={cancelPending}
               completePending={completePending}
+              disabledReason={disabledReason}
               onRejectReasonChange={setRejectReason}
               onCancelReasonChange={setCancelReason}
               onAccept={onAccept}

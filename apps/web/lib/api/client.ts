@@ -1,4 +1,5 @@
 import { env } from "@/lib/config/env";
+import { formatErrorMessage } from "./error-message";
 import type { ApiQueryParams, ApiQueryValue } from "./types";
 
 type HttpMethod = "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
@@ -11,12 +12,6 @@ type ApiRequestOptions<TBody = unknown> = {
   query?: ApiQueryParams;
   signal?: AbortSignal;
   baseUrl?: string;
-};
-
-type ApiErrorPayload = {
-  message?: string | string[];
-  error?: string;
-  statusCode?: number;
 };
 
 export class ApiError extends Error {
@@ -72,21 +67,6 @@ async function readErrorPayload(response: Response): Promise<unknown> {
   return response.text();
 }
 
-function getErrorMessage(payload: unknown, fallback: string) {
-  if (typeof payload === "string" && payload.length > 0) {
-    return payload;
-  }
-
-  const apiPayload = payload as ApiErrorPayload;
-  const message = apiPayload.message;
-
-  if (Array.isArray(message)) {
-    return message.join(", ");
-  }
-
-  return message ?? apiPayload.error ?? fallback;
-}
-
 export async function apiRequest<TResponse, TBody = unknown>(
   path: string,
   options: ApiRequestOptions<TBody> = {}
@@ -123,7 +103,7 @@ export async function apiRequest<TResponse, TBody = unknown>(
     const payload = await readErrorPayload(response);
 
     throw new ApiError(
-      getErrorMessage(payload, `API request failed with ${response.status}`),
+      formatErrorMessage(payload, `API request failed with ${response.status}`),
       response.status,
       payload
     );

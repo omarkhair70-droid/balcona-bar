@@ -52,6 +52,7 @@ import {
   rejectOrder,
   staffLogout
 } from "@/lib/api/endpoints";
+import { formatErrorMessage } from "@/lib/api/error-message";
 import { staffQueryKeys } from "@/lib/api/query-keys";
 import type {
   BranchBillRequestStatusFilter,
@@ -307,7 +308,7 @@ function CashierDashboardContent() {
     onError: (error: Error) => {
       setNotice({
         tone: "error",
-        message: `Order could not be accepted. ${error.message}`
+        message: `Order could not be accepted. ${formatErrorMessage(error)}`
       });
     }
   });
@@ -339,7 +340,7 @@ function CashierDashboardContent() {
     onError: (error: Error) => {
       setNotice({
         tone: "error",
-        message: `Order could not be rejected. ${error.message}`
+        message: `Order could not be rejected. ${formatErrorMessage(error)}`
       });
     }
   });
@@ -360,7 +361,7 @@ function CashierDashboardContent() {
     onError: (error: Error) => {
       setNotice({
         tone: "error",
-        message: `Order could not be completed. ${error.message}`
+        message: `Order could not be completed. ${formatErrorMessage(error)}`
       });
     }
   });
@@ -387,7 +388,7 @@ function CashierDashboardContent() {
     onError: (error: Error) => {
       setNotice({
         tone: "error",
-        message: `Order could not be cancelled. ${error.message}`
+        message: `Order could not be cancelled. ${formatErrorMessage(error)}`
       });
     }
   });
@@ -426,7 +427,7 @@ function CashierDashboardContent() {
     onError: (error: Error) => {
       setNotice({
         tone: "error",
-        message: `Bill request action failed. ${error.message}`
+        message: `Bill request action failed. ${formatErrorMessage(error)}`
       });
     }
   });
@@ -460,7 +461,7 @@ function CashierDashboardContent() {
     onError: (error: Error) => {
       setNotice({
         tone: "error",
-        message: `Manual payment could not be recorded. ${error.message}`
+        message: `Manual payment could not be recorded. ${formatErrorMessage(error)}`
       });
     }
   });
@@ -632,7 +633,7 @@ function CashierDashboardContent() {
             {realtimeEventsQuery.isError ? (
               <div className="rounded-card border border-warning bg-warning/10 p-3 text-sm text-warning">
                 <AlertTriangle className="mr-2 inline size-4" aria-hidden="true" />
-                {realtimeEventsQuery.error.message}
+                {formatErrorMessage(realtimeEventsQuery.error)}
               </div>
             ) : null}
             {(realtimeEventsQuery.data?.events ?? []).length === 0 ? (

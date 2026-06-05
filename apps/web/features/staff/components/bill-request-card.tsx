@@ -34,6 +34,7 @@ import {
   humanizeStatus,
   shortId
 } from "@/features/staff/staff-format";
+import { formatErrorMessage } from "@/lib/api/error-message";
 import type { RecordManualPaymentPayload } from "@/lib/api/types";
 
 type BillRequestCardProps = {
@@ -149,6 +150,25 @@ export function BillRequestCard({
     balanceDueMinor
   );
   const paymentAmountMatchesBalance = paymentAmountMinor === balanceDueMinor;
+  const acknowledgeDisabledReason = !billRequestId
+    ? "Acknowledge is unavailable because this request is missing an id."
+    : requestStatus !== "open"
+      ? `Acknowledge is only available for open requests. Current request: ${humanizeStatus(requestStatus)}.`
+      : "";
+  const presentDisabledReason = !billRequestId
+    ? "Present is unavailable because this request is missing an id."
+    : requestStatus !== "open" && requestStatus !== "acknowledged"
+      ? `Present is available after open or acknowledged. Current request: ${humanizeStatus(requestStatus)}.`
+      : "";
+  const paymentDisabledReason = !billId
+    ? "Payment is unavailable until the backend creates the bill."
+    : billStatus !== "presented" && billStatus !== "payment_pending"
+      ? `Present the bill before recording payment. Current bill: ${humanizeStatus(billStatus)}.`
+      : balanceDueMinor <= 0
+        ? "Payment is already settled for this bill."
+        : !paymentAmountMatchesBalance
+          ? "Enter the exact balance due to record payment."
+          : "";
 
   return (
     <div className="rounded-card border bg-surface/75 p-4">
@@ -273,6 +293,18 @@ export function BillRequestCard({
           Present
         </Button>
       </div>
+      {acknowledgeDisabledReason || presentDisabledReason ? (
+        <div className="mt-3 grid gap-1 text-xs text-muted-foreground">
+          {acknowledgeDisabledReason ? <p>{acknowledgeDisabledReason}</p> : null}
+          {presentDisabledReason ? <p>{presentDisabledReason}</p> : null}
+        </div>
+      ) : null}
+      {paymentDisabledReason &&
+      (!billId || balanceDueMinor <= 0 || !canRecordPayment) ? (
+        <div className="mt-3 rounded-card border bg-background/40 p-3 text-xs text-muted-foreground">
+          {paymentDisabledReason}
+        </div>
+      ) : null}
 
       {billId && balanceDueMinor > 0 ? (
         <form
@@ -353,7 +385,7 @@ export function BillRequestCard({
               role="alert"
               className="rounded-card border border-danger bg-danger/10 p-3 text-xs text-danger"
             >
-              {paymentError.message}
+              {formatErrorMessage(paymentError)}
             </div>
           ) : null}
           <Button
