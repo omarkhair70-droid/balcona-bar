@@ -14,6 +14,7 @@ type CashierActionBarProps = {
   rejectPending?: boolean;
   cancelPending?: boolean;
   completePending?: boolean;
+  disabledReason?: string;
   onRejectReasonChange: (value: string) => void;
   onCancelReasonChange: (value: string) => void;
   onAccept: () => void;
@@ -33,6 +34,7 @@ export function CashierActionBar({
   rejectPending,
   cancelPending,
   completePending,
+  disabledReason,
   onRejectReasonChange,
   onCancelReasonChange,
   onAccept,
@@ -73,7 +75,7 @@ export function CashierActionBar({
         </Button>
         {!canAccept && !canReject && !canCancel && !canComplete ? (
           <span className="text-xs text-muted-foreground">
-            No cashier lifecycle actions are currently allowed for this order.
+            {disabledReason}
           </span>
         ) : null}
       </div>

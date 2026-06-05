@@ -71,10 +71,32 @@ export function getOrderLifecycle(value: unknown) {
   return getRecord(getOrderEnvelopeRecord(value).lifecycle);
 }
 
-export function getOrderAllowedActions(value: unknown) {
-  return getRecordArray(getOrderLifecycle(value)?.allowedActions)
-    .map((action) => (typeof action === "string" ? action : ""))
+export function getStringArrayOrActionObjects(value: unknown) {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return value
+    .map((action) => {
+      if (typeof action === "string") {
+        return action.trim();
+      }
+
+      const record = getRecord(action);
+
+      return (
+        getRecordString(record, "action") ||
+        getRecordString(record, "type") ||
+        getRecordString(record, "name")
+      ).trim();
+    })
     .filter(Boolean);
+}
+
+export function getOrderAllowedActions(value: unknown) {
+  return getStringArrayOrActionObjects(
+    getOrderLifecycle(value)?.allowedActions
+  );
 }
 
 export function orderAllowsAction(value: unknown, action: string) {
