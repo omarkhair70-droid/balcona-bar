@@ -1,6 +1,9 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
-import { StaffAccessService, StaffPermissionScope } from './staff-access.service';
+import {
+  StaffAccessService,
+  StaffPermissionScope,
+} from './staff-access.service';
 import { StaffPermission } from './permissions';
 
 type ScopedRecord = {
@@ -167,6 +170,24 @@ export class StaffScopedAccessService {
     });
 
     return this.assertCanForRecord(staffUserId, permission, bill, 'Bill');
+  }
+
+  async assertCanForCashierShift(
+    staffUserId: string,
+    permission: StaffPermission,
+    shiftId: string,
+  ) {
+    const shift = await this.prisma.cashierShift.findUnique({
+      where: { id: shiftId },
+      select: { companyId: true, branchId: true },
+    });
+
+    return this.assertCanForRecord(
+      staffUserId,
+      permission,
+      shift,
+      'Cashier shift',
+    );
   }
 
   async assertCanForTableSession(

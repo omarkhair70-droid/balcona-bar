@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { AutopilotModule } from '../autopilot/autopilot.module';
+import { CashierShiftsModule } from '../cashier-shifts/cashier-shifts.module';
 import { PresenceNotificationsModule } from '../presence-notifications/presence-notifications.module';
 import { PrismaModule } from '../prisma/prisma.module';
 import { RealtimeEventsModule } from '../realtime-events/realtime-events.module';
@@ -11,6 +12,7 @@ import { BillsService } from './bills.service';
   imports: [
     PrismaModule,
     AutopilotModule,
+    CashierShiftsModule,
     PresenceNotificationsModule,
     RealtimeEventsModule,
     StaffModule,

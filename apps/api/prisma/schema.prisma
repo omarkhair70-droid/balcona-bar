@@ -323,6 +323,30 @@ enum ManualPaymentStatus {
   voided
 }
 
+enum CashierShiftStatus {
+  open
+  closed
+}
+
+enum CashDrawerTransactionType {
+  opening_float
+  cash_payment
+  cash_in
+  cash_out
+  correction
+}
+
+enum CashDrawerTransactionSourceType {
+  manual_payment
+  adjustment
+  opening_float
+}
+
+enum CashierShiftReportType {
+  x_report
+  z_report
+}
+
 enum BillLineType {
   item
   service
@@ -735,6 +759,9 @@ model Company {
   preparationTasks          PreparationTask[]
   kitchenTickets            KitchenTicket[]
   manualPayments            ManualPayment[]
+  cashierShifts             CashierShift[]
+  cashDrawerTransactions    CashDrawerTransaction[]
+  cashierShiftReports       CashierShiftReport[]
   printerStations           PrinterStation[]
   printJobs                 PrintJob[]
   billReceipts              BillReceipt[]
@@ -787,6 +814,9 @@ model Branch {
   preparationTasks          PreparationTask[]
   kitchenTickets            KitchenTicket[]
   manualPayments            ManualPayment[]
+  cashierShifts             CashierShift[]
+  cashDrawerTransactions    CashDrawerTransaction[]
+  cashierShiftReports       CashierShiftReport[]
   printerStations           PrinterStation[]
   printJobs                 PrintJob[]
   billReceipts              BillReceipt[]
@@ -858,20 +888,24 @@ model StaffUser {
 
   memberships              StaffMembership[]
   sessions                 StaffSession[]
-  servedOrders             Order[]                @relation("OrderServedByStaff")
-  completedOrders          Order[]                @relation("OrderCompletedByStaff")
+  servedOrders             Order[]                 @relation("OrderServedByStaff")
+  completedOrders          Order[]                 @relation("OrderCompletedByStaff")
   orderEvents              OrderEvent[]
-  acknowledgedBillRequests BillRequest[]          @relation("BillRequestAcknowledgedByStaff")
-  presentedBillRequests    BillRequest[]          @relation("BillRequestPresentedByStaff")
-  closedBillRequests       BillRequest[]          @relation("BillRequestClosedByStaff")
-  cancelledBillRequests    BillRequest[]          @relation("BillRequestCancelledByStaff")
+  acknowledgedBillRequests BillRequest[]           @relation("BillRequestAcknowledgedByStaff")
+  presentedBillRequests    BillRequest[]           @relation("BillRequestPresentedByStaff")
+  closedBillRequests       BillRequest[]           @relation("BillRequestClosedByStaff")
+  cancelledBillRequests    BillRequest[]           @relation("BillRequestCancelledByStaff")
   billRequestEvents        BillRequestEvent[]
-  presentedBills           Bill[]                 @relation("BillPresentedByStaff")
-  paidBills                Bill[]                 @relation("BillPaidByStaff")
-  closedBills              Bill[]                 @relation("BillClosedByStaff")
-  cancelledBills           Bill[]                 @relation("BillCancelledByStaff")
-  recordedManualPayments   ManualPayment[]        @relation("ManualPaymentRecordedByStaff")
-  voidedManualPayments     ManualPayment[]        @relation("ManualPaymentVoidedByStaff")
+  presentedBills           Bill[]                  @relation("BillPresentedByStaff")
+  paidBills                Bill[]                  @relation("BillPaidByStaff")
+  closedBills              Bill[]                  @relation("BillClosedByStaff")
+  cancelledBills           Bill[]                  @relation("BillCancelledByStaff")
+  recordedManualPayments   ManualPayment[]         @relation("ManualPaymentRecordedByStaff")
+  voidedManualPayments     ManualPayment[]         @relation("ManualPaymentVoidedByStaff")
+  openedCashierShifts      CashierShift[]          @relation("CashierShiftOpenedByStaff")
+  closedCashierShifts      CashierShift[]          @relation("CashierShiftClosedByStaff")
+  cashDrawerTransactions   CashDrawerTransaction[]
+  generatedCashierReports  CashierShiftReport[]
   billEvents               BillEvent[]
   preparationTaskEvents    PreparationTaskEvent[]
   requestedPrintJobs       PrintJob[]              @relation("PrintJobRequestedByStaff")
@@ -1599,11 +1633,11 @@ model OrderItem {
   createdAt                       DateTime @default(now())
   updatedAt                       DateTime @updatedAt
 
-  order           Order                     @relation(fields: [orderId], references: [id], onDelete: Cascade)
-  menuItem        MenuItem                  @relation(fields: [menuItemId], references: [id], onDelete: Restrict)
-  billLines       BillLine[]
-  modifierOptions OrderItemModifierOption[]
-  preparationTask PreparationTask?
+  order              Order                     @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  menuItem           MenuItem                  @relation(fields: [menuItemId], references: [id], onDelete: Restrict)
+  billLines          BillLine[]
+  modifierOptions    OrderItemModifierOption[]
+  preparationTask    PreparationTask?
   kitchenTicketItems KitchenTicketItem[]
 
   @@index([orderId])
@@ -1666,14 +1700,14 @@ model PreparationTask {
   createdAt        DateTime              @default(now())
   updatedAt        DateTime              @updatedAt
 
-  company        Company                @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  branch         Branch                 @relation(fields: [branchId], references: [id], onDelete: Cascade)
-  order          Order                  @relation(fields: [orderId], references: [id], onDelete: Cascade)
-  orderItem      OrderItem              @relation(fields: [orderItemId], references: [id], onDelete: Cascade)
-  events         PreparationTaskEvent[]
+  company            Company                @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  branch             Branch                 @relation(fields: [branchId], references: [id], onDelete: Cascade)
+  order              Order                  @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  orderItem          OrderItem              @relation(fields: [orderItemId], references: [id], onDelete: Cascade)
+  events             PreparationTaskEvent[]
   kitchenTicketItems KitchenTicketItem[]
-  notifications  Notification[]
-  realtimeEvents RealtimeEvent[]
+  notifications      Notification[]
+  realtimeEvents     RealtimeEvent[]
 
   @@unique([orderItemId])
   @@index([companyId])
@@ -1770,25 +1804,25 @@ model KitchenTicket {
 }
 
 model KitchenTicketItem {
-  id                    String              @id @default(uuid())
-  ticketId              String
-  orderItemId           String
-  preparationTaskId     String?
-  menuItemId            String
-  itemNameSnapshot      String
-  itemSlugSnapshot      String
-  quantity              Int
-  notes                 String?
-  modifiersSnapshot     Json?
-  station               PreparationStation
-  status                KitchenTicketStatus @default(queued)
-  createdAt             DateTime            @default(now())
-  updatedAt             DateTime            @updatedAt
+  id                String              @id @default(uuid())
+  ticketId          String
+  orderItemId       String
+  preparationTaskId String?
+  menuItemId        String
+  itemNameSnapshot  String
+  itemSlugSnapshot  String
+  quantity          Int
+  notes             String?
+  modifiersSnapshot Json?
+  station           PreparationStation
+  status            KitchenTicketStatus @default(queued)
+  createdAt         DateTime            @default(now())
+  updatedAt         DateTime            @updatedAt
 
-  ticket          KitchenTicket   @relation(fields: [ticketId], references: [id], onDelete: Cascade)
-  orderItem       OrderItem       @relation(fields: [orderItemId], references: [id], onDelete: Cascade)
+  ticket          KitchenTicket    @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  orderItem       OrderItem        @relation(fields: [orderItemId], references: [id], onDelete: Cascade)
   preparationTask PreparationTask? @relation(fields: [preparationTaskId], references: [id], onDelete: SetNull)
-  menuItem        MenuItem        @relation(fields: [menuItemId], references: [id], onDelete: Restrict)
+  menuItem        MenuItem         @relation(fields: [menuItemId], references: [id], onDelete: Restrict)
 
   @@unique([ticketId, orderItemId])
   @@index([ticketId])
@@ -1800,23 +1834,23 @@ model KitchenTicketItem {
 }
 
 model PrintJob {
-  id                     String          @id @default(uuid())
+  id                     String         @id @default(uuid())
   companyId              String
   branchId               String
   printerStationId       String?
   kitchenTicketId        String?
   orderId                String?
   kind                   PrintJobKind
-  status                 PrintJobStatus  @default(pending)
+  status                 PrintJobStatus @default(pending)
   payload                Json
   printableText          String?
   errorMessage           String?
-  attemptCount           Int             @default(0)
+  attemptCount           Int            @default(0)
   requestedByStaffUserId String?
   printedAt              DateTime?
   failedAt               DateTime?
-  createdAt              DateTime        @default(now())
-  updatedAt              DateTime        @updatedAt
+  createdAt              DateTime       @default(now())
+  updatedAt              DateTime       @updatedAt
 
   company              Company         @relation(fields: [companyId], references: [id], onDelete: Cascade)
   branch               Branch          @relation(fields: [branchId], references: [id], onDelete: Cascade)
@@ -1840,11 +1874,11 @@ model PrintJob {
 
 model PrintJobEvent {
   id               String         @id @default(uuid())
-  printJobId        String
-  status            PrintJobStatus
-  actorStaffUserId  String?
-  metadata          Json?
-  createdAt         DateTime       @default(now())
+  printJobId       String
+  status           PrintJobStatus
+  actorStaffUserId String?
+  metadata         Json?
+  createdAt        DateTime       @default(now())
 
   printJob       PrintJob   @relation(fields: [printJobId], references: [id], onDelete: Cascade)
   actorStaffUser StaffUser? @relation(fields: [actorStaffUserId], references: [id], onDelete: SetNull)
@@ -1953,37 +1987,37 @@ model BillRequest {
 }
 
 model Bill {
-  id                       String     @id @default(uuid())
-  companyId                String
-  branchId                 String
-  tableSessionId           String
-  billRequestId            String?    @unique
-  status                   BillStatus @default(draft)
-  billNumber               String
-  currency                 String     @default("EGP")
-  subtotalMinor            Int
-  serviceChargeMinor       Int        @default(0)
-  taxMinor                 Int        @default(0)
-  discountMinor            Int        @default(0)
-  totalMinor               Int
-  paidMinor                Int        @default(0)
-  balanceDueMinor          Int
-  orderCount               Int
-  lineCount                Int
-  requestedAt              DateTime?
-  presentedAt              DateTime?
-  paidAt                   DateTime?
-  closedAt                 DateTime?
-  cancelledAt              DateTime?
-  createdByActorType       String     @default("system")
-  presentedByStaffUserId   String?
-  paidByStaffUserId        String?
-  closedByStaffUserId      String?
-  cancelledByStaffUserId   String?
-  cancellationReason       String?
-  metadata                 Json?
-  createdAt                DateTime   @default(now())
-  updatedAt                DateTime   @updatedAt
+  id                     String     @id @default(uuid())
+  companyId              String
+  branchId               String
+  tableSessionId         String
+  billRequestId          String?    @unique
+  status                 BillStatus @default(draft)
+  billNumber             String
+  currency               String     @default("EGP")
+  subtotalMinor          Int
+  serviceChargeMinor     Int        @default(0)
+  taxMinor               Int        @default(0)
+  discountMinor          Int        @default(0)
+  totalMinor             Int
+  paidMinor              Int        @default(0)
+  balanceDueMinor        Int
+  orderCount             Int
+  lineCount              Int
+  requestedAt            DateTime?
+  presentedAt            DateTime?
+  paidAt                 DateTime?
+  closedAt               DateTime?
+  cancelledAt            DateTime?
+  createdByActorType     String     @default("system")
+  presentedByStaffUserId String?
+  paidByStaffUserId      String?
+  closedByStaffUserId    String?
+  cancelledByStaffUserId String?
+  cancellationReason     String?
+  metadata               Json?
+  createdAt              DateTime   @default(now())
+  updatedAt              DateTime   @updatedAt
 
   company              Company         @relation(fields: [companyId], references: [id], onDelete: Cascade)
   branch               Branch          @relation(fields: [branchId], references: [id], onDelete: Cascade)
@@ -2042,6 +2076,7 @@ model ManualPayment {
   companyId             String
   branchId              String
   billId                String
+  cashierShiftId        String?
   method                BillPaymentMethod
   status                ManualPaymentStatus @default(recorded)
   amountMinor           Int
@@ -2056,18 +2091,118 @@ model ManualPayment {
   createdAt             DateTime            @default(now())
   updatedAt             DateTime            @updatedAt
 
-  company             Company    @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  branch              Branch     @relation(fields: [branchId], references: [id], onDelete: Cascade)
-  bill                Bill       @relation(fields: [billId], references: [id], onDelete: Cascade)
-  recordedByStaffUser StaffUser  @relation("ManualPaymentRecordedByStaff", fields: [recordedByStaffUserId], references: [id], onDelete: Restrict)
-  voidedByStaffUser   StaffUser? @relation("ManualPaymentVoidedByStaff", fields: [voidedByStaffUserId], references: [id], onDelete: SetNull)
+  company             Company       @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  branch              Branch        @relation(fields: [branchId], references: [id], onDelete: Cascade)
+  bill                Bill          @relation(fields: [billId], references: [id], onDelete: Cascade)
+  cashierShift        CashierShift? @relation(fields: [cashierShiftId], references: [id], onDelete: SetNull)
+  recordedByStaffUser StaffUser     @relation("ManualPaymentRecordedByStaff", fields: [recordedByStaffUserId], references: [id], onDelete: Restrict)
+  voidedByStaffUser   StaffUser?    @relation("ManualPaymentVoidedByStaff", fields: [voidedByStaffUserId], references: [id], onDelete: SetNull)
 
   @@index([companyId])
   @@index([branchId])
   @@index([billId])
+  @@index([cashierShiftId])
   @@index([method])
   @@index([status])
   @@index([recordedAt])
+}
+
+model CashierShift {
+  id                  String             @id @default(uuid())
+  companyId           String
+  branchId            String
+  openedByStaffUserId String
+  closedByStaffUserId String?
+  status              CashierShiftStatus @default(open)
+  currency            String             @default("EGP")
+  openingFloatMinor   Int
+  expectedCashMinor   Int                @default(0)
+  countedCashMinor    Int?
+  cashOverShortMinor  Int?
+  cashSalesMinor      Int                @default(0)
+  cardSalesMinor      Int                @default(0)
+  walletSalesMinor    Int                @default(0)
+  otherSalesMinor     Int                @default(0)
+  paymentCount        Int                @default(0)
+  billCount           Int                @default(0)
+  openedAt            DateTime           @default(now())
+  closedAt            DateTime?
+  openingNote         String?
+  closingNote         String?
+  zReportNumber       String?
+  zReportSnapshot     Json?
+  createdAt           DateTime           @default(now())
+  updatedAt           DateTime           @updatedAt
+
+  company                Company                 @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  branch                 Branch                  @relation(fields: [branchId], references: [id], onDelete: Cascade)
+  openedByStaffUser      StaffUser               @relation("CashierShiftOpenedByStaff", fields: [openedByStaffUserId], references: [id], onDelete: Restrict)
+  closedByStaffUser      StaffUser?              @relation("CashierShiftClosedByStaff", fields: [closedByStaffUserId], references: [id], onDelete: SetNull)
+  manualPayments         ManualPayment[]
+  cashDrawerTransactions CashDrawerTransaction[]
+  reports                CashierShiftReport[]
+
+  @@unique([branchId, zReportNumber])
+  @@index([companyId])
+  @@index([branchId])
+  @@index([status])
+  @@index([openedAt])
+  @@index([closedAt])
+  @@index([branchId, status, openedAt])
+}
+
+model CashDrawerTransaction {
+  id                String                           @id @default(uuid())
+  companyId         String
+  branchId          String
+  cashierShiftId    String
+  staffUserId       String?
+  type              CashDrawerTransactionType
+  signedAmountMinor Int
+  currency          String
+  sourceType        CashDrawerTransactionSourceType?
+  sourceId          String?
+  note              String?
+  createdAt         DateTime                         @default(now())
+
+  company      Company      @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  branch       Branch       @relation(fields: [branchId], references: [id], onDelete: Cascade)
+  cashierShift CashierShift @relation(fields: [cashierShiftId], references: [id], onDelete: Cascade)
+  staffUser    StaffUser?   @relation(fields: [staffUserId], references: [id], onDelete: SetNull)
+
+  @@index([companyId])
+  @@index([branchId])
+  @@index([cashierShiftId])
+  @@index([staffUserId])
+  @@index([type])
+  @@index([sourceType, sourceId])
+  @@index([createdAt])
+}
+
+model CashierShiftReport {
+  id                     String                 @id @default(uuid())
+  companyId              String
+  branchId               String
+  cashierShiftId         String
+  generatedByStaffUserId String?
+  type                   CashierShiftReportType
+  reportNumber           String
+  snapshot               Json
+  generatedAt            DateTime               @default(now())
+  createdAt              DateTime               @default(now())
+
+  company              Company      @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  branch               Branch       @relation(fields: [branchId], references: [id], onDelete: Cascade)
+  cashierShift         CashierShift @relation(fields: [cashierShiftId], references: [id], onDelete: Cascade)
+  generatedByStaffUser StaffUser?   @relation(fields: [generatedByStaffUserId], references: [id], onDelete: SetNull)
+
+  @@unique([branchId, type, reportNumber])
+  @@index([companyId])
+  @@index([branchId])
+  @@index([cashierShiftId])
+  @@index([generatedByStaffUserId])
+  @@index([type])
+  @@index([generatedAt])
 }
 
 model BillReceipt {

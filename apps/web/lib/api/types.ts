@@ -1099,6 +1099,125 @@ export type RecordManualPaymentPayload = {
   note?: string | null;
 };
 
+export type CashierShiftStatusFilter = "open" | "closed" | "all";
+
+export type CashierShiftRecord = Record<string, unknown> & {
+  id: string;
+  companyId: string;
+  branchId: string;
+  openedByStaffUserId: string;
+  closedByStaffUserId?: string | null;
+  status: "open" | "closed" | string;
+  currency: string;
+  openingFloatMinor: number;
+  expectedCashMinor: number;
+  countedCashMinor?: number | null;
+  cashOverShortMinor?: number | null;
+  cashSalesMinor: number;
+  cardSalesMinor: number;
+  walletSalesMinor: number;
+  otherSalesMinor: number;
+  paymentCount: number;
+  billCount: number;
+  openedAt: string;
+  closedAt?: string | null;
+  openingNote?: string | null;
+  closingNote?: string | null;
+  zReportNumber?: string | null;
+};
+
+export type CashDrawerTransactionRecord = Record<string, unknown> & {
+  id: string;
+  companyId: string;
+  branchId: string;
+  cashierShiftId: string;
+  staffUserId?: string | null;
+  type:
+    | "opening_float"
+    | "cash_payment"
+    | "cash_in"
+    | "cash_out"
+    | "correction";
+  signedAmountMinor: number;
+  currency: string;
+  sourceType?: "manual_payment" | "adjustment" | "opening_float" | null;
+  sourceId?: string | null;
+  note?: string | null;
+  createdAt: string;
+};
+
+export type CashierShiftReportSnapshot = Record<string, unknown> & {
+  reportType?: "x_report" | "z_report" | string;
+  reportNumber?: string | null;
+  generatedAt?: string;
+  shift?: Record<string, unknown>;
+  cashDrawer?: Record<string, unknown>;
+  tenderTotals?: Record<string, unknown>;
+  counts?: Record<string, unknown>;
+  operational?: Record<string, unknown>;
+};
+
+export type CashierShiftReportRecord = Record<string, unknown> & {
+  id: string;
+  companyId: string;
+  branchId: string;
+  cashierShiftId: string;
+  generatedByStaffUserId?: string | null;
+  type: "x_report" | "z_report" | string;
+  reportNumber: string;
+  snapshot: CashierShiftReportSnapshot;
+  generatedAt: string;
+  createdAt: string;
+};
+
+export type CurrentCashierShiftResult = {
+  branch: BranchSummary;
+  shift: CashierShiftRecord | null;
+  summary: CashierShiftReportSnapshot | null;
+};
+
+export type BranchCashierShiftsQuery = {
+  status?: CashierShiftStatusFilter;
+  limit?: number;
+};
+
+export type BranchCashierShiftsResult = {
+  branch: BranchSummary;
+  filters?: Record<string, unknown>;
+  shifts: CashierShiftRecord[];
+};
+
+export type CashierShiftDetailResult = {
+  shift: CashierShiftRecord;
+  company: CompanySummary;
+  branch: BranchSummary;
+  drawerTransactions: CashDrawerTransactionRecord[];
+  reports: CashierShiftReportRecord[];
+  summary: CashierShiftReportSnapshot;
+};
+
+export type OpenCashierShiftPayload = {
+  openingFloatMinor: number;
+  note?: string | null;
+};
+
+export type CreateCashAdjustmentPayload = {
+  type: "cash_in" | "cash_out" | "correction";
+  amountMinor: number;
+  note: string;
+};
+
+export type CloseCashierShiftPayload = {
+  countedCashMinor: number;
+  note?: string | null;
+};
+
+export type CashierShiftReportResult = {
+  shift: CashierShiftRecord;
+  report: CashierShiftReportRecord;
+  snapshot: CashierShiftReportSnapshot;
+};
+
 export type CancelBillPayload = {
   staffUserId?: string;
   reason?: string;

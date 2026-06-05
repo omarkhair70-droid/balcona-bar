@@ -7,7 +7,7 @@ import {
   CardContent,
   CardDescription,
   CardHeader,
-  CardTitle
+  CardTitle,
 } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
 import { LoadingState } from "@/components/ui/loading-state";
@@ -25,6 +25,7 @@ type BillRequestQueueProps = {
   error?: Error;
   pendingActionId?: string;
   pendingPaymentId?: string;
+  paymentBlockedReason?: string;
   paymentError?: Error;
   onStatusChange: (status: BranchBillRequestStatusFilter) => void;
   onRefresh: () => void;
@@ -32,7 +33,7 @@ type BillRequestQueueProps = {
   onPresent: (billRequestId: string) => void;
   onRecordManualPayment: (
     billId: string,
-    payload: RecordManualPaymentPayload
+    payload: RecordManualPaymentPayload,
   ) => void;
 };
 
@@ -41,7 +42,7 @@ const statusOptions: BranchBillRequestStatusFilter[] = [
   "open",
   "acknowledged",
   "presented",
-  "all"
+  "all",
 ];
 
 export function BillRequestQueue({
@@ -51,12 +52,13 @@ export function BillRequestQueue({
   error,
   pendingActionId,
   pendingPaymentId,
+  paymentBlockedReason,
   paymentError,
   onStatusChange,
   onRefresh,
   onAcknowledge,
   onPresent,
-  onRecordManualPayment
+  onRecordManualPayment,
 }: BillRequestQueueProps) {
   return (
     <Card variant="glass" padding="lg">
@@ -84,7 +86,7 @@ export function BillRequestQueue({
                 "min-h-9 whitespace-nowrap rounded-button border px-3 text-xs font-semibold transition",
                 status === option
                   ? "border-primary bg-primary text-primary-foreground"
-                  : "border-border bg-muted text-muted-foreground hover:text-foreground"
+                  : "border-border bg-muted text-muted-foreground hover:text-foreground",
               )}
             >
               {humanizeStatus(option)}
@@ -113,6 +115,7 @@ export function BillRequestQueue({
                 billRequest={billRequest}
                 pendingActionId={pendingActionId}
                 pendingPaymentId={pendingPaymentId}
+                paymentBlockedReason={paymentBlockedReason}
                 paymentError={paymentError}
                 onAcknowledge={onAcknowledge}
                 onPresent={onPresent}

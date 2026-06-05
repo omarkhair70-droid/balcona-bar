@@ -44,7 +44,12 @@ function billDetail(overrides: Record<string, unknown> = {}) {
     metadata: {},
     createdAt: now,
     updatedAt: now,
-    company: { id: 'company-1', name: 'Balkona', slug: 'balkona', status: 'active' },
+    company: {
+      id: 'company-1',
+      name: 'Balkona',
+      slug: 'balkona',
+      status: 'active',
+    },
     branch: {
       id: 'branch-1',
       companyId: 'company-1',
@@ -109,6 +114,15 @@ function buildService(tx: any) {
   const prisma = {
     $transaction: jest.fn((callback) => callback(tx)),
   };
+  const cashierShiftsService = {
+    getOpenShiftForPayment: jest.fn().mockResolvedValue({
+      id: 'shift-1',
+      companyId: 'company-1',
+      branchId: 'branch-1',
+      currency: 'EGP',
+    }),
+    recordManualPaymentOnShift: jest.fn().mockResolvedValue(undefined),
+  };
   const realtimeEventsService = {
     recordBillCreated: jest.fn().mockResolvedValue(undefined),
     recordBillPaymentRecorded: jest.fn().mockResolvedValue(undefined),
@@ -130,8 +144,10 @@ function buildService(tx: any) {
       presenceNotificationsService as never,
       realtimeEventsService as never,
       tableAttentionService as never,
+      cashierShiftsService as never,
     ),
     prisma,
+    cashierShiftsService,
     realtimeEventsService,
   };
 }
@@ -303,6 +319,53 @@ describe('BillsService', () => {
     expect(tx.manualPayment.create).not.toHaveBeenCalled();
   });
 
+  it('rejects manual payment when no cashier shift is open', async () => {
+    const tx = {
+      staffUser: {
+        findUnique: jest.fn().mockResolvedValue({ id: 'staff-1' }),
+      },
+      bill: {
+        findUnique: jest.fn().mockResolvedValue({
+          id: 'bill-1',
+          companyId: 'company-1',
+          branchId: 'branch-1',
+          tableSessionId: 'session-1',
+          billRequestId: 'bill-request-1',
+          status: BillStatus.presented,
+          currency: 'EGP',
+          totalMinor: 18500,
+          paidMinor: 0,
+          balanceDueMinor: 18500,
+        }),
+        updateMany: jest.fn(),
+      },
+      manualPayment: {
+        create: jest.fn(),
+      },
+    };
+    const { service, cashierShiftsService } = buildService(tx);
+    cashierShiftsService.getOpenShiftForPayment.mockRejectedValue(
+      new BadRequestException('Open a cashier shift before recording payments'),
+    );
+
+    await expect(
+      service.recordManualPayment(
+        'bill-1',
+        {
+          method: BillPaymentMethod.cash,
+          amountMinor: 18500,
+        },
+        'staff-1',
+      ),
+    ).rejects.toThrow('Open a cashier shift before recording payments');
+
+    expect(tx.bill.updateMany).not.toHaveBeenCalled();
+    expect(tx.manualPayment.create).not.toHaveBeenCalled();
+    expect(
+      cashierShiftsService.recordManualPaymentOnShift,
+    ).not.toHaveBeenCalled();
+  });
+
   it('records an exact manual payment and generates a receipt', async () => {
     const paidBill = billDetail({
       status: BillStatus.paid,
@@ -371,7 +434,8 @@ describe('BillsService', () => {
       },
       $executeRaw: jest.fn().mockResolvedValue(undefined),
     };
-    const { service, realtimeEventsService } = buildService(tx);
+    const { service, realtimeEventsService, cashierShiftsService } =
+      buildService(tx);
 
     const result = await service.recordManualPayment(
       'bill-1',
@@ -387,6 +451,7 @@ describe('BillsService', () => {
       expect.objectContaining({
         data: expect.objectContaining({
           method: BillPaymentMethod.card_pos,
+          cashierShiftId: 'shift-1',
           amountMinor: 18500,
           status: ManualPaymentStatus.recorded,
           reference: 'POS-123',
@@ -408,6 +473,18 @@ describe('BillsService', () => {
       }),
     );
     expect(tx.billReceipt.create).toHaveBeenCalled();
+    expect(
+      cashierShiftsService.recordManualPaymentOnShift,
+    ).toHaveBeenCalledWith(
+      expect.objectContaining({
+        shift: expect.objectContaining({ id: 'shift-1' }),
+        paymentId: 'payment-1',
+        method: BillPaymentMethod.card_pos,
+        amountMinor: 18500,
+        currency: 'EGP',
+      }),
+      tx,
+    );
     expect(result.bill.status).toBe(BillStatus.paid);
     expect(realtimeEventsService.recordBillPaid).toHaveBeenCalledWith(
       'bill-1',
@@ -446,7 +523,7 @@ describe('BillsService', () => {
         create: jest.fn(),
       },
     };
-    const { service } = buildService(tx);
+    const { service, cashierShiftsService } = buildService(tx);
 
     await expect(
       service.recordManualPayment(
@@ -461,6 +538,9 @@ describe('BillsService', () => {
 
     expect(tx.bill.updateMany).toHaveBeenCalled();
     expect(tx.manualPayment.create).not.toHaveBeenCalled();
+    expect(
+      cashierShiftsService.recordManualPaymentOnShift,
+    ).not.toHaveBeenCalled();
   });
 
   it('rejects already paid bills before creating another manual payment', async () => {

@@ -18,6 +18,7 @@ import {
   TableSessionStatus,
 } from '@prisma/client';
 import { TableAttentionService } from '../autopilot/table-attention.service';
+import { CashierShiftsService } from '../cashier-shifts/cashier-shifts.service';
 import { PresenceNotificationsService } from '../presence-notifications/presence-notifications.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { RealtimeEventsService } from '../realtime-events/realtime-events.service';
@@ -66,6 +67,7 @@ export class BillsService {
     private readonly presenceNotificationsService: PresenceNotificationsService,
     private readonly realtimeEventsService: RealtimeEventsService,
     private readonly tableAttentionService: TableAttentionService,
+    private readonly cashierShiftsService: CashierShiftsService,
   ) {}
 
   async createOrGetBillForBillRequest(
@@ -137,7 +139,10 @@ export class BillsService {
     };
   }
 
-  async findForTableSession(sessionId: string, tx: PrismaExecutor = this.prisma) {
+  async findForTableSession(
+    sessionId: string,
+    tx: PrismaExecutor = this.prisma,
+  ) {
     const bills = await tx.bill.findMany({
       where: { tableSessionId: sessionId },
       orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
@@ -210,7 +215,10 @@ export class BillsService {
       }
 
       if (!PAYABLE_BILL_STATUSES.includes(bill.status)) {
-        if (bill.status === BillStatus.paid || bill.status === BillStatus.closed) {
+        if (
+          bill.status === BillStatus.paid ||
+          bill.status === BillStatus.closed
+        ) {
           throw new BadRequestException('Bill is already paid');
         }
 
@@ -225,6 +233,12 @@ export class BillsService {
         );
       }
 
+      const cashierShift =
+        await this.cashierShiftsService.getOpenShiftForPayment(
+          bill.branchId,
+          bill.currency,
+          tx,
+        );
       const note = this.normalizeOptionalText(body.note);
       const reference = this.normalizeOptionalText(body.reference);
       const now = new Date();
@@ -264,11 +278,12 @@ export class BillsService {
         );
       }
 
-      await tx.manualPayment.create({
+      const manualPayment = await tx.manualPayment.create({
         data: {
           companyId: bill.companyId,
           branchId: bill.branchId,
           billId: bill.id,
+          cashierShiftId: cashierShift.id,
           method: body.method as BillPaymentMethod,
           status: ManualPaymentStatus.recorded,
           amountMinor: body.amountMinor,
@@ -278,7 +293,20 @@ export class BillsService {
           recordedByStaffUserId: staffUserId,
           recordedAt: now,
         },
+        select: { id: true },
       });
+      await this.cashierShiftsService.recordManualPaymentOnShift(
+        {
+          shift: cashierShift,
+          paymentId: manualPayment.id,
+          method: body.method as BillPaymentMethod,
+          amountMinor: body.amountMinor,
+          currency: bill.currency,
+          staffUserId,
+          note,
+        },
+        tx,
+      );
       await this.createBillEvent(
         bill.id,
         BillEventType.payment_recorded,
@@ -321,12 +349,10 @@ export class BillsService {
       await this.realtimeEventsService.recordBillPaymentRecorded(bill.id, tx);
       await this.realtimeEventsService.recordBillPaid(bill.id, tx);
       await this.realtimeEventsService.recordReceiptGenerated(bill.id, tx);
-      await this.recalculateAttention(
-        bill.tableSessionId,
-        tx,
-        'bill_paid',
-        { billId: bill.id, billRequestId: bill.billRequestId },
-      );
+      await this.recalculateAttention(bill.tableSessionId, tx, 'bill_paid', {
+        billId: bill.id,
+        billRequestId: bill.billRequestId,
+      });
 
       return this.getBillResponse(bill.id, tx);
     });
@@ -371,7 +397,9 @@ export class BillsService {
     }
 
     if (bill.status !== BillStatus.paid && bill.status !== BillStatus.closed) {
-      throw new BadRequestException('Bill must be paid before it can be closed');
+      throw new BadRequestException(
+        'Bill must be paid before it can be closed',
+      );
     }
 
     if (bill.status === BillStatus.paid) {
@@ -605,12 +633,10 @@ export class BillsService {
       tx,
     );
     await this.realtimeEventsService.recordBillPresentedForBill(bill.id, tx);
-    await this.recalculateAttention(
-      bill.tableSessionId,
-      tx,
-      'bill_presented',
-      { billId: bill.id, billRequestId: bill.billRequestId },
-    );
+    await this.recalculateAttention(bill.tableSessionId, tx, 'bill_presented', {
+      billId: bill.id,
+      billRequestId: bill.billRequestId,
+    });
 
     return this.getBillResponse(bill.id, tx);
   }
@@ -669,12 +695,11 @@ export class BillsService {
       tx,
     );
     await this.realtimeEventsService.recordBillCancelledForBill(bill.id, tx);
-    await this.recalculateAttention(
-      bill.tableSessionId,
-      tx,
-      'bill_cancelled',
-      { billId: bill.id, billRequestId: bill.billRequestId, reason },
-    );
+    await this.recalculateAttention(bill.tableSessionId, tx, 'bill_cancelled', {
+      billId: bill.id,
+      billRequestId: bill.billRequestId,
+      reason,
+    });
 
     return this.getBillResponse(bill.id, tx);
   }
@@ -698,7 +723,10 @@ export class BillsService {
       },
     });
 
-    if (!billRequest || !ACTIVE_BILL_REQUEST_STATUSES.includes(billRequest.status)) {
+    if (
+      !billRequest ||
+      !ACTIVE_BILL_REQUEST_STATUSES.includes(billRequest.status)
+    ) {
       return;
     }
 
@@ -851,7 +879,9 @@ export class BillsService {
     }
 
     if (bill.status !== BillStatus.paid && bill.status !== BillStatus.closed) {
-      throw new BadRequestException('Receipt can only be generated for paid bills');
+      throw new BadRequestException(
+        'Receipt can only be generated for paid bills',
+      );
     }
 
     const receiptNumber = await this.generateReceiptNumber(
@@ -949,10 +979,7 @@ export class BillsService {
     }
   }
 
-  private async findBillableOrders(
-    tableSessionId: string,
-    tx: PrismaExecutor,
-  ) {
+  private async findBillableOrders(tableSessionId: string, tx: PrismaExecutor) {
     return tx.order.findMany({
       where: {
         tableSessionId,
@@ -1040,10 +1067,7 @@ export class BillsService {
         0,
       ),
       orderCount: orders.length,
-      lineCount: orders.reduce(
-        (sum, order) => sum + order.items.length,
-        0,
-      ),
+      lineCount: orders.reduce((sum, order) => sum + order.items.length, 0),
       currency,
     };
   }
@@ -1140,7 +1164,9 @@ export class BillsService {
         modifiersSnapshot: line.modifiersSnapshot,
       })),
       payments: bill.manualPayments
-        .filter((payment: any) => payment.status === ManualPaymentStatus.recorded)
+        .filter(
+          (payment: any) => payment.status === ManualPaymentStatus.recorded,
+        )
         .map((payment: any) => ({
           id: payment.id,
           method: payment.method,
