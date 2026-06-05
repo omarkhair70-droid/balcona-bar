@@ -415,11 +415,31 @@ export class TenantOnboardingService {
         branch.companyId,
         SaasFeatureKey.setup,
       );
-      await this.saasService.assertWithinLimit(
-        branch.companyId,
-        "maxTables",
-        body.count,
+      const prefix = this.normalizeCode(body.tablePrefix);
+      const requestedCodes = Array.from({ length: body.count }, (_, index) => {
+        const number = body.startNumber + index;
+
+        return `${prefix}${String(number).padStart(2, "0")}`;
+      });
+      const existingRequestedTables = await tx.cafeTable.findMany({
+        where: { branchId: branch.id, code: { in: requestedCodes } },
+        select: tableSelect,
+      });
+      const existingTableByCode = new Map(
+        existingRequestedTables.map((table) => [table.code, table]),
       );
+      const newTableCount = requestedCodes.filter(
+        (code) => !existingTableByCode.has(code),
+      ).length;
+
+      if (newTableCount > 0) {
+        await this.saasService.assertWithinLimit(
+          branch.companyId,
+          "maxTables",
+          newTableCount,
+        );
+      }
+
       const floorName = body.floorLabel.trim();
       const existingFloor = await tx.floor.findFirst({
         where: { branchId: branch.id, name: floorName },
@@ -442,15 +462,9 @@ export class TenantOnboardingService {
         reason: string;
         table?: TableRecord;
       }> = [];
-      const prefix = this.normalizeCode(body.tablePrefix);
 
-      for (let index = 0; index < body.count; index += 1) {
-        const number = body.startNumber + index;
-        const code = `${prefix}${String(number).padStart(2, "0")}`;
-        const existingTable = await tx.cafeTable.findFirst({
-          where: { branchId: branch.id, code },
-          select: tableSelect,
-        });
+      for (const code of requestedCodes) {
+        const existingTable = existingTableByCode.get(code);
 
         if (existingTable) {
           skipped.push({
@@ -506,13 +520,9 @@ export class TenantOnboardingService {
         branch.companyId,
         SaasFeatureKey.setup,
       );
-      await this.saasService.assertWithinLimit(
-        branch.companyId,
-        "maxStaffUsers",
-        1,
-      );
       const email = body.email.trim().toLowerCase();
       const role = body.role;
+      const membershipBranchId = role === StaffRole.owner ? null : branch.id;
 
       if (role === StaffRole.owner) {
         await this.staffAccessService.assertCan(
@@ -528,6 +538,40 @@ export class TenantOnboardingService {
         where: { email },
         select: staffUserSelect,
       });
+      const [existingMembership, existingActiveCompanyMembership] =
+        existingStaffUser
+          ? await Promise.all([
+              tx.staffMembership.findFirst({
+                where: {
+                  staffUserId: existingStaffUser.id,
+                  companyId: branch.companyId,
+                  branchId: membershipBranchId,
+                  role,
+                },
+                select: staffMembershipSelect,
+              }),
+              tx.staffMembership.findFirst({
+                where: {
+                  staffUserId: existingStaffUser.id,
+                  companyId: branch.companyId,
+                  status: StaffStatus.active,
+                },
+                select: { id: true },
+              }),
+            ])
+          : [null, null];
+      const willCreateCountedStaffUser =
+        !existingStaffUser ||
+        (!existingMembership && !existingActiveCompanyMembership);
+
+      if (willCreateCountedStaffUser) {
+        await this.saasService.assertWithinLimit(
+          branch.companyId,
+          "maxStaffUsers",
+          1,
+        );
+      }
+
       const staffUser = existingStaffUser
         ? await tx.staffUser.update({
             where: { id: existingStaffUser.id },
@@ -542,16 +586,6 @@ export class TenantOnboardingService {
             },
             select: staffUserSelect,
           });
-      const membershipBranchId = role === StaffRole.owner ? null : branch.id;
-      const existingMembership = await tx.staffMembership.findFirst({
-        where: {
-          staffUserId: staffUser.id,
-          companyId: branch.companyId,
-          branchId: membershipBranchId,
-          role,
-        },
-        select: staffMembershipSelect,
-      });
       const membership =
         existingMembership ??
         (await tx.staffMembership.create({

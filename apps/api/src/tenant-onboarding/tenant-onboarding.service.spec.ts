@@ -46,6 +46,20 @@ const tableT01 = {
   updatedAt: now,
   floor,
 };
+const tableT02 = {
+  ...tableT01,
+  id: 'table-2',
+  code: 'T02',
+  displayName: 'T02',
+  qrToken: 'main-t02',
+};
+const tableT03 = {
+  ...tableT01,
+  id: 'table-3',
+  code: 'T03',
+  displayName: 'T03',
+  qrToken: 'main-t03',
+};
 
 function membership(role: StaffRole, branchId: string | null = branch.id) {
   return {
@@ -277,11 +291,8 @@ describe('TenantOnboardingService', () => {
   });
 
   it('bulk creates deterministic table labels and skips duplicates', async () => {
-    const { service, tx } = buildService();
-    tx.cafeTable.findFirst
-      .mockResolvedValueOnce(tableT01)
-      .mockResolvedValueOnce(null)
-      .mockResolvedValueOnce(null);
+    const { service, saasService, tx } = buildService();
+    tx.cafeTable.findMany.mockResolvedValueOnce([tableT01]);
 
     const result = await service.bulkCreateTables(branch.id, {
       floorLabel: 'Ground Floor',
@@ -298,6 +309,37 @@ describe('TenantOnboardingService', () => {
       'main-t02',
       'main-t03',
     ]);
+    expect(saasService.assertWithinLimit).toHaveBeenCalledWith(
+      company.id,
+      'maxTables',
+      2,
+    );
+  });
+
+  it('reruns bulk table setup at the table limit without blocking duplicates', async () => {
+    const { service, saasService, tx } = buildService();
+    saasService.assertWithinLimit.mockRejectedValue(
+      new Error('Table limit reached for this company plan.'),
+    );
+    tx.cafeTable.findMany.mockResolvedValueOnce([tableT01, tableT02, tableT03]);
+
+    const result = await service.bulkCreateTables(branch.id, {
+      floorLabel: 'Ground Floor',
+      tablePrefix: 'T',
+      startNumber: 1,
+      count: 3,
+      seats: 4,
+    });
+
+    expect(result.createdCount).toBe(0);
+    expect(result.skippedCount).toBe(3);
+    expect(result.skipped.map((entry) => entry.code)).toEqual([
+      'T01',
+      'T02',
+      'T03',
+    ]);
+    expect(saasService.assertWithinLimit).not.toHaveBeenCalled();
+    expect(tx.cafeTable.create).not.toHaveBeenCalled();
   });
 
   it('checks SaaS table limits before bulk table creation', async () => {
@@ -324,7 +366,7 @@ describe('TenantOnboardingService', () => {
   });
 
   it('creates a branch-scoped staff membership during staff setup', async () => {
-    const { service, tx } = buildService();
+    const { service, saasService, tx } = buildService();
 
     const result = await service.inviteStaff(
       branch.id,
@@ -336,6 +378,11 @@ describe('TenantOnboardingService', () => {
       'actor-1',
     );
 
+    expect(saasService.assertWithinLimit).toHaveBeenCalledWith(
+      company.id,
+      'maxStaffUsers',
+      1,
+    );
     expect(tx.staffUser.create).toHaveBeenCalledWith(
       expect.objectContaining({
         data: expect.objectContaining({
@@ -353,5 +400,62 @@ describe('TenantOnboardingService', () => {
       }),
     );
     expect(result.passwordSetup.required).toBe(true);
+  });
+
+  it('re-invites an existing membership at the staff limit without consuming a seat', async () => {
+    const { service, saasService, tx } = buildService();
+    const existingMembership = membership(StaffRole.cashier);
+    saasService.assertWithinLimit.mockRejectedValue(
+      new Error('Staff user limit reached for this company plan.'),
+    );
+    tx.staffUser.findUnique.mockResolvedValue(existingMembership.staffUser);
+    tx.staffUser.update.mockResolvedValue({
+      ...existingMembership.staffUser,
+      name: 'Existing Cashier',
+    });
+    tx.staffMembership.findFirst
+      .mockResolvedValueOnce(existingMembership)
+      .mockResolvedValueOnce({ id: existingMembership.id });
+
+    const result = await service.inviteStaff(
+      branch.id,
+      {
+        email: existingMembership.staffUser.email,
+        name: 'Existing Cashier',
+        role: StaffRole.cashier,
+      },
+      'actor-1',
+    );
+
+    expect(saasService.assertWithinLimit).not.toHaveBeenCalled();
+    expect(tx.staffMembership.create).not.toHaveBeenCalled();
+    expect(result.createdStaffUser).toBe(false);
+    expect(result.createdMembership).toBe(false);
+  });
+
+  it('blocks a new staff invite at the staff limit before creating records', async () => {
+    const { service, saasService, tx } = buildService();
+    saasService.assertWithinLimit.mockRejectedValueOnce(
+      new Error('Staff user limit reached for this company plan.'),
+    );
+
+    await expect(
+      service.inviteStaff(
+        branch.id,
+        {
+          email: 'new-limit@test.local',
+          name: 'New Limit',
+          role: StaffRole.cashier,
+        },
+        'actor-1',
+      ),
+    ).rejects.toThrow('Staff user limit reached for this company plan.');
+    expect(saasService.assertWithinLimit).toHaveBeenCalledWith(
+      company.id,
+      'maxStaffUsers',
+      1,
+    );
+    expect(tx.staffUser.create).not.toHaveBeenCalled();
+    expect(tx.staffMembership.create).not.toHaveBeenCalled();
   });
 });
