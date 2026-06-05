@@ -6,7 +6,7 @@ export const customerQueryKeys = {
   cartValidation: (sessionId?: string) => [
     "customer",
     "cart-validation",
-    sessionId
+    sessionId,
   ],
   orders: (sessionId?: string) => ["customer", "orders", sessionId],
   status: (sessionId?: string) => ["customer", "status", sessionId],
@@ -17,13 +17,13 @@ export const customerQueryKeys = {
   aiWaiterMessages: (sessionId?: string) => [
     "customer",
     "ai-waiter-messages",
-    sessionId
+    sessionId,
   ],
   aiWaiterProposals: (sessionId?: string) => [
     "customer",
     "ai-waiter-proposals",
-    sessionId
-  ]
+    sessionId,
+  ],
 } as const;
 
 export const staffQueryKeys = {
@@ -40,7 +40,7 @@ export const staffQueryKeys = {
   billRequest: (billRequestId?: string) => [
     "staff",
     "bill-request",
-    billRequestId
+    billRequestId,
   ],
   branchBills: (branchId?: string, status?: string) =>
     status === undefined
@@ -48,34 +48,41 @@ export const staffQueryKeys = {
       : ["staff", "branch-bills", branchId, status],
   bill: (billId?: string) => ["staff", "bill", billId],
   billReceipt: (billId?: string) => ["staff", "bill-receipt", billId],
+  currentCashierShift: (branchId?: string) => [
+    "staff",
+    "current-cashier-shift",
+    branchId,
+  ],
+  branchCashierShifts: (branchId?: string, status?: string) =>
+    status === undefined
+      ? ["staff", "branch-cashier-shifts", branchId]
+      : ["staff", "branch-cashier-shifts", branchId, status],
+  cashierShift: (shiftId?: string) => ["staff", "cashier-shift", shiftId],
+  cashierShiftXReport: (shiftId?: string) => [
+    "staff",
+    "cashier-shift-x-report",
+    shiftId,
+  ],
   preparationTasks: (branchId?: string, station?: string, status?: string) =>
     station === undefined && status === undefined
       ? ["staff", "preparation-tasks", branchId]
       : ["staff", "preparation-tasks", branchId, station, status],
-  preparationTask: (taskId?: string) => [
-    "staff",
-    "preparation-task",
-    taskId
-  ],
+  preparationTask: (taskId?: string) => ["staff", "preparation-task", taskId],
   kitchenTickets: (
     branchId?: string,
     station?: string,
     status?: string,
-    type?: string
+    type?: string,
   ) =>
     station === undefined && status === undefined && type === undefined
       ? ["staff", "kitchen-tickets", branchId]
       : ["staff", "kitchen-tickets", branchId, station, status, type],
-  kitchenTicket: (ticketId?: string) => [
-    "staff",
-    "kitchen-ticket",
-    ticketId
-  ],
+  kitchenTicket: (ticketId?: string) => ["staff", "kitchen-ticket", ticketId],
   printJobs: (
     branchId?: string,
     station?: string,
     status?: string,
-    kind?: string
+    kind?: string,
   ) =>
     station === undefined && status === undefined && kind === undefined
       ? ["staff", "print-jobs", branchId]
@@ -83,12 +90,12 @@ export const staffQueryKeys = {
   printerStations: (branchId?: string) => [
     "staff",
     "printer-stations",
-    branchId
+    branchId,
   ],
   orderPreparationTasks: (orderId?: string) => [
     "staff",
     "order-preparation-tasks",
-    orderId
+    orderId,
   ],
   staffWaiterCalls: (branchId?: string, status?: string, type?: string) =>
     status === undefined && type === undefined
@@ -97,71 +104,70 @@ export const staffQueryKeys = {
   staffWaiterCall: (waiterCallId?: string) => [
     "staff",
     "waiter-call",
-    waiterCallId
+    waiterCallId,
   ],
-  staffAttentionQueue: (branchId?: string, status?: string, priority?: string) =>
+  staffAttentionQueue: (
+    branchId?: string,
+    status?: string,
+    priority?: string,
+  ) =>
     status === undefined && priority === undefined
       ? ["staff", "attention-queue", branchId]
       : ["staff", "attention-queue", branchId, status, priority],
   staffTableSessionAttention: (sessionId?: string) => [
     "staff",
     "table-session-attention",
-    sessionId
+    sessionId,
   ],
   staffOwnerOrders: (branchId?: string) => [
     "staff",
     "owner",
     "orders",
-    branchId
+    branchId,
   ],
   staffOwnerBillRequests: (branchId?: string) => [
     "staff",
     "owner",
     "bill-requests",
-    branchId
+    branchId,
   ],
   staffOwnerPreparationTasks: (branchId?: string) => [
     "staff",
     "owner",
     "preparation-tasks",
-    branchId
+    branchId,
   ],
   staffOwnerWaiterCalls: (branchId?: string) => [
     "staff",
     "owner",
     "waiter-calls",
-    branchId
+    branchId,
   ],
   staffOwnerAttentionQueue: (branchId?: string) => [
     "staff",
     "owner",
     "attention-queue",
-    branchId
+    branchId,
   ],
   staffOwnerExperience: (branchId?: string) => [
     "staff",
     "owner",
     "experience",
-    branchId
+    branchId,
   ],
-  staffOwnerMenu: (branchId?: string) => [
-    "staff",
-    "owner",
-    "menu",
-    branchId
-  ],
+  staffOwnerMenu: (branchId?: string) => ["staff", "owner", "menu", branchId],
   staffMenuAdminOverview: (branchId?: string) => [
     "staff",
     "menu-admin",
     "overview",
-    branchId
+    branchId,
   ],
   branchTableAdminOverview: (companyId?: string, branchId?: string) => [
     "staff",
     "branch-table-admin",
     "overview",
     companyId,
-    branchId
+    branchId,
   ],
-  branchRealtime: (branchId?: string) => ["staff", "branch-realtime", branchId]
+  branchRealtime: (branchId?: string) => ["staff", "branch-realtime", branchId],
 } as const;

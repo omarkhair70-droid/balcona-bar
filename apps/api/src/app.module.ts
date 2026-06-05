@@ -12,6 +12,7 @@ import { BranchAdminModule } from './branch-admin/branch-admin.module';
 import { BranchSettingsModule } from './branch-settings/branch-settings.module';
 import { BranchesModule } from './branches/branches.module';
 import { CartModule } from './cart/cart.module';
+import { CashierShiftsModule } from './cashier-shifts/cashier-shifts.module';
 import { CompaniesModule } from './companies/companies.module';
 import { ContentModule } from './content/content.module';
 import { CustomerStatusModule } from './customer-status/customer-status.module';
@@ -64,6 +65,7 @@ import { WaiterCallsModule } from './waiter-calls/waiter-calls.module';
     CompaniesModule,
     BranchesModule,
     CartModule,
+    CashierShiftsModule,
     ContentModule,
     CustomerStatusModule,
     ExperienceModule,

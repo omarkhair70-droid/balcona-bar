@@ -1,6 +1,6 @@
 # balcona-bar
 
-Balcona Bar is organized as a monorepo for the Cafe AI Waiter App / Smart Cafe Operating System. The backend core is complete through Phase 24, UI Phase 1 adds the first Next.js web foundation for customer and staff experiences, UI Phase 2 adds the customer PWA core, UI Phase 3 adds the customer AI waiter experience, UI Phase 4 adds the cashier dashboard core, UI Phase 5 adds the kitchen/barista dashboard core, UI Phase 6 adds the waiter dashboard and attention queue, UI Phase 7 adds the owner/manager command center, UI Phase 8 adds full demo hardening plus Balkona demo mode, Production Phase 1 adds deployable platform foundation files, Production Phase 2 adds AWS infrastructure foundation scaffolding without deploying resources, Production Phase 3A adds public demo deploy readiness plus CI/CD guardrails without deploying resources, Production Phase 3B adds the first public AWS demo preflight deploy pack without deploying resources, Product Phase 4A starts the full Cafe OS product completion track, Product Phase 4B adds branch-scoped menu admin and availability management, Product Phase 4C adds branch, tables, and QR management, Product Phase 4E.G0-G3 add a Groq AI waiter provider with safe backend validation, deep menu grounding, and modifier-turn ordering intelligence, Product Phase 4S.0 enforces staff roles, permissions, and branch access on the current staff product surfaces, Product Phase 4O.0 hardens order lifecycle transitions across cashier, preparation, waiter, and customer status flows, Product Phase 4K.0 adds KDS kitchen tickets plus a mock printer foundation for station operations, and Product Phase 4P.0 adds stable bills, manual cashier payments, and receipt foundations.
+Balcona Bar is organized as a monorepo for the Cafe AI Waiter App / Smart Cafe Operating System. The backend core is complete through Phase 24, UI Phase 1 adds the first Next.js web foundation for customer and staff experiences, UI Phase 2 adds the customer PWA core, UI Phase 3 adds the customer AI waiter experience, UI Phase 4 adds the cashier dashboard core, UI Phase 5 adds the kitchen/barista dashboard core, UI Phase 6 adds the waiter dashboard and attention queue, UI Phase 7 adds the owner/manager command center, UI Phase 8 adds full demo hardening plus Balkona demo mode, Production Phase 1 adds deployable platform foundation files, Production Phase 2 adds AWS infrastructure foundation scaffolding without deploying resources, Production Phase 3A adds public demo deploy readiness plus CI/CD guardrails without deploying resources, Production Phase 3B adds the first public AWS demo preflight deploy pack without deploying resources, Product Phase 4A starts the full Cafe OS product completion track, Product Phase 4B adds branch-scoped menu admin and availability management, Product Phase 4C adds branch, tables, and QR management, Product Phase 4E.G0-G3 add a Groq AI waiter provider with safe backend validation, deep menu grounding, and modifier-turn ordering intelligence, Product Phase 4S.0 enforces staff roles, permissions, and branch access on the current staff product surfaces, Product Phase 4O.0 hardens order lifecycle transitions across cashier, preparation, waiter, and customer status flows, Product Phase 4K.0 adds KDS kitchen tickets plus a mock printer foundation for station operations, Product Phase 4P.0 adds stable bills, manual cashier payments, and receipt foundations, and Product Phase 4C.0 adds cashier shifts, cash drawer transactions, and X/Z reports.
 
 ## Layout
 
@@ -77,82 +77,83 @@ Balcona Bar is organized as a monorepo for the Cafe AI Waiter App / Smart Cafe O
 
 10. Start the web app:
 
-   ```bash
-   pnpm --filter @balcona-bar/web dev
-   ```
+```bash
+pnpm --filter @balcona-bar/web dev
+```
 
-   The web app runs on port `3001` by default.
+The web app runs on port `3001` by default.
 
 11. Open the customer PWA demo:
 
-   ```text
-   http://localhost:3001/customer
-   ```
+```text
+http://localhost:3001/customer
+```
 
-   The seeded QR token is `balcona-main-t01`, which can also be opened directly at:
+The seeded QR token is `balcona-main-t01`, which can also be opened directly at:
 
-   ```text
-   http://localhost:3001/customer/table/balcona-main-t01
-   ```
+```text
+http://localhost:3001/customer/table/balcona-main-t01
+```
 
-   From the customer table home, open AI Waiter, send a suggested prompt,
-   apply or reject a cart proposal if one is returned, review the cart, and
-   submit the order manually from the cart flow.
+From the customer table home, open AI Waiter, send a suggested prompt,
+apply or reject a cart proposal if one is returned, review the cart, and
+submit the order manually from the cart flow.
 
 12. Open the staff cashier demo:
 
-   ```text
-   http://localhost:3001/staff/login
-   ```
+```text
+http://localhost:3001/staff/login
+```
 
-   Bootstrap the local/dev staff password if needed, sign in with the seeded
-   staff account documented below, then open `/staff/cashier`. Submit a
-   customer order from `/customer`, watch it appear in the cashier dashboard,
-   and accept or reject it from the detail panel.
+Bootstrap the local/dev staff password if needed, sign in with the seeded
+staff account documented below, then open `/staff/cashier`. Open a cashier
+shift with an opening float before recording payments. Submit a customer
+order from `/customer`, watch it appear in the cashier dashboard, and accept
+or reject it from the detail panel.
 
 13. Open the kitchen/barista demo:
 
-   ```text
-   http://localhost:3001/staff/kitchen
-   ```
+```text
+http://localhost:3001/staff/kitchen
+```
 
-   After a customer submits an order and the cashier accepts it, the backend
-   creates preparation tasks, station kitchen tickets, and pending mock print
-   jobs for the seeded demo printer stations. Kitchen or barista staff can use
-   Tasks, Tickets, and Print Queue modes to move preparation forward and track
-   ticket/print state. When all active preparation tasks for an order are ready,
-   the backend moves the order to ready state.
+After a customer submits an order and the cashier accepts it, the backend
+creates preparation tasks, station kitchen tickets, and pending mock print
+jobs for the seeded demo printer stations. Kitchen or barista staff can use
+Tasks, Tickets, and Print Queue modes to move preparation forward and track
+ticket/print state. When all active preparation tasks for an order are ready,
+the backend moves the order to ready state.
 
 14. Open the waiter dashboard demo:
 
-   ```text
-   http://localhost:3001/staff/waiter
-   ```
+```text
+http://localhost:3001/staff/waiter
+```
 
-   From `/customer`, create a service call or request the bill. Waiter staff
-   can open `/staff/waiter`, acknowledge the call, resolve it, serve ready
-   orders, and review table attention signals for waiter calls, bill requests,
-   ready orders not served, preparation delays, and AI waiter escalations.
+From `/customer`, create a service call or request the bill. Waiter staff
+can open `/staff/waiter`, acknowledge the call, resolve it, serve ready
+orders, and review table attention signals for waiter calls, bill requests,
+ready orders not served, preparation delays, and AI waiter escalations.
 
 15. Open the owner/manager command center:
 
-   ```text
-   http://localhost:3001/staff/owner
-   ```
+```text
+http://localhost:3001/staff/owner
+```
 
-   The owner dashboard aggregates existing branch endpoints to show order,
-   preparation, waiter-call, bill, attention, realtime, menu, and experience
-   readiness without requiring a dedicated analytics endpoint.
+The owner dashboard aggregates existing branch endpoints to show order,
+preparation, waiter-call, bill, attention, realtime, menu, and experience
+readiness without requiring a dedicated analytics endpoint.
 
 16. Open the full Balkona demo launcher:
 
-   ```text
-   http://localhost:3001/demo/balkona
-   ```
+```text
+http://localhost:3001/demo/balkona
+```
 
-   The launcher collects the customer QR route, staff routes, local/dev
-   credentials, presentation checklist, proof points, API base URL diagnostics,
-   and command reminders in one presentation-ready screen.
+The launcher collects the customer QR route, staff routes, local/dev
+credentials, presentation checklist, proof points, API base URL diagnostics,
+and command reminders in one presentation-ready screen.
 
 Useful root scripts:
 
@@ -203,6 +204,42 @@ pnpm --filter @balcona-bar/web lint
 pnpm --filter @balcona-bar/web typecheck
 pnpm web:build
 ```
+
+## Product Phase 4C.0 status
+
+Product Phase 4C.0 adds cashier shift and drawer operations on top of the
+manual payment foundation:
+
+- one open cashier shift per branch for this phase;
+- opening shifts records opening cash float and an opening drawer transaction;
+- new manual payments require an open cashier shift;
+- cash payments increase expected drawer cash;
+- card POS, wallet manual, and other payments count in tender totals without
+  increasing drawer cash;
+- X reports are persisted interim reports for open shifts;
+- Z close stores an immutable final snapshot with counted cash and over/short;
+- `/staff/cashier` now shows shift state, cash in/out, X report, close shift,
+  and payment blocking copy when no shift is open.
+
+Local demo sequence:
+
+```text
+1. Open /staff/login and sign in as manager/owner/cashier.
+2. Open /staff/cashier and open a cashier shift with an opening float.
+3. Submit a customer QR order.
+4. Accept the order in cashier.
+5. Move preparation ready in /staff/kitchen and serve from staff flow.
+6. Customer requests the bill.
+7. Cashier presents the bill and records a cash manual payment.
+8. Confirm the receipt appears.
+9. Generate an X report.
+10. Close the shift with counted cash and generate the Z report.
+11. Confirm another manual payment requires a new open shift.
+```
+
+See
+`docs/architecture/product-phase-4c0-shift-cash-drawer-xz-reports.md` for the
+data model, payment integration, X/Z report behavior, and limitations.
 
 ## Product Phase 4E.G0 status
 
@@ -1487,4 +1524,5 @@ begin.
 - Product Phase 4S.0 staff roles, permissions, and branch access: `docs/architecture/product-phase-4s0-staff-roles-permissions-branch-access.md`
 - Product Phase 4O.0 order lifecycle hardening: `docs/architecture/product-phase-4o0-order-lifecycle-hardening.md`
 - Product Phase 4K.0 KDS, kitchen tickets, and printer foundation: `docs/architecture/product-phase-4k0-kds-kitchen-tickets-printer-foundation.md`
+- Product Phase 4C.0 shift, cash drawer, and X/Z reports: `docs/architecture/product-phase-4c0-shift-cash-drawer-xz-reports.md`
 - Real cafe readiness checklist: `docs/product/real-cafe-readiness-checklist.md`

@@ -1,12 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import {
-  CheckCircle2,
-  CreditCard,
-  HandCoins,
-  ReceiptText
-} from "lucide-react";
+import { CheckCircle2, CreditCard, HandCoins, ReceiptText } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -23,7 +18,7 @@ import {
   getBillRequestStatus,
   getBillRequestTable,
   getBillStatus,
-  getBillTotals
+  getBillTotals,
 } from "@/features/staff/cashier-data";
 import {
   formatDateTime,
@@ -32,7 +27,7 @@ import {
   getRecordString,
   getTableLabel,
   humanizeStatus,
-  shortId
+  shortId,
 } from "@/features/staff/staff-format";
 import { formatErrorMessage } from "@/lib/api/error-message";
 import type { RecordManualPaymentPayload } from "@/lib/api/types";
@@ -41,12 +36,13 @@ type BillRequestCardProps = {
   billRequest: Record<string, unknown>;
   pendingActionId?: string;
   pendingPaymentId?: string;
+  paymentBlockedReason?: string;
   paymentError?: Error;
   onAcknowledge: (billRequestId: string) => void;
   onPresent: (billRequestId: string) => void;
   onRecordManualPayment: (
     billId: string,
-    payload: RecordManualPaymentPayload
+    payload: RecordManualPaymentPayload,
   ) => void;
 };
 
@@ -57,7 +53,7 @@ const paymentMethods: Array<{
   { value: "cash", label: "Cash" },
   { value: "card_pos", label: "Card POS" },
   { value: "wallet_manual", label: "Wallet" },
-  { value: "other", label: "Other" }
+  { value: "other", label: "Other" },
 ];
 
 function statusVariant(status?: string) {
@@ -99,10 +95,11 @@ export function BillRequestCard({
   billRequest,
   pendingActionId,
   pendingPaymentId,
+  paymentBlockedReason,
   paymentError,
   onAcknowledge,
   onPresent,
-  onRecordManualPayment
+  onRecordManualPayment,
 }: BillRequestCardProps) {
   const request = getBillRequestRecord(billRequest);
   const billRequestId = getBillRequestId(billRequest);
@@ -120,15 +117,19 @@ export function BillRequestCard({
   const subtotalMinor = getRecordNumber(
     totals,
     "subtotalMinor",
-    getRecordNumber(request, "subtotalMinor")
+    getRecordNumber(request, "subtotalMinor"),
   );
   const totalMinor = getRecordNumber(totals, "totalMinor", subtotalMinor);
   const paidMinor = getRecordNumber(totals, "paidMinor");
-  const balanceDueMinor = getRecordNumber(totals, "balanceDueMinor", totalMinor);
+  const balanceDueMinor = getRecordNumber(
+    totals,
+    "balanceDueMinor",
+    totalMinor,
+  );
   const orderCount = getRecordNumber(
     totals,
     "orderCount",
-    getRecordNumber(request, "orderCount")
+    getRecordNumber(request, "orderCount"),
   );
   const isPending = pendingActionId === billRequestId;
   const isPaymentPending = pendingPaymentId === billId;
@@ -139,16 +140,14 @@ export function BillRequestCard({
   const canRecordPayment =
     Boolean(billId) &&
     (billStatus === "presented" || billStatus === "payment_pending") &&
-    balanceDueMinor > 0;
+    balanceDueMinor > 0 &&
+    !paymentBlockedReason;
   const [paymentMethod, setPaymentMethod] =
     useState<RecordManualPaymentPayload["method"]>("cash");
   const [paymentAmount, setPaymentAmount] = useState("");
   const [reference, setReference] = useState("");
   const [note, setNote] = useState("");
-  const paymentAmountMinor = amountInputToMinor(
-    paymentAmount,
-    balanceDueMinor
-  );
+  const paymentAmountMinor = amountInputToMinor(paymentAmount, balanceDueMinor);
   const paymentAmountMatchesBalance = paymentAmountMinor === balanceDueMinor;
   const acknowledgeDisabledReason = !billRequestId
     ? "Acknowledge is unavailable because this request is missing an id."
@@ -162,13 +161,15 @@ export function BillRequestCard({
       : "";
   const paymentDisabledReason = !billId
     ? "Payment is unavailable until the backend creates the bill."
-    : billStatus !== "presented" && billStatus !== "payment_pending"
-      ? `Present the bill before recording payment. Current bill: ${humanizeStatus(billStatus)}.`
-      : balanceDueMinor <= 0
-        ? "Payment is already settled for this bill."
-        : !paymentAmountMatchesBalance
-          ? "Enter the exact balance due to record payment."
-          : "";
+    : paymentBlockedReason
+      ? paymentBlockedReason
+      : billStatus !== "presented" && billStatus !== "payment_pending"
+        ? `Present the bill before recording payment. Current bill: ${humanizeStatus(billStatus)}.`
+        : balanceDueMinor <= 0
+          ? "Payment is already settled for this bill."
+          : !paymentAmountMatchesBalance
+            ? "Enter the exact balance due to record payment."
+            : "";
 
   return (
     <div className="rounded-card border bg-surface/75 p-4">
@@ -177,7 +178,9 @@ export function BillRequestCard({
           <div className="flex flex-wrap items-center gap-2">
             <ReceiptText className="size-4 text-primary" aria-hidden="true" />
             <p className="text-sm font-semibold text-foreground">
-              {billId ? `Bill ${getBillNumber(billRequest)}` : `Bill request ${shortId(billRequestId)}`}
+              {billId
+                ? `Bill ${getBillNumber(billRequest)}`
+                : `Bill request ${shortId(billRequestId)}`}
             </p>
           </div>
           <p className="mt-2 text-xs text-muted-foreground">
@@ -242,7 +245,7 @@ export function BillRequestCard({
                       Includes modifiers{" "}
                       {formatMoney(
                         getRecordNumber(line, "modifiersTotalMinor"),
-                        getRecordString(line, "currency", currency)
+                        getRecordString(line, "currency", currency),
                       )}
                     </p>
                   ) : null}
@@ -250,7 +253,7 @@ export function BillRequestCard({
                 <p className="shrink-0 font-semibold text-foreground">
                   {formatMoney(
                     getRecordNumber(line, "lineTotalMinor"),
-                    getRecordString(line, "currency", currency)
+                    getRecordString(line, "currency", currency),
                   )}
                 </p>
               </div>
@@ -295,7 +298,9 @@ export function BillRequestCard({
       </div>
       {acknowledgeDisabledReason || presentDisabledReason ? (
         <div className="mt-3 grid gap-1 text-xs text-muted-foreground">
-          {acknowledgeDisabledReason ? <p>{acknowledgeDisabledReason}</p> : null}
+          {acknowledgeDisabledReason ? (
+            <p>{acknowledgeDisabledReason}</p>
+          ) : null}
           {presentDisabledReason ? <p>{presentDisabledReason}</p> : null}
         </div>
       ) : null}
@@ -320,7 +325,7 @@ export function BillRequestCard({
               method: paymentMethod,
               amountMinor: paymentAmountMinor,
               reference: reference.trim() || undefined,
-              note: note.trim() || undefined
+              note: note.trim() || undefined,
             });
           }}
         >
@@ -337,7 +342,7 @@ export function BillRequestCard({
                 value={paymentMethod}
                 onChange={(event) =>
                   setPaymentMethod(
-                    event.target.value as RecordManualPaymentPayload["method"]
+                    event.target.value as RecordManualPaymentPayload["method"],
                   )
                 }
                 className="h-10 rounded-button border border-input bg-background px-3 text-sm text-foreground"

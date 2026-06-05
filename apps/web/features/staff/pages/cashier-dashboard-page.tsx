@@ -5,13 +5,17 @@ import { useRouter } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   AlertTriangle,
+  Banknote,
   BellRing,
   CheckCircle2,
+  FileText,
   LogIn,
   LogOut,
+  MinusCircle,
+  PlusCircle,
   Receipt,
   RefreshCw,
-  XCircle
+  XCircle,
 } from "lucide-react";
 import { useMemo, useState } from "react";
 import { Badge } from "@/components/ui/badge";
@@ -21,43 +25,56 @@ import {
   CardContent,
   CardDescription,
   CardHeader,
-  CardTitle
+  CardTitle,
 } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
+import { Input } from "@/components/ui/input";
 import { MetricCard } from "@/components/ui/metric-card";
 import { StaffPageShell } from "@/features/staff/staff-page-shell";
 import {
   getBillRequestStatus,
   getOrderId,
-  getOrderStatus
+  getOrderStatus,
 } from "@/features/staff/cashier-data";
 import {
   formatDateTime,
+  formatMoney,
+  getRecordNumber,
   getRecordString,
   humanizeStatus,
-  shortId
+  shortId,
 } from "@/features/staff/staff-format";
 import { useStaffBranchRealtime } from "@/features/staff/use-staff-branch-realtime";
 import {
   acceptOrder,
   acknowledgeBillRequest,
   cancelOrder,
+  closeCashierShift,
   completeOrder,
+  createCashAdjustment,
   getBranchBillRequests,
   getBranchRealtimeEvents,
   getCashierOrders,
+  getCashierShiftXReport,
+  getCurrentCashierShift,
   getOrderDetail,
+  openCashierShift,
   presentBillRequest,
   recordManualPayment,
   rejectOrder,
-  staffLogout
+  staffLogout,
 } from "@/lib/api/endpoints";
 import { formatErrorMessage } from "@/lib/api/error-message";
 import { staffQueryKeys } from "@/lib/api/query-keys";
 import type {
   BranchBillRequestStatusFilter,
+  CashierShiftReportSnapshot,
   CashierOrderStatus,
-  RecordManualPaymentPayload
+  CloseCashierShiftPayload,
+  CreateCashAdjustmentPayload,
+  CurrentCashierShiftResult,
+  OpenCashierShiftPayload,
+  RecordManualPaymentPayload,
 } from "@/lib/api/types";
 import { useStaffAuthStore } from "@/lib/staff/staff-auth-store";
 import { BillRequestQueue } from "../components/bill-request-queue";
@@ -82,28 +99,79 @@ type ManualPaymentAction = {
   payload: RecordManualPaymentPayload;
 };
 
-const activeOrderStatuses = new Set([
-  "cashier_accepted",
-  "preparing",
-  "ready"
-]);
+type OpenShiftAction = OpenCashierShiftPayload;
+
+type CashAdjustmentAction = {
+  shiftId: string;
+  payload: CreateCashAdjustmentPayload;
+};
+
+type CloseShiftAction = {
+  shiftId: string;
+  payload: CloseCashierShiftPayload;
+};
+
+const activeOrderStatuses = new Set(["cashier_accepted", "preparing", "ready"]);
 const terminalOrderStatuses = new Set(["cashier_rejected", "cancelled"]);
 const activeBillStatuses = new Set(["open", "acknowledged", "presented"]);
 const emptyRecords: Record<string, unknown>[] = [];
 
+function amountInputToMinor(value: string, fallbackMinor = 0) {
+  const normalizedValue = value.trim();
+
+  if (!normalizedValue) {
+    return fallbackMinor;
+  }
+
+  const parsedValue = Number(normalizedValue);
+
+  return Number.isFinite(parsedValue) ? Math.round(parsedValue * 100) : 0;
+}
+
+function getNestedRecord(
+  value: Record<string, unknown> | null | undefined,
+  key: string,
+) {
+  const candidate = value?.[key];
+
+  return candidate && typeof candidate === "object" && !Array.isArray(candidate)
+    ? (candidate as Record<string, unknown>)
+    : undefined;
+}
+
+function getSnapshotRecord(
+  snapshot: CashierShiftReportSnapshot | null | undefined,
+  key: string,
+) {
+  return getNestedRecord(snapshot, key);
+}
+
+function getSnapshotNumber(
+  snapshot: CashierShiftReportSnapshot | null | undefined,
+  section: string,
+  key: string,
+  fallback = 0,
+) {
+  return getRecordNumber(getSnapshotRecord(snapshot, section), key, fallback);
+}
+
+function minorToInput(amountMinor: number) {
+  return (amountMinor / 100).toFixed(2);
+}
+
 function countOrdersByStatus(
   orders: Record<string, unknown>[],
-  predicate: (status: string) => boolean
+  predicate: (status: string) => boolean,
 ) {
   return orders.filter((order) => predicate(getOrderStatus(order))).length;
 }
 
 function countBillsByStatus(
   billRequests: Record<string, unknown>[],
-  predicate: (status: string) => boolean
+  predicate: (status: string) => boolean,
 ) {
   return billRequests.filter((billRequest) =>
-    predicate(getBillRequestStatus(billRequest))
+    predicate(getBillRequestStatus(billRequest)),
   ).length;
 }
 
@@ -128,13 +196,416 @@ function NoticeBanner({ notice }: { notice?: Notice }) {
   );
 }
 
+function CashierShiftReportSummary({
+  snapshot,
+  onClear,
+}: {
+  snapshot: CashierShiftReportSnapshot;
+  onClear: () => void;
+}) {
+  const currency =
+    getRecordString(getSnapshotRecord(snapshot, "shift"), "currency") || "EGP";
+  const reportType = getRecordString(snapshot, "reportType", "x_report");
+  const reportNumber = getRecordString(snapshot, "reportNumber", "");
+  const expectedCashMinor = getSnapshotNumber(
+    snapshot,
+    "cashDrawer",
+    "expectedCashMinor",
+  );
+  const countedCashMinor = getSnapshotNumber(
+    snapshot,
+    "cashDrawer",
+    "countedCashMinor",
+  );
+  const cashOverShortMinor = getSnapshotNumber(
+    snapshot,
+    "cashDrawer",
+    "cashOverShortMinor",
+  );
+  const totalCollectedMinor = getSnapshotNumber(
+    snapshot,
+    "tenderTotals",
+    "totalCollectedMinor",
+  );
+  const paymentCount = getSnapshotNumber(snapshot, "counts", "paymentCount");
+
+  return (
+    <div className="rounded-card border bg-background/50 p-4">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <p className="text-sm font-semibold text-foreground">
+            {reportType === "z_report" ? "Z report" : "X report"}{" "}
+            {reportNumber ? reportNumber : "preview"}
+          </p>
+          <p className="mt-1 text-xs text-muted-foreground">
+            Generated {formatDateTime(getRecordString(snapshot, "generatedAt"))}
+          </p>
+        </div>
+        <Button type="button" size="sm" variant="ghost" onClick={onClear}>
+          Clear
+        </Button>
+      </div>
+      <dl className="mt-4 grid gap-3 text-xs sm:grid-cols-4">
+        <div>
+          <dt className="text-muted-foreground">Expected cash</dt>
+          <dd className="mt-1 font-semibold text-foreground">
+            {formatMoney(expectedCashMinor, currency)}
+          </dd>
+        </div>
+        <div>
+          <dt className="text-muted-foreground">Collected</dt>
+          <dd className="mt-1 font-semibold text-foreground">
+            {formatMoney(totalCollectedMinor, currency)}
+          </dd>
+        </div>
+        <div>
+          <dt className="text-muted-foreground">Payments</dt>
+          <dd className="mt-1 font-semibold text-foreground">{paymentCount}</dd>
+        </div>
+        <div>
+          <dt className="text-muted-foreground">Over / short</dt>
+          <dd className="mt-1 font-semibold text-foreground">
+            {reportType === "z_report"
+              ? formatMoney(cashOverShortMinor, currency)
+              : "Z close only"}
+          </dd>
+        </div>
+      </dl>
+      {reportType === "z_report" ? (
+        <p className="mt-3 text-xs text-muted-foreground">
+          Counted cash {formatMoney(countedCashMinor, currency)}.
+        </p>
+      ) : null}
+    </div>
+  );
+}
+
+function CashierShiftPanel({
+  branchName,
+  data,
+  isLoading,
+  error,
+  report,
+  openPending,
+  adjustmentPending,
+  xReportPending,
+  closePending,
+  onOpen,
+  onCashAdjustment,
+  onXReport,
+  onClose,
+  onClearReport,
+}: {
+  branchName: string;
+  data?: CurrentCashierShiftResult;
+  isLoading?: boolean;
+  error?: Error | null;
+  report?: CashierShiftReportSnapshot | null;
+  openPending?: boolean;
+  adjustmentPending?: boolean;
+  xReportPending?: boolean;
+  closePending?: boolean;
+  onOpen: (payload: OpenCashierShiftPayload) => void;
+  onCashAdjustment: (payload: CreateCashAdjustmentPayload) => void;
+  onXReport: () => void;
+  onClose: (payload: CloseCashierShiftPayload) => void;
+  onClearReport: () => void;
+}) {
+  const shift = data?.shift ?? null;
+  const summary = data?.summary ?? null;
+  const [openingFloat, setOpeningFloat] = useState("0.00");
+  const [openingNote, setOpeningNote] = useState("");
+  const [adjustmentAmount, setAdjustmentAmount] = useState("");
+  const [adjustmentNote, setAdjustmentNote] = useState("");
+  const [countedCash, setCountedCash] = useState("");
+  const [closingNote, setClosingNote] = useState("");
+  const currency = getRecordString(shift ?? undefined, "currency", "EGP");
+  const expectedCashMinor = getSnapshotNumber(
+    summary,
+    "cashDrawer",
+    "expectedCashMinor",
+    getRecordNumber(shift ?? undefined, "expectedCashMinor"),
+  );
+  const totalCollectedMinor = getSnapshotNumber(
+    summary,
+    "tenderTotals",
+    "totalCollectedMinor",
+  );
+  const cashMinor = getSnapshotNumber(summary, "tenderTotals", "cashMinor");
+  const cardMinor = getSnapshotNumber(summary, "tenderTotals", "cardPosMinor");
+  const walletMinor = getSnapshotNumber(
+    summary,
+    "tenderTotals",
+    "walletManualMinor",
+  );
+  const otherMinor = getSnapshotNumber(summary, "tenderTotals", "otherMinor");
+  const paymentCount = getSnapshotNumber(summary, "counts", "paymentCount");
+  const billCount = getSnapshotNumber(summary, "counts", "billCount");
+  const countedCashMinor = amountInputToMinor(countedCash);
+  const overShortMinor = countedCash.trim()
+    ? countedCashMinor - expectedCashMinor
+    : 0;
+  const adjustmentMinor = amountInputToMinor(adjustmentAmount);
+  const adjustmentReady =
+    adjustmentMinor > 0 && adjustmentNote.trim().length > 0;
+
+  return (
+    <Card variant="glass" padding="lg">
+      <CardHeader className="gap-4 md:flex md:flex-row md:items-start md:justify-between md:space-y-0">
+        <div>
+          <div className="flex flex-wrap items-center gap-2">
+            <Badge variant={shift ? "success" : "warning"}>
+              {shift ? "Shift open" : "No open shift"}
+            </Badge>
+            <Badge variant="muted">{branchName}</Badge>
+          </div>
+          <CardTitle className="mt-3">Cashier shift</CardTitle>
+          <CardDescription>
+            Manual payments require an open cashier shift for this branch.
+          </CardDescription>
+        </div>
+        {shift ? (
+          <Button
+            type="button"
+            variant="secondary"
+            onClick={onXReport}
+            disabled={xReportPending}
+          >
+            <FileText className="size-4" aria-hidden="true" />X Report
+          </Button>
+        ) : null}
+      </CardHeader>
+      <CardContent className="grid gap-4">
+        {isLoading ? (
+          <div className="rounded-card border bg-background/40 p-4 text-sm text-muted-foreground">
+            Loading cashier shift.
+          </div>
+        ) : null}
+        {error ? (
+          <div
+            role="alert"
+            className="rounded-card border border-danger bg-danger/10 p-4 text-sm text-danger"
+          >
+            {formatErrorMessage(error)}
+          </div>
+        ) : null}
+
+        {!isLoading && !error && !shift ? (
+          <form
+            className="grid gap-3 md:grid-cols-[12rem_1fr_auto]"
+            onSubmit={(event) => {
+              event.preventDefault();
+              onOpen({
+                openingFloatMinor: amountInputToMinor(openingFloat),
+                note: openingNote.trim() || undefined,
+              });
+            }}
+          >
+            <label className="grid gap-1 text-xs font-medium text-muted-foreground">
+              Opening float
+              <Input
+                inputMode="decimal"
+                value={openingFloat}
+                onChange={(event) => setOpeningFloat(event.target.value)}
+              />
+            </label>
+            <label className="grid gap-1 text-xs font-medium text-muted-foreground">
+              Note
+              <Input
+                value={openingNote}
+                onChange={(event) => setOpeningNote(event.target.value)}
+                placeholder="Optional opening note"
+              />
+            </label>
+            <Button type="submit" className="self-end" disabled={openPending}>
+              <Banknote className="size-4" aria-hidden="true" />
+              Open shift
+            </Button>
+          </form>
+        ) : null}
+
+        {shift ? (
+          <>
+            <dl className="grid gap-3 text-xs sm:grid-cols-2 lg:grid-cols-6">
+              <div>
+                <dt className="text-muted-foreground">Opened</dt>
+                <dd className="mt-1 font-semibold text-foreground">
+                  {formatDateTime(getRecordString(shift, "openedAt"))}
+                </dd>
+              </div>
+              <div>
+                <dt className="text-muted-foreground">Opening float</dt>
+                <dd className="mt-1 font-semibold text-foreground">
+                  {formatMoney(
+                    getRecordNumber(shift, "openingFloatMinor"),
+                    currency,
+                  )}
+                </dd>
+              </div>
+              <div>
+                <dt className="text-muted-foreground">Expected cash</dt>
+                <dd className="mt-1 font-semibold text-foreground">
+                  {formatMoney(expectedCashMinor, currency)}
+                </dd>
+              </div>
+              <div>
+                <dt className="text-muted-foreground">Collected</dt>
+                <dd className="mt-1 font-semibold text-foreground">
+                  {formatMoney(totalCollectedMinor, currency)}
+                </dd>
+              </div>
+              <div>
+                <dt className="text-muted-foreground">Payments</dt>
+                <dd className="mt-1 font-semibold text-foreground">
+                  {paymentCount}
+                </dd>
+              </div>
+              <div>
+                <dt className="text-muted-foreground">Bills</dt>
+                <dd className="mt-1 font-semibold text-foreground">
+                  {billCount}
+                </dd>
+              </div>
+            </dl>
+
+            <div className="grid gap-3 text-xs md:grid-cols-4">
+              <div className="rounded-card border bg-background/40 p-3">
+                Cash {formatMoney(cashMinor, currency)}
+              </div>
+              <div className="rounded-card border bg-background/40 p-3">
+                Card POS {formatMoney(cardMinor, currency)}
+              </div>
+              <div className="rounded-card border bg-background/40 p-3">
+                Wallet {formatMoney(walletMinor, currency)}
+              </div>
+              <div className="rounded-card border bg-background/40 p-3">
+                Other {formatMoney(otherMinor, currency)}
+              </div>
+            </div>
+
+            <form
+              className="grid gap-3 rounded-card border bg-background/40 p-3 md:grid-cols-[12rem_1fr_auto_auto]"
+              onSubmit={(event) => event.preventDefault()}
+            >
+              <label className="grid gap-1 text-xs font-medium text-muted-foreground">
+                Drawer amount
+                <Input
+                  inputMode="decimal"
+                  value={adjustmentAmount}
+                  onChange={(event) => setAdjustmentAmount(event.target.value)}
+                  placeholder="0.00"
+                />
+              </label>
+              <label className="grid gap-1 text-xs font-medium text-muted-foreground">
+                Adjustment note
+                <Input
+                  value={adjustmentNote}
+                  onChange={(event) => setAdjustmentNote(event.target.value)}
+                  placeholder="Required"
+                />
+              </label>
+              <Button
+                type="button"
+                variant="secondary"
+                className="self-end"
+                disabled={!adjustmentReady || adjustmentPending}
+                onClick={() =>
+                  onCashAdjustment({
+                    type: "cash_in",
+                    amountMinor: adjustmentMinor,
+                    note: adjustmentNote.trim(),
+                  })
+                }
+              >
+                <PlusCircle className="size-4" aria-hidden="true" />
+                Cash In
+              </Button>
+              <Button
+                type="button"
+                variant="secondary"
+                className="self-end"
+                disabled={!adjustmentReady || adjustmentPending}
+                onClick={() =>
+                  onCashAdjustment({
+                    type: "cash_out",
+                    amountMinor: adjustmentMinor,
+                    note: adjustmentNote.trim(),
+                  })
+                }
+              >
+                <MinusCircle className="size-4" aria-hidden="true" />
+                Cash Out
+              </Button>
+            </form>
+
+            <form
+              className="grid gap-3 rounded-card border bg-background/40 p-3 md:grid-cols-[12rem_1fr_auto]"
+              onSubmit={(event) => {
+                event.preventDefault();
+
+                if (!countedCash.trim()) {
+                  return;
+                }
+
+                onClose({
+                  countedCashMinor,
+                  note: closingNote.trim() || undefined,
+                });
+              }}
+            >
+              <label className="grid gap-1 text-xs font-medium text-muted-foreground">
+                Counted cash
+                <Input
+                  inputMode="decimal"
+                  value={countedCash}
+                  onChange={(event) => setCountedCash(event.target.value)}
+                  placeholder={minorToInput(expectedCashMinor)}
+                />
+              </label>
+              <label className="grid gap-1 text-xs font-medium text-muted-foreground">
+                Closing note
+                <Input
+                  value={closingNote}
+                  onChange={(event) => setClosingNote(event.target.value)}
+                  placeholder="Optional closing note"
+                />
+              </label>
+              <Button
+                type="submit"
+                className="self-end"
+                disabled={!countedCash.trim() || closePending}
+              >
+                <CheckCircle2 className="size-4" aria-hidden="true" />
+                Close & Generate Z
+              </Button>
+              {countedCash.trim() ? (
+                <p className="md:col-span-3 text-xs text-muted-foreground">
+                  Expected {formatMoney(expectedCashMinor, currency)}. Over /
+                  short {formatMoney(overShortMinor, currency)}.
+                </p>
+              ) : null}
+            </form>
+          </>
+        ) : null}
+
+        {report ? (
+          <CashierShiftReportSummary
+            snapshot={report}
+            onClear={onClearReport}
+          />
+        ) : null}
+      </CardContent>
+    </Card>
+  );
+}
+
 function CashierDashboardActions() {
   const router = useRouter();
   const accessToken = useStaffAuthStore((state) => state.accessToken);
   const effectiveAccess = useStaffAuthStore((state) => state.effectiveAccess);
   const selectedBranchId = useStaffAuthStore((state) => state.selectedBranchId);
   const setSelectedBranchId = useStaffAuthStore(
-    (state) => state.setSelectedBranchId
+    (state) => state.setSelectedBranchId,
   );
   const clearSession = useStaffAuthStore((state) => state.clearSession);
   const logoutMutation = useMutation({
@@ -143,7 +614,7 @@ function CashierDashboardActions() {
     onSettled: () => {
       clearSession();
       router.push("/staff/login");
-    }
+    },
   });
 
   if (!accessToken) {
@@ -186,8 +657,10 @@ function CashierDashboardContent() {
     useState<BranchBillRequestStatusFilter>("active");
   const [userSelectedOrderId, setUserSelectedOrderId] = useState<string>();
   const [notice, setNotice] = useState<Notice>();
+  const [shiftReport, setShiftReport] =
+    useState<CashierShiftReportSnapshot | null>(null);
   const selectedBranchAccess = effectiveAccess?.branches.find(
-    (entry) => entry.branch.id === selectedBranchId
+    (entry) => entry.branch.id === selectedBranchId,
   );
   const selectedBranch = selectedBranchAccess?.branch;
   const realtime = useStaffBranchRealtime(selectedBranchId, accessToken);
@@ -196,7 +669,7 @@ function CashierDashboardContent() {
     queryFn: () =>
       getCashierOrders(selectedBranchId ?? "", { status: "all" }, accessToken),
     enabled: Boolean(selectedBranchId && accessToken),
-    staleTime: 10_000
+    staleTime: 10_000,
   });
   const ordersQuery = useQuery({
     queryKey: staffQueryKeys.branchOrders(selectedBranchId, orderStatus),
@@ -204,10 +677,10 @@ function CashierDashboardContent() {
       getCashierOrders(
         selectedBranchId ?? "",
         { status: orderStatus },
-        accessToken
+        accessToken,
       ),
     enabled: Boolean(selectedBranchId && accessToken),
-    staleTime: 10_000
+    staleTime: 10_000,
   });
   const activeBillRequestsQuery = useQuery({
     queryKey: staffQueryKeys.branchBillRequests(selectedBranchId, "active"),
@@ -215,10 +688,10 @@ function CashierDashboardContent() {
       getBranchBillRequests(
         selectedBranchId ?? "",
         { status: "active", limit: 30 },
-        accessToken
+        accessToken,
       ),
     enabled: Boolean(selectedBranchId && accessToken),
-    staleTime: 10_000
+    staleTime: 10_000,
   });
   const billRequestsQuery = useQuery({
     queryKey: staffQueryKeys.branchBillRequests(selectedBranchId, billStatus),
@@ -226,10 +699,16 @@ function CashierDashboardContent() {
       getBranchBillRequests(
         selectedBranchId ?? "",
         { status: billStatus, limit: 30 },
-        accessToken
+        accessToken,
       ),
     enabled: Boolean(selectedBranchId && accessToken),
-    staleTime: 10_000
+    staleTime: 10_000,
+  });
+  const currentShiftQuery = useQuery({
+    queryKey: staffQueryKeys.currentCashierShift(selectedBranchId),
+    queryFn: () => getCurrentCashierShift(selectedBranchId ?? "", accessToken),
+    enabled: Boolean(selectedBranchId && accessToken),
+    staleTime: 10_000,
   });
   const realtimeEventsQuery = useQuery({
     queryKey: staffQueryKeys.branchRealtime(selectedBranchId),
@@ -237,30 +716,38 @@ function CashierDashboardContent() {
       getBranchRealtimeEvents(
         selectedBranchId ?? "",
         { channel: "all", limit: 8 },
-        accessToken
+        accessToken,
       ),
     enabled: Boolean(selectedBranchId && accessToken),
-    staleTime: 15_000
+    staleTime: 15_000,
   });
   const orders = useMemo(
     () => ordersQuery.data?.orders ?? emptyRecords,
-    [ordersQuery.data?.orders]
+    [ordersQuery.data?.orders],
   );
   const allOrders = useMemo(
     () => allOrdersQuery.data?.orders ?? orders,
-    [allOrdersQuery.data?.orders, orders]
+    [allOrdersQuery.data?.orders, orders],
   );
   const billRequests = useMemo(
     () => billRequestsQuery.data?.billRequests ?? emptyRecords,
-    [billRequestsQuery.data?.billRequests]
+    [billRequestsQuery.data?.billRequests],
   );
   const activeBillRequests = useMemo(
     () => activeBillRequestsQuery.data?.billRequests ?? billRequests,
-    [activeBillRequestsQuery.data?.billRequests, billRequests]
+    [activeBillRequestsQuery.data?.billRequests, billRequests],
   );
+  const currentShift = currentShiftQuery.data?.shift ?? null;
+  const paymentBlockedReason = currentShiftQuery.isPending
+    ? "Checking cashier shift before recording payment."
+    : currentShiftQuery.isError
+      ? "Cashier shift could not be loaded. Refresh the branch before recording payment."
+      : currentShift
+        ? undefined
+        : "Open a cashier shift before recording payment.";
   const selectedOrderStillVisible = useMemo(
     () => orders.some((order) => getOrderId(order) === userSelectedOrderId),
-    [orders, userSelectedOrderId]
+    [orders, userSelectedOrderId],
   );
   const selectedOrderId =
     selectedOrderStillVisible && userSelectedOrderId
@@ -270,7 +757,7 @@ function CashierDashboardContent() {
     queryKey: staffQueryKeys.order(selectedOrderId),
     queryFn: () => getOrderDetail(selectedOrderId ?? "", accessToken),
     enabled: Boolean(selectedOrderId && accessToken),
-    staleTime: 5_000
+    staleTime: 5_000,
   });
   const refreshBranch = () => {
     if (!selectedBranchId) {
@@ -278,119 +765,198 @@ function CashierDashboardContent() {
     }
 
     void queryClient.invalidateQueries({
-      queryKey: staffQueryKeys.branchOrders(selectedBranchId)
+      queryKey: staffQueryKeys.branchOrders(selectedBranchId),
     });
     void queryClient.invalidateQueries({
-      queryKey: staffQueryKeys.branchBillRequests(selectedBranchId)
+      queryKey: staffQueryKeys.branchBillRequests(selectedBranchId),
     });
     void queryClient.invalidateQueries({
-      queryKey: staffQueryKeys.branchBills(selectedBranchId)
+      queryKey: staffQueryKeys.branchBills(selectedBranchId),
     });
     void queryClient.invalidateQueries({
-      queryKey: staffQueryKeys.branchRealtime(selectedBranchId)
+      queryKey: staffQueryKeys.currentCashierShift(selectedBranchId),
+    });
+    void queryClient.invalidateQueries({
+      queryKey: staffQueryKeys.branchCashierShifts(selectedBranchId),
+    });
+    void queryClient.invalidateQueries({
+      queryKey: staffQueryKeys.branchRealtime(selectedBranchId),
     });
   };
-  const acceptMutation = useMutation({
-    mutationFn: (orderId: string) =>
-      acceptOrder(orderId, {}, accessToken),
-    onSuccess: (_, orderId) => {
-      setNotice({ tone: "success", message: "Order accepted." });
+  const invalidateShiftState = (shiftId?: string) => {
+    if (!selectedBranchId) {
+      return;
+    }
+
+    void queryClient.invalidateQueries({
+      queryKey: staffQueryKeys.currentCashierShift(selectedBranchId),
+    });
+    void queryClient.invalidateQueries({
+      queryKey: staffQueryKeys.branchCashierShifts(selectedBranchId),
+    });
+
+    if (shiftId) {
       void queryClient.invalidateQueries({
-        queryKey: staffQueryKeys.branchOrders(selectedBranchId)
+        queryKey: staffQueryKeys.cashierShift(shiftId),
       });
-      void queryClient.invalidateQueries({
-        queryKey: staffQueryKeys.order(orderId)
+    }
+  };
+  const openShiftMutation = useMutation({
+    mutationFn: (payload: OpenShiftAction) =>
+      openCashierShift(selectedBranchId ?? "", payload, accessToken),
+    onSuccess: () => {
+      setNotice({ tone: "success", message: "Cashier shift opened." });
+      setShiftReport(null);
+      invalidateShiftState();
+    },
+    onError: (error: Error) => {
+      setNotice({
+        tone: "error",
+        message: `Cashier shift could not be opened. ${formatErrorMessage(error)}`,
       });
+    },
+  });
+  const cashAdjustmentMutation = useMutation({
+    mutationFn: ({ shiftId, payload }: CashAdjustmentAction) =>
+      createCashAdjustment(shiftId, payload, accessToken),
+    onSuccess: (_, variables) => {
+      setNotice({ tone: "success", message: "Cash drawer updated." });
+      setShiftReport(null);
+      invalidateShiftState(variables.shiftId);
+    },
+    onError: (error: Error) => {
+      setNotice({
+        tone: "error",
+        message: `Cash drawer adjustment failed. ${formatErrorMessage(error)}`,
+      });
+    },
+  });
+  const xReportMutation = useMutation({
+    mutationFn: (shiftId: string) =>
+      getCashierShiftXReport(shiftId, accessToken),
+    onSuccess: (result, shiftId) => {
+      setNotice({ tone: "success", message: "X report generated." });
+      setShiftReport(result.snapshot);
+      invalidateShiftState(shiftId);
+    },
+    onError: (error: Error) => {
+      setNotice({
+        tone: "error",
+        message: `X report could not be generated. ${formatErrorMessage(error)}`,
+      });
+    },
+  });
+  const closeShiftMutation = useMutation({
+    mutationFn: ({ shiftId, payload }: CloseShiftAction) =>
+      closeCashierShift(shiftId, payload, accessToken),
+    onSuccess: (result, variables) => {
+      setNotice({
+        tone: "success",
+        message: "Cashier shift closed and Z report generated.",
+      });
+      setShiftReport(result.summary);
+      invalidateShiftState(variables.shiftId);
       void queryClient.invalidateQueries({
-        queryKey: staffQueryKeys.branchRealtime(selectedBranchId)
+        queryKey: staffQueryKeys.branchBills(selectedBranchId),
       });
     },
     onError: (error: Error) => {
       setNotice({
         tone: "error",
-        message: `Order could not be accepted. ${formatErrorMessage(error)}`
+        message: `Cashier shift could not be closed. ${formatErrorMessage(error)}`,
       });
-    }
+    },
+  });
+  const acceptMutation = useMutation({
+    mutationFn: (orderId: string) => acceptOrder(orderId, {}, accessToken),
+    onSuccess: (_, orderId) => {
+      setNotice({ tone: "success", message: "Order accepted." });
+      void queryClient.invalidateQueries({
+        queryKey: staffQueryKeys.branchOrders(selectedBranchId),
+      });
+      void queryClient.invalidateQueries({
+        queryKey: staffQueryKeys.order(orderId),
+      });
+      void queryClient.invalidateQueries({
+        queryKey: staffQueryKeys.branchRealtime(selectedBranchId),
+      });
+    },
+    onError: (error: Error) => {
+      setNotice({
+        tone: "error",
+        message: `Order could not be accepted. ${formatErrorMessage(error)}`,
+      });
+    },
   });
   const rejectMutation = useMutation({
     mutationFn: ({
       orderId,
-      reason
+      reason,
     }: {
       orderId: string;
       reason?: string | null;
-    }) =>
-      rejectOrder(
-        orderId,
-        { reason },
-        accessToken
-      ),
+    }) => rejectOrder(orderId, { reason }, accessToken),
     onSuccess: (_, variables) => {
       setNotice({ tone: "success", message: "Order rejected." });
       void queryClient.invalidateQueries({
-        queryKey: staffQueryKeys.branchOrders(selectedBranchId)
+        queryKey: staffQueryKeys.branchOrders(selectedBranchId),
       });
       void queryClient.invalidateQueries({
-        queryKey: staffQueryKeys.order(variables.orderId)
+        queryKey: staffQueryKeys.order(variables.orderId),
       });
       void queryClient.invalidateQueries({
-        queryKey: staffQueryKeys.branchRealtime(selectedBranchId)
+        queryKey: staffQueryKeys.branchRealtime(selectedBranchId),
       });
     },
     onError: (error: Error) => {
       setNotice({
         tone: "error",
-        message: `Order could not be rejected. ${formatErrorMessage(error)}`
+        message: `Order could not be rejected. ${formatErrorMessage(error)}`,
       });
-    }
+    },
   });
   const completeOrderMutation = useMutation({
     mutationFn: (orderId: string) => completeOrder(orderId, {}, accessToken),
     onSuccess: (_, orderId) => {
       setNotice({ tone: "success", message: "Order completed." });
       void queryClient.invalidateQueries({
-        queryKey: staffQueryKeys.branchOrders(selectedBranchId)
+        queryKey: staffQueryKeys.branchOrders(selectedBranchId),
       });
       void queryClient.invalidateQueries({
-        queryKey: staffQueryKeys.order(orderId)
+        queryKey: staffQueryKeys.order(orderId),
       });
       void queryClient.invalidateQueries({
-        queryKey: staffQueryKeys.branchRealtime(selectedBranchId)
+        queryKey: staffQueryKeys.branchRealtime(selectedBranchId),
       });
     },
     onError: (error: Error) => {
       setNotice({
         tone: "error",
-        message: `Order could not be completed. ${formatErrorMessage(error)}`
+        message: `Order could not be completed. ${formatErrorMessage(error)}`,
       });
-    }
+    },
   });
   const cancelOrderMutation = useMutation({
-    mutationFn: ({
-      orderId,
-      reason
-    }: {
-      orderId: string;
-      reason: string;
-    }) => cancelOrder(orderId, { reason }, accessToken),
+    mutationFn: ({ orderId, reason }: { orderId: string; reason: string }) =>
+      cancelOrder(orderId, { reason }, accessToken),
     onSuccess: (_, variables) => {
       setNotice({ tone: "success", message: "Order cancelled." });
       void queryClient.invalidateQueries({
-        queryKey: staffQueryKeys.branchOrders(selectedBranchId)
+        queryKey: staffQueryKeys.branchOrders(selectedBranchId),
       });
       void queryClient.invalidateQueries({
-        queryKey: staffQueryKeys.order(variables.orderId)
+        queryKey: staffQueryKeys.order(variables.orderId),
       });
       void queryClient.invalidateQueries({
-        queryKey: staffQueryKeys.branchRealtime(selectedBranchId)
+        queryKey: staffQueryKeys.branchRealtime(selectedBranchId),
       });
     },
     onError: (error: Error) => {
       setNotice({
         tone: "error",
-        message: `Order could not be cancelled. ${formatErrorMessage(error)}`
+        message: `Order could not be cancelled. ${formatErrorMessage(error)}`,
       });
-    }
+    },
   });
   const billActionMutation = useMutation({
     mutationFn: ({ billRequestId, action }: BillAction) => {
@@ -409,27 +975,27 @@ function CashierDashboardContent() {
     onSuccess: (_, variables) => {
       setNotice({
         tone: "success",
-        message: `Bill request ${humanizeStatus(variables.action)} complete.`
+        message: `Bill request ${humanizeStatus(variables.action)} complete.`,
       });
       void queryClient.invalidateQueries({
-        queryKey: staffQueryKeys.branchBillRequests(selectedBranchId)
+        queryKey: staffQueryKeys.branchBillRequests(selectedBranchId),
       });
       void queryClient.invalidateQueries({
-        queryKey: staffQueryKeys.branchBills(selectedBranchId)
+        queryKey: staffQueryKeys.branchBills(selectedBranchId),
       });
       void queryClient.invalidateQueries({
-        queryKey: staffQueryKeys.billRequest(variables.billRequestId)
+        queryKey: staffQueryKeys.billRequest(variables.billRequestId),
       });
       void queryClient.invalidateQueries({
-        queryKey: staffQueryKeys.branchRealtime(selectedBranchId)
+        queryKey: staffQueryKeys.branchRealtime(selectedBranchId),
       });
     },
     onError: (error: Error) => {
       setNotice({
         tone: "error",
-        message: `Bill request action failed. ${formatErrorMessage(error)}`
+        message: `Bill request action failed. ${formatErrorMessage(error)}`,
       });
-    }
+    },
   });
   const manualPaymentMutation = useMutation({
     mutationFn: ({ billId, payload }: ManualPaymentAction) =>
@@ -437,33 +1003,34 @@ function CashierDashboardContent() {
     onSuccess: (_, variables) => {
       setNotice({
         tone: "success",
-        message: "Manual payment recorded and receipt generated."
+        message: "Manual payment recorded and receipt generated.",
       });
       void queryClient.invalidateQueries({
-        queryKey: staffQueryKeys.branchBillRequests(selectedBranchId)
+        queryKey: staffQueryKeys.branchBillRequests(selectedBranchId),
       });
       void queryClient.invalidateQueries({
-        queryKey: staffQueryKeys.branchBills(selectedBranchId)
+        queryKey: staffQueryKeys.branchBills(selectedBranchId),
       });
       void queryClient.invalidateQueries({
-        queryKey: staffQueryKeys.bill(variables.billId)
+        queryKey: staffQueryKeys.bill(variables.billId),
       });
       void queryClient.invalidateQueries({
-        queryKey: staffQueryKeys.billReceipt(variables.billId)
+        queryKey: staffQueryKeys.billReceipt(variables.billId),
+      });
+      invalidateShiftState(currentShift?.id);
+      void queryClient.invalidateQueries({
+        queryKey: staffQueryKeys.branchOrders(selectedBranchId),
       });
       void queryClient.invalidateQueries({
-        queryKey: staffQueryKeys.branchOrders(selectedBranchId)
-      });
-      void queryClient.invalidateQueries({
-        queryKey: staffQueryKeys.branchRealtime(selectedBranchId)
+        queryKey: staffQueryKeys.branchRealtime(selectedBranchId),
       });
     },
     onError: (error: Error) => {
       setNotice({
         tone: "error",
-        message: `Manual payment could not be recorded. ${formatErrorMessage(error)}`
+        message: `Manual payment could not be recorded. ${formatErrorMessage(error)}`,
       });
-    }
+    },
   });
 
   if (!selectedBranchId || !selectedBranch) {
@@ -481,7 +1048,7 @@ function CashierDashboardContent() {
         <MetricCard
           label="Submitted"
           value={String(
-            countOrdersByStatus(allOrders, (status) => status === "submitted")
+            countOrdersByStatus(allOrders, (status) => status === "submitted"),
           )}
           description="Needs cashier decision"
           icon={<Receipt className="size-4" aria-hidden="true" />}
@@ -491,8 +1058,8 @@ function CashierDashboardContent() {
           label="In service"
           value={String(
             countOrdersByStatus(allOrders, (status) =>
-              activeOrderStatuses.has(status)
-            )
+              activeOrderStatuses.has(status),
+            ),
           )}
           description="Accepted, preparing, or ready"
           icon={<CheckCircle2 className="size-4" aria-hidden="true" />}
@@ -502,8 +1069,8 @@ function CashierDashboardContent() {
           label="Bill requests"
           value={String(
             countBillsByStatus(activeBillRequests, (status) =>
-              activeBillStatuses.has(status)
-            )
+              activeBillStatuses.has(status),
+            ),
           )}
           description="Open cashier bill flow"
           icon={<BellRing className="size-4" aria-hidden="true" />}
@@ -513,8 +1080,8 @@ function CashierDashboardContent() {
           label="Rejected"
           value={String(
             countOrdersByStatus(allOrders, (status) =>
-              terminalOrderStatuses.has(status)
-            )
+              terminalOrderStatuses.has(status),
+            ),
           )}
           description="Rejected or cancelled"
           icon={<XCircle className="size-4" aria-hidden="true" />}
@@ -553,6 +1120,41 @@ function CashierDashboardContent() {
       </Card>
 
       <NoticeBanner notice={notice} />
+
+      <CashierShiftPanel
+        branchName={selectedBranch.name}
+        data={currentShiftQuery.data}
+        isLoading={currentShiftQuery.isPending}
+        error={currentShiftQuery.error ?? null}
+        report={shiftReport}
+        openPending={openShiftMutation.isPending}
+        adjustmentPending={cashAdjustmentMutation.isPending}
+        xReportPending={xReportMutation.isPending}
+        closePending={closeShiftMutation.isPending}
+        onOpen={(payload) => openShiftMutation.mutate(payload)}
+        onCashAdjustment={(payload) => {
+          if (currentShift?.id) {
+            cashAdjustmentMutation.mutate({
+              shiftId: currentShift.id,
+              payload,
+            });
+          }
+        }}
+        onXReport={() => {
+          if (currentShift?.id) {
+            xReportMutation.mutate(currentShift.id);
+          }
+        }}
+        onClose={(payload) => {
+          if (currentShift?.id) {
+            closeShiftMutation.mutate({
+              shiftId: currentShift.id,
+              payload,
+            });
+          }
+        }}
+        onClearReport={() => setShiftReport(null)}
+      />
 
       <section className="grid gap-5 xl:grid-cols-[minmax(20rem,26rem)_1fr]">
         <CashierOrderQueue
@@ -612,6 +1214,7 @@ function CashierDashboardContent() {
               ? manualPaymentMutation.variables?.billId
               : undefined
           }
+          paymentBlockedReason={paymentBlockedReason}
           paymentError={
             manualPaymentMutation.isError
               ? manualPaymentMutation.error
@@ -640,7 +1243,10 @@ function CashierDashboardContent() {
           <CardContent className="grid gap-3">
             {realtimeEventsQuery.isError ? (
               <div className="rounded-card border border-warning bg-warning/10 p-3 text-sm text-warning">
-                <AlertTriangle className="mr-2 inline size-4" aria-hidden="true" />
+                <AlertTriangle
+                  className="mr-2 inline size-4"
+                  aria-hidden="true"
+                />
                 {formatErrorMessage(realtimeEventsQuery.error)}
               </div>
             ) : null}
@@ -683,7 +1289,10 @@ export function CashierDashboardPage() {
       description="Live branch order intake, cashier decisions, bill request handling, and branch realtime refresh for staff operations."
       actions={<CashierDashboardActions />}
     >
-      <StaffAuthGate requiredPermissions={["orders.cashier_review"]} branchScoped>
+      <StaffAuthGate
+        requiredPermissions={["orders.cashier_review"]}
+        branchScoped
+      >
         <CashierDashboardContent />
       </StaffAuthGate>
     </StaffPageShell>
