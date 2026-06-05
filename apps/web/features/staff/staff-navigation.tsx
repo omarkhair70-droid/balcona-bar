@@ -78,7 +78,7 @@ export const staffNavItems: StaffNavItem[] = [
     icon: <ChartNoAxesCombined className="size-4" aria-hidden="true" />,
     authOnly: true,
     branchScoped: true,
-    requiredPermissions: ["analytics.read"]
+    requiredPermissions: ["owner_analytics.read"]
   }
 ];
 

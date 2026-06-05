@@ -176,7 +176,7 @@ pnpm web:typecheck
 
 Product Phase 4A.0 adds production-grade branch owner analytics and reports:
 
-- branch-scoped `/owner-analytics/*` API endpoints guarded by `analytics.read`;
+- branch-scoped `/owner-analytics/*` API endpoints guarded by `owner_analytics.read`;
 - summary, sales, orders, items, operations, cashier shift, AI waiter,
   dashboard, and daily report responses;
 - recorded manual payments as the source of truth for collected revenue;

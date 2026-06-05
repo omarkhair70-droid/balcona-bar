@@ -906,7 +906,7 @@ export function OwnerDashboardPage() {
       description="Branch owner analytics for revenue, orders, items, operations, cashier shifts, and AI waiter usage."
       actions={<OwnerDashboardActions />}
     >
-      <StaffAuthGate requiredPermissions={["analytics.read"]} branchScoped>
+      <StaffAuthGate requiredPermissions={["owner_analytics.read"]} branchScoped>
         <OwnerDashboardContent />
       </StaffAuthGate>
     </StaffPageShell>

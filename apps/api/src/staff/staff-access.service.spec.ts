@@ -204,4 +204,58 @@ describe('StaffAccessService', () => {
       }
     }
   });
+
+  it('allows owner analytics only for owner and branch manager branch access', async () => {
+    for (const role of [StaffRole.owner, StaffRole.branch_manager]) {
+      const { service } = buildService(
+        buildStaffUser({
+          memberships: [buildMembership({ branch: branchOne, role })],
+        }),
+      );
+
+      await expect(
+        service.can('staff-1', 'owner_analytics.read', {
+          branchId: branchOne.id,
+        }),
+      ).resolves.toMatchObject({
+        allowed: true,
+        reason: 'permission_granted_by_branch_membership',
+      });
+    }
+  });
+
+  it('denies cashier owner analytics while preserving cashier bill operations', async () => {
+    const { service } = buildService(
+      buildStaffUser({
+        memberships: [
+          buildMembership({ branch: branchOne, role: StaffRole.cashier }),
+        ],
+      }),
+    );
+
+    await expect(
+      service.can('staff-1', 'owner_analytics.read', {
+        branchId: branchOne.id,
+      }),
+    ).resolves.toMatchObject({
+      allowed: false,
+      reason: 'permission_not_granted',
+    });
+
+    for (const permission of [
+      'orders.cashier_review',
+      'bills.read',
+      'bills.present',
+      'bills.pay',
+    ] as const) {
+      await expect(
+        service.can('staff-1', permission, {
+          branchId: branchOne.id,
+        }),
+      ).resolves.toMatchObject({
+        allowed: true,
+        reason: 'permission_granted_by_branch_membership',
+      });
+    }
+  });
 });

@@ -14,7 +14,7 @@ export class OwnerAnalyticsController {
   ) {}
 
   @Get('summary')
-  @RequiredPermission('analytics.read', { branchIdParam: 'branchId' })
+  @RequiredPermission('owner_analytics.read', { branchIdParam: 'branchId' })
   getSummary(
     @Param() params: BranchIdParamDto,
     @Query() query: OwnerAnalyticsQueryDto,
@@ -26,7 +26,7 @@ export class OwnerAnalyticsController {
   }
 
   @Get('sales')
-  @RequiredPermission('analytics.read', { branchIdParam: 'branchId' })
+  @RequiredPermission('owner_analytics.read', { branchIdParam: 'branchId' })
   getSales(
     @Param() params: BranchIdParamDto,
     @Query() query: OwnerAnalyticsQueryDto,
@@ -35,7 +35,7 @@ export class OwnerAnalyticsController {
   }
 
   @Get('orders')
-  @RequiredPermission('analytics.read', { branchIdParam: 'branchId' })
+  @RequiredPermission('owner_analytics.read', { branchIdParam: 'branchId' })
   getOrders(
     @Param() params: BranchIdParamDto,
     @Query() query: OwnerAnalyticsQueryDto,
@@ -44,7 +44,7 @@ export class OwnerAnalyticsController {
   }
 
   @Get('items')
-  @RequiredPermission('analytics.read', { branchIdParam: 'branchId' })
+  @RequiredPermission('owner_analytics.read', { branchIdParam: 'branchId' })
   getItems(
     @Param() params: BranchIdParamDto,
     @Query() query: OwnerAnalyticsQueryDto,
@@ -53,7 +53,7 @@ export class OwnerAnalyticsController {
   }
 
   @Get('operations')
-  @RequiredPermission('analytics.read', { branchIdParam: 'branchId' })
+  @RequiredPermission('owner_analytics.read', { branchIdParam: 'branchId' })
   getOperations(
     @Param() params: BranchIdParamDto,
     @Query() query: OwnerAnalyticsQueryDto,
@@ -65,7 +65,7 @@ export class OwnerAnalyticsController {
   }
 
   @Get('cashier-shifts')
-  @RequiredPermission('analytics.read', { branchIdParam: 'branchId' })
+  @RequiredPermission('owner_analytics.read', { branchIdParam: 'branchId' })
   getCashierShifts(
     @Param() params: BranchIdParamDto,
     @Query() query: OwnerAnalyticsQueryDto,
@@ -77,7 +77,7 @@ export class OwnerAnalyticsController {
   }
 
   @Get('ai-waiter')
-  @RequiredPermission('analytics.read', { branchIdParam: 'branchId' })
+  @RequiredPermission('owner_analytics.read', { branchIdParam: 'branchId' })
   getAiWaiter(
     @Param() params: BranchIdParamDto,
     @Query() query: OwnerAnalyticsQueryDto,
@@ -86,7 +86,7 @@ export class OwnerAnalyticsController {
   }
 
   @Get('dashboard')
-  @RequiredPermission('analytics.read', { branchIdParam: 'branchId' })
+  @RequiredPermission('owner_analytics.read', { branchIdParam: 'branchId' })
   getDashboard(
     @Param() params: BranchIdParamDto,
     @Query() query: OwnerAnalyticsQueryDto,
@@ -98,7 +98,7 @@ export class OwnerAnalyticsController {
   }
 
   @Get('daily-report')
-  @RequiredPermission('analytics.read', { branchIdParam: 'branchId' })
+  @RequiredPermission('owner_analytics.read', { branchIdParam: 'branchId' })
   getDailyReport(
     @Param() params: BranchIdParamDto,
     @Query() query: OwnerAnalyticsQueryDto,

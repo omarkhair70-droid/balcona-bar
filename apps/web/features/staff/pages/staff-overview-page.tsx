@@ -78,7 +78,7 @@ const staffAreas = [
     description: "Owner analytics for revenue, orders, shifts, and operations.",
     icon: <UsersRound className="size-5" aria-hidden="true" />,
     state: "Live",
-    requiredPermissions: ["analytics.read"]
+    requiredPermissions: ["owner_analytics.read"]
   }
 ];
 

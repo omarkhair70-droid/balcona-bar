@@ -19,7 +19,7 @@ The new branch-scoped API lives under:
 - `GET /api/v1/branches/:branchId/owner-analytics/dashboard`
 - `GET /api/v1/branches/:branchId/owner-analytics/daily-report`
 
-All endpoints require a staff session plus branch-scoped `analytics.read`.
+All endpoints require a staff session plus branch-scoped `owner_analytics.read`.
 Customer routes do not have access to these endpoints.
 
 ## Data Sources
