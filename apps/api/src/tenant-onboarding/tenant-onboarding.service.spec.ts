@@ -208,13 +208,26 @@ function createPrisma(overrides: Record<string, unknown> = {}) {
 
 function buildService(overrides: Record<string, unknown> = {}) {
   const { prisma, tx } = createPrisma(overrides);
+  const saasService = {
+    getCompanySaasStatus: jest.fn().mockResolvedValue({
+      subscription: { status: 'active' },
+      plan: { name: 'Pilot' },
+      entitlements: { setup: true },
+      usage: {},
+      warnings: [],
+      blockers: [],
+    }),
+    assertCompanyFeatureEnabled: jest.fn().mockResolvedValue(undefined),
+    assertWithinLimit: jest.fn().mockResolvedValue(undefined),
+  };
   const service = new TenantOnboardingService(
     prisma as never,
     { get: jest.fn().mockReturnValue(false) } as never,
     { assertCan: jest.fn().mockResolvedValue({ allowed: true }) } as never,
+    saasService as never,
   );
 
-  return { service, prisma, tx };
+  return { service, prisma, tx, saasService };
 }
 
 describe('TenantOnboardingService', () => {
@@ -226,6 +239,7 @@ describe('TenantOnboardingService', () => {
     expect(result.tables.tableCount).toBe(0);
     expect(result.staff.total).toBe(0);
     expect(result.menu.activeItemCount).toBe(0);
+    expect(result.saas?.plan?.name).toBe('Pilot');
     expect(result.launchSummary.status).toBe('blocked');
     expect(
       result.launchChecklist.find((item) => item.key === 'tables_created'),
@@ -284,6 +298,29 @@ describe('TenantOnboardingService', () => {
       'main-t02',
       'main-t03',
     ]);
+  });
+
+  it('checks SaaS table limits before bulk table creation', async () => {
+    const { service, saasService, tx } = buildService();
+    saasService.assertWithinLimit.mockRejectedValueOnce(
+      new Error('Table limit reached for this company plan.'),
+    );
+
+    await expect(
+      service.bulkCreateTables(branch.id, {
+        floorLabel: 'Ground Floor',
+        tablePrefix: 'T',
+        startNumber: 1,
+        count: 3,
+        seats: 4,
+      }),
+    ).rejects.toThrow('Table limit reached for this company plan.');
+    expect(saasService.assertWithinLimit).toHaveBeenCalledWith(
+      company.id,
+      'maxTables',
+      3,
+    );
+    expect(tx.cafeTable.create).not.toHaveBeenCalled();
   });
 
   it('creates a branch-scoped staff membership during staff setup', async () => {

@@ -162,6 +162,7 @@ export type BranchOnboardingResult = {
   company: TenantOnboardingCompany;
   branch: TenantOnboardingBranch;
   generatedAt: string;
+  saas?: SaasStatusResult;
   sections: TenantOnboardingSection[];
   tables: {
     floorCount: number;
@@ -1861,6 +1862,104 @@ export type BranchOnlinePaymentsResult = {
   branch: BranchSummary;
   filters?: Record<string, unknown>;
   onlinePaymentIntents: Record<string, unknown>[];
+};
+
+export type SaasPlanStatus = "active" | "inactive" | "archived";
+
+export type CompanySubscriptionStatus =
+  | "trialing"
+  | "active"
+  | "past_due"
+  | "suspended"
+  | "cancelled";
+
+export type SaasPlan = {
+  id: string;
+  code: string;
+  name: string;
+  status: SaasPlanStatus | string;
+  description?: string | null;
+  monthlyPriceMinor?: number | null;
+  currency: string;
+  maxBranches?: number | null;
+  maxTables?: number | null;
+  maxStaffUsers?: number | null;
+  maxMenuItems?: number | null;
+  maxInventoryItems?: number | null;
+  maxAiMessagesPerMonth?: number | null;
+  setupEnabled: boolean;
+  kdsEnabled: boolean;
+  inventoryEnabled: boolean;
+  onlinePaymentsEnabled: boolean;
+  ownerAnalyticsEnabled: boolean;
+  aiWaiterEnabled: boolean;
+  multiBranchEnabled: boolean;
+  advancedReportsEnabled: boolean;
+  sortOrder: number;
+  metadata?: Record<string, unknown> | null;
+  createdAt?: string;
+  updatedAt?: string;
+};
+
+export type CompanySubscription = {
+  id: string;
+  companyId: string;
+  planId: string;
+  status: CompanySubscriptionStatus | string;
+  currentPeriodStart?: string | null;
+  currentPeriodEnd?: string | null;
+  trialEndsAt?: string | null;
+  suspendedAt?: string | null;
+  cancelledAt?: string | null;
+  cancellationReason?: string | null;
+  metadata?: Record<string, unknown> | null;
+  createdAt?: string;
+  updatedAt?: string;
+};
+
+export type SaasUsageStatus = "ok" | "warning" | "exceeded" | "unlimited";
+
+export type SaasUsageMetric = {
+  key: string;
+  label: string;
+  used: number;
+  limit: number | null;
+  remaining: number | null;
+  status: SaasUsageStatus | string;
+};
+
+export type SaasEntitlements = {
+  setup: boolean;
+  kds: boolean;
+  inventory: boolean;
+  onlinePayments: boolean;
+  ownerAnalytics: boolean;
+  aiWaiter: boolean;
+  multiBranch: boolean;
+  advancedReports: boolean;
+};
+
+export type SaasStatusNotice = {
+  code: string;
+  message: string;
+  severity: "warning" | "blocker" | string;
+  metricKey?: string;
+};
+
+export type SaasStatusResult = {
+  company: CompanySummary;
+  branch?: BranchSummary | null;
+  subscription: CompanySubscription | null;
+  plan: SaasPlan | null;
+  entitlements: SaasEntitlements;
+  usage: Record<string, SaasUsageMetric>;
+  limits: Record<string, number | null>;
+  warnings: SaasStatusNotice[];
+  blockers: SaasStatusNotice[];
+};
+
+export type SaasPlansResult = {
+  plans: SaasPlan[];
 };
 
 export type CashierShiftStatusFilter = "open" | "closed" | "all";

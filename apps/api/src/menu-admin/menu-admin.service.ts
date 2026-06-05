@@ -12,6 +12,7 @@ import {
   Prisma,
 } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
+import { SaasService } from '../saas/saas.service';
 import { UpsertBranchMenuItemOverrideDto } from './dto/branch-menu-item-override.dto';
 import {
   CreateMenuCategoryDto,
@@ -244,7 +245,10 @@ type MenuSetupIssue = {
 
 @Injectable()
 export class MenuAdminService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly saasService: SaasService,
+  ) {}
 
   async getOverview(companyId: string) {
     const company = await this.findCompanyOrThrow(companyId, this.prisma);
@@ -641,6 +645,7 @@ export class MenuAdminService {
     try {
       return await this.prisma.$transaction(async (tx) => {
         const company = await this.findCompanyOrThrow(companyId, tx);
+        await this.saasService.assertWithinLimit(company.id, 'maxMenuItems', 1);
         const category = await this.findCategoryOrThrow(body.categoryId, tx);
         this.assertSameCompany(category.companyId, company.id, 'Category');
 

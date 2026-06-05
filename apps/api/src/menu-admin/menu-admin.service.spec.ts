@@ -159,11 +159,17 @@ function buildItem(
 function createService({
   items,
   modifierGroups = [],
+  saasService = {
+    assertWithinLimit: jest.fn().mockResolvedValue(undefined),
+  },
 }: {
   items: ReturnType<typeof buildItem>[];
   modifierGroups?: Array<ReturnType<typeof buildModifierGroup> & {
     _count: { menuItems: number };
   }>;
+  saasService?: {
+    assertWithinLimit: jest.Mock;
+  };
 }) {
   const prisma = {
     branch: {
@@ -185,7 +191,7 @@ function createService({
     },
   } as unknown as PrismaService;
 
-  return new MenuAdminService(prisma);
+  return new MenuAdminService(prisma, saasService as never);
 }
 
 describe('MenuAdminService', () => {
@@ -262,6 +268,43 @@ describe('MenuAdminService', () => {
           }),
         ]),
       );
+    });
+  });
+
+  describe('createItem', () => {
+    it('checks the SaaS menu item limit before creating an item', async () => {
+      const menuItemCreate = jest.fn().mockResolvedValue(buildItem());
+      const saasService = {
+        assertWithinLimit: jest
+          .fn()
+          .mockRejectedValue(new Error('Menu item limit reached for this company plan.')),
+      };
+      const tx = {
+        company: { findUnique: jest.fn().mockResolvedValue(company) },
+        menuCategory: { findUnique: jest.fn().mockResolvedValue(category) },
+        menuItem: { create: menuItemCreate },
+      };
+      const prisma = {
+        $transaction: jest.fn((callback) => callback(tx)),
+      };
+      const service = new MenuAdminService(prisma as never, saasService as never);
+
+      await expect(
+        service.createItem(company.id, {
+          categoryId: category.id,
+          name: 'Flat White',
+          slug: 'flat-white',
+          basePriceMinor: 500,
+          currency: 'EGP',
+          station: PreparationStation.barista,
+        }),
+      ).rejects.toThrow('Menu item limit reached for this company plan.');
+      expect(saasService.assertWithinLimit).toHaveBeenCalledWith(
+        company.id,
+        'maxMenuItems',
+        1,
+      );
+      expect(menuItemCreate).not.toHaveBeenCalled();
     });
   });
 });

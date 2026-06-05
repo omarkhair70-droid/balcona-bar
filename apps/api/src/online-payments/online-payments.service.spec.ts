@@ -72,10 +72,12 @@ function createService() {
       findUnique: jest
         .fn()
         .mockResolvedValue(intent(OnlinePaymentIntentStatus.succeeded)),
+      create: jest.fn(),
       updateMany: jest.fn().mockResolvedValue({ count: 1 }),
       count: jest.fn().mockResolvedValue(0),
     },
     bill: {
+      findUnique: jest.fn(),
       updateMany: jest.fn().mockResolvedValue({ count: 1 }),
     },
   };
@@ -116,17 +118,43 @@ function createService() {
     recordOnlinePaymentSucceeded: jest.fn().mockResolvedValue(undefined),
     recordOnlinePaymentFailed: jest.fn().mockResolvedValue(undefined),
   };
+  const saasService = {
+    assertCompanyFeatureEnabled: jest.fn().mockResolvedValue(undefined),
+  };
   const service = new OnlinePaymentsService(
     prisma as never,
     configService as never,
     billsService as never,
     realtimeEventsService as never,
+    saasService as never,
   );
 
-  return { service, tx, billsService, realtimeEventsService };
+  return { service, tx, billsService, realtimeEventsService, saasService };
 }
 
 describe("OnlinePaymentsService", () => {
+  it("blocks customer online payment creation when the plan does not include online payments", async () => {
+    const { service, tx, saasService } = createService();
+    tx.bill.findUnique.mockResolvedValueOnce({
+      id: "bill-1",
+      companyId: "company-1",
+      branchId: "branch-1",
+      tableSessionId: "session-1",
+      status: BillStatus.presented,
+      currency: "EGP",
+      totalMinor: 12500,
+      balanceDueMinor: 12500,
+    });
+    saasService.assertCompanyFeatureEnabled.mockRejectedValueOnce(
+      new Error("Your current plan does not include online payments."),
+    );
+
+    await expect(
+      service.createIntentForCustomer("session-1", "bill-1"),
+    ).rejects.toThrow("Your current plan does not include online payments.");
+    expect(tx.onlinePaymentIntent.create).not.toHaveBeenCalled();
+  });
+
   it("settles a mock success webhook once through the guarded bill settlement", async () => {
     const { service, tx, billsService, realtimeEventsService } =
       createService();

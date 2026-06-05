@@ -1,6 +1,6 @@
 # balcona-bar
 
-Balcona Bar is organized as a monorepo for the Cafe AI Waiter App / Smart Cafe Operating System. The backend core is complete through Phase 24, UI Phase 1 adds the first Next.js web foundation for customer and staff experiences, UI Phase 2 adds the customer PWA core, UI Phase 3 adds the customer AI waiter experience, UI Phase 4 adds the cashier dashboard core, UI Phase 5 adds the kitchen/barista dashboard core, UI Phase 6 adds the waiter dashboard and attention queue, UI Phase 7 adds the owner/manager command center, UI Phase 8 adds full demo hardening plus Balkona demo mode, Production Phase 1 adds deployable platform foundation files, Production Phase 2 adds AWS infrastructure foundation scaffolding without deploying resources, Production Phase 3A adds public demo deploy readiness plus CI/CD guardrails without deploying resources, Production Phase 3B adds the first public AWS demo preflight deploy pack without deploying resources, Product Phase 4A starts the full Cafe OS product completion track, Product Phase 4B adds branch-scoped menu admin and availability management, Product Phase 4C adds branch, tables, and QR management, Product Phase 4E.G0-G3 add a Groq AI waiter provider with safe backend validation, deep menu grounding, and modifier-turn ordering intelligence, Product Phase 4S.0 enforces staff roles, permissions, and branch access on the current staff product surfaces, Product Phase 4O.0 hardens order lifecycle transitions across cashier, preparation, waiter, and customer status flows, Product Phase 4K.0 adds KDS kitchen tickets plus a mock printer foundation for station operations, Product Phase 4P.0 adds stable bills, manual cashier payments, and receipt foundations, Product Phase 4PAY.1 adds mock/provider-agnostic online payment intents for presented bills, Product Phase 4C.0 adds cashier shifts, cash drawer transactions, and X/Z reports, Product Phase 4A.0 adds branch-scoped owner analytics and daily reports from real orders, bills, payments, shifts, operations, and AI waiter records, Product Phase 4T.0 adds guarded tenant onboarding and company/branch setup readiness, and Product Phase 4I.0 adds inventory and branch stock foundations for menu availability and accepted-order consumption.
+Balcona Bar is organized as a monorepo for the Cafe AI Waiter App / Smart Cafe Operating System. The backend core is complete through Phase 24, UI Phase 1 adds the first Next.js web foundation for customer and staff experiences, UI Phase 2 adds the customer PWA core, UI Phase 3 adds the customer AI waiter experience, UI Phase 4 adds the cashier dashboard core, UI Phase 5 adds the kitchen/barista dashboard core, UI Phase 6 adds the waiter dashboard and attention queue, UI Phase 7 adds the owner/manager command center, UI Phase 8 adds full demo hardening plus Balkona demo mode, Production Phase 1 adds deployable platform foundation files, Production Phase 2 adds AWS infrastructure foundation scaffolding without deploying resources, Production Phase 3A adds public demo deploy readiness plus CI/CD guardrails without deploying resources, Production Phase 3B adds the first public AWS demo preflight deploy pack without deploying resources, Product Phase 4A starts the full Cafe OS product completion track, Product Phase 4B adds branch-scoped menu admin and availability management, Product Phase 4C adds branch, tables, and QR management, Product Phase 4E.G0-G3 add a Groq AI waiter provider with safe backend validation, deep menu grounding, and modifier-turn ordering intelligence, Product Phase 4S.0 enforces staff roles, permissions, and branch access on the current staff product surfaces, Product Phase 4O.0 hardens order lifecycle transitions across cashier, preparation, waiter, and customer status flows, Product Phase 4K.0 adds KDS kitchen tickets plus a mock printer foundation for station operations, Product Phase 4P.0 adds stable bills, manual cashier payments, and receipt foundations, Product Phase 4PAY.1 adds mock/provider-agnostic online payment intents for presented bills, Product Phase 4C.0 adds cashier shifts, cash drawer transactions, and X/Z reports, Product Phase 4A.0 adds branch-scoped owner analytics and daily reports from real orders, bills, payments, shifts, operations, and AI waiter records, Product Phase 4T.0 adds guarded tenant onboarding and company/branch setup readiness, Product Phase 4SaaS.0 adds internal plans, tenant limits, subscription status, and backend entitlement gates, and Product Phase 4I.0 adds inventory and branch stock foundations for menu availability and accepted-order consumption.
 
 ## Layout
 
@@ -219,6 +219,34 @@ Existing local dev, Balkona seed/demo data, customer QR routes, and staff
 operational surfaces remain intact. See
 `docs/architecture/product-phase-4t0-tenant-onboarding-company-setup.md` for the
 endpoint contract, permission model, non-goals, and smoke path.
+
+## Product Phase 4SaaS.0 status
+
+Product Phase 4SaaS.0 adds internal SaaS plan tracking and tenant limit
+enforcement without connecting a real subscription billing provider:
+
+- `SaasPlan`, `CompanySubscription`, and `CompanyPlanLimitOverride` schema;
+- seeded `pilot`, `starter`, `growth`, and `enterprise` plans;
+- the Balkona seed assigned to an active generous `pilot` subscription;
+- `saas.read` for owners and branch managers, plus owner-only `saas.manage`;
+- SaaS status APIs for company and branch context;
+- backend gates for setup, table/staff/menu/inventory limits, online payments,
+  owner analytics, and AI waiter usage;
+- `/staff/billing` for current plan, subscription, usage, entitlements,
+  warnings, blockers, and the internal plan catalog;
+- setup and owner surfaces link to plan/status signals.
+
+Local demo steps: run migrations and seed data, sign in as owner or manager,
+open `/staff/billing`, confirm the Pilot plan is active, review usage cards,
+open `/staff/setup` to confirm plan signals, then run the existing customer,
+cashier, kitchen, waiter, bill, inventory, and mock online payment flows. Real
+subscription billing, SaaS admin UI, public self-signup, subscription invoices,
+tax/e-invoicing, and payment provider subscription flows remain future scope.
+
+See
+`docs/architecture/product-phase-4saas0-plans-limits-subscription-status.md` for
+the data model, endpoint contract, enforcement policy, non-goals, and smoke
+path.
 
 ## Product Phase 4I.0 status
 

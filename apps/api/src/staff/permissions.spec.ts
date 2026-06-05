@@ -93,6 +93,28 @@ describe("staff permissions", () => {
     expect(getRolePermissions(StaffRole.cashier)).not.toContain("staff.manage");
   });
 
+  it("reserves SaaS plan status for owner and branch manager roles", () => {
+    expect(STAFF_PERMISSION_SET.has("saas.read")).toBe(true);
+    expect(STAFF_PERMISSION_SET.has("saas.manage")).toBe(true);
+    expect(getRolePermissions(StaffRole.owner)).toContain("saas.read");
+    expect(getRolePermissions(StaffRole.owner)).toContain("saas.manage");
+    expect(getRolePermissions(StaffRole.branch_manager)).toContain("saas.read");
+    expect(getRolePermissions(StaffRole.branch_manager)).not.toContain(
+      "saas.manage",
+    );
+
+    for (const role of [
+      StaffRole.cashier,
+      StaffRole.waiter,
+      StaffRole.kitchen,
+      StaffRole.barista,
+      StaffRole.menu_admin,
+    ]) {
+      expect(getRolePermissions(role)).not.toContain("saas.read");
+      expect(getRolePermissions(role)).not.toContain("saas.manage");
+    }
+  });
+
   it("allows broad inventory visibility but reserves stock management", () => {
     expect(STAFF_PERMISSION_SET.has("inventory.read")).toBe(true);
     expect(STAFF_PERMISSION_SET.has("inventory.manage")).toBe(true);

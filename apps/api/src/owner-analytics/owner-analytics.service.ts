@@ -14,11 +14,13 @@ import {
   OnlinePaymentProvider,
   OrderStatus,
   Prisma,
+  SaasFeatureKey,
   TableAttentionStatus,
   WaiterCallStatus,
 } from "@prisma/client";
 import { InventoryService } from "../inventory/inventory.service";
 import { PrismaService } from "../prisma/prisma.service";
+import { SaasService } from "../saas/saas.service";
 import {
   OwnerAnalyticsPreset,
   OwnerAnalyticsQueryDto,
@@ -220,6 +222,7 @@ export class OwnerAnalyticsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly inventoryService: InventoryService,
+    private readonly saasService: SaasService,
   ) {}
 
   async getSummary(branchId: string, query: OwnerAnalyticsQueryDto = {}) {
@@ -992,6 +995,11 @@ export class OwnerAnalyticsService {
     if (!branch) {
       throw new NotFoundException("Branch not found");
     }
+
+    await this.saasService.assertCompanyFeatureEnabled(
+      branch.companyId,
+      SaasFeatureKey.owner_analytics,
+    );
 
     return branch;
   }

@@ -9,6 +9,7 @@ import {
   CheckCircle2,
   CircleDashed,
   ClipboardCheck,
+  CreditCard,
   KeyRound,
   Loader2,
   MapPinned,
@@ -434,6 +435,11 @@ function StaffSetupContent() {
   const tableCompletion = onboarding
     ? `${onboarding.tables.qrReadyTableCount}/${onboarding.tables.activeTableCount}`
     : "0/0";
+  const saasStatus = onboarding?.saas;
+  const saasNotices = [
+    ...(saasStatus?.blockers ?? []),
+    ...(saasStatus?.warnings ?? [])
+  ];
 
   function refreshOnboarding() {
     if (selectedBranchId) {
@@ -706,6 +712,61 @@ function StaffSetupContent() {
 
       {onboarding ? (
         <>
+          {saasStatus ? (
+            <Card
+              variant={saasStatus.blockers.length > 0 ? "quiet" : "accent"}
+            >
+              <CardHeader className="gap-4 md:flex md:flex-row md:items-start md:justify-between md:space-y-0">
+                <div>
+                  <Badge
+                    variant={
+                      saasStatus.blockers.length > 0
+                        ? "danger"
+                        : saasStatus.warnings.length > 0
+                          ? "warning"
+                          : "success"
+                    }
+                    className="mb-3"
+                  >
+                    Plan signals
+                  </Badge>
+                  <CardTitle>
+                    {saasStatus.plan?.name ?? "Plan not configured"}
+                  </CardTitle>
+                  <CardDescription>
+                    Setup writes and tenant limits are checked by the backend
+                    SaaS status service.
+                  </CardDescription>
+                </div>
+                <Link
+                  href="/staff/billing"
+                  className={buttonVariants({ variant: "secondary" })}
+                >
+                  <CreditCard className="size-4" aria-hidden="true" />
+                  Billing
+                </Link>
+              </CardHeader>
+              <CardContent className="grid gap-3">
+                {saasNotices.length === 0 ? (
+                  <div className="rounded-button border border-success/40 bg-success/10 p-4 text-sm text-muted-foreground">
+                    Subscription status, feature entitlements, and current
+                    usage are ready for this setup flow.
+                  </div>
+                ) : null}
+                {saasNotices.map((notice) => (
+                  <div
+                    key={`${notice.code}-${notice.metricKey ?? "subscription"}`}
+                    className="rounded-button border bg-surface/70 p-4"
+                  >
+                    <p className="font-semibold text-foreground">
+                      {notice.message}
+                    </p>
+                  </div>
+                ))}
+              </CardContent>
+            </Card>
+          ) : null}
+
           <section className="grid gap-4 md:grid-cols-4">
             <MetricCard
               label="Launch"

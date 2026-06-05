@@ -60,8 +60,18 @@ function buildTable(overrides: Partial<{
   };
 }
 
+function createSaasService() {
+  return {
+    assertCompanyFeatureEnabled: jest.fn().mockResolvedValue(undefined),
+    assertWithinLimit: jest.fn().mockResolvedValue(undefined),
+  };
+}
+
 function createService(prismaOverrides: Partial<PrismaService>) {
-  return new BranchAdminService(prismaOverrides as PrismaService);
+  return new BranchAdminService(
+    prismaOverrides as PrismaService,
+    createSaasService() as never,
+  );
 }
 
 describe('BranchAdminService', () => {

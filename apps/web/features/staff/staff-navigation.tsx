@@ -5,6 +5,7 @@ import {
   Building2,
   ChartNoAxesCombined,
   ChefHat,
+  CreditCard,
   LayoutDashboard,
   LogIn,
   Receipt,
@@ -60,6 +61,14 @@ export const staffNavItems: StaffNavItem[] = [
     authOnly: true,
     branchScoped: true,
     requiredPermissions: ["tenant_onboarding.read"]
+  },
+  {
+    href: "/staff/billing",
+    label: "Billing",
+    icon: <CreditCard className="size-4" aria-hidden="true" />,
+    authOnly: true,
+    branchScoped: true,
+    requiredPermissions: ["saas.read"]
   },
   {
     href: "/staff/branches",

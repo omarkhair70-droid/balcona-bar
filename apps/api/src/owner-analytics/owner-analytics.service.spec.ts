@@ -159,7 +159,15 @@ function createPrisma(overrides: Record<string, unknown> = {}) {
   return Object.assign(base, overrides) as unknown as PrismaService;
 }
 
-function createService(prismaOverrides: Record<string, unknown> = {}) {
+function createService(
+  prismaOverrides: Record<string, unknown> = {},
+  saasOverrides: Record<string, unknown> = {},
+) {
+  const saasService = {
+    assertCompanyFeatureEnabled: jest.fn().mockResolvedValue(undefined),
+    ...saasOverrides,
+  };
+
   return new OwnerAnalyticsService(
     createPrisma(prismaOverrides),
     {
@@ -172,10 +180,26 @@ function createService(prismaOverrides: Record<string, unknown> = {}) {
         recentMovements: [],
       }),
     } as never,
+    saasService as never,
   );
 }
 
 describe('OwnerAnalyticsService', () => {
+  it('blocks owner analytics when the plan entitlement is disabled', async () => {
+    const service = createService(
+      {},
+      {
+        assertCompanyFeatureEnabled: jest
+          .fn()
+          .mockRejectedValue(new Error('Owner analytics is not enabled on this plan.')),
+      },
+    );
+
+    await expect(service.getSummary('branch-1', range)).rejects.toThrow(
+      'Owner analytics is not enabled on this plan.',
+    );
+  });
+
   it('returns zero-safe summary for an empty range', async () => {
     const service = createService();
 

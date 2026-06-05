@@ -8,6 +8,7 @@ import {
   Building2,
   ChefHat,
   ClipboardCheck,
+  CreditCard,
   LayoutDashboard,
   LogIn,
   MonitorPlay,
@@ -65,6 +66,14 @@ const staffAreas = [
     icon: <Rocket className="size-5" aria-hidden="true" />,
     state: "Live",
     requiredPermissions: ["tenant_onboarding.read"]
+  },
+  {
+    title: "Billing",
+    href: "/staff/billing",
+    description: "Plan status, feature entitlements, and tenant usage limits.",
+    icon: <CreditCard className="size-5" aria-hidden="true" />,
+    state: "New",
+    requiredPermissions: ["saas.read"]
   },
   {
     title: "Branches",

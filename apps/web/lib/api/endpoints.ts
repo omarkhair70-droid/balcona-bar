@@ -123,6 +123,8 @@ import type {
   FloorMutationResult,
   ResolveAttentionPayload,
   ResolveWaiterCallPayload,
+  SaasPlansResult,
+  SaasStatusResult,
   SendAiWaiterMessagePayload,
   SendAiWaiterMessageResult,
   StaffAuthContext,
@@ -1596,6 +1598,23 @@ export function getBranchOnlinePayments(
       token,
     },
   );
+}
+
+export function getSaasPlans(token?: string) {
+  return apiRequest<SaasPlansResult>("/saas/plans", { token });
+}
+
+export function getCompanySaasStatus(companyId: string, token?: string) {
+  return apiRequest<SaasStatusResult>(
+    `/companies/${companyId}/saas/status`,
+    { token },
+  );
+}
+
+export function getBranchSaasStatus(branchId: string, token?: string) {
+  return apiRequest<SaasStatusResult>(`/branches/${branchId}/saas/status`, {
+    token,
+  });
 }
 
 export function getOnlinePaymentIntent(intentId: string, token?: string) {

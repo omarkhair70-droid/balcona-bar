@@ -1,7 +1,9 @@
 import {
+  CompanySubscriptionStatus,
   PreparationStation,
   PrinterAdapterType,
   PrismaClient,
+  SaasPlanStatus,
   StaffRole,
 } from '@prisma/client';
 
@@ -31,6 +33,93 @@ const staffSeed: Array<{ email: string; name: string; role: StaffRole }> = [
   { email: 'kitchen@balcona.local', name: 'Main Branch Kitchen', role: 'kitchen' },
   { email: 'barista@balcona.local', name: 'Main Branch Barista', role: 'barista' },
 ];
+
+const saasPlanSeed = [
+  {
+    code: 'pilot',
+    name: 'Pilot',
+    description: 'Generous local/demo pilot plan for onboarding cafes.',
+    monthlyPriceMinor: null,
+    maxBranches: 3,
+    maxTables: 100,
+    maxStaffUsers: 25,
+    maxMenuItems: 300,
+    maxInventoryItems: 300,
+    maxAiMessagesPerMonth: 5000,
+    setupEnabled: true,
+    kdsEnabled: true,
+    inventoryEnabled: true,
+    onlinePaymentsEnabled: true,
+    ownerAnalyticsEnabled: true,
+    aiWaiterEnabled: true,
+    multiBranchEnabled: true,
+    advancedReportsEnabled: true,
+    sortOrder: 1,
+  },
+  {
+    code: 'starter',
+    name: 'Starter',
+    description: 'Single-branch cafe operations with essential limits.',
+    monthlyPriceMinor: 150000,
+    maxBranches: 1,
+    maxTables: 20,
+    maxStaffUsers: 8,
+    maxMenuItems: 80,
+    maxInventoryItems: 75,
+    maxAiMessagesPerMonth: 1000,
+    setupEnabled: true,
+    kdsEnabled: true,
+    inventoryEnabled: false,
+    onlinePaymentsEnabled: false,
+    ownerAnalyticsEnabled: true,
+    aiWaiterEnabled: true,
+    multiBranchEnabled: false,
+    advancedReportsEnabled: false,
+    sortOrder: 2,
+  },
+  {
+    code: 'growth',
+    name: 'Growth',
+    description: 'Growing cafes with inventory, online payments, and AI capacity.',
+    monthlyPriceMinor: 350000,
+    maxBranches: 3,
+    maxTables: 75,
+    maxStaffUsers: 30,
+    maxMenuItems: 250,
+    maxInventoryItems: 250,
+    maxAiMessagesPerMonth: 5000,
+    setupEnabled: true,
+    kdsEnabled: true,
+    inventoryEnabled: true,
+    onlinePaymentsEnabled: true,
+    ownerAnalyticsEnabled: true,
+    aiWaiterEnabled: true,
+    multiBranchEnabled: true,
+    advancedReportsEnabled: false,
+    sortOrder: 3,
+  },
+  {
+    code: 'enterprise',
+    name: 'Enterprise',
+    description: 'Sales-led plan with unlimited operating limits.',
+    monthlyPriceMinor: null,
+    maxBranches: null,
+    maxTables: null,
+    maxStaffUsers: null,
+    maxMenuItems: null,
+    maxInventoryItems: null,
+    maxAiMessagesPerMonth: null,
+    setupEnabled: true,
+    kdsEnabled: true,
+    inventoryEnabled: true,
+    onlinePaymentsEnabled: true,
+    ownerAnalyticsEnabled: true,
+    aiWaiterEnabled: true,
+    multiBranchEnabled: true,
+    advancedReportsEnabled: true,
+    sortOrder: 4,
+  },
+] as const;
 
 const categorySeed = [
   { name: 'Coffee', slug: 'coffee', sortOrder: 1 },
@@ -399,7 +488,61 @@ async function seedPrinterStations(companyId: string, branchId: string) {
   }
 }
 
+async function seedSaasPlans() {
+  for (const plan of saasPlanSeed) {
+    await prisma.saasPlan.upsert({
+      where: { code: plan.code },
+      update: {
+        ...plan,
+        status: SaasPlanStatus.active,
+        currency: 'EGP',
+      },
+      create: {
+        ...plan,
+        status: SaasPlanStatus.active,
+        currency: 'EGP',
+      },
+    });
+  }
+}
+
+async function assignPilotSubscription(companyId: string) {
+  const plan = await prisma.saasPlan.findUnique({
+    where: { code: 'pilot' },
+  });
+
+  if (!plan) {
+    throw new Error('Pilot SaaS plan was not seeded');
+  }
+
+  await prisma.companySubscription.upsert({
+    where: { companyId },
+    update: {
+      planId: plan.id,
+      status: CompanySubscriptionStatus.active,
+      currentPeriodStart: new Date(),
+      currentPeriodEnd: null,
+      trialEndsAt: null,
+      suspendedAt: null,
+      cancelledAt: null,
+      cancellationReason: null,
+    },
+    create: {
+      companyId,
+      planId: plan.id,
+      status: CompanySubscriptionStatus.active,
+      currentPeriodStart: new Date(),
+      metadata: {
+        source: 'seed',
+        demo: true,
+      },
+    },
+  });
+}
+
 async function main() {
+  await seedSaasPlans();
+
   const company = await prisma.company.upsert({
     where: { slug: companySlug },
     update: {
@@ -412,6 +555,8 @@ async function main() {
       status: 'active',
     },
   });
+
+  await assignPilotSubscription(company.id);
 
   const branch = await prisma.branch.upsert({
     where: {
