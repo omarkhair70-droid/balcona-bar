@@ -26,6 +26,16 @@ export const customerQueryKeys = {
   ],
 } as const;
 
+type OwnerAnalyticsKeyQuery = {
+  from?: string;
+  to?: string;
+  preset?: string;
+};
+
+function ownerAnalyticsRangeKey(query?: OwnerAnalyticsKeyQuery) {
+  return [query?.preset ?? "today", query?.from ?? null, query?.to ?? null];
+}
+
 export const staffQueryKeys = {
   me: () => ["staff", "me"],
   branchOrders: (branchId?: string, status?: string) =>
@@ -156,6 +166,84 @@ export const staffQueryKeys = {
     branchId,
   ],
   staffOwnerMenu: (branchId?: string) => ["staff", "owner", "menu", branchId],
+  ownerAnalyticsSummary: (
+    branchId?: string,
+    query?: OwnerAnalyticsKeyQuery,
+  ) => [
+    "staff",
+    "owner-analytics",
+    "summary",
+    branchId,
+    ownerAnalyticsRangeKey(query),
+  ],
+  ownerAnalyticsSales: (branchId?: string, query?: OwnerAnalyticsKeyQuery) => [
+    "staff",
+    "owner-analytics",
+    "sales",
+    branchId,
+    ownerAnalyticsRangeKey(query),
+  ],
+  ownerAnalyticsOrders: (branchId?: string, query?: OwnerAnalyticsKeyQuery) => [
+    "staff",
+    "owner-analytics",
+    "orders",
+    branchId,
+    ownerAnalyticsRangeKey(query),
+  ],
+  ownerAnalyticsItems: (branchId?: string, query?: OwnerAnalyticsKeyQuery) => [
+    "staff",
+    "owner-analytics",
+    "items",
+    branchId,
+    ownerAnalyticsRangeKey(query),
+  ],
+  ownerAnalyticsOperations: (
+    branchId?: string,
+    query?: OwnerAnalyticsKeyQuery,
+  ) => [
+    "staff",
+    "owner-analytics",
+    "operations",
+    branchId,
+    ownerAnalyticsRangeKey(query),
+  ],
+  ownerAnalyticsCashierShifts: (
+    branchId?: string,
+    query?: OwnerAnalyticsKeyQuery,
+  ) => [
+    "staff",
+    "owner-analytics",
+    "cashier-shifts",
+    branchId,
+    ownerAnalyticsRangeKey(query),
+  ],
+  ownerAnalyticsAiWaiter: (
+    branchId?: string,
+    query?: OwnerAnalyticsKeyQuery,
+  ) => [
+    "staff",
+    "owner-analytics",
+    "ai-waiter",
+    branchId,
+    ownerAnalyticsRangeKey(query),
+  ],
+  ownerAnalyticsDashboard: (
+    branchId?: string,
+    query?: OwnerAnalyticsKeyQuery,
+  ) => [
+    "staff",
+    "owner-analytics",
+    "dashboard",
+    branchId,
+    ownerAnalyticsRangeKey(query),
+  ],
+  ownerDailyReport: (branchId?: string, query?: OwnerAnalyticsKeyQuery) => [
+    "staff",
+    "owner-analytics",
+    "daily-report",
+    branchId,
+    ownerAnalyticsRangeKey(query),
+  ],
   staffMenuAdminOverview: (branchId?: string) => [
     "staff",
     "menu-admin",

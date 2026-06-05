@@ -24,6 +24,219 @@ export type BranchSummary = {
   status?: string;
 };
 
+export type OwnerAnalyticsPreset = "today" | "last_7_days" | "last_30_days";
+
+export type OwnerAnalyticsQuery = {
+  from?: string;
+  to?: string;
+  preset?: OwnerAnalyticsPreset;
+};
+
+export type OwnerAnalyticsRange = {
+  from: string;
+  to: string;
+  preset: OwnerAnalyticsPreset | "custom";
+};
+
+export type OwnerAnalyticsCountRow = {
+  key: string;
+  count: number;
+};
+
+export type OwnerAnalyticsMoneyRow = OwnerAnalyticsCountRow & {
+  amountMinor: number;
+};
+
+export type OwnerAnalyticsTenderRow = {
+  method: "cash" | "card_pos" | "wallet_manual" | "other" | string;
+  count: number;
+  amountMinor: number;
+};
+
+export type OwnerAnalyticsShiftSummary = Record<string, unknown> & {
+  id: string;
+  status: string;
+  currency: string;
+  openingFloatMinor: number;
+  expectedCashMinor: number;
+  countedCashMinor?: number | null;
+  cashOverShortMinor?: number | null;
+  cashSalesMinor: number;
+  cardSalesMinor: number;
+  walletSalesMinor: number;
+  otherSalesMinor: number;
+  paymentCount: number;
+  billCount: number;
+  openedAt: string;
+  closedAt?: string | null;
+  zReportNumber?: string | null;
+  zReportSnapshot?: Record<string, unknown> | null;
+};
+
+export type OwnerAnalyticsZReportSummary = Record<string, unknown> & {
+  id: string;
+  cashierShiftId: string;
+  type: string;
+  reportNumber: string;
+  generatedAt: string;
+  snapshot?: Record<string, unknown> | null;
+};
+
+export type OwnerAnalyticsBaseResult = {
+  range: OwnerAnalyticsRange;
+  branch: BranchSummary;
+  company: CompanySummary;
+};
+
+export type OwnerAnalyticsSummaryResult = OwnerAnalyticsBaseResult & {
+  paidRevenueMinor: number;
+  collectedMinor: number;
+  cashCollectedMinor: number;
+  cardCollectedMinor: number;
+  walletCollectedMinor: number;
+  otherCollectedMinor: number;
+  paidBillCount: number;
+  averageTicketMinor: number;
+  submittedOrderCount: number;
+  acceptedOrderCount: number;
+  servedOrderCount: number;
+  completedOrderCount: number;
+  cancelledOrderCount: number;
+  rejectedOrderCount: number;
+  activeBillRequestCount: number;
+  openWaiterCallCount: number;
+  activeCashierShift: OwnerAnalyticsShiftSummary | null;
+  latestClosedShift: OwnerAnalyticsShiftSummary | null;
+  latestZReport: OwnerAnalyticsZReportSummary | null;
+  revenueSource: string;
+};
+
+export type OwnerAnalyticsSalesResult = OwnerAnalyticsBaseResult & {
+  tenderBreakdown: OwnerAnalyticsTenderRow[];
+  revenueByDay: OwnerAnalyticsMoneyRow[];
+  revenueByHour: OwnerAnalyticsMoneyRow[];
+  billCountByStatus: OwnerAnalyticsCountRow[];
+  paymentCountByMethod: OwnerAnalyticsMoneyRow[];
+  topPaidBills: Record<string, unknown>[];
+  recentPayments: Record<string, unknown>[];
+  cashDrawerOverview: Array<OwnerAnalyticsShiftSummary | null>;
+  revenueSource: string;
+};
+
+export type OwnerAnalyticsOrdersResult = OwnerAnalyticsBaseResult & {
+  orderCountByStatus: OwnerAnalyticsCountRow[];
+  orderCountByHour: OwnerAnalyticsCountRow[];
+  totalQuantity: number;
+  itemCount: number;
+  submittedOrderCount: number;
+  grossSubmittedOrderValueMinor: number;
+  averageSubmittedOrderValueMinor: number;
+  averageOrderValueMinor: number;
+  lifecycleAverages: {
+    submittedToAcceptedSeconds: number | null;
+    acceptedToPreparingSeconds: number | null;
+    preparingToReadySeconds: number | null;
+    readyToServedSeconds: number | null;
+    submittedToServedSeconds: number | null;
+  };
+};
+
+export type OwnerAnalyticsItemRow = {
+  menuItemId?: string | null;
+  name: string;
+  slug?: string | null;
+  quantity: number;
+  revenueMinor: number;
+  lineCount?: number;
+  currency?: string;
+};
+
+export type OwnerAnalyticsModifierRow = {
+  modifierGroupId: string;
+  modifierOptionId: string;
+  groupName: string;
+  optionName: string;
+  quantity: number;
+  revenueMinor: number;
+};
+
+export type OwnerAnalyticsCategoryRow = {
+  categoryId?: string | null;
+  name: string;
+  quantity: number;
+  revenueMinor: number;
+};
+
+export type OwnerAnalyticsItemsResult = OwnerAnalyticsBaseResult & {
+  itemCount: number;
+  quantity: number;
+  revenueMinor: number;
+  modifierRevenueMinor: number;
+  topItemsByQuantity: OwnerAnalyticsItemRow[];
+  topItemsByRevenue: OwnerAnalyticsItemRow[];
+  topModifiers: OwnerAnalyticsModifierRow[];
+  categoryBreakdown: OwnerAnalyticsCategoryRow[];
+  revenueSource: string;
+};
+
+export type OwnerAnalyticsOperationsResult = OwnerAnalyticsBaseResult & {
+  preparationTaskCountsByStatus: OwnerAnalyticsCountRow[];
+  preparationTaskCountsByStation: OwnerAnalyticsCountRow[];
+  kitchenTicketCountsByStatus: OwnerAnalyticsCountRow[];
+  kitchenTicketCountsByStation: OwnerAnalyticsCountRow[];
+  printJobCountsByStatus: OwnerAnalyticsCountRow[];
+  printJobCountsByKind: OwnerAnalyticsCountRow[];
+  failedPrintJobCount: number;
+  waiterCallCountsByStatus: OwnerAnalyticsCountRow[];
+  waiterCallCountsByType: OwnerAnalyticsCountRow[];
+  averageWaiterCallResolutionSeconds: number | null;
+  activeAttentionCount: number;
+  urgentAttentionCount: number;
+};
+
+export type OwnerAnalyticsCashierShiftsResult = OwnerAnalyticsBaseResult & {
+  currentOpenShift: OwnerAnalyticsShiftSummary | null;
+  recentClosedShifts: Array<OwnerAnalyticsShiftSummary | null>;
+  totalOverShortMinor: number;
+  shiftCount: number;
+  zReports: Array<OwnerAnalyticsZReportSummary | null>;
+  cashDrawerTransactions: {
+    cashInMinor: number;
+    cashOutMinor: number;
+    correctionMinor: number;
+    openingFloatMinor: number;
+    cashPaymentMinor: number;
+  };
+  latestZReport: OwnerAnalyticsZReportSummary | null;
+};
+
+export type OwnerAnalyticsAiWaiterResult = OwnerAnalyticsBaseResult & {
+  aiSessionCount: number;
+  aiMessageCount: number;
+  escalatedCount: number;
+  proposalCount: number;
+  appliedProposalCount: number;
+  estimatedCostMicros: number;
+  inputTokens: number;
+  outputTokens: number;
+  topEscalationReasons: OwnerAnalyticsCountRow[];
+};
+
+export type OwnerAnalyticsDashboardResult = OwnerAnalyticsBaseResult & {
+  summary: OwnerAnalyticsSummaryResult;
+  sales: OwnerAnalyticsSalesResult;
+  orders: OwnerAnalyticsOrdersResult;
+  items: OwnerAnalyticsItemsResult;
+  operations: OwnerAnalyticsOperationsResult;
+  cashierShifts: OwnerAnalyticsCashierShiftsResult;
+  aiWaiter: OwnerAnalyticsAiWaiterResult;
+  generatedAt: string;
+};
+
+export type OwnerAnalyticsDailyReportResult = OwnerAnalyticsDashboardResult & {
+  reportType: "owner_daily_report";
+};
+
 export type BranchAdminBranchStatus = "active" | "inactive";
 export type BranchAdminTableStatus = "active" | "inactive" | "maintenance";
 

@@ -24,6 +24,7 @@ import { MediaAssetsModule } from './media-assets/media-assets.module';
 import { MenuAdminModule } from './menu-admin/menu-admin.module';
 import { MenuModule } from './menu/menu.module';
 import { OrdersModule } from './orders/orders.module';
+import { OwnerAnalyticsModule } from './owner-analytics/owner-analytics.module';
 import { PrintJobsModule } from './print-jobs/print-jobs.module';
 import { PresenceNotificationsModule } from './presence-notifications/presence-notifications.module';
 import { PreparationTasksModule } from './preparation-tasks/preparation-tasks.module';
@@ -71,6 +72,7 @@ import { WaiterCallsModule } from './waiter-calls/waiter-calls.module';
     ExperienceModule,
     MediaAssetsModule,
     OrdersModule,
+    OwnerAnalyticsModule,
     PresenceNotificationsModule,
     PreparationTasksModule,
     PrintJobsModule,

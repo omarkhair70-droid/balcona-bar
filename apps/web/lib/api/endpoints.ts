@@ -83,6 +83,16 @@ import type {
   MuteAttentionPayload,
   OrderDetailResult,
   OrderLifecycleActionPayload,
+  OwnerAnalyticsAiWaiterResult,
+  OwnerAnalyticsCashierShiftsResult,
+  OwnerAnalyticsDailyReportResult,
+  OwnerAnalyticsDashboardResult,
+  OwnerAnalyticsItemsResult,
+  OwnerAnalyticsOperationsResult,
+  OwnerAnalyticsOrdersResult,
+  OwnerAnalyticsQuery,
+  OwnerAnalyticsSalesResult,
+  OwnerAnalyticsSummaryResult,
   OrderPreparationTasksResult,
   OpenCashierShiftPayload,
   PreparationTaskActionPayload,
@@ -135,6 +145,105 @@ export function getCompanies() {
 export function getBranchEffectiveExperience(branchId: string) {
   return apiRequest<BranchEffectiveExperience>(
     `/branches/${branchId}/experience/effective`,
+  );
+}
+
+export function getOwnerAnalyticsSummary(
+  branchId: string,
+  query: OwnerAnalyticsQuery = {},
+  token?: string,
+) {
+  return apiRequest<OwnerAnalyticsSummaryResult>(
+    `/branches/${branchId}/owner-analytics/summary`,
+    { query, token },
+  );
+}
+
+export function getOwnerAnalyticsSales(
+  branchId: string,
+  query: OwnerAnalyticsQuery = {},
+  token?: string,
+) {
+  return apiRequest<OwnerAnalyticsSalesResult>(
+    `/branches/${branchId}/owner-analytics/sales`,
+    { query, token },
+  );
+}
+
+export function getOwnerAnalyticsOrders(
+  branchId: string,
+  query: OwnerAnalyticsQuery = {},
+  token?: string,
+) {
+  return apiRequest<OwnerAnalyticsOrdersResult>(
+    `/branches/${branchId}/owner-analytics/orders`,
+    { query, token },
+  );
+}
+
+export function getOwnerAnalyticsItems(
+  branchId: string,
+  query: OwnerAnalyticsQuery = {},
+  token?: string,
+) {
+  return apiRequest<OwnerAnalyticsItemsResult>(
+    `/branches/${branchId}/owner-analytics/items`,
+    { query, token },
+  );
+}
+
+export function getOwnerAnalyticsOperations(
+  branchId: string,
+  query: OwnerAnalyticsQuery = {},
+  token?: string,
+) {
+  return apiRequest<OwnerAnalyticsOperationsResult>(
+    `/branches/${branchId}/owner-analytics/operations`,
+    { query, token },
+  );
+}
+
+export function getOwnerAnalyticsCashierShifts(
+  branchId: string,
+  query: OwnerAnalyticsQuery = {},
+  token?: string,
+) {
+  return apiRequest<OwnerAnalyticsCashierShiftsResult>(
+    `/branches/${branchId}/owner-analytics/cashier-shifts`,
+    { query, token },
+  );
+}
+
+export function getOwnerAnalyticsAiWaiter(
+  branchId: string,
+  query: OwnerAnalyticsQuery = {},
+  token?: string,
+) {
+  return apiRequest<OwnerAnalyticsAiWaiterResult>(
+    `/branches/${branchId}/owner-analytics/ai-waiter`,
+    { query, token },
+  );
+}
+
+export function getOwnerAnalyticsDashboard(
+  branchId: string,
+  query: OwnerAnalyticsQuery = {},
+  token?: string,
+) {
+  return apiRequest<OwnerAnalyticsDashboardResult>(
+    `/branches/${branchId}/owner-analytics/dashboard`,
+    { query, token },
+  );
+}
+
+export function getOwnerDailyReport(
+  branchId: string,
+  query: OwnerAnalyticsQuery = {},
+  token?: string,
+) {
+  return apiRequest<OwnerAnalyticsDailyReportResult>(
+    `/branches/${branchId}/owner-analytics/daily-report`,
+    { query, token },
   );
 }
 
