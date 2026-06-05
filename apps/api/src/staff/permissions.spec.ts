@@ -44,5 +44,31 @@ describe('staff permissions', () => {
     expect(cashierPermissions).toContain('bills.pay');
     expect(cashierPermissions).not.toContain('owner_analytics.read');
   });
+
+  it('reserves tenant onboarding for owner and branch manager roles', () => {
+    for (const permission of [
+      'tenant_onboarding.read',
+      'tenant_onboarding.manage',
+    ] as const) {
+      expect(STAFF_PERMISSION_SET.has(permission)).toBe(true);
+      expect(getRolePermissions(StaffRole.owner)).toContain(permission);
+      expect(getRolePermissions(StaffRole.branch_manager)).toContain(permission);
+
+      for (const role of [
+        StaffRole.cashier,
+        StaffRole.waiter,
+        StaffRole.kitchen,
+        StaffRole.barista,
+        StaffRole.menu_admin,
+      ]) {
+        expect(getRolePermissions(role)).not.toContain(permission);
+      }
+    }
+
+    expect(getRolePermissions(StaffRole.branch_manager)).toContain(
+      'staff.manage',
+    );
+    expect(getRolePermissions(StaffRole.cashier)).not.toContain('staff.manage');
+  });
 });
 

@@ -258,4 +258,48 @@ describe('StaffAccessService', () => {
       });
     }
   });
+
+  it('allows branch managers to manage tenant onboarding for their branch', async () => {
+    const { service } = buildService(
+      buildStaffUser({
+        memberships: [
+          buildMembership({ branch: branchOne, role: StaffRole.branch_manager }),
+        ],
+      }),
+    );
+
+    for (const permission of [
+      'tenant_onboarding.read',
+      'tenant_onboarding.manage',
+      'staff.manage',
+    ] as const) {
+      await expect(
+        service.can('staff-1', permission, {
+          branchId: branchOne.id,
+        }),
+      ).resolves.toMatchObject({
+        allowed: true,
+        reason: 'permission_granted_by_branch_membership',
+      });
+    }
+  });
+
+  it('denies cashier tenant onboarding management', async () => {
+    const { service } = buildService(
+      buildStaffUser({
+        memberships: [
+          buildMembership({ branch: branchOne, role: StaffRole.cashier }),
+        ],
+      }),
+    );
+
+    await expect(
+      service.can('staff-1', 'tenant_onboarding.manage', {
+        branchId: branchOne.id,
+      }),
+    ).resolves.toMatchObject({
+      allowed: false,
+      reason: 'permission_not_granted',
+    });
+  });
 });

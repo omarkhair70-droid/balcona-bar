@@ -14,10 +14,12 @@ import type {
   BillReceiptResult,
   BranchAttentionQueueResult,
   BranchEffectiveExperience,
+  BranchLaunchChecklistResult,
   BranchBillsQuery,
   BranchBillsResult,
   BranchBillRequestsQuery,
   BranchBillRequestsResult,
+  BranchOnboardingResult,
   BranchCashierShiftsQuery,
   BranchCashierShiftsResult,
   BranchAdminOverviewResult,
@@ -36,6 +38,8 @@ import type {
   CancelBillPayload,
   CancelPreparationTaskPayload,
   CancelWaiterCallPayload,
+  BulkCreateOnboardingTablesPayload,
+  BulkCreateOnboardingTablesResult,
   CartResponse,
   CartValidationResult,
   CashierAcceptOrderPayload,
@@ -47,6 +51,7 @@ import type {
   CancelOrderPayload,
   CloseCashierShiftPayload,
   CompanySummary,
+  CompanyOnboardingResult,
   BranchMutationResult,
   CreateMenuCategoryPayload,
   CreateMenuCategoryResult,
@@ -59,6 +64,8 @@ import type {
   CreateModifierOptionPayload,
   CreateBranchPayload,
   CreateCashAdjustmentPayload,
+  CreateOnboardingFloorPayload,
+  CreateOnboardingFloorResult,
   CreateBranchResult,
   CreateFloorPayload,
   CreateFloorResult,
@@ -119,6 +126,12 @@ import type {
   StartTableSessionResult,
   SubmitCartPayload,
   SubmitCartResult,
+  InviteOnboardingStaffPayload,
+  InviteOnboardingStaffResult,
+  UpdateBranchOnboardingProfilePayload,
+  UpdateBranchOnboardingProfileResult,
+  UpdateCompanyOnboardingProfilePayload,
+  UpdateCompanyOnboardingProfileResult,
   UpdateMenuCategoryPayload,
   UpdateMenuItemPayload,
   UpdateModifierGroupPayload,
@@ -129,6 +142,8 @@ import type {
   TableSessionAttentionResult,
   TableMutationResult,
   UpdateCartItemPayload,
+  UpdateReadinessCheckPayload,
+  UpdateReadinessCheckResult,
   UpsertBranchMenuItemOverrideResult,
   UpsertBranchMenuItemOverridePayload,
   WaiterCallDetailResult,
@@ -145,6 +160,117 @@ export function getCompanies() {
 export function getBranchEffectiveExperience(branchId: string) {
   return apiRequest<BranchEffectiveExperience>(
     `/branches/${branchId}/experience/effective`,
+  );
+}
+
+export function getCompanyOnboarding(companyId: string, token?: string) {
+  return apiRequest<CompanyOnboardingResult>(
+    `/companies/${companyId}/onboarding`,
+    { token },
+  );
+}
+
+export function updateCompanyOnboardingProfile(
+  companyId: string,
+  payload: UpdateCompanyOnboardingProfilePayload,
+  token?: string,
+) {
+  return apiRequest<
+    UpdateCompanyOnboardingProfileResult,
+    UpdateCompanyOnboardingProfilePayload
+  >(`/companies/${companyId}/onboarding/profile`, {
+    method: "PATCH",
+    body: payload,
+    token,
+  });
+}
+
+export function getBranchOnboarding(branchId: string, token?: string) {
+  return apiRequest<BranchOnboardingResult>(
+    `/branches/${branchId}/onboarding`,
+    { token },
+  );
+}
+
+export function updateBranchOnboardingProfile(
+  branchId: string,
+  payload: UpdateBranchOnboardingProfilePayload,
+  token?: string,
+) {
+  return apiRequest<
+    UpdateBranchOnboardingProfileResult,
+    UpdateBranchOnboardingProfilePayload
+  >(`/branches/${branchId}/onboarding/profile`, {
+    method: "PATCH",
+    body: payload,
+    token,
+  });
+}
+
+export function createOnboardingFloor(
+  branchId: string,
+  payload: CreateOnboardingFloorPayload,
+  token?: string,
+) {
+  return apiRequest<CreateOnboardingFloorResult, CreateOnboardingFloorPayload>(
+    `/branches/${branchId}/onboarding/floors`,
+    {
+      method: "POST",
+      body: payload,
+      token,
+    },
+  );
+}
+
+export function bulkCreateOnboardingTables(
+  branchId: string,
+  payload: BulkCreateOnboardingTablesPayload,
+  token?: string,
+) {
+  return apiRequest<
+    BulkCreateOnboardingTablesResult,
+    BulkCreateOnboardingTablesPayload
+  >(`/branches/${branchId}/onboarding/tables/bulk`, {
+    method: "POST",
+    body: payload,
+    token,
+  });
+}
+
+export function inviteOnboardingStaff(
+  branchId: string,
+  payload: InviteOnboardingStaffPayload,
+  token?: string,
+) {
+  return apiRequest<InviteOnboardingStaffResult, InviteOnboardingStaffPayload>(
+    `/branches/${branchId}/onboarding/staff/invite`,
+    {
+      method: "POST",
+      body: payload,
+      token,
+    },
+  );
+}
+
+export function updateOnboardingReadinessCheck(
+  branchId: string,
+  payload: UpdateReadinessCheckPayload,
+  token?: string,
+) {
+  return apiRequest<UpdateReadinessCheckResult, UpdateReadinessCheckPayload>(
+    `/branches/${branchId}/onboarding/readiness-checks`,
+    {
+      method: "POST",
+      body: payload,
+      token,
+    },
+  );
+}
+
+export function getBranchLaunchChecklist(branchId: string, token?: string) {
+  return apiRequest<BranchLaunchChecklistResult>(
+    `/branches/${branchId}/onboarding/launch-checklist`,
+    { token },
   );
 }
 

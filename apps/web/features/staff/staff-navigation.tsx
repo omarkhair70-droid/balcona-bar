@@ -6,7 +6,8 @@ import {
   ChefHat,
   LayoutDashboard,
   LogIn,
-  Receipt
+  Receipt,
+  Rocket
 } from "lucide-react";
 import type { AppShellNavItem } from "@/components/ui/app-shell";
 import type { StaffEffectiveAccess } from "@/lib/api/types";
@@ -42,6 +43,14 @@ export const staffNavItems: StaffNavItem[] = [
     authOnly: true,
     branchScoped: true,
     requiredPermissions: ["menu.read"]
+  },
+  {
+    href: "/staff/setup",
+    label: "Setup",
+    icon: <Rocket className="size-4" aria-hidden="true" />,
+    authOnly: true,
+    branchScoped: true,
+    requiredPermissions: ["tenant_onboarding.read"]
   },
   {
     href: "/staff/branches",
