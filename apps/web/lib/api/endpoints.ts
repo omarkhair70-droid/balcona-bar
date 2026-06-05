@@ -29,6 +29,8 @@ import type {
   BranchKitchenTicketsQuery,
   BranchKitchenTicketsResult,
   BranchMenuResult,
+  BranchOnlinePaymentsQuery,
+  BranchOnlinePaymentsResult,
   BranchPrintJobsQuery,
   BranchPrintJobsResult,
   BranchPrinterStationsResult,
@@ -62,6 +64,7 @@ import type {
   CreateMenuItemModifierGroupResult,
   CreateMenuItemPayload,
   CreateMenuItemResult,
+  CreateOnlinePaymentIntentPayload,
   CreateModifierGroupPayload,
   CreateModifierGroupResult,
   CreateModifierOptionPayload,
@@ -93,6 +96,7 @@ import type {
   KitchenTicketDetailResult,
   MuteAttentionPayload,
   OrderDetailResult,
+  OnlinePaymentIntentResult,
   OrderLifecycleActionPayload,
   OwnerAnalyticsAiWaiterResult,
   OwnerAnalyticsCashierShiftsResult,
@@ -1166,6 +1170,33 @@ export function getBill(sessionId: string, token?: string) {
   });
 }
 
+export function createOnlinePaymentIntent(
+  sessionId: string,
+  billId: string,
+  payload: CreateOnlinePaymentIntentPayload = {},
+  token?: string,
+) {
+  return apiRequest<
+    OnlinePaymentIntentResult,
+    CreateOnlinePaymentIntentPayload
+  >(`/customer/sessions/${sessionId}/bills/${billId}/online-payment-intents`, {
+    method: "POST",
+    body: payload,
+    token,
+  });
+}
+
+export function getCustomerOnlinePaymentIntent(
+  sessionId: string,
+  intentId: string,
+  token?: string,
+) {
+  return apiRequest<OnlinePaymentIntentResult>(
+    `/customer/sessions/${sessionId}/online-payment-intents/${intentId}`,
+    { token },
+  );
+}
+
 export function startAiWaiter(
   sessionId: string,
   payload: StartAiWaiterPayload = {},
@@ -1551,6 +1582,47 @@ export function closeCashierShift(
 
 export function getBillDetail(billId: string, token?: string) {
   return apiRequest<BillDetailResult>(`/bills/${billId}`, { token });
+}
+
+export function getBranchOnlinePayments(
+  branchId: string,
+  query: BranchOnlinePaymentsQuery = {},
+  token?: string,
+) {
+  return apiRequest<BranchOnlinePaymentsResult>(
+    `/branches/${branchId}/online-payments`,
+    {
+      query,
+      token,
+    },
+  );
+}
+
+export function getOnlinePaymentIntent(intentId: string, token?: string) {
+  return apiRequest<OnlinePaymentIntentResult>(
+    `/online-payment-intents/${intentId}`,
+    { token },
+  );
+}
+
+export function mockSucceedOnlinePayment(intentId: string, token?: string) {
+  return apiRequest<OnlinePaymentIntentResult>(
+    `/online-payments/mock/${intentId}/succeed`,
+    {
+      method: "POST",
+      token,
+    },
+  );
+}
+
+export function mockFailOnlinePayment(intentId: string, token?: string) {
+  return apiRequest<OnlinePaymentIntentResult>(
+    `/online-payments/mock/${intentId}/fail`,
+    {
+      method: "POST",
+      token,
+    },
+  );
 }
 
 export function createBillForBillRequest(

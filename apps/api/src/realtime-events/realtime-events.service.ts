@@ -1,16 +1,16 @@
-import { Injectable, MessageEvent, NotFoundException } from '@nestjs/common';
+import { Injectable, MessageEvent, NotFoundException } from "@nestjs/common";
 import {
   Prisma,
   RealtimeEventChannel,
   RealtimeEventType,
-} from '@prisma/client';
-import { interval, merge, Observable, of, Subject } from 'rxjs';
-import { filter, map } from 'rxjs/operators';
-import { PrismaService } from '../prisma/prisma.service';
-import { BranchRealtimeEventsQueryDto } from './dto/branch-realtime-events-query.dto';
-import { BranchRealtimeQueryDto } from './dto/branch-realtime-query.dto';
-import { SessionRealtimeEventsQueryDto } from './dto/session-realtime-events-query.dto';
-import { SessionRealtimeQueryDto } from './dto/session-realtime-query.dto';
+} from "@prisma/client";
+import { interval, merge, Observable, of, Subject } from "rxjs";
+import { filter, map } from "rxjs/operators";
+import { PrismaService } from "../prisma/prisma.service";
+import { BranchRealtimeEventsQueryDto } from "./dto/branch-realtime-events-query.dto";
+import { BranchRealtimeQueryDto } from "./dto/branch-realtime-query.dto";
+import { SessionRealtimeEventsQueryDto } from "./dto/session-realtime-events-query.dto";
+import { SessionRealtimeQueryDto } from "./dto/session-realtime-query.dto";
 
 const HEARTBEAT_MS = 25_000;
 const DEFAULT_EVENT_LIMIT = 50;
@@ -109,10 +109,10 @@ export class RealtimeEventsService {
     });
 
     if (!branch) {
-      throw new NotFoundException('Branch not found');
+      throw new NotFoundException("Branch not found");
     }
 
-    const requestedChannel = query.channel ?? 'all';
+    const requestedChannel = query.channel ?? "all";
     const channelFilter = this.branchChannelsFor(requestedChannel);
     const connection = await this.createRealtimeEvent({
       companyId: branch.companyId,
@@ -120,7 +120,7 @@ export class RealtimeEventsService {
       type: RealtimeEventType.connection_opened,
       channel: RealtimeEventChannel.system,
       payload: {
-        scope: 'branch',
+        scope: "branch",
         branchId: branch.id,
         requestedChannel,
       },
@@ -139,7 +139,7 @@ export class RealtimeEventsService {
             this.createHeartbeatEnvelope({
               companyId: branch.companyId,
               branchId: branch.id,
-              stream: 'branch',
+              stream: "branch",
               requestedChannel,
             }),
           ),
@@ -158,10 +158,10 @@ export class RealtimeEventsService {
     });
 
     if (!session) {
-      throw new NotFoundException('Table session not found');
+      throw new NotFoundException("Table session not found");
     }
 
-    const requestedChannel = query.channel ?? 'all';
+    const requestedChannel = query.channel ?? "all";
     const channelFilter = this.sessionChannelsFor(requestedChannel);
     const connection = await this.createRealtimeEvent({
       companyId: session.companyId,
@@ -170,7 +170,7 @@ export class RealtimeEventsService {
       type: RealtimeEventType.connection_opened,
       channel: RealtimeEventChannel.system,
       payload: {
-        scope: 'table_session',
+        scope: "table_session",
         tableSessionId: session.id,
         requestedChannel,
       },
@@ -190,7 +190,7 @@ export class RealtimeEventsService {
               companyId: session.companyId,
               branchId: session.branchId,
               tableSessionId: session.id,
-              stream: 'table_session',
+              stream: "table_session",
               requestedChannel,
             }),
           ),
@@ -209,17 +209,17 @@ export class RealtimeEventsService {
     });
 
     if (!branch) {
-      throw new NotFoundException('Branch not found');
+      throw new NotFoundException("Branch not found");
     }
 
-    const channels = this.branchChannelsFor(query.channel ?? 'all');
+    const channels = this.branchChannelsFor(query.channel ?? "all");
     const events = await this.prisma.realtimeEvent.findMany({
       where: {
         branchId,
         ...(channels ? { channel: { in: channels } } : {}),
         ...(query.type ? { type: query.type as RealtimeEventType } : {}),
       },
-      orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+      orderBy: [{ createdAt: "desc" }, { id: "desc" }],
       take: this.normalizeLimit(query.limit),
       select: realtimeEventSelect,
     });
@@ -227,8 +227,8 @@ export class RealtimeEventsService {
     return {
       branch,
       filters: {
-        channel: query.channel ?? 'all',
-        type: query.type ?? 'all',
+        channel: query.channel ?? "all",
+        type: query.type ?? "all",
         limit: this.normalizeLimit(query.limit),
       },
       events: events.map((event) => this.toEnvelope(event)),
@@ -245,17 +245,17 @@ export class RealtimeEventsService {
     });
 
     if (!session) {
-      throw new NotFoundException('Table session not found');
+      throw new NotFoundException("Table session not found");
     }
 
-    const channels = this.sessionChannelsFor(query.channel ?? 'all');
+    const channels = this.sessionChannelsFor(query.channel ?? "all");
     const events = await this.prisma.realtimeEvent.findMany({
       where: {
         tableSessionId: sessionId,
         ...(channels ? { channel: { in: channels } } : {}),
         ...(query.type ? { type: query.type as RealtimeEventType } : {}),
       },
-      orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+      orderBy: [{ createdAt: "desc" }, { id: "desc" }],
       take: this.normalizeLimit(query.limit),
       select: realtimeEventSelect,
     });
@@ -263,8 +263,8 @@ export class RealtimeEventsService {
     return {
       tableSession: session,
       filters: {
-        channel: query.channel ?? 'all',
-        type: query.type ?? 'all',
+        channel: query.channel ?? "all",
+        type: query.type ?? "all",
         limit: this.normalizeLimit(query.limit),
       },
       events: events.map((event) => this.toEnvelope(event)),
@@ -556,10 +556,7 @@ export class RealtimeEventsService {
     );
   }
 
-  async recordPrintJobReprintRequested(
-    printJobId: string,
-    tx: PrismaExecutor,
-  ) {
+  async recordPrintJobReprintRequested(printJobId: string, tx: PrismaExecutor) {
     return this.recordPrintJobEvent(
       printJobId,
       RealtimeEventType.print_job_reprint_requested,
@@ -703,7 +700,44 @@ export class RealtimeEventsService {
   }
 
   async recordReceiptGenerated(billId: string, tx: PrismaExecutor) {
-    return this.recordBillEvent(billId, RealtimeEventType.receipt_generated, tx);
+    return this.recordBillEvent(
+      billId,
+      RealtimeEventType.receipt_generated,
+      tx,
+    );
+  }
+
+  async recordOnlinePaymentIntentCreated(
+    onlinePaymentIntentId: string,
+    tx: PrismaExecutor,
+  ) {
+    return this.recordOnlinePaymentEvent(
+      onlinePaymentIntentId,
+      RealtimeEventType.online_payment_intent_created,
+      tx,
+    );
+  }
+
+  async recordOnlinePaymentSucceeded(
+    onlinePaymentIntentId: string,
+    tx: PrismaExecutor,
+  ) {
+    return this.recordOnlinePaymentEvent(
+      onlinePaymentIntentId,
+      RealtimeEventType.online_payment_succeeded,
+      tx,
+    );
+  }
+
+  async recordOnlinePaymentFailed(
+    onlinePaymentIntentId: string,
+    tx: PrismaExecutor,
+  ) {
+    return this.recordOnlinePaymentEvent(
+      onlinePaymentIntentId,
+      RealtimeEventType.online_payment_failed,
+      tx,
+    );
   }
 
   private async recordNotificationStateChange(
@@ -753,7 +787,7 @@ export class RealtimeEventsService {
     });
 
     if (!order) {
-      throw new NotFoundException('Order not found');
+      throw new NotFoundException("Order not found");
     }
 
     const payload = {
@@ -815,7 +849,7 @@ export class RealtimeEventsService {
     });
 
     if (!order) {
-      throw new NotFoundException('Order not found');
+      throw new NotFoundException("Order not found");
     }
 
     const payload = {
@@ -882,7 +916,7 @@ export class RealtimeEventsService {
     });
 
     if (!task) {
-      throw new NotFoundException('Preparation task not found');
+      throw new NotFoundException("Preparation task not found");
     }
 
     const payload = {
@@ -1035,7 +1069,7 @@ export class RealtimeEventsService {
     });
 
     if (!waiterCall) {
-      throw new NotFoundException('Waiter call not found');
+      throw new NotFoundException("Waiter call not found");
     }
 
     const payload = {
@@ -1100,7 +1134,7 @@ export class RealtimeEventsService {
     });
 
     if (!billRequest) {
-      throw new NotFoundException('Bill request not found');
+      throw new NotFoundException("Bill request not found");
     }
 
     const payload = {
@@ -1174,7 +1208,7 @@ export class RealtimeEventsService {
     });
 
     if (!bill) {
-      throw new NotFoundException('Bill not found');
+      throw new NotFoundException("Bill not found");
     }
 
     const payload = {
@@ -1223,28 +1257,115 @@ export class RealtimeEventsService {
     return [branchEvent, sessionEvent];
   }
 
-  private branchChannelsFor(channel: BranchRealtimeQueryDto['channel']) {
+  private async recordOnlinePaymentEvent(
+    onlinePaymentIntentId: string,
+    type: RealtimeEventType,
+    tx: PrismaExecutor,
+  ) {
+    const intent = await tx.onlinePaymentIntent.findUnique({
+      where: { id: onlinePaymentIntentId },
+      select: {
+        id: true,
+        companyId: true,
+        branchId: true,
+        tableSessionId: true,
+        billId: true,
+        provider: true,
+        providerIntentId: true,
+        status: true,
+        amountMinor: true,
+        currency: true,
+        succeededAt: true,
+        failedAt: true,
+        cancelledAt: true,
+        expiredAt: true,
+        bill: {
+          select: {
+            id: true,
+            billRequestId: true,
+            billNumber: true,
+            status: true,
+            totalMinor: true,
+            paidMinor: true,
+            balanceDueMinor: true,
+          },
+        },
+      },
+    });
+
+    if (!intent) {
+      throw new NotFoundException("Online payment intent not found");
+    }
+
+    const payload = {
+      onlinePaymentIntentId: intent.id,
+      provider: intent.provider,
+      providerIntentId: intent.providerIntentId,
+      status: intent.status,
+      amountMinor: intent.amountMinor,
+      currency: intent.currency,
+      succeededAt: intent.succeededAt,
+      failedAt: intent.failedAt,
+      cancelledAt: intent.cancelledAt,
+      expiredAt: intent.expiredAt,
+      billId: intent.billId,
+      billRequestId: intent.bill.billRequestId,
+      billNumber: intent.bill.billNumber,
+      billStatus: intent.bill.status,
+      totalMinor: intent.bill.totalMinor,
+      paidMinor: intent.bill.paidMinor,
+      balanceDueMinor: intent.bill.balanceDueMinor,
+    };
+    const branchEvent = await this.createRealtimeEvent(
+      {
+        companyId: intent.companyId,
+        branchId: intent.branchId,
+        tableSessionId: intent.tableSessionId,
+        billRequestId: intent.bill.billRequestId,
+        type,
+        channel: RealtimeEventChannel.branch_orders,
+        payload,
+      },
+      tx,
+    );
+    const sessionEvent = await this.createRealtimeEvent(
+      {
+        companyId: intent.companyId,
+        branchId: intent.branchId,
+        tableSessionId: intent.tableSessionId,
+        billRequestId: intent.bill.billRequestId,
+        type,
+        channel: RealtimeEventChannel.session_status,
+        payload,
+      },
+      tx,
+    );
+
+    return [branchEvent, sessionEvent];
+  }
+
+  private branchChannelsFor(channel: BranchRealtimeQueryDto["channel"]) {
     switch (channel) {
-      case 'orders':
+      case "orders":
         return [RealtimeEventChannel.branch_orders];
-      case 'preparation':
+      case "preparation":
         return [RealtimeEventChannel.branch_preparation];
-      case 'waiter_calls':
+      case "waiter_calls":
         return [RealtimeEventChannel.branch_waiter_calls];
-      case 'notifications':
+      case "notifications":
         return [RealtimeEventChannel.branch_notifications];
       default:
         return undefined;
     }
   }
 
-  private sessionChannelsFor(channel: SessionRealtimeQueryDto['channel']) {
+  private sessionChannelsFor(channel: SessionRealtimeQueryDto["channel"]) {
     switch (channel) {
-      case 'status':
+      case "status":
         return [RealtimeEventChannel.session_status];
-      case 'notifications':
+      case "notifications":
         return [RealtimeEventChannel.session_notifications];
-      case 'waiter_calls':
+      case "waiter_calls":
         return [RealtimeEventChannel.session_waiter_calls];
       default:
         return undefined;
@@ -1290,7 +1411,7 @@ export class RealtimeEventsService {
     companyId: string;
     branchId?: string;
     tableSessionId?: string;
-    stream: 'branch' | 'table_session';
+    stream: "branch" | "table_session";
     requestedChannel: string;
   }): RealtimeEventEnvelope {
     const now = new Date();
@@ -1305,7 +1426,7 @@ export class RealtimeEventsService {
         tableSessionId: input.tableSessionId,
       },
       payload: {
-        kind: 'heartbeat',
+        kind: "heartbeat",
         stream: input.stream,
         requestedChannel: input.requestedChannel,
       },

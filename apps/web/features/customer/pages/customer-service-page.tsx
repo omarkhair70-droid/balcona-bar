@@ -3,15 +3,24 @@
 import Link from "next/link";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { type ReactNode, useEffect } from "react";
-import { BellRing, Droplets, HelpCircle, ReceiptText, Sparkles } from "lucide-react";
+import {
+  BellRing,
+  CreditCard,
+  Droplets,
+  HelpCircle,
+  ReceiptText,
+  Sparkles
+} from "lucide-react";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
 import { LoadingState } from "@/components/ui/loading-state";
 import {
+  createOnlinePaymentIntent,
   createWaiterCall,
   getBill,
   getWaiterCalls,
+  mockSucceedOnlinePayment,
   requestBill
 } from "@/lib/api/endpoints";
 import { formatErrorMessage } from "@/lib/api/error-message";
@@ -120,6 +129,43 @@ export function CustomerServicePage({ sessionId }: CustomerServicePageProps) {
     },
     onError: () => vibrateWarning()
   });
+  const onlinePaymentMutation = useMutation({
+    mutationFn: (billId: string) =>
+      createOnlinePaymentIntent(sessionId, billId, {}, token),
+    onSuccess: (result) => {
+      vibrateSuccess();
+      void queryClient.invalidateQueries({
+        queryKey: customerQueryKeys.bill(sessionId)
+      });
+      const intent = getRecord(result.onlinePaymentIntent);
+      const intentId = getRecordString(intent, "id", "");
+
+      if (intentId) {
+        void queryClient.invalidateQueries({
+          queryKey: customerQueryKeys.onlinePaymentIntent(sessionId, intentId)
+        });
+      }
+    },
+    onError: () => vibrateWarning()
+  });
+  const mockOnlinePaymentMutation = useMutation({
+    mutationFn: (intentId: string) => mockSucceedOnlinePayment(intentId, token),
+    onSuccess: (result) => {
+      vibrateSuccess();
+      void queryClient.invalidateQueries({
+        queryKey: customerQueryKeys.bill(sessionId)
+      });
+      const intent = getRecord(result.onlinePaymentIntent);
+      const intentId = getRecordString(intent, "id", "");
+
+      if (intentId) {
+        void queryClient.invalidateQueries({
+          queryKey: customerQueryKeys.onlinePaymentIntent(sessionId, intentId)
+        });
+      }
+    },
+    onError: () => vibrateWarning()
+  });
   const waiterCalls = getRecords(
     waiterCallsQuery.data?.waiterCalls ?? waiterCallsQuery.data?.calls
   );
@@ -149,6 +195,8 @@ export function CustomerServicePage({ sessionId }: CustomerServicePageProps) {
     "status",
     ""
   ).replaceAll("_", " ");
+  const activeBillRawStatus = getRecordString(activeBillRecord, "status", "");
+  const activeBillId = getRecordString(activeBillRecord, "id", "");
   const activeBillNumber = getRecordString(
     activeBillRecord,
     "billNumber",
@@ -164,6 +212,37 @@ export function CustomerServicePage({ sessionId }: CustomerServicePageProps) {
     "balanceDueMinor",
     activeBillTotalMinor
   );
+  const activeOnlinePaymentIntents = getRecords(
+    activeBillEnvelope?.onlinePaymentIntents ??
+      activeBillRecord?.onlinePaymentIntents ??
+      billQuery.data?.onlinePaymentIntents
+  );
+  const latestOnlinePaymentIntent =
+    activeOnlinePaymentIntents[activeOnlinePaymentIntents.length - 1];
+  const latestOnlinePaymentId = getRecordString(
+    latestOnlinePaymentIntent,
+    "id",
+    ""
+  );
+  const latestOnlinePaymentStatus = getRecordString(
+    latestOnlinePaymentIntent,
+    "status",
+    ""
+  );
+  const latestOnlinePaymentProvider = getRecordString(
+    latestOnlinePaymentIntent,
+    "provider",
+    "mock"
+  );
+  const latestOnlinePaymentCheckoutUrl = getRecordString(
+    latestOnlinePaymentIntent,
+    "providerCheckoutUrl",
+    ""
+  );
+  const hasActiveOnlinePayment =
+    latestOnlinePaymentStatus === "pending" ||
+    latestOnlinePaymentStatus === "requires_action";
+  const hasSucceededOnlinePayment = latestOnlinePaymentStatus === "succeeded";
   const hasNoBillableOrders = billQuery.isSuccess && billOrderCount === 0;
   const isBillRequestDisabled =
     billMutation.isPending ||
@@ -203,6 +282,20 @@ export function CustomerServicePage({ sessionId }: CustomerServicePageProps) {
     !activeBillReceipt &&
     !activeBillRecord &&
     !activeBillRequest;
+  const canPayOnline =
+    Boolean(activeBillId) &&
+    !activeBillReceipt &&
+    activeBillBalanceDueMinor > 0 &&
+    (activeBillRawStatus === "presented" ||
+      activeBillRawStatus === "payment_pending");
+  const onlinePaymentButtonLabel = onlinePaymentMutation.isPending
+    ? "Preparing checkout..."
+    : hasActiveOnlinePayment
+      ? "Checkout ready"
+      : "Pay online";
+  const mockSettleButtonLabel = mockOnlinePaymentMutation.isPending
+    ? "Confirming..."
+    : "Confirm mock payment";
 
   useEffect(() => {
     if (billHasResolvedState && billMutation.isError) {
@@ -373,8 +466,100 @@ export function CustomerServicePage({ sessionId }: CustomerServicePageProps) {
                     <span className="font-semibold text-foreground">
                       {formatMoney(activeBillBalanceDueMinor, billCurrency)}
                     </span>
-                    . Payment is handled with the cashier at the table.
+                    . Cashier manual payment remains available at the table.
                   </div>
+                  {canPayOnline ? (
+                    <div className="mt-3 rounded-card border border-primary/35 bg-primary/10 p-3">
+                      <div className="flex items-start gap-3">
+                        <CreditCard
+                          className="mt-0.5 size-5 text-primary"
+                          aria-hidden="true"
+                        />
+                        <div className="min-w-0 flex-1">
+                          <p className="text-sm font-semibold text-foreground">
+                            Pay online
+                          </p>
+                          <p className="mt-1 text-xs text-muted-foreground">
+                            This phase uses a hosted mock checkout. No card
+                            details are collected in the app.
+                          </p>
+                          {latestOnlinePaymentIntent ? (
+                            <p className="mt-2 text-xs text-muted-foreground">
+                              Latest online payment:{" "}
+                              {latestOnlinePaymentStatus.replaceAll("_", " ")}
+                              {latestOnlinePaymentProvider
+                                ? ` via ${latestOnlinePaymentProvider}`
+                                : ""}
+                              .
+                            </p>
+                          ) : null}
+                          {latestOnlinePaymentCheckoutUrl &&
+                          hasActiveOnlinePayment ? (
+                            <p className="mt-2 break-all text-xs text-muted-foreground">
+                              Mock checkout URL: {latestOnlinePaymentCheckoutUrl}
+                            </p>
+                          ) : null}
+                          <div className="mt-3 flex flex-wrap gap-2">
+                            <Button
+                              size="sm"
+                              onClick={() => {
+                                if (activeBillId) {
+                                  onlinePaymentMutation.mutate(activeBillId);
+                                }
+                              }}
+                              disabled={
+                                onlinePaymentMutation.isPending ||
+                                mockOnlinePaymentMutation.isPending ||
+                                hasActiveOnlinePayment ||
+                                hasSucceededOnlinePayment
+                              }
+                            >
+                              {onlinePaymentButtonLabel}
+                            </Button>
+                            {hasActiveOnlinePayment && latestOnlinePaymentId ? (
+                              <Button
+                                size="sm"
+                                variant="secondary"
+                                onClick={() =>
+                                  mockOnlinePaymentMutation.mutate(
+                                    latestOnlinePaymentId
+                                  )
+                                }
+                                disabled={mockOnlinePaymentMutation.isPending}
+                              >
+                                {mockSettleButtonLabel}
+                              </Button>
+                            ) : null}
+                          </div>
+                          {onlinePaymentMutation.isError ? (
+                            <div
+                              role="alert"
+                              className="mt-3 rounded-card border border-danger bg-danger/10 p-3 text-sm text-danger"
+                            >
+                              Online checkout could not be prepared.{" "}
+                              {formatErrorMessage(onlinePaymentMutation.error)}
+                            </div>
+                          ) : null}
+                          {mockOnlinePaymentMutation.isError ? (
+                            <div
+                              role="alert"
+                              className="mt-3 rounded-card border border-danger bg-danger/10 p-3 text-sm text-danger"
+                            >
+                              Mock payment could not be confirmed.{" "}
+                              {formatErrorMessage(
+                                mockOnlinePaymentMutation.error
+                              )}
+                            </div>
+                          ) : null}
+                        </div>
+                      </div>
+                    </div>
+                  ) : null}
+                  {hasSucceededOnlinePayment && !activeBillReceipt ? (
+                    <div className="mt-3 rounded-card border border-success bg-success/10 p-3 text-sm text-success">
+                      Online payment is confirmed. Receipt is being prepared.
+                    </div>
+                  ) : null}
                 </div>
               ) : null}
               {activeBillReceipt ? (

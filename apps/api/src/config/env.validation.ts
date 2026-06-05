@@ -1,4 +1,4 @@
-import { plainToInstance } from 'class-transformer';
+import { plainToInstance } from "class-transformer";
 import {
   IsBooleanString,
   IsEnum,
@@ -9,17 +9,22 @@ import {
   Max,
   Min,
   validateSync,
-} from 'class-validator';
+} from "class-validator";
 
 enum NodeEnvironment {
-  Development = 'development',
-  Test = 'test',
-  Production = 'production',
+  Development = "development",
+  Test = "test",
+  Production = "production",
 }
 
 enum AiWaiterProvider {
-  Stub = 'stub',
-  Groq = 'groq',
+  Stub = "stub",
+  Groq = "groq",
+}
+
+enum OnlinePaymentProvider {
+  Mock = "mock",
+  External = "external",
 }
 
 class EnvironmentVariables {
@@ -138,6 +143,22 @@ class EnvironmentVariables {
   @IsBooleanString()
   @IsOptional()
   GROQ_DRY_RUN?: string;
+
+  @IsBooleanString()
+  @IsOptional()
+  ONLINE_PAYMENTS_ENABLED?: string;
+
+  @IsEnum(OnlinePaymentProvider)
+  @IsOptional()
+  ONLINE_PAYMENT_PROVIDER?: OnlinePaymentProvider;
+
+  @IsBooleanString()
+  @IsOptional()
+  MOCK_ONLINE_PAYMENTS_ENABLED?: string;
+
+  @IsString()
+  @IsOptional()
+  ONLINE_PAYMENT_CHECKOUT_BASE_URL?: string;
 }
 
 export function validateEnvironment(config: Record<string, unknown>) {

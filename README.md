@@ -1,6 +1,6 @@
 # balcona-bar
 
-Balcona Bar is organized as a monorepo for the Cafe AI Waiter App / Smart Cafe Operating System. The backend core is complete through Phase 24, UI Phase 1 adds the first Next.js web foundation for customer and staff experiences, UI Phase 2 adds the customer PWA core, UI Phase 3 adds the customer AI waiter experience, UI Phase 4 adds the cashier dashboard core, UI Phase 5 adds the kitchen/barista dashboard core, UI Phase 6 adds the waiter dashboard and attention queue, UI Phase 7 adds the owner/manager command center, UI Phase 8 adds full demo hardening plus Balkona demo mode, Production Phase 1 adds deployable platform foundation files, Production Phase 2 adds AWS infrastructure foundation scaffolding without deploying resources, Production Phase 3A adds public demo deploy readiness plus CI/CD guardrails without deploying resources, Production Phase 3B adds the first public AWS demo preflight deploy pack without deploying resources, Product Phase 4A starts the full Cafe OS product completion track, Product Phase 4B adds branch-scoped menu admin and availability management, Product Phase 4C adds branch, tables, and QR management, Product Phase 4E.G0-G3 add a Groq AI waiter provider with safe backend validation, deep menu grounding, and modifier-turn ordering intelligence, Product Phase 4S.0 enforces staff roles, permissions, and branch access on the current staff product surfaces, Product Phase 4O.0 hardens order lifecycle transitions across cashier, preparation, waiter, and customer status flows, Product Phase 4K.0 adds KDS kitchen tickets plus a mock printer foundation for station operations, Product Phase 4P.0 adds stable bills, manual cashier payments, and receipt foundations, Product Phase 4C.0 adds cashier shifts, cash drawer transactions, and X/Z reports, Product Phase 4A.0 adds branch-scoped owner analytics and daily reports from real orders, bills, payments, shifts, operations, and AI waiter records, Product Phase 4T.0 adds guarded tenant onboarding and company/branch setup readiness, and Product Phase 4I.0 adds inventory and branch stock foundations for menu availability and accepted-order consumption.
+Balcona Bar is organized as a monorepo for the Cafe AI Waiter App / Smart Cafe Operating System. The backend core is complete through Phase 24, UI Phase 1 adds the first Next.js web foundation for customer and staff experiences, UI Phase 2 adds the customer PWA core, UI Phase 3 adds the customer AI waiter experience, UI Phase 4 adds the cashier dashboard core, UI Phase 5 adds the kitchen/barista dashboard core, UI Phase 6 adds the waiter dashboard and attention queue, UI Phase 7 adds the owner/manager command center, UI Phase 8 adds full demo hardening plus Balkona demo mode, Production Phase 1 adds deployable platform foundation files, Production Phase 2 adds AWS infrastructure foundation scaffolding without deploying resources, Production Phase 3A adds public demo deploy readiness plus CI/CD guardrails without deploying resources, Production Phase 3B adds the first public AWS demo preflight deploy pack without deploying resources, Product Phase 4A starts the full Cafe OS product completion track, Product Phase 4B adds branch-scoped menu admin and availability management, Product Phase 4C adds branch, tables, and QR management, Product Phase 4E.G0-G3 add a Groq AI waiter provider with safe backend validation, deep menu grounding, and modifier-turn ordering intelligence, Product Phase 4S.0 enforces staff roles, permissions, and branch access on the current staff product surfaces, Product Phase 4O.0 hardens order lifecycle transitions across cashier, preparation, waiter, and customer status flows, Product Phase 4K.0 adds KDS kitchen tickets plus a mock printer foundation for station operations, Product Phase 4P.0 adds stable bills, manual cashier payments, and receipt foundations, Product Phase 4PAY.1 adds mock/provider-agnostic online payment intents for presented bills, Product Phase 4C.0 adds cashier shifts, cash drawer transactions, and X/Z reports, Product Phase 4A.0 adds branch-scoped owner analytics and daily reports from real orders, bills, payments, shifts, operations, and AI waiter records, Product Phase 4T.0 adds guarded tenant onboarding and company/branch setup readiness, and Product Phase 4I.0 adds inventory and branch stock foundations for menu availability and accepted-order consumption.
 
 ## Layout
 
@@ -278,6 +278,39 @@ pnpm --filter @balcona-bar/web lint
 pnpm --filter @balcona-bar/web typecheck
 pnpm web:build
 ```
+
+## Product Phase 4PAY.1 status
+
+Product Phase 4PAY.1 adds the first online payment foundation while keeping
+real gateway integration out of scope:
+
+- customers can start an online payment intent only for presented/payment-pending
+  bills;
+- the local/dev provider is `mock`, with webhook-shaped succeed/fail endpoints;
+- backend settlement uses an exact atomic bill guard before marking the bill
+  paid;
+- duplicate provider events do not create duplicate settlement;
+- online success after manual payment records a skipped settlement instead of
+  double-paying the bill;
+- paid online bills generate receipts and emit bill/realtime events;
+- cashier cards show online payment state while manual payment remains supported;
+- owner analytics include `online_mock` and `online_external` tender rows;
+- cashier shift reports keep expected drawer cash unchanged.
+
+Local payment env:
+
+```env
+ONLINE_PAYMENTS_ENABLED=true
+ONLINE_PAYMENT_PROVIDER=mock
+MOCK_ONLINE_PAYMENTS_ENABLED=true
+ONLINE_PAYMENT_CHECKOUT_BASE_URL=http://localhost:3001
+```
+
+This phase does not add real card processing, provider SDKs, raw card entry,
+refunds, split payments, POS sync, or SaaS subscription billing. See
+`docs/architecture/product-phase-4pay1-online-payment-foundation.md` for the
+data model, webhook/idempotency flow, settlement guard, analytics behavior, and
+limitations.
 
 ## Product Phase 4C.0 status
 

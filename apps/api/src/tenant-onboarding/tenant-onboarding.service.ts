@@ -2,8 +2,8 @@ import {
   BadRequestException,
   Injectable,
   NotFoundException,
-} from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
+} from "@nestjs/common";
+import { ConfigService } from "@nestjs/config";
 import {
   BranchStatus,
   CompanyStatus,
@@ -14,9 +14,9 @@ import {
   StaffRole,
   StaffStatus,
   TableStatus,
-} from '@prisma/client';
-import { PrismaService } from '../prisma/prisma.service';
-import { StaffAccessService } from '../staff/staff-access.service';
+} from "@prisma/client";
+import { PrismaService } from "../prisma/prisma.service";
+import { StaffAccessService } from "../staff/staff-access.service";
 import {
   BulkCreateOnboardingTablesDto,
   CreateOnboardingFloorDto,
@@ -24,7 +24,7 @@ import {
   UpdateBranchOnboardingProfileDto,
   UpdateCompanyOnboardingProfileDto,
   UpdateReadinessCheckDto,
-} from './dto/tenant-onboarding.dto';
+} from "./dto/tenant-onboarding.dto";
 
 type PrismaExecutor = PrismaService | Prisma.TransactionClient;
 
@@ -115,7 +115,7 @@ type StaffMembershipRecord = Prisma.StaffMembershipGetPayload<{
   select: typeof staffMembershipSelect;
 }>;
 
-type ReadinessStatus = 'ready' | 'missing' | 'needs_attention' | 'blocked';
+type ReadinessStatus = "ready" | "missing" | "needs_attention" | "blocked";
 
 type ChecklistItem = {
   key: string;
@@ -138,19 +138,19 @@ type ReadinessSection = {
 
 const qrTokenPattern = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 const criticalLaunchKeys = new Set([
-  'company_profile',
-  'branch_profile',
-  'tables_created',
-  'qr_links_ready',
-  'owner_staff_ready',
-  'cashier_staff_ready',
-  'kitchen_staff_ready',
-  'waiter_staff_ready',
-  'menu_categories_ready',
-  'menu_items_ready',
-  'bills_payment_ready',
-  'shifts_ready',
-  'analytics_ready',
+  "company_profile",
+  "branch_profile",
+  "tables_created",
+  "qr_links_ready",
+  "owner_staff_ready",
+  "cashier_staff_ready",
+  "kitchen_staff_ready",
+  "waiter_staff_ready",
+  "menu_categories_ready",
+  "menu_items_ready",
+  "bills_payment_ready",
+  "shifts_ready",
+  "analytics_ready",
 ]);
 
 @Injectable()
@@ -167,7 +167,7 @@ export class TenantOnboardingService {
       await Promise.all([
         this.prisma.branch.findMany({
           where: { companyId: company.id },
-          orderBy: [{ name: 'asc' }],
+          orderBy: [{ name: "asc" }],
           select: {
             ...branchSelect,
             _count: {
@@ -183,7 +183,7 @@ export class TenantOnboardingService {
           select: staffMembershipSelect,
         }),
         this.prisma.menuCategory.count({
-          where: { companyId: company.id, status: 'active' },
+          where: { companyId: company.id, status: "active" },
         }),
         this.prisma.menuItem.count({
           where: { companyId: company.id, status: MenuItemStatus.active },
@@ -197,50 +197,50 @@ export class TenantOnboardingService {
     const items = [
       ...companyProfileItems,
       this.item(
-        'branches_created',
-        'Branches created',
+        "branches_created",
+        "Branches created",
         branches.length > 0,
         branches.length > 0
-          ? `${branches.length} branch setup record${branches.length === 1 ? '' : 's'} found.`
-          : 'Create at least one branch before launch setup can continue.',
-        '/staff/branches',
+          ? `${branches.length} branch setup record${branches.length === 1 ? "" : "s"} found.`
+          : "Create at least one branch before launch setup can continue.",
+        "/staff/branches",
         { branchCount: branches.length },
       ),
       this.item(
-        'active_branch_ready',
-        'Active branch ready',
+        "active_branch_ready",
+        "Active branch ready",
         branchesReady > 0,
         branchesReady > 0
-          ? `${branchesReady} active branch${branchesReady === 1 ? '' : 'es'} ready for setup.`
-          : 'At least one branch must be active before customer QR sessions can launch.',
-        '/staff/branches',
+          ? `${branchesReady} active branch${branchesReady === 1 ? "" : "es"} ready for setup.`
+          : "At least one branch must be active before customer QR sessions can launch.",
+        "/staff/branches",
         { activeBranchCount: branchesReady },
       ),
       this.item(
-        'owner_staff_ready',
-        'Owner or manager assigned',
+        "owner_staff_ready",
+        "Owner or manager assigned",
         (roleCounts.owner ?? 0) + (roleCounts.branch_manager ?? 0) > 0,
         (roleCounts.owner ?? 0) + (roleCounts.branch_manager ?? 0) > 0
-          ? 'Owner or branch manager access is present.'
-          : 'Add an owner or branch manager before launch.',
-        '/staff/setup',
+          ? "Owner or branch manager access is present."
+          : "Add an owner or branch manager before launch.",
+        "/staff/setup",
         {
           owners: roleCounts.owner ?? 0,
           branchManagers: roleCounts.branch_manager ?? 0,
         },
       ),
       this.item(
-        'menu_items_ready',
-        'Company menu has items',
+        "menu_items_ready",
+        "Company menu has items",
         categoryCount > 0 && activeItemCount > 0,
         categoryCount > 0 && activeItemCount > 0
-          ? `${activeItemCount} active menu item${activeItemCount === 1 ? '' : 's'} in ${categoryCount} active categor${categoryCount === 1 ? 'y' : 'ies'}.`
-          : 'Create active menu categories and items before customer ordering.',
-        '/staff/menu',
+          ? `${activeItemCount} active menu item${activeItemCount === 1 ? "" : "s"} in ${categoryCount} active categor${categoryCount === 1 ? "y" : "ies"}.`
+          : "Create active menu categories and items before customer ordering.",
+        "/staff/menu",
         { categoryCount, activeItemCount },
       ),
     ];
-    const summary = this.section('company_setup', 'Company setup', items);
+    const summary = this.section("company_setup", "Company setup", items);
 
     return {
       company,
@@ -261,8 +261,7 @@ export class TenantOnboardingService {
         roleCounts,
         companyScopedCount: memberships.filter((entry) => !entry.branchId)
           .length,
-        branchScopedCount: memberships.filter((entry) => entry.branchId)
-          .length,
+        branchScopedCount: memberships.filter((entry) => entry.branchId).length,
       },
       menu: {
         activeCategoryCount: categoryCount,
@@ -313,7 +312,7 @@ export class TenantOnboardingService {
         onboarding: await this.getCompanyOnboarding(company.id),
       };
     } catch (error) {
-      this.handleKnownWriteError(error, 'Company slug must be unique');
+      this.handleKnownWriteError(error, "Company slug must be unique");
     }
   }
 
@@ -333,7 +332,7 @@ export class TenantOnboardingService {
         data.slug = body.slug.trim();
       }
 
-      if (Object.prototype.hasOwnProperty.call(body, 'address')) {
+      if (Object.prototype.hasOwnProperty.call(body, "address")) {
         data.address = this.normalizeOptionalText(body.address);
       }
 
@@ -354,7 +353,7 @@ export class TenantOnboardingService {
     } catch (error) {
       this.handleKnownWriteError(
         error,
-        'Branch slug must be unique per company',
+        "Branch slug must be unique per company",
       );
     }
   }
@@ -420,7 +419,7 @@ export class TenantOnboardingService {
 
       for (let index = 0; index < body.count; index += 1) {
         const number = body.startNumber + index;
-        const code = `${prefix}${String(number).padStart(2, '0')}`;
+        const code = `${prefix}${String(number).padStart(2, "0")}`;
         const existingTable = await tx.cafeTable.findFirst({
           where: { branchId: branch.id, code },
           select: tableSelect,
@@ -430,7 +429,7 @@ export class TenantOnboardingService {
           skipped.push({
             code,
             displayName: existingTable.displayName,
-            reason: 'table_code_exists',
+            reason: "table_code_exists",
             table: existingTable,
           });
           continue;
@@ -480,9 +479,13 @@ export class TenantOnboardingService {
       const role = body.role;
 
       if (role === StaffRole.owner) {
-        await this.staffAccessService.assertCan(actorStaffUserId, 'staff.manage', {
-          companyId: branch.companyId,
-        });
+        await this.staffAccessService.assertCan(
+          actorStaffUserId,
+          "staff.manage",
+          {
+            companyId: branch.companyId,
+          },
+        );
       }
 
       const existingStaffUser = await tx.staffUser.findUnique({
@@ -534,11 +537,11 @@ export class TenantOnboardingService {
         passwordSetup: {
           required: !staffUser.passwordSetAt,
           devBootstrapAvailable: this.configService.get<boolean>(
-            'staffAuth.devBootstrapEnabled',
+            "staffAuth.devBootstrapEnabled",
             false,
           ),
           nextStep:
-            'Set the staff password through the secure staff auth flow. Development bootstrap is only available when explicitly enabled.',
+            "Set the staff password through the secure staff auth flow. Development bootstrap is only available when explicitly enabled.",
         },
         onboarding: await this.buildBranchOnboarding(branch, tx),
       };
@@ -565,7 +568,7 @@ export class TenantOnboardingService {
         persisted: false,
       },
       message:
-        'Readiness is computed from live setup records in Phase 4T.0; manual checklist persistence is reserved for a later workflow phase.',
+        "Readiness is computed from live setup records in Phase 4T.0; manual checklist persistence is reserved for a later workflow phase.",
       onboarding,
     };
   }
@@ -605,12 +608,12 @@ export class TenantOnboardingService {
     ] = await Promise.all([
       tx.floor.findMany({
         where: { branchId: branch.id },
-        orderBy: [{ sortOrder: 'asc' }, { name: 'asc' }],
+        orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
         select: floorSelect,
       }),
       tx.cafeTable.findMany({
         where: { branchId: branch.id },
-        orderBy: [{ code: 'asc' }],
+        orderBy: [{ code: "asc" }],
         select: tableSelect,
       }),
       tx.staffMembership.findMany({
@@ -622,7 +625,7 @@ export class TenantOnboardingService {
         select: staffMembershipSelect,
       }),
       tx.menuCategory.count({
-        where: { companyId: branch.companyId, status: 'active' },
+        where: { companyId: branch.companyId, status: "active" },
       }),
       tx.menuItem.findMany({
         where: {
@@ -669,7 +672,7 @@ export class TenantOnboardingService {
       }),
       tx.printerStation.count({ where: { branchId: branch.id } }),
       tx.printerStation.count({
-        where: { branchId: branch.id, status: 'active' },
+        where: { branchId: branch.id, status: "active" },
       }),
       tx.branchOperatingSettings.findUnique({
         where: { branchId: branch.id },
@@ -690,8 +693,8 @@ export class TenantOnboardingService {
         select: { mode: true, enabled: true },
       }),
       tx.cashierShift.findFirst({
-        where: { branchId: branch.id, status: 'open' },
-        orderBy: [{ openedAt: 'desc' }],
+        where: { branchId: branch.id, status: "open" },
+        orderBy: [{ openedAt: "desc" }],
         select: { id: true, status: true, openedAt: true },
       }),
       tx.inventoryItem.count({
@@ -762,37 +765,45 @@ export class TenantOnboardingService {
     const featureFlagMap = Object.fromEntries(
       featureFlags.map((flag) => [flag.key, flag.enabled]),
     );
+    const onlinePaymentsEnabled =
+      this.configService.get<boolean>("onlinePayments.enabled") !== false;
+    const onlinePaymentProvider =
+      this.configService.get<string>("onlinePayments.provider") ?? "mock";
+    const mockOnlinePaymentsEnabled =
+      this.configService.get<boolean>("onlinePayments.mockEnabled") !== false;
+    const onlinePaymentProviderIsMock =
+      onlinePaymentsEnabled && onlinePaymentProvider === "mock";
     const companyProfileItems = this.getCompanyProfileItems(branch.company);
     const branchProfileItems = this.getBranchProfileItems(branch);
     const tablesItems = [
       this.item(
-        'floors_created',
-        'Floors or areas created',
+        "floors_created",
+        "Floors or areas created",
         floors.length > 0,
         floors.length > 0
-          ? `${floors.length} floor or area record${floors.length === 1 ? '' : 's'} ready.`
-          : 'Create at least one floor or service area.',
-        '/staff/setup',
+          ? `${floors.length} floor or area record${floors.length === 1 ? "" : "s"} ready.`
+          : "Create at least one floor or service area.",
+        "/staff/setup",
         { floorCount: floors.length },
       ),
       this.item(
-        'tables_created',
-        'Active tables created',
+        "tables_created",
+        "Active tables created",
         activeTables.length > 0,
         activeTables.length > 0
-          ? `${activeTables.length} active table${activeTables.length === 1 ? '' : 's'} ready.`
-          : 'Create active tables before customer QR launch.',
-        '/staff/setup',
+          ? `${activeTables.length} active table${activeTables.length === 1 ? "" : "s"} ready.`
+          : "Create active tables before customer QR launch.",
+        "/staff/setup",
         { activeTableCount: activeTables.length, tableCount: tables.length },
       ),
       this.item(
-        'qr_links_ready',
-        'QR links ready',
+        "qr_links_ready",
+        "QR links ready",
         activeTables.length > 0 && qrReadyTables.length === activeTables.length,
         activeTables.length > 0 && qrReadyTables.length === activeTables.length
-          ? 'Every active table has a QR token.'
-          : `${Math.max(activeTables.length - qrReadyTables.length, 0)} active table${activeTables.length - qrReadyTables.length === 1 ? '' : 's'} still need QR tokens.`,
-        '/staff/branches',
+          ? "Every active table has a QR token."
+          : `${Math.max(activeTables.length - qrReadyTables.length, 0)} active table${activeTables.length - qrReadyTables.length === 1 ? "" : "s"} still need QR tokens.`,
+        "/staff/branches",
         {
           activeTableCount: activeTables.length,
           qrReadyTableCount: qrReadyTables.length,
@@ -801,53 +812,63 @@ export class TenantOnboardingService {
     ];
     const staffItems = [
       this.roleItem(
-        'owner_staff_ready',
-        'Owner or manager ready',
-        ['owner', 'branch_manager'],
+        "owner_staff_ready",
+        "Owner or manager ready",
+        ["owner", "branch_manager"],
         roleCounts,
-        '/staff/setup',
+        "/staff/setup",
       ),
-      this.roleItem('cashier_staff_ready', 'Cashier ready', ['cashier'], roleCounts),
       this.roleItem(
-        'kitchen_staff_ready',
-        'Kitchen or barista ready',
-        ['kitchen', 'barista'],
+        "cashier_staff_ready",
+        "Cashier ready",
+        ["cashier"],
         roleCounts,
       ),
-      this.roleItem('waiter_staff_ready', 'Waiter ready', ['waiter'], roleCounts),
+      this.roleItem(
+        "kitchen_staff_ready",
+        "Kitchen or barista ready",
+        ["kitchen", "barista"],
+        roleCounts,
+      ),
+      this.roleItem(
+        "waiter_staff_ready",
+        "Waiter ready",
+        ["waiter"],
+        roleCounts,
+      ),
     ];
     const menuItemsReadiness = [
       this.item(
-        'menu_categories_ready',
-        'Menu categories ready',
+        "menu_categories_ready",
+        "Menu categories ready",
         activeCategoryCount > 0,
         activeCategoryCount > 0
-          ? `${activeCategoryCount} active categor${activeCategoryCount === 1 ? 'y' : 'ies'} ready.`
-          : 'Add active menu categories.',
-        '/staff/menu',
+          ? `${activeCategoryCount} active categor${activeCategoryCount === 1 ? "y" : "ies"} ready.`
+          : "Add active menu categories.",
+        "/staff/menu",
         { activeCategoryCount },
       ),
       this.item(
-        'menu_items_ready',
-        'Active menu items ready',
+        "menu_items_ready",
+        "Active menu items ready",
         activeMenuItems.length > 0 && availableMenuItems.length > 0,
         activeMenuItems.length > 0 && availableMenuItems.length > 0
-          ? `${availableMenuItems.length} branch-available item${availableMenuItems.length === 1 ? '' : 's'} from ${activeMenuItems.length} active item${activeMenuItems.length === 1 ? '' : 's'}.`
-          : 'Add active menu items and branch availability before customer ordering.',
-        '/staff/menu',
+          ? `${availableMenuItems.length} branch-available item${availableMenuItems.length === 1 ? "" : "s"} from ${activeMenuItems.length} active item${activeMenuItems.length === 1 ? "" : "s"}.`
+          : "Add active menu items and branch availability before customer ordering.",
+        "/staff/menu",
         {
           activeItemCount: activeMenuItems.length,
           availableItemCount: availableMenuItems.length,
         },
       ),
       this.item(
-        'modifiers_ready',
-        'Modifier structure checked',
+        "modifiers_ready",
+        "Modifier structure checked",
         activeModifierGroupCount > 0 && itemModifierLinkCount > 0,
         activeModifierGroupCount > 0 && itemModifierLinkCount > 0
-          ? `${activeModifierGroupCount} active modifier group${activeModifierGroupCount === 1 ? '' : 's'} linked to menu items.`
-          : 'No active modifiers are linked yet. Simple menus can launch, but modifier-heavy cafes should finish this.',
-        '/staff/menu',
+          ? `${activeModifierGroupCount} active modifier group${activeModifierGroupCount === 1 ? "" : "s"} linked to menu items.`
+          : "No active modifiers are linked yet. Simple menus can launch, but modifier-heavy cafes should finish this.",
+        "/staff/menu",
         {
           activeModifierGroupCount,
           itemModifierLinkCount,
@@ -855,32 +876,32 @@ export class TenantOnboardingService {
         },
         activeModifierGroupCount > 0 && itemModifierLinkCount > 0
           ? undefined
-          : 'needs_attention',
+          : "needs_attention",
       ),
       this.item(
-        'ai_waiter_menu_grounding_ready',
-        'AI waiter menu grounding ready',
+        "ai_waiter_menu_grounding_ready",
+        "AI waiter menu grounding ready",
         availableMenuItems.length >= 3 && missingPriceItems.length === 0,
         availableMenuItems.length >= 3 && missingPriceItems.length === 0
-          ? 'The branch menu has enough priced available items for grounded suggestions.'
-          : 'AI waiter suggestions need at least three priced branch-available items.',
-        '/staff/menu',
+          ? "The branch menu has enough priced available items for grounded suggestions."
+          : "AI waiter suggestions need at least three priced branch-available items.",
+        "/staff/menu",
         {
           availableItemCount: availableMenuItems.length,
           missingPriceItemCount: missingPriceItems.length,
         },
         availableMenuItems.length >= 3 && missingPriceItems.length === 0
           ? undefined
-          : 'needs_attention',
+          : "needs_attention",
       ),
       this.item(
-        'inventory_foundation_ready',
-        'Inventory foundation ready',
+        "inventory_foundation_ready",
+        "Inventory foundation ready",
         inventoryItemCount > 0 && activeInventoryLevels.length > 0,
         inventoryItemCount > 0 && activeInventoryLevels.length > 0
-          ? `${inventoryItemCount} active inventory item${inventoryItemCount === 1 ? '' : 's'} and ${activeInventoryLevels.length} branch stock level${activeInventoryLevels.length === 1 ? '' : 's'} ready.`
-          : 'Add inventory items and opening branch stock before pilot operations.',
-        '/staff/inventory',
+          ? `${inventoryItemCount} active inventory item${inventoryItemCount === 1 ? "" : "s"} and ${activeInventoryLevels.length} branch stock level${activeInventoryLevels.length === 1 ? "" : "s"} ready.`
+          : "Add inventory items and opening branch stock before pilot operations.",
+        "/staff/inventory",
         {
           inventoryItemCount,
           trackedLevelCount: activeInventoryLevels.length,
@@ -889,60 +910,78 @@ export class TenantOnboardingService {
         },
         inventoryItemCount > 0 && activeInventoryLevels.length > 0
           ? undefined
-          : 'needs_attention',
+          : "needs_attention",
       ),
     ];
     const operationsItems = [
       this.item(
-        'cashier_shift_ready',
-        'Cashier shift can open',
+        "cashier_shift_ready",
+        "Cashier shift can open",
         (roleCounts.cashier ?? 0) > 0 && activeTables.length > 0,
         (roleCounts.cashier ?? 0) > 0 && activeTables.length > 0
           ? currentOpenShift
-            ? 'A cashier shift is already open.'
-            : 'Cashier role and active tables are ready; a shift can be opened at service start.'
-          : 'Cashier shifts need cashier staff and active tables.',
-        '/staff/cashier',
+            ? "A cashier shift is already open."
+            : "Cashier role and active tables are ready; a shift can be opened at service start."
+          : "Cashier shifts need cashier staff and active tables.",
+        "/staff/cashier",
         { currentOpenShift },
       ),
       this.item(
-        'printer_foundation_ready',
-        'Printer foundation ready',
+        "printer_foundation_ready",
+        "Printer foundation ready",
         activePrinterStationCount > 0,
         activePrinterStationCount > 0
-          ? `${activePrinterStationCount} active printer station${activePrinterStationCount === 1 ? '' : 's'} configured.`
-          : 'No active printer station is configured yet. Mock printer setup is enough for demo, hardware can follow.',
-        '/staff/kitchen',
+          ? `${activePrinterStationCount} active printer station${activePrinterStationCount === 1 ? "" : "s"} configured.`
+          : "No active printer station is configured yet. Mock printer setup is enough for demo, hardware can follow.",
+        "/staff/kitchen",
         { printerStationCount, activePrinterStationCount },
-        activePrinterStationCount > 0 ? undefined : 'needs_attention',
+        activePrinterStationCount > 0 ? undefined : "needs_attention",
       ),
       this.item(
-        'bills_payment_ready',
-        'Bill and manual payment flow ready',
-        (roleCounts.cashier ?? 0) > 0 && Boolean(featureFlagMap.bill_flow ?? true),
+        "bills_payment_ready",
+        "Bill and manual payment flow ready",
+        (roleCounts.cashier ?? 0) > 0 &&
+          Boolean(featureFlagMap.bill_flow ?? true),
         (roleCounts.cashier ?? 0) > 0
-          ? 'Bill presentation and manual payment are enabled through cashier operations.'
-          : 'Add cashier staff before bill/payment handoff is ready.',
-        '/staff/cashier',
+          ? "Bill presentation and manual payment are enabled through cashier operations."
+          : "Add cashier staff before bill/payment handoff is ready.",
+        "/staff/cashier",
         { billFlowEnabled: featureFlagMap.bill_flow ?? true },
       ),
       this.item(
-        'kds_ready',
-        'KDS ticket system ready',
-        (roleCounts.kitchen ?? 0) + (roleCounts.barista ?? 0) > 0,
-        (roleCounts.kitchen ?? 0) + (roleCounts.barista ?? 0) > 0
-          ? 'Kitchen or barista staff can work preparation tasks and tickets.'
-          : 'Add kitchen or barista staff before station operations launch.',
-        '/staff/kitchen',
+        "online_payment_provider_ready",
+        "Online payment provider foundation",
+        onlinePaymentsEnabled && !onlinePaymentProviderIsMock,
+        onlinePaymentsEnabled
+          ? onlinePaymentProviderIsMock
+            ? "Mock online payments are enabled for local/dev checkout. Configure an external provider before production pilots."
+            : "Online payment provider foundation is configured beyond mock checkout."
+          : "Enable online payments before customer hosted checkout can be used.",
+        "/staff/cashier",
+        {
+          onlinePaymentsEnabled,
+          onlinePaymentProvider,
+          mockOnlinePaymentsEnabled,
+        },
+        onlinePaymentProviderIsMock ? "needs_attention" : "missing",
       ),
       this.item(
-        'analytics_ready',
-        'Owner analytics access ready',
+        "kds_ready",
+        "KDS ticket system ready",
+        (roleCounts.kitchen ?? 0) + (roleCounts.barista ?? 0) > 0,
+        (roleCounts.kitchen ?? 0) + (roleCounts.barista ?? 0) > 0
+          ? "Kitchen or barista staff can work preparation tasks and tickets."
+          : "Add kitchen or barista staff before station operations launch.",
+        "/staff/kitchen",
+      ),
+      this.item(
+        "analytics_ready",
+        "Owner analytics access ready",
         (roleCounts.owner ?? 0) + (roleCounts.branch_manager ?? 0) > 0,
         (roleCounts.owner ?? 0) + (roleCounts.branch_manager ?? 0) > 0
-          ? 'Owner-level analytics access exists for this branch.'
-          : 'Add an owner or branch manager before analytics can be reviewed.',
-        '/staff/owner',
+          ? "Owner-level analytics access exists for this branch."
+          : "Add an owner or branch manager before analytics can be reviewed.",
+        "/staff/owner",
       ),
     ];
     const launchChecklist = [
@@ -954,12 +993,16 @@ export class TenantOnboardingService {
       ...operationsItems,
     ];
     const sections = [
-      this.section('company_profile', 'Company profile', companyProfileItems),
-      this.section('branch_profile', 'Branch profile', branchProfileItems),
-      this.section('tables_qr', 'Tables and QR', tablesItems),
-      this.section('staff_setup', 'Staff setup', staffItems),
-      this.section('menu_readiness', 'Menu readiness', menuItemsReadiness),
-      this.section('operations_readiness', 'Operations readiness', operationsItems),
+      this.section("company_profile", "Company profile", companyProfileItems),
+      this.section("branch_profile", "Branch profile", branchProfileItems),
+      this.section("tables_qr", "Tables and QR", tablesItems),
+      this.section("staff_setup", "Staff setup", staffItems),
+      this.section("menu_readiness", "Menu readiness", menuItemsReadiness),
+      this.section(
+        "operations_readiness",
+        "Operations readiness",
+        operationsItems,
+      ),
     ];
 
     return {
@@ -972,9 +1015,14 @@ export class TenantOnboardingService {
         tableCount: tables.length,
         activeTableCount: activeTables.length,
         qrReadyTableCount: qrReadyTables.length,
-        missingQrTableCount: Math.max(activeTables.length - qrReadyTables.length, 0),
+        missingQrTableCount: Math.max(
+          activeTables.length - qrReadyTables.length,
+          0,
+        ),
         floors,
-        recentTables: tables.slice(0, 12).map((table) => this.toTableSummary(table)),
+        recentTables: tables
+          .slice(0, 12)
+          .map((table) => this.toTableSummary(table)),
       },
       staff: {
         total: memberships.length,
@@ -1025,15 +1073,15 @@ export class TenantOnboardingService {
   private getCompanyProfileItems(company: CompanyRecord): ChecklistItem[] {
     return [
       this.item(
-        'company_profile',
-        'Company profile complete',
+        "company_profile",
+        "Company profile complete",
         Boolean(company.name?.trim()) &&
           Boolean(company.slug?.trim()) &&
           company.status === CompanyStatus.active,
         company.status === CompanyStatus.active
-          ? 'Company name, slug, and active status are set.'
-          : 'Company must be active with a usable name and slug.',
-        '/staff/setup',
+          ? "Company name, slug, and active status are set."
+          : "Company must be active with a usable name and slug.",
+        "/staff/setup",
         { status: company.status },
       ),
     ];
@@ -1042,16 +1090,16 @@ export class TenantOnboardingService {
   private getBranchProfileItems(branch: BranchRecord): ChecklistItem[] {
     return [
       this.item(
-        'branch_profile',
-        'Branch profile complete',
+        "branch_profile",
+        "Branch profile complete",
         Boolean(branch.name?.trim()) &&
           Boolean(branch.slug?.trim()) &&
           Boolean(branch.address?.trim()) &&
           branch.status === BranchStatus.active,
         branch.status === BranchStatus.active && Boolean(branch.address?.trim())
-          ? 'Branch name, slug, address, and active status are set.'
-          : 'Branch should be active and include name, slug, and address before launch.',
-        '/staff/setup',
+          ? "Branch name, slug, address, and active status are set."
+          : "Branch should be active and include name, slug, and address before launch.",
+        "/staff/setup",
         { status: branch.status, hasAddress: Boolean(branch.address?.trim()) },
       ),
     ];
@@ -1064,12 +1112,12 @@ export class TenantOnboardingService {
     reason: string,
     actionHref?: string,
     metadata?: Record<string, unknown>,
-    fallbackStatus: ReadinessStatus = 'missing',
+    fallbackStatus: ReadinessStatus = "missing",
   ): ChecklistItem {
     return {
       key,
       label,
-      status: ready ? 'ready' : fallbackStatus,
+      status: ready ? "ready" : fallbackStatus,
       reason,
       actionHref,
       metadata,
@@ -1079,9 +1127,9 @@ export class TenantOnboardingService {
   private roleItem(
     key: string,
     label: string,
-    roles: Array<keyof ReturnType<TenantOnboardingService['countRoles']>>,
-    roleCounts: ReturnType<TenantOnboardingService['countRoles']>,
-    actionHref = '/staff/setup',
+    roles: Array<keyof ReturnType<TenantOnboardingService["countRoles"]>>,
+    roleCounts: ReturnType<TenantOnboardingService["countRoles"]>,
+    actionHref = "/staff/setup",
   ): ChecklistItem {
     const count = roles.reduce((sum, role) => sum + (roleCounts[role] ?? 0), 0);
 
@@ -1090,8 +1138,8 @@ export class TenantOnboardingService {
       label,
       count > 0,
       count > 0
-        ? `${count} matching staff assignment${count === 1 ? '' : 's'} found.`
-        : `Add ${roles.join(' or ')} staff before launch.`,
+        ? `${count} matching staff assignment${count === 1 ? "" : "s"} found.`
+        : `Add ${roles.join(" or ")} staff before launch.`,
       actionHref,
       { roles, count },
     );
@@ -1102,17 +1150,17 @@ export class TenantOnboardingService {
     label: string,
     items: ChecklistItem[],
   ): ReadinessSection {
-    const readyCount = items.filter((item) => item.status === 'ready').length;
+    const readyCount = items.filter((item) => item.status === "ready").length;
     const totalCount = items.length;
     const percentage =
       totalCount === 0 ? 0 : Math.round((readyCount / totalCount) * 100);
-    const status = items.some((item) => item.status === 'blocked')
-      ? 'blocked'
+    const status = items.some((item) => item.status === "blocked")
+      ? "blocked"
       : readyCount === totalCount
-        ? 'ready'
-        : items.some((item) => item.status === 'needs_attention')
-          ? 'needs_attention'
-          : 'missing';
+        ? "ready"
+        : items.some((item) => item.status === "needs_attention")
+          ? "needs_attention"
+          : "missing";
 
     return {
       key,
@@ -1126,23 +1174,28 @@ export class TenantOnboardingService {
   }
 
   private launchSummary(items: ChecklistItem[]) {
-    const criticalItems = items.filter((item) => criticalLaunchKeys.has(item.key));
-    const missingCritical = criticalItems.filter((item) => item.status !== 'ready');
+    const criticalItems = items.filter((item) =>
+      criticalLaunchKeys.has(item.key),
+    );
+    const missingCritical = criticalItems.filter(
+      (item) => item.status !== "ready",
+    );
     const printerReady = items.some(
-      (item) => item.key === 'printer_foundation_ready' && item.status === 'ready',
+      (item) =>
+        item.key === "printer_foundation_ready" && item.status === "ready",
     );
     const modifiersReady = items.some(
-      (item) => item.key === 'modifiers_ready' && item.status === 'ready',
+      (item) => item.key === "modifiers_ready" && item.status === "ready",
     );
     const readyForDemo = missingCritical.length === 0;
     const readyForPilot = readyForDemo && printerReady && modifiersReady;
 
     return {
       status: readyForPilot
-        ? 'ready_for_pilot'
+        ? "ready_for_pilot"
         : readyForDemo
-          ? 'ready_for_demo'
-          : 'blocked',
+          ? "ready_for_demo"
+          : "blocked",
       readyForDemo,
       readyForPilot,
       blockedReasons: missingCritical.map((item) => ({
@@ -1215,7 +1268,8 @@ export class TenantOnboardingService {
     );
 
     for (let attempt = 0; attempt < 100; attempt += 1) {
-      const candidate = attempt === 0 ? baseToken : `${baseToken}-${attempt + 1}`;
+      const candidate =
+        attempt === 0 ? baseToken : `${baseToken}-${attempt + 1}`;
       const existing = await tx.cafeTable.findUnique({
         where: { qrToken: candidate },
         select: { id: true },
@@ -1226,7 +1280,7 @@ export class TenantOnboardingService {
       }
     }
 
-    throw new BadRequestException('Could not generate a unique QR token');
+    throw new BadRequestException("Could not generate a unique QR token");
   }
 
   private normalizeQrToken(value: string) {
@@ -1234,7 +1288,7 @@ export class TenantOnboardingService {
 
     if (!qrTokenPattern.test(qrToken)) {
       throw new BadRequestException(
-        'QR token must use lowercase letters, numbers, and hyphens',
+        "QR token must use lowercase letters, numbers, and hyphens",
       );
     }
 
@@ -1242,7 +1296,7 @@ export class TenantOnboardingService {
   }
 
   private normalizeCode(value: string) {
-    return value.trim().toUpperCase().replace(/\s+/g, '');
+    return value.trim().toUpperCase().replace(/\s+/g, "");
   }
 
   private hasQrToken(value?: string | null) {
@@ -1266,7 +1320,7 @@ export class TenantOnboardingService {
     });
 
     if (!company) {
-      throw new NotFoundException('Company not found');
+      throw new NotFoundException("Company not found");
     }
 
     return company;
@@ -1279,7 +1333,7 @@ export class TenantOnboardingService {
     });
 
     if (!branch) {
-      throw new NotFoundException('Branch not found');
+      throw new NotFoundException("Branch not found");
     }
 
     return branch;
@@ -1295,7 +1349,7 @@ export class TenantOnboardingService {
     });
 
     if (!branch) {
-      throw new NotFoundException('Branch not found');
+      throw new NotFoundException("Branch not found");
     }
 
     return branch;
@@ -1304,7 +1358,7 @@ export class TenantOnboardingService {
   private handleKnownWriteError(error: unknown, uniqueMessage: string): never {
     if (
       error instanceof Prisma.PrismaClientKnownRequestError &&
-      error.code === 'P2002'
+      error.code === "P2002"
     ) {
       throw new BadRequestException(uniqueMessage);
     }

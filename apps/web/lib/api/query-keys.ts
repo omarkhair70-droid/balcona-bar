@@ -13,6 +13,12 @@ export const customerQueryKeys = {
   timeline: (sessionId?: string) => ["customer", "timeline", sessionId],
   waiterCalls: (sessionId?: string) => ["customer", "waiter-calls", sessionId],
   bill: (sessionId?: string) => ["customer", "bill", sessionId],
+  onlinePaymentIntent: (sessionId?: string, intentId?: string) => [
+    "customer",
+    "online-payment-intent",
+    sessionId,
+    intentId,
+  ],
   aiWaiter: (sessionId?: string) => ["customer", "ai-waiter", sessionId],
   aiWaiterMessages: (sessionId?: string) => [
     "customer",
@@ -76,6 +82,19 @@ export const staffQueryKeys = {
       : ["staff", "branch-bills", branchId, status],
   bill: (billId?: string) => ["staff", "bill", billId],
   billReceipt: (billId?: string) => ["staff", "bill-receipt", billId],
+  branchOnlinePayments: (
+    branchId?: string,
+    status?: string,
+    provider?: string,
+  ) =>
+    status === undefined && provider === undefined
+      ? ["staff", "branch-online-payments", branchId]
+      : ["staff", "branch-online-payments", branchId, status, provider],
+  onlinePaymentIntent: (intentId?: string) => [
+    "staff",
+    "online-payment-intent",
+    intentId,
+  ],
   currentCashierShift: (branchId?: string) => [
     "staff",
     "current-cashier-shift",

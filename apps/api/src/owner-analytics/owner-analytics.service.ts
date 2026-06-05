@@ -2,7 +2,7 @@ import {
   BadRequestException,
   Injectable,
   NotFoundException,
-} from '@nestjs/common';
+} from "@nestjs/common";
 import {
   AiWaiterCartProposalStatus,
   BillPaymentMethod,
@@ -10,17 +10,19 @@ import {
   CashierShiftReportType,
   CashierShiftStatus,
   ManualPaymentStatus,
+  OnlinePaymentIntentStatus,
+  OnlinePaymentProvider,
   OrderStatus,
   Prisma,
   TableAttentionStatus,
   WaiterCallStatus,
-} from '@prisma/client';
-import { InventoryService } from '../inventory/inventory.service';
-import { PrismaService } from '../prisma/prisma.service';
+} from "@prisma/client";
+import { InventoryService } from "../inventory/inventory.service";
+import { PrismaService } from "../prisma/prisma.service";
 import {
   OwnerAnalyticsPreset,
   OwnerAnalyticsQueryDto,
-} from './dto/owner-analytics-query.dto';
+} from "./dto/owner-analytics-query.dto";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 const TOP_RECORD_LIMIT = 10;
@@ -107,6 +109,34 @@ const manualPaymentSelect = {
   },
 } satisfies Prisma.ManualPaymentSelect;
 
+const onlinePaymentSelect = {
+  id: true,
+  billId: true,
+  provider: true,
+  providerIntentId: true,
+  status: true,
+  amountMinor: true,
+  currency: true,
+  succeededAt: true,
+  bill: {
+    select: {
+      id: true,
+      billNumber: true,
+      status: true,
+      currency: true,
+      totalMinor: true,
+      paidMinor: true,
+      balanceDueMinor: true,
+      orderCount: true,
+      lineCount: true,
+      requestedAt: true,
+      presentedAt: true,
+      paidAt: true,
+      closedAt: true,
+    },
+  },
+} satisfies Prisma.OnlinePaymentIntentSelect;
+
 const billLineSelect = {
   id: true,
   billId: true,
@@ -152,7 +182,7 @@ const billLineSelect = {
 type AnalyticsRange = {
   from: Date;
   to: Date;
-  preset: OwnerAnalyticsPreset | 'custom';
+  preset: OwnerAnalyticsPreset | "custom";
 };
 type BranchRecord = Prisma.BranchGetPayload<{ select: typeof branchSelect }>;
 type CashierShiftRecord = Prisma.CashierShiftGetPayload<{
@@ -164,6 +194,24 @@ type CashierShiftReportRecord = Prisma.CashierShiftReportGetPayload<{
 type ManualPaymentRecord = Prisma.ManualPaymentGetPayload<{
   select: typeof manualPaymentSelect;
 }>;
+type OnlinePaymentRecord = Prisma.OnlinePaymentIntentGetPayload<{
+  select: typeof onlinePaymentSelect;
+}>;
+type RevenuePaymentRecord =
+  | {
+      source: "manual";
+      billId: string;
+      amountMinor: number;
+      happenedAt: Date;
+      bill: ManualPaymentRecord["bill"];
+    }
+  | {
+      source: "online";
+      billId: string;
+      amountMinor: number;
+      happenedAt: Date;
+      bill: OnlinePaymentRecord["bill"];
+    };
 type CountRow = { key: string; count: number };
 type MoneyCountRow = CountRow & { amountMinor: number };
 
@@ -179,6 +227,7 @@ export class OwnerAnalyticsService {
     const range = this.resolveRange(query);
     const [
       payments,
+      onlinePayments,
       orderStatusCounts,
       activeBillRequestCount,
       openWaiterCallCount,
@@ -188,15 +237,16 @@ export class OwnerAnalyticsService {
       inventoryAlerts,
     ] = await Promise.all([
       this.getRecordedPayments(branchId, range),
+      this.getSucceededOnlinePayments(branchId, range),
       this.prisma.order.groupBy({
-        by: ['status'],
+        by: ["status"],
         where: this.orderRangeWhere(branchId, range),
         _count: { _all: true },
       }),
       this.prisma.billRequest.count({
         where: {
           branchId,
-          status: { in: ['open', 'acknowledged', 'presented'] },
+          status: { in: ["open", "acknowledged", "presented"] },
         },
       }),
       this.prisma.waiterCall.count({
@@ -210,7 +260,7 @@ export class OwnerAnalyticsService {
       this.prisma.cashierShift.findFirst({
         where: { branchId, status: CashierShiftStatus.open },
         select: cashierShiftSelect,
-        orderBy: [{ openedAt: 'desc' }, { id: 'desc' }],
+        orderBy: [{ openedAt: "desc" }, { id: "desc" }],
       }),
       this.prisma.cashierShift.findFirst({
         where: {
@@ -219,7 +269,7 @@ export class OwnerAnalyticsService {
           closedAt: { gte: range.from, lte: range.to },
         },
         select: cashierShiftSelect,
-        orderBy: [{ closedAt: 'desc' }, { id: 'desc' }],
+        orderBy: [{ closedAt: "desc" }, { id: "desc" }],
       }),
       this.prisma.cashierShiftReport.findFirst({
         where: {
@@ -228,11 +278,11 @@ export class OwnerAnalyticsService {
           generatedAt: { gte: range.from, lte: range.to },
         },
         select: cashierShiftReportSelect,
-        orderBy: [{ generatedAt: 'desc' }, { id: 'desc' }],
+        orderBy: [{ generatedAt: "desc" }, { id: "desc" }],
       }),
       this.inventoryService.getBranchInventoryAlerts(branchId),
     ]);
-    const paymentStats = this.summarizePayments(payments);
+    const paymentStats = this.summarizePayments(payments, onlinePayments);
     const orderCounts = this.orderCountsFromGroupBy(orderStatusCounts);
 
     return {
@@ -245,6 +295,11 @@ export class OwnerAnalyticsService {
       cardCollectedMinor: paymentStats.byMethod.card_pos.amountMinor,
       walletCollectedMinor: paymentStats.byMethod.wallet_manual.amountMinor,
       otherCollectedMinor: paymentStats.byMethod.other.amountMinor,
+      onlineCollectedMinor: paymentStats.onlineCollectedMinor,
+      onlineMockCollectedMinor:
+        paymentStats.byOnlineProvider.online_mock.amountMinor,
+      onlineExternalCollectedMinor:
+        paymentStats.byOnlineProvider.online_external.amountMinor,
       paidBillCount: paymentStats.paidBillCount,
       averageTicketMinor: paymentStats.averageTicketMinor,
       submittedOrderCount: orderCounts.get(OrderStatus.submitted) ?? 0,
@@ -263,75 +318,104 @@ export class OwnerAnalyticsService {
       stockBlockedMenuItemCount:
         inventoryAlerts.summary.stockBlockedMenuItemCount,
       recentInventoryMovements: inventoryAlerts.recentMovements.slice(0, 5),
-      revenueSource: 'recorded_manual_payments',
+      revenueSource: "recorded_manual_and_online_payments",
     };
   }
 
   async getSales(branchId: string, query: OwnerAnalyticsQueryDto = {}) {
     const branch = await this.findBranchOrThrow(branchId);
     const range = this.resolveRange(query);
-    const [payments, billStatusCounts, shifts] = await Promise.all([
-      this.getRecordedPayments(branchId, range),
-      this.prisma.bill.groupBy({
-        by: ['status'],
-        where: {
-          branchId,
-          createdAt: { gte: range.from, lte: range.to },
-        },
-        _count: { _all: true },
-      }),
-      this.prisma.cashierShift.findMany({
-        where: {
-          branchId,
-          OR: [
-            { openedAt: { gte: range.from, lte: range.to } },
-            { closedAt: { gte: range.from, lte: range.to } },
-          ],
-        },
-        select: cashierShiftSelect,
-        orderBy: [{ openedAt: 'desc' }, { id: 'desc' }],
-        take: 25,
-      }),
-    ]);
-    const paymentStats = this.summarizePayments(payments);
+    const [payments, onlinePayments, billStatusCounts, shifts] =
+      await Promise.all([
+        this.getRecordedPayments(branchId, range),
+        this.getSucceededOnlinePayments(branchId, range),
+        this.prisma.bill.groupBy({
+          by: ["status"],
+          where: {
+            branchId,
+            createdAt: { gte: range.from, lte: range.to },
+          },
+          _count: { _all: true },
+        }),
+        this.prisma.cashierShift.findMany({
+          where: {
+            branchId,
+            OR: [
+              { openedAt: { gte: range.from, lte: range.to } },
+              { closedAt: { gte: range.from, lte: range.to } },
+            ],
+          },
+          select: cashierShiftSelect,
+          orderBy: [{ openedAt: "desc" }, { id: "desc" }],
+          take: 25,
+        }),
+      ]);
+    const paymentStats = this.summarizePayments(payments, onlinePayments);
+    const revenuePayments = this.toRevenuePayments(payments, onlinePayments);
 
     return {
       range: this.serializeRange(range),
       branch: this.toBranchSummary(branch),
       company: branch.company,
-      tenderBreakdown: Object.values(paymentStats.byMethod),
-      revenueByDay: this.moneyRowsByBucket(payments, 'day'),
-      revenueByHour: this.moneyRowsByBucket(payments, 'hour'),
+      tenderBreakdown: [
+        ...Object.values(paymentStats.byMethod),
+        ...Object.values(paymentStats.byOnlineProvider),
+      ],
+      revenueByDay: this.moneyRowsByBucket(revenuePayments, "day"),
+      revenueByHour: this.moneyRowsByBucket(revenuePayments, "hour"),
       billCountByStatus: billStatusCounts.map((record) => ({
         key: record.status,
         count: record._count._all,
       })),
-      paymentCountByMethod: Object.values(paymentStats.byMethod).map(
-        (record) => ({
+      paymentCountByMethod: [
+        ...Object.values(paymentStats.byMethod).map((record) => ({
           key: record.method,
           count: record.count,
           amountMinor: record.amountMinor,
-        }),
-      ),
-      topPaidBills: this.topPaidBills(payments),
-      recentPayments: payments.slice(0, TOP_RECORD_LIMIT).map((payment) => ({
-        id: payment.id,
-        billId: payment.billId,
-        billNumber: payment.bill.billNumber,
-        method: payment.method,
-        amountMinor: payment.amountMinor,
-        currency: payment.currency,
-        recordedAt: payment.recordedAt,
-      })),
+        })),
+        ...Object.values(paymentStats.byOnlineProvider),
+      ],
+      topPaidBills: this.topPaidBills(revenuePayments),
+      recentPayments: [
+        ...payments.map((payment) => ({
+          id: payment.id,
+          source: "manual_payment",
+          billId: payment.billId,
+          billNumber: payment.bill.billNumber,
+          method: payment.method,
+          amountMinor: payment.amountMinor,
+          currency: payment.currency,
+          recordedAt: payment.recordedAt,
+        })),
+        ...onlinePayments.map((payment) => ({
+          id: payment.id,
+          source: "online_payment",
+          billId: payment.billId,
+          billNumber: payment.bill.billNumber,
+          method:
+            payment.provider === OnlinePaymentProvider.mock
+              ? "online_mock"
+              : "online_external",
+          provider: payment.provider,
+          amountMinor: payment.amountMinor,
+          currency: payment.currency,
+          recordedAt: payment.succeededAt ?? payment.bill.paidAt ?? new Date(0),
+        })),
+      ]
+        .sort(
+          (left, right) =>
+            right.recordedAt.getTime() - left.recordedAt.getTime(),
+        )
+        .slice(0, TOP_RECORD_LIMIT),
       cashDrawerOverview: shifts.map((shift) => this.summarizeShift(shift)),
-      revenueSource: 'recorded_manual_payments',
+      revenueSource: "recorded_manual_and_online_payments",
     };
   }
 
   async getOrders(branchId: string, query: OwnerAnalyticsQueryDto = {}) {
     const branch = await this.findBranchOrThrow(branchId);
     const range = this.resolveRange(query);
-    const [orders, payments] = await Promise.all([
+    const [orders, payments, onlinePayments] = await Promise.all([
       this.prisma.order.findMany({
         where: this.orderRangeWhere(branchId, range),
         select: {
@@ -350,9 +434,13 @@ export class OwnerAnalyticsService {
         },
       }),
       this.getRecordedPayments(branchId, range),
+      this.getSucceededOnlinePayments(branchId, range),
     ]);
     const statusCounts = new Map<string, number>();
-    const quantity = orders.reduce((sum, order) => sum + order.totalQuantity, 0);
+    const quantity = orders.reduce(
+      (sum, order) => sum + order.totalQuantity,
+      0,
+    );
     const itemCount = orders.reduce((sum, order) => sum + order.itemCount, 0);
     const orderValueMinor = orders.reduce(
       (sum, order) => sum + order.subtotalMinor,
@@ -363,7 +451,7 @@ export class OwnerAnalyticsService {
       this.increment(statusCounts, order.status);
     }
 
-    const paymentStats = this.summarizePayments(payments);
+    const paymentStats = this.summarizePayments(payments, onlinePayments);
 
     return {
       range: this.serializeRange(range),
@@ -372,7 +460,7 @@ export class OwnerAnalyticsService {
       orderCountByStatus: this.mapToCountRows(statusCounts),
       orderCountByHour: this.countRowsByDate(
         orders.map((order) => order.submittedAt),
-        'hour',
+        "hour",
       ),
       totalQuantity: quantity,
       itemCount,
@@ -483,10 +571,10 @@ export class OwnerAnalyticsService {
       itemMap.set(itemKey, item);
 
       const category = line.menuItem?.category;
-      const categoryKey = category?.id ?? 'uncategorized';
+      const categoryKey = category?.id ?? "uncategorized";
       const categoryRow = categoryMap.get(categoryKey) ?? {
         categoryId: category?.id ?? null,
-        name: category?.name ?? 'Uncategorized',
+        name: category?.name ?? "Uncategorized",
         quantity: 0,
         revenueMinor: 0,
       };
@@ -513,11 +601,13 @@ export class OwnerAnalyticsService {
 
     const byQuantity = Array.from(itemMap.values()).sort(
       (left, right) =>
-        right.quantity - left.quantity || right.revenueMinor - left.revenueMinor,
+        right.quantity - left.quantity ||
+        right.revenueMinor - left.revenueMinor,
     );
     const byRevenue = Array.from(itemMap.values()).sort(
       (left, right) =>
-        right.revenueMinor - left.revenueMinor || right.quantity - left.quantity,
+        right.revenueMinor - left.revenueMinor ||
+        right.quantity - left.quantity,
     );
 
     return {
@@ -545,7 +635,7 @@ export class OwnerAnalyticsService {
           right.revenueMinor - left.revenueMinor ||
           right.quantity - left.quantity,
       ),
-      revenueSource: 'paid_bill_line_snapshots',
+      revenueSource: "paid_bill_line_snapshots",
     };
   }
 
@@ -567,48 +657,48 @@ export class OwnerAnalyticsService {
       urgentAttentionCount,
     ] = await Promise.all([
       this.prisma.preparationTask.groupBy({
-        by: ['status'],
+        by: ["status"],
         where: this.createdAtRangeWhere(branchId, range),
         _count: { _all: true },
       }),
       this.prisma.preparationTask.groupBy({
-        by: ['station'],
+        by: ["station"],
         where: this.createdAtRangeWhere(branchId, range),
         _count: { _all: true },
       }),
       this.prisma.kitchenTicket.groupBy({
-        by: ['status'],
+        by: ["status"],
         where: this.createdAtRangeWhere(branchId, range),
         _count: { _all: true },
       }),
       this.prisma.kitchenTicket.groupBy({
-        by: ['station'],
+        by: ["station"],
         where: this.createdAtRangeWhere(branchId, range),
         _count: { _all: true },
       }),
       this.prisma.printJob.groupBy({
-        by: ['status'],
+        by: ["status"],
         where: this.createdAtRangeWhere(branchId, range),
         _count: { _all: true },
       }),
       this.prisma.printJob.groupBy({
-        by: ['kind'],
+        by: ["kind"],
         where: this.createdAtRangeWhere(branchId, range),
         _count: { _all: true },
       }),
       this.prisma.printJob.count({
         where: {
           ...this.createdAtRangeWhere(branchId, range),
-          status: 'failed',
+          status: "failed",
         },
       }),
       this.prisma.waiterCall.groupBy({
-        by: ['status'],
+        by: ["status"],
         where: this.createdAtRangeWhere(branchId, range),
         _count: { _all: true },
       }),
       this.prisma.waiterCall.groupBy({
-        by: ['type'],
+        by: ["type"],
         where: this.createdAtRangeWhere(branchId, range),
         _count: { _all: true },
       }),
@@ -699,7 +789,7 @@ export class OwnerAnalyticsService {
         this.prisma.cashierShift.findFirst({
           where: { branchId, status: CashierShiftStatus.open },
           select: cashierShiftSelect,
-          orderBy: [{ openedAt: 'desc' }, { id: 'desc' }],
+          orderBy: [{ openedAt: "desc" }, { id: "desc" }],
         }),
         this.prisma.cashierShift.findMany({
           where: {
@@ -708,7 +798,7 @@ export class OwnerAnalyticsService {
             closedAt: { gte: range.from, lte: range.to },
           },
           select: cashierShiftSelect,
-          orderBy: [{ closedAt: 'desc' }, { id: 'desc' }],
+          orderBy: [{ closedAt: "desc" }, { id: "desc" }],
           take: 20,
         }),
         this.prisma.cashierShiftReport.findMany({
@@ -718,7 +808,7 @@ export class OwnerAnalyticsService {
             generatedAt: { gte: range.from, lte: range.to },
           },
           select: cashierShiftReportSelect,
-          orderBy: [{ generatedAt: 'desc' }, { id: 'desc' }],
+          orderBy: [{ generatedAt: "desc" }, { id: "desc" }],
           take: 20,
         }),
         this.prisma.cashDrawerTransaction.findMany({
@@ -731,9 +821,8 @@ export class OwnerAnalyticsService {
           },
         }),
       ]);
-    const transactionTotals = this.cashDrawerTransactionTotals(
-      drawerTransactions,
-    );
+    const transactionTotals =
+      this.cashDrawerTransactionTotals(drawerTransactions);
 
     return {
       range: this.serializeRange(range),
@@ -849,23 +938,16 @@ export class OwnerAnalyticsService {
   }
 
   async getDashboard(branchId: string, query: OwnerAnalyticsQueryDto = {}) {
-    const [
-      summary,
-      sales,
-      orders,
-      items,
-      operations,
-      cashierShifts,
-      aiWaiter,
-    ] = await Promise.all([
-      this.getSummary(branchId, query),
-      this.getSales(branchId, query),
-      this.getOrders(branchId, query),
-      this.getItems(branchId, query),
-      this.getOperations(branchId, query),
-      this.getCashierShifts(branchId, query),
-      this.getAiWaiter(branchId, query),
-    ]);
+    const [summary, sales, orders, items, operations, cashierShifts, aiWaiter] =
+      await Promise.all([
+        this.getSummary(branchId, query),
+        this.getSales(branchId, query),
+        this.getOrders(branchId, query),
+        this.getItems(branchId, query),
+        this.getOperations(branchId, query),
+        this.getCashierShifts(branchId, query),
+        this.getAiWaiter(branchId, query),
+      ]);
 
     return {
       range: summary.range,
@@ -886,7 +968,7 @@ export class OwnerAnalyticsService {
     const dashboard = await this.getDashboard(branchId, query);
 
     return {
-      reportType: 'owner_daily_report',
+      reportType: "owner_daily_report",
       range: dashboard.range,
       branch: dashboard.branch,
       company: dashboard.company,
@@ -908,20 +990,32 @@ export class OwnerAnalyticsService {
     });
 
     if (!branch) {
-      throw new NotFoundException('Branch not found');
+      throw new NotFoundException("Branch not found");
     }
 
     return branch;
   }
 
-  private async getRecordedPayments(
-    branchId: string,
-    range: AnalyticsRange,
-  ) {
+  private async getRecordedPayments(branchId: string, range: AnalyticsRange) {
     return this.prisma.manualPayment.findMany({
       where: this.manualPaymentRangeWhere(branchId, range),
       select: manualPaymentSelect,
-      orderBy: [{ recordedAt: 'desc' }, { id: 'desc' }],
+      orderBy: [{ recordedAt: "desc" }, { id: "desc" }],
+    });
+  }
+
+  private async getSucceededOnlinePayments(
+    branchId: string,
+    range: AnalyticsRange,
+  ) {
+    return this.prisma.onlinePaymentIntent.findMany({
+      where: {
+        branchId,
+        status: OnlinePaymentIntentStatus.succeeded,
+        succeededAt: { gte: range.from, lte: range.to },
+      },
+      select: onlinePaymentSelect,
+      orderBy: [{ succeededAt: "desc" }, { id: "desc" }],
     });
   }
 
@@ -929,24 +1023,24 @@ export class OwnerAnalyticsService {
     if (query.from || query.to) {
       if (!query.from || !query.to) {
         throw new BadRequestException(
-          'Both from and to are required for a custom owner analytics range',
+          "Both from and to are required for a custom owner analytics range",
         );
       }
 
       return this.ensureValidRange(
         new Date(query.from),
         new Date(query.to),
-        'custom',
+        "custom",
       );
     }
 
     const to = new Date();
-    const preset = query.preset ?? 'today';
+    const preset = query.preset ?? "today";
     const from = new Date(to);
 
-    if (preset === 'today') {
+    if (preset === "today") {
       from.setHours(0, 0, 0, 0);
-    } else if (preset === 'last_7_days') {
+    } else if (preset === "last_7_days") {
       from.setTime(to.getTime() - 7 * DAY_MS);
     } else {
       from.setTime(to.getTime() - 30 * DAY_MS);
@@ -958,14 +1052,14 @@ export class OwnerAnalyticsService {
   private ensureValidRange(
     from: Date,
     to: Date,
-    preset: AnalyticsRange['preset'],
+    preset: AnalyticsRange["preset"],
   ): AnalyticsRange {
     if (
       Number.isNaN(from.getTime()) ||
       Number.isNaN(to.getTime()) ||
       from > to
     ) {
-      throw new BadRequestException('Invalid owner analytics date range');
+      throw new BadRequestException("Invalid owner analytics date range");
     }
 
     return { from, to, preset };
@@ -1021,26 +1115,49 @@ export class OwnerAnalyticsService {
     };
   }
 
-  private summarizePayments(payments: ManualPaymentRecord[]) {
+  private summarizePayments(
+    payments: ManualPaymentRecord[],
+    onlinePayments: OnlinePaymentRecord[] = [],
+  ) {
     const byMethod = this.emptyPaymentMethodTotals();
+    const byOnlineProvider = this.emptyOnlinePaymentProviderTotals();
     const paidBillIds = new Set<string>();
     let collectedMinor = 0;
+    let manualCollectedMinor = 0;
+    let onlineCollectedMinor = 0;
 
     for (const payment of payments) {
       collectedMinor += payment.amountMinor;
+      manualCollectedMinor += payment.amountMinor;
       paidBillIds.add(payment.billId);
       byMethod[payment.method].amountMinor += payment.amountMinor;
       byMethod[payment.method].count += 1;
     }
 
+    for (const payment of onlinePayments) {
+      const key =
+        payment.provider === OnlinePaymentProvider.mock
+          ? "online_mock"
+          : "online_external";
+
+      collectedMinor += payment.amountMinor;
+      onlineCollectedMinor += payment.amountMinor;
+      paidBillIds.add(payment.billId);
+      byOnlineProvider[key].amountMinor += payment.amountMinor;
+      byOnlineProvider[key].count += 1;
+    }
+
     return {
       collectedMinor,
+      manualCollectedMinor,
+      onlineCollectedMinor,
       paidBillCount: paidBillIds.size,
       averageTicketMinor: this.safeAverageMinor(
         collectedMinor,
         paidBillIds.size,
       ),
       byMethod,
+      byOnlineProvider,
     };
   }
 
@@ -1064,6 +1181,13 @@ export class OwnerAnalyticsService {
     >;
   }
 
+  private emptyOnlinePaymentProviderTotals() {
+    return {
+      online_mock: { key: "online_mock", count: 0, amountMinor: 0 },
+      online_external: { key: "online_external", count: 0, amountMinor: 0 },
+    };
+  }
+
   private orderCountsFromGroupBy(
     records: Array<{ status: OrderStatus; _count: { _all: number } }>,
   ) {
@@ -1076,8 +1200,30 @@ export class OwnerAnalyticsService {
     return counts;
   }
 
-  private topPaidBills(payments: ManualPaymentRecord[]) {
-    const bills = new Map<string, ManualPaymentRecord['bill']>();
+  private toRevenuePayments(
+    payments: ManualPaymentRecord[],
+    onlinePayments: OnlinePaymentRecord[],
+  ): RevenuePaymentRecord[] {
+    return [
+      ...payments.map((payment) => ({
+        source: "manual" as const,
+        billId: payment.billId,
+        amountMinor: payment.amountMinor,
+        happenedAt: payment.recordedAt,
+        bill: payment.bill,
+      })),
+      ...onlinePayments.map((payment) => ({
+        source: "online" as const,
+        billId: payment.billId,
+        amountMinor: payment.amountMinor,
+        happenedAt: payment.succeededAt ?? payment.bill.paidAt ?? new Date(0),
+        bill: payment.bill,
+      })),
+    ];
+  }
+
+  private topPaidBills(payments: RevenuePaymentRecord[]) {
+    const bills = new Map<string, RevenuePaymentRecord["bill"]>();
 
     for (const payment of payments) {
       bills.set(payment.billId, payment.bill);
@@ -1102,13 +1248,13 @@ export class OwnerAnalyticsService {
   }
 
   private moneyRowsByBucket(
-    payments: ManualPaymentRecord[],
-    unit: 'day' | 'hour',
+    payments: RevenuePaymentRecord[],
+    unit: "day" | "hour",
   ): MoneyCountRow[] {
     const rows = new Map<string, { count: number; amountMinor: number }>();
 
     for (const payment of payments) {
-      const key = this.dateBucket(payment.recordedAt, unit);
+      const key = this.dateBucket(payment.happenedAt, unit);
       const row = rows.get(key) ?? { count: 0, amountMinor: 0 };
       row.count += 1;
       row.amountMinor += payment.amountMinor;
@@ -1120,7 +1266,7 @@ export class OwnerAnalyticsService {
       .map(([key, value]) => ({ key, ...value }));
   }
 
-  private countRowsByDate(dates: Date[], unit: 'day' | 'hour'): CountRow[] {
+  private countRowsByDate(dates: Date[], unit: "day" | "hour"): CountRow[] {
     const counts = new Map<string, number>();
 
     for (const date of dates) {
@@ -1132,10 +1278,10 @@ export class OwnerAnalyticsService {
     );
   }
 
-  private dateBucket(date: Date, unit: 'day' | 'hour') {
+  private dateBucket(date: Date, unit: "day" | "hour") {
     const iso = date.toISOString();
 
-    if (unit === 'day') {
+    if (unit === "day") {
       return iso.slice(0, 10);
     }
 
@@ -1161,8 +1307,7 @@ export class OwnerAnalyticsService {
     }
 
     return Math.round(
-      durations.reduce((sum, duration) => sum + duration, 0) /
-        durations.length,
+      durations.reduce((sum, duration) => sum + duration, 0) / durations.length,
     );
   }
 
@@ -1230,11 +1375,7 @@ export class OwnerAnalyticsService {
     return totals;
   }
 
-  private increment<T extends string>(
-    map: Map<T, number>,
-    key: T,
-    amount = 1,
-  ) {
+  private increment<T extends string>(map: Map<T, number>, key: T, amount = 1) {
     map.set(key, (map.get(key) ?? 0) + amount);
   }
 
