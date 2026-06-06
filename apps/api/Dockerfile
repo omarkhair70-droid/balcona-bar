@@ -3,6 +3,7 @@ FROM node:22-alpine AS deps
 ENV PNPM_HOME="/pnpm"
 ENV PATH="$PNPM_HOME:$PATH"
 
+RUN apk add --no-cache openssl
 RUN corepack enable
 
 WORKDIR /app
@@ -29,6 +30,7 @@ ENV PORT=3000
 ENV PNPM_HOME="/pnpm"
 ENV PATH="$PNPM_HOME:$PATH"
 
+RUN apk add --no-cache openssl wget
 RUN corepack enable
 
 WORKDIR /app
@@ -43,4 +45,4 @@ WORKDIR /app/apps/api
 
 EXPOSE 3000
 
-CMD ["node", "dist/main.js"]
+CMD ["node", "dist/src/main.js"]

@@ -1,6 +1,6 @@
 # balcona-bar
 
-Balcona Bar is organized as a monorepo for the Cafe AI Waiter App / Smart Cafe Operating System. The backend core is complete through Phase 24, UI Phase 1 adds the first Next.js web foundation for customer and staff experiences, UI Phase 2 adds the customer PWA core, UI Phase 3 adds the customer AI waiter experience, UI Phase 4 adds the cashier dashboard core, UI Phase 5 adds the kitchen/barista dashboard core, UI Phase 6 adds the waiter dashboard and attention queue, UI Phase 7 adds the owner/manager command center, UI Phase 8 adds full demo hardening plus Balkona demo mode, Production Phase 1 adds deployable platform foundation files, Production Phase 2 adds AWS infrastructure foundation scaffolding without deploying resources, Production Phase 3A adds public demo deploy readiness plus CI/CD guardrails without deploying resources, Production Phase 3B adds the first public AWS demo preflight deploy pack without deploying resources, Product Phase 4A starts the full Cafe OS product completion track, Product Phase 4B adds branch-scoped menu admin and availability management, Product Phase 4C adds branch, tables, and QR management, Product Phase 4E.G0-G3 add a Groq AI waiter provider with safe backend validation, deep menu grounding, and modifier-turn ordering intelligence, Product Phase 4S.0 enforces staff roles, permissions, and branch access on the current staff product surfaces, Product Phase 4O.0 hardens order lifecycle transitions across cashier, preparation, waiter, and customer status flows, Product Phase 4K.0 adds KDS kitchen tickets plus a mock printer foundation for station operations, Product Phase 4P.0 adds stable bills, manual cashier payments, and receipt foundations, Product Phase 4PAY.1 adds mock/provider-agnostic online payment intents for presented bills, Product Phase 4C.0 adds cashier shifts, cash drawer transactions, and X/Z reports, Product Phase 4A.0 adds branch-scoped owner analytics and daily reports from real orders, bills, payments, shifts, operations, and AI waiter records, Product Phase 4T.0 adds guarded tenant onboarding and company/branch setup readiness, Product Phase 4SaaS.0 adds internal plans, tenant limits, subscription status, and backend entitlement gates, Product Phase 4ONB.1 adds internal sales-led platform admin cafe bootstrap, and Product Phase 4I.0 adds inventory and branch stock foundations for menu availability and accepted-order consumption.
+Balcona Bar is organized as a monorepo for the Cafe AI Waiter App / Smart Cafe Operating System. The backend core is complete through Phase 24, UI Phase 1 adds the first Next.js web foundation for customer and staff experiences, UI Phase 2 adds the customer PWA core, UI Phase 3 adds the customer AI waiter experience, UI Phase 4 adds the cashier dashboard core, UI Phase 5 adds the kitchen/barista dashboard core, UI Phase 6 adds the waiter dashboard and attention queue, UI Phase 7 adds the owner/manager command center, UI Phase 8 adds full demo hardening plus Balkona demo mode, Production Phase 1 adds deployable platform foundation files, Production Phase 2 adds AWS infrastructure foundation scaffolding without deploying resources, Production Phase 3A adds public demo deploy readiness plus CI/CD guardrails without deploying resources, Production Phase 3B adds the first public AWS demo preflight deploy pack without deploying resources, Product Phase 4A starts the full Cafe OS product completion track, Product Phase 4B adds branch-scoped menu admin and availability management, Product Phase 4C adds branch, tables, and QR management, Product Phase 4E.G0-G3 add a Groq AI waiter provider with safe backend validation, deep menu grounding, and modifier-turn ordering intelligence, Product Phase 4S.0 enforces staff roles, permissions, and branch access on the current staff product surfaces, Product Phase 4O.0 hardens order lifecycle transitions across cashier, preparation, waiter, and customer status flows, Product Phase 4K.0 adds KDS kitchen tickets plus a mock printer foundation for station operations, Product Phase 4P.0 adds stable bills, manual cashier payments, and receipt foundations, Product Phase 4PAY.1 adds mock/provider-agnostic online payment intents for presented bills, Product Phase 4C.0 adds cashier shifts, cash drawer transactions, and X/Z reports, Product Phase 4A.0 adds branch-scoped owner analytics and daily reports from real orders, bills, payments, shifts, operations, and AI waiter records, Product Phase 4T.0 adds guarded tenant onboarding and company/branch setup readiness, Product Phase 4SaaS.0 adds internal plans, tenant limits, subscription status, and backend entitlement gates, Product Phase 4ONB.1 adds internal sales-led platform admin cafe bootstrap, Product Phase 4I.0 adds inventory and branch stock foundations for menu availability and accepted-order consumption, and Product Phase 4DEPLOY.0 adds a provider-agnostic staging deployment foundation.
 
 ## Layout
 
@@ -163,6 +163,9 @@ Useful root scripts:
 pnpm api:build
 pnpm api:start:prod
 pnpm api:prisma:migrate:deploy
+pnpm deploy:api:migrate
+pnpm deploy:api:bootstrap
+pnpm deploy:staging:smoke:ps
 pnpm docker:build:api
 pnpm docker:build:web
 pnpm smoke:public:ps
@@ -171,6 +174,34 @@ pnpm web:lint
 pnpm web:start
 pnpm web:typecheck
 ```
+
+## Product Phase 4DEPLOY.0 status
+
+Product Phase 4DEPLOY.0 prepares the current Cafe OS for real staging
+deployment without adding product scope or choosing a final paid provider:
+
+- API Docker image remains monorepo/pnpm compatible and production-starts the
+  Nest API from `PORT`.
+- Web Docker image remains Next.js compatible and accepts
+  `NEXT_PUBLIC_API_BASE_URL`.
+- staging env docs now cover API URL, Web URL, Postgres, Redis, platform admin,
+  CORS, AI provider placeholders, and mock online payment flags;
+- `pnpm deploy:api:migrate` runs Prisma `migrate deploy` for staging;
+- `pnpm deploy:api:bootstrap` creates the first platform admin from strong
+  env-provided credentials without seeding demo cafe data;
+- staging smoke scripts check health, platform/staff/customer routes, and raw
+  `[object Object]` rendering.
+
+Local development still uses `docker-compose.yml`, `prisma:migrate:dev`, and the
+existing seed path. Staging should use managed Postgres/Redis, `migrate deploy`,
+the one-time platform admin bootstrap command, and the platform UI to create
+real cafe workspaces.
+
+See:
+
+- `docs/deployment/staging-deployment.md`
+- `docs/deployment/staging-smoke-test.md`
+- `scripts/deploy/README.md`
 
 ## Product Phase 4A.0 status
 
