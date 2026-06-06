@@ -1,12 +1,12 @@
 # Staging Smoke Test
 
-Use this after staging API and Web are deployed. For the current staging web
-setup, the API may be a local API exposed through Cloudflare Tunnel and pointed
-to Neon Postgres plus Upstash Redis.
+Use this after staging API and Web are deployed. The preferred staging target is
+a permanent API host pointed to Neon Postgres plus Upstash Redis.
 
-Cloudflare Tunnel quick links are temporary. If the laptop, API process, or
-tunnel restarts, update the Vercel staging web environment variable that points
-to the API before running web smoke again.
+Cloudflare Tunnel quick links are transitional only. If a laptop-hosted API is
+used while waiting for a permanent host, update the Vercel staging web
+environment variable that points to the API whenever the laptop, API process, or
+tunnel restarts.
 
 ## First Cafe Workspace Flow
 
@@ -29,10 +29,11 @@ to the API before running web smoke again.
    pnpm --filter @balcona-bar/api platform-admin:bootstrap
    ```
 
-5. Start or restart the API and expose it through the current Cloudflare Tunnel
-   URL when using a laptop-hosted API.
-6. Confirm Vercel staging web has `NEXT_PUBLIC_API_BASE_URL` set to the current
-   API `/api/v1` URL, then redeploy or restart the web environment if changed.
+5. Start or restart the API on the permanent staging host, or expose it through
+   the current Cloudflare Tunnel URL only when using a laptop-hosted fallback.
+6. Confirm Vercel staging web has `NEXT_PUBLIC_API_BASE_URL` set to the
+   permanent API `/api/v1` URL, then redeploy or restart the web environment if
+   changed.
 7. Open `/platform/login` and log in as the platform admin.
 8. Open `/platform/companies/new` and create a cafe workspace:
    - plan: `pilot`

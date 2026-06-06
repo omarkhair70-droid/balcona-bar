@@ -1,13 +1,16 @@
-# Staging Deployment Foundation
+# Permanent Staging API Runtime
 
-Product Phase 4DEPLOY.0 prepares Balcona Bar for a real staging deployment
-without choosing a final paid provider. The target is provider-agnostic, with a
-simple recommended path:
+Product Phase 4DEPLOY.2 moves Balcona Bar staging away from a laptop-hosted API
+and temporary Cloudflare Tunnel. The staging Web can stay on Vercel, but the API
+must run on a permanent Docker-compatible host so client demos and product smoke
+do not depend on a developer machine.
+
+The target remains provider-agnostic, with a simple recommended path:
 
 - Web: Vercel-compatible Next.js hosting.
-- API: Docker-compatible host such as Render, Railway, Fly, or a VPS.
-- Database: managed Postgres.
-- Redis: managed Redis.
+- API: persistent Docker-compatible host such as Render, Railway, Fly, or a VPS.
+- Database: Neon Postgres or another managed Postgres.
+- Redis: Upstash Redis or another managed Redis.
 
 No public signup, real payment gateway, SaaS billing, or new product behavior is
 introduced in this phase.
@@ -21,6 +24,10 @@ API prefix, for example `https://api-staging.example.com/api/v1`.
 The API runs as a production NestJS process from the `apps/api/Dockerfile`.
 Prisma reads `DATABASE_URL`; Redis reads `REDIS_URL` when available. The API
 allows Web traffic through `CORS_ORIGINS`.
+
+Use `NODE_ENV=production` for the hosted Node runtime. Set `APP_ENV=staging` for
+staging-only product policy such as mock online payments. True production should
+omit `APP_ENV=staging` and keep mock payment actions disabled.
 
 ## Required Staging URLs
 
@@ -36,10 +43,11 @@ Required:
 
 ```text
 NODE_ENV=production
+APP_ENV=staging
 PORT=3000
 API_PREFIX=api/v1
-DATABASE_URL=postgresql://USER:PASSWORD@HOST:5432/DB?schema=public
-REDIS_URL=redis://HOST:6379/0
+DATABASE_URL=postgresql://USER:PASSWORD@NEON_HOST/DB?sslmode=require&schema=public
+REDIS_URL=rediss://default:PASSWORD@UPSTASH_HOST:6379
 CORS_ORIGINS=https://staging.example.com
 STAFF_AUTH_SESSION_HOURS=12
 PLATFORM_AUTH_SESSION_HOURS=12
@@ -75,7 +83,7 @@ AI_WAITER_MENU_SNAPSHOT_LIMIT=200
 GROQ_API_KEY=
 GROQ_MODEL=openai/gpt-oss-20b
 GROQ_MAX_CONTEXT_ITEMS=8
-GROQ_DRY_RUN=false
+GROQ_DRY_RUN=true
 ```
 
 Keep `GROQ_API_KEY` only on the API runtime. Never expose it as a
@@ -86,11 +94,12 @@ Online payments remain mock/provider-agnostic in this phase:
 ```text
 ONLINE_PAYMENTS_ENABLED=true
 ONLINE_PAYMENT_PROVIDER=mock
-MOCK_ONLINE_PAYMENTS_ENABLED=false
+MOCK_ONLINE_PAYMENTS_ENABLED=true
 ONLINE_PAYMENT_CHECKOUT_BASE_URL=https://staging.example.com
 ```
 
-Do not collect card data until a real payment provider phase is implemented.
+Mock payment actions are allowed only because `APP_ENV=staging` is set. Do not
+collect card data until a real payment provider phase is implemented.
 
 ## Web Environment
 
@@ -111,19 +120,51 @@ hosting, configure:
 
 ## API Docker Deployment
 
+Choose a permanent API host with:
+
+- a stable public HTTPS URL
+- support for Docker builds from this repository
+- a secret/environment variable manager
+- a configurable health check path
+- manual one-off commands or jobs for Prisma migrations and platform admin
+  bootstrap
+- logs that can be inspected without printing secret values
+
+Recommended health check:
+
+```text
+/health
+```
+
+The route is intentionally outside `API_PREFIX` so host health checks can call
+`https://api-staging.example.com/health`. The API metadata route remains
+`https://api-staging.example.com/api/v1/system/info`.
+
 Build:
 
 ```bash
 docker build -f apps/api/Dockerfile -t balcona-api:staging .
 ```
 
-Run migrations before rolling out the new API:
+Run Prisma generation and migrations before rolling out the new API image:
 
 ```bash
 pnpm install --frozen-lockfile
 pnpm --filter @balcona-bar/api prisma:generate
 pnpm --filter @balcona-bar/api prisma:migrate:deploy
 ```
+
+If the target database is new or SaaS plans are missing, seed plans/demo data
+intentionally:
+
+```bash
+pnpm --filter @balcona-bar/api prisma:seed
+```
+
+For a clean staging tenant, seeding SaaS plans is required before platform
+company creation because `/platform/companies/new` reads active plans. The seed
+also creates the demo Balkona dataset, so do it only when that data is expected
+in staging.
 
 Start command inside the API image:
 
@@ -132,6 +173,27 @@ node dist/src/main.js
 ```
 
 The process reads `PORT` from the environment.
+
+## Permanent API Host Runbook
+
+1. Create a Docker-backed API service from this repository.
+2. Use `apps/api/Dockerfile` as the Dockerfile path.
+3. Configure the service to listen on the host-provided `PORT`.
+4. Set all API environment variables from the `API Environment` section.
+5. Set the health check path to `/health`.
+6. Run `pnpm --filter @balcona-bar/api prisma:generate`.
+7. Run `pnpm --filter @balcona-bar/api prisma:migrate:deploy` against Neon.
+8. Run `pnpm --filter @balcona-bar/api prisma:seed` only if SaaS plans are not
+   present or the demo dataset is intentionally wanted.
+9. Run the platform admin bootstrap command once, then disable
+   `PLATFORM_ADMIN_BOOTSTRAP_ENABLED`.
+10. Deploy or restart the API service and confirm `/health` and
+    `/api/v1/system/info`.
+11. Update Vercel staging Web `NEXT_PUBLIC_API_BASE_URL` to the permanent API
+    URL including `/api/v1`.
+12. Redeploy the Vercel staging Web so browser clients stop using the temporary
+    Cloudflare Tunnel URL.
+13. Run the automated and manual staging smoke tests.
 
 ## Platform Admin Bootstrap
 
@@ -196,6 +258,17 @@ PowerShell:
 ```
 
 Manual smoke steps are in `docs/deployment/staging-smoke-test.md`.
+
+Minimum authenticated smoke after permanent API deploy:
+
+1. Log in at `/platform/login`.
+2. Create a cafe workspace from `/platform/companies/new` using plan `pilot`,
+   status `active`, and at least two starter tables.
+3. Open the created company detail page.
+4. Set the owner staff password through the documented staging handoff.
+5. Log in at `/staff/login`.
+6. Open the first returned `/customer/table/<qrToken>` example.
+7. Confirm no visible page renders `[object Object]`.
 
 ## Common Errors
 
