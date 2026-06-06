@@ -251,7 +251,7 @@ function buildService(overrides: Record<string, unknown> = {}) {
 
 describe("PlatformService", () => {
   it("bootstraps a company, branch, subscription, owner membership, tables, QR, and audit event", async () => {
-    const { service, tx, saasService } = buildService();
+    const { service, prisma, tx, saasService } = buildService();
 
     const result = await service.bootstrapCompany(
       bootstrapInput,
@@ -305,6 +305,13 @@ describe("PlatformService", () => {
       qrToken: "main-t01",
       customerUrl: "/customer/table/main-t01",
     });
+    expect(prisma.$transaction).toHaveBeenCalledWith(
+      expect.any(Function),
+      expect.objectContaining({
+        maxWait: 10_000,
+        timeout: 30_000,
+      }),
+    );
     expect(saasService.assertWithinLimit).toHaveBeenCalledWith(
       company.id,
       "maxTables",
@@ -320,6 +327,56 @@ describe("PlatformService", () => {
         }),
       }),
     );
+  });
+
+  it("bootstraps a cafe workspace with an active Pilot plan and returns owner handoff plus QR examples", async () => {
+    const { service, tx } = buildService();
+    const pilotPlan = {
+      ...plan,
+      id: "plan-pilot",
+      code: "pilot",
+      name: "Pilot",
+    };
+    const activePilotSubscription = {
+      ...subscription,
+      planId: pilotPlan.id,
+      status: CompanySubscriptionStatus.active,
+      plan: pilotPlan,
+    };
+
+    tx.saasPlan.findUnique.mockResolvedValueOnce(pilotPlan);
+    tx.companySubscription.create.mockResolvedValueOnce(
+      activePilotSubscription,
+    );
+
+    const result = await service.bootstrapCompany(
+      {
+        ...bootstrapInput,
+        subscription: {
+          planCode: "pilot",
+          status: "active",
+        },
+      },
+      "platform-admin-1",
+    );
+
+    expect(result.plan.code).toBe("pilot");
+    expect(result.subscription.status).toBe(CompanySubscriptionStatus.active);
+    expect(result.ownerStaffUser.email).toBe("owner@test.local");
+    expect(result.staffLoginUrl).toBe("/staff/login");
+    expect(result.starterTables?.createdCount).toBe(2);
+    expect(result.customerQrExamples).toEqual([
+      expect.objectContaining({
+        code: "T01",
+        qrToken: "main-t01",
+        customerUrl: "/customer/table/main-t01",
+      }),
+      expect.objectContaining({
+        code: "T02",
+        qrToken: "main-t02",
+        customerUrl: "/customer/table/main-t02",
+      }),
+    ]);
   });
 
   it("rejects duplicate company slugs clearly", async () => {

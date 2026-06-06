@@ -21,6 +21,10 @@ import { UpdatePlatformSubscriptionDto } from "./dto/update-platform-subscriptio
 
 type PrismaExecutor = PrismaService | Prisma.TransactionClient;
 
+const bootstrapCompanyTransactionOptions = {
+  maxWait: 10_000,
+  timeout: 30_000,
+};
 const qrTokenPattern = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 
 const companySelect = {
@@ -263,190 +267,193 @@ export class PlatformService {
     body: BootstrapPlatformCompanyDto,
     platformAdminUserId: string,
   ) {
-    return this.prisma.$transaction(async (tx) => {
-      const companySlug = this.normalizeSlug(body.company.slug);
-      const branchSlug = this.normalizeSlug(body.branch.slug);
-      const ownerEmail = body.owner.email.trim().toLowerCase();
-      const existingCompany = await tx.company.findUnique({
-        where: { slug: companySlug },
-        select: { id: true },
-      });
+    return this.prisma.$transaction(
+      async (tx) => {
+        const companySlug = this.normalizeSlug(body.company.slug);
+        const branchSlug = this.normalizeSlug(body.branch.slug);
+        const ownerEmail = body.owner.email.trim().toLowerCase();
+        const existingCompany = await tx.company.findUnique({
+          where: { slug: companySlug },
+          select: { id: true },
+        });
 
-      if (existingCompany) {
-        throw new BadRequestException("Company slug already exists");
-      }
+        if (existingCompany) {
+          throw new BadRequestException("Company slug already exists");
+        }
 
-      const plan = await tx.saasPlan.findUnique({
-        where: { code: body.subscription.planCode },
-        select: planSelect,
-      });
+        const plan = await tx.saasPlan.findUnique({
+          where: { code: body.subscription.planCode },
+          select: planSelect,
+        });
 
-      if (!plan || plan.status !== SaasPlanStatus.active) {
-        throw new BadRequestException("Active SaaS plan not found");
-      }
+        if (!plan || plan.status !== SaasPlanStatus.active) {
+          throw new BadRequestException("Active SaaS plan not found");
+        }
 
-      const company = await tx.company.create({
-        data: {
-          name: body.company.name.trim(),
-          slug: companySlug,
-          status: CompanyStatus.active,
-        },
-        select: companySelect,
-      });
-
-      const subscription = await tx.companySubscription.create({
-        data: {
-          companyId: company.id,
-          planId: plan.id,
-          status:
-            body.subscription.status ?? CompanySubscriptionStatus.trialing,
-          currentPeriodStart: new Date(),
-          metadata: {
-            source: "platform_bootstrap",
-            platformAdminUserId,
+        const company = await tx.company.create({
+          data: {
+            name: body.company.name.trim(),
+            slug: companySlug,
+            status: CompanyStatus.active,
           },
-        },
-        select: subscriptionSelect,
-      });
+          select: companySelect,
+        });
 
-      await this.saasService.assertWithinLimit(
-        company.id,
-        "maxBranches",
-        1,
-        tx,
-      );
-
-      const branch = await tx.branch.create({
-        data: {
-          companyId: company.id,
-          name: body.branch.name.trim(),
-          slug: branchSlug,
-          address: this.normalizeOptionalText(body.branch.address),
-          status: BranchStatus.active,
-        },
-        select: branchSelect,
-      });
-
-      const existingStaffUser = await tx.staffUser.findUnique({
-        where: { email: ownerEmail },
-        select: staffUserSelect,
-      });
-      const existingActiveCompanyMembership = existingStaffUser
-        ? await tx.staffMembership.findFirst({
-            where: {
-              staffUserId: existingStaffUser.id,
-              companyId: company.id,
-              status: StaffStatus.active,
+        const subscription = await tx.companySubscription.create({
+          data: {
+            companyId: company.id,
+            planId: plan.id,
+            status:
+              body.subscription.status ?? CompanySubscriptionStatus.trialing,
+            currentPeriodStart: new Date(),
+            metadata: {
+              source: "platform_bootstrap",
+              platformAdminUserId,
             },
-            select: { id: true },
-          })
-        : null;
-      const willCreateCountedOwner =
-        !existingStaffUser || !existingActiveCompanyMembership;
+          },
+          select: subscriptionSelect,
+        });
 
-      if (willCreateCountedOwner) {
         await this.saasService.assertWithinLimit(
           company.id,
-          "maxStaffUsers",
+          "maxBranches",
           1,
           tx,
         );
-      }
 
-      const staffUser = existingStaffUser
-        ? await tx.staffUser.update({
-            where: { id: existingStaffUser.id },
-            data: {
-              name: body.owner.name.trim(),
-              status: StaffStatus.active,
-            },
-            select: staffUserSelect,
-          })
-        : await tx.staffUser.create({
-            data: {
-              email: ownerEmail,
-              name: body.owner.name.trim(),
-              status: StaffStatus.active,
-            },
-            select: staffUserSelect,
-          });
-      const existingOwnerMembership = await tx.staffMembership.findFirst({
-        where: {
-          staffUserId: staffUser.id,
-          companyId: company.id,
-          branchId: null,
-          role: StaffRole.owner,
-        },
-        select: staffMembershipSelect,
-      });
-      const ownerMembership =
-        existingOwnerMembership ??
-        (await tx.staffMembership.create({
+        const branch = await tx.branch.create({
           data: {
+            companyId: company.id,
+            name: body.branch.name.trim(),
+            slug: branchSlug,
+            address: this.normalizeOptionalText(body.branch.address),
+            status: BranchStatus.active,
+          },
+          select: branchSelect,
+        });
+
+        const existingStaffUser = await tx.staffUser.findUnique({
+          where: { email: ownerEmail },
+          select: staffUserSelect,
+        });
+        const existingActiveCompanyMembership = existingStaffUser
+          ? await tx.staffMembership.findFirst({
+              where: {
+                staffUserId: existingStaffUser.id,
+                companyId: company.id,
+                status: StaffStatus.active,
+              },
+              select: { id: true },
+            })
+          : null;
+        const willCreateCountedOwner =
+          !existingStaffUser || !existingActiveCompanyMembership;
+
+        if (willCreateCountedOwner) {
+          await this.saasService.assertWithinLimit(
+            company.id,
+            "maxStaffUsers",
+            1,
+            tx,
+          );
+        }
+
+        const staffUser = existingStaffUser
+          ? await tx.staffUser.update({
+              where: { id: existingStaffUser.id },
+              data: {
+                name: body.owner.name.trim(),
+                status: StaffStatus.active,
+              },
+              select: staffUserSelect,
+            })
+          : await tx.staffUser.create({
+              data: {
+                email: ownerEmail,
+                name: body.owner.name.trim(),
+                status: StaffStatus.active,
+              },
+              select: staffUserSelect,
+            });
+        const existingOwnerMembership = await tx.staffMembership.findFirst({
+          where: {
             staffUserId: staffUser.id,
             companyId: company.id,
             branchId: null,
             role: StaffRole.owner,
-            status: StaffStatus.active,
           },
           select: staffMembershipSelect,
-        }));
-      const starterTables = body.starterTables?.enabled
-        ? await this.createStarterTables(company.id, branch, body, tx)
-        : null;
+        });
+        const ownerMembership =
+          existingOwnerMembership ??
+          (await tx.staffMembership.create({
+            data: {
+              staffUserId: staffUser.id,
+              companyId: company.id,
+              branchId: null,
+              role: StaffRole.owner,
+              status: StaffStatus.active,
+            },
+            select: staffMembershipSelect,
+          }));
+        const starterTables = body.starterTables?.enabled
+          ? await this.createStarterTables(company.id, branch, body, tx)
+          : null;
 
-      await tx.platformAuditEvent.create({
-        data: {
-          platformAdminUserId,
-          action: "company_bootstrapped",
-          targetType: "company",
-          targetId: company.id,
-          metadata: {
-            companySlug,
-            branchId: branch.id,
-            branchSlug,
-            planCode: plan.code,
-            ownerStaffUserId: staffUser.id,
-            starterTableCount: starterTables?.createdCount ?? 0,
+        await tx.platformAuditEvent.create({
+          data: {
+            platformAdminUserId,
+            action: "company_bootstrapped",
+            targetType: "company",
+            targetId: company.id,
+            metadata: {
+              companySlug,
+              branchId: branch.id,
+              branchSlug,
+              planCode: plan.code,
+              ownerStaffUserId: staffUser.id,
+              starterTableCount: starterTables?.createdCount ?? 0,
+            },
           },
-        },
-      });
+        });
 
-      const qrExamples =
-        starterTables?.created.slice(0, 3).map((table) => ({
-          tableId: table.id,
-          code: table.code,
-          qrToken: table.qrToken,
-          customerUrl: `/customer/table/${encodeURIComponent(table.qrToken)}`,
-        })) ?? [];
+        const qrExamples =
+          starterTables?.created.slice(0, 3).map((table) => ({
+            tableId: table.id,
+            code: table.code,
+            qrToken: table.qrToken,
+            customerUrl: `/customer/table/${encodeURIComponent(table.qrToken)}`,
+          })) ?? [];
 
-      return {
-        company,
-        branch,
-        subscription,
-        plan,
-        ownerStaffUser: staffUser,
-        ownerMembership,
-        starterTables,
-        companyId: company.id,
-        branchId: branch.id,
-        ownerStaffUserId: staffUser.id,
-        setupUrl: "/staff/setup",
-        billingUrl: "/staff/billing",
-        staffLoginUrl: "/staff/login",
-        customerQrExamples: qrExamples,
-        passwordSetup: {
-          ownerEmail,
-          passwordAlreadySet: Boolean(staffUser.passwordSetAt),
-          devBootstrapAvailable: this.configService.get<boolean>(
-            "staffAuth.devBootstrapEnabled",
-            false,
-          ),
-          instructions:
-            "Set the owner password through the secure staff auth flow. Local dev may use /api/v1/staff-auth/dev/bootstrap-password only when explicitly enabled.",
-        },
-      };
-    });
+        return {
+          company,
+          branch,
+          subscription,
+          plan,
+          ownerStaffUser: staffUser,
+          ownerMembership,
+          starterTables,
+          companyId: company.id,
+          branchId: branch.id,
+          ownerStaffUserId: staffUser.id,
+          setupUrl: "/staff/setup",
+          billingUrl: "/staff/billing",
+          staffLoginUrl: "/staff/login",
+          customerQrExamples: qrExamples,
+          passwordSetup: {
+            ownerEmail,
+            passwordAlreadySet: Boolean(staffUser.passwordSetAt),
+            devBootstrapAvailable: this.configService.get<boolean>(
+              "staffAuth.devBootstrapEnabled",
+              false,
+            ),
+            instructions:
+              "Set the owner password through the secure staff auth flow. Local dev may use /api/v1/staff-auth/dev/bootstrap-password only when explicitly enabled.",
+          },
+        };
+      },
+      bootstrapCompanyTransactionOptions,
+    );
   }
 
   async updateCompanySubscription(
