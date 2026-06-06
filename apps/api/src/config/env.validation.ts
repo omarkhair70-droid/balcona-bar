@@ -1,6 +1,7 @@
 import { plainToInstance } from "class-transformer";
 import {
   IsBooleanString,
+  IsEmail,
   IsEnum,
   IsInt,
   IsOptional,
@@ -85,6 +86,24 @@ class EnvironmentVariables {
   @IsBooleanString()
   @IsOptional()
   STAFF_AUTH_DEV_BOOTSTRAP_ENABLED?: string;
+
+  @IsInt()
+  @Min(1)
+  @Max(168)
+  @IsOptional()
+  PLATFORM_AUTH_SESSION_HOURS?: number;
+
+  @IsBooleanString()
+  @IsOptional()
+  PLATFORM_ADMIN_DEV_BOOTSTRAP_ENABLED?: string;
+
+  @IsEmail()
+  @IsOptional()
+  PLATFORM_ADMIN_EMAIL?: string;
+
+  @IsString()
+  @IsOptional()
+  PLATFORM_ADMIN_PASSWORD?: string;
 
   @IsInt()
   @Min(1)

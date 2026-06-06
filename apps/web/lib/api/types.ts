@@ -1958,6 +1958,187 @@ export type SaasStatusResult = {
   blockers: SaasStatusNotice[];
 };
 
+export type PlatformAdminRole = "owner" | "admin" | "support";
+export type PlatformAdminStatus = "active" | "disabled";
+
+export type PlatformAdminUser = {
+  id: string;
+  email: string;
+  name: string;
+  role: PlatformAdminRole | string;
+  status: PlatformAdminStatus | string;
+  lastLoginAt?: string | null;
+  createdAt?: string;
+  updatedAt?: string;
+};
+
+export type PlatformAdminSession = {
+  id: string;
+  platformAdminUserId: string;
+  status: string;
+  expiresAt: string;
+  revokedAt?: string | null;
+  lastUsedAt?: string | null;
+  createdAt?: string;
+  updatedAt?: string;
+};
+
+export type PlatformAuthContext = {
+  platformAdminUser: PlatformAdminUser;
+  platformAdminSession: PlatformAdminSession;
+};
+
+export type PlatformAuthResponse = PlatformAuthContext & {
+  accessToken: string;
+  expiresAt: string;
+};
+
+export type PlatformLoginPayload = {
+  email: string;
+  password: string;
+};
+
+export type PlatformCompanySummary = CompanySummary & {
+  status?: string;
+  createdAt?: string;
+  updatedAt?: string;
+  subscription: (CompanySubscription & { plan?: SaasPlan }) | null;
+  branchCount: number;
+  staffMembershipCount: number;
+};
+
+export type PlatformCompaniesResult = {
+  companies: PlatformCompanySummary[];
+  summary: {
+    totalCompanies: number;
+    activeSubscriptions: number;
+    trialingSubscriptions: number;
+    suspendedSubscriptions: number;
+  };
+};
+
+export type PlatformOwnerAssignment = {
+  id: string;
+  staffUserId: string;
+  companyId: string;
+  branchId?: string | null;
+  role: string;
+  status: string;
+  createdAt?: string;
+  updatedAt?: string;
+  staffUser: StaffUserSummary & {
+    passwordSetAt?: string | null;
+  };
+};
+
+export type PlatformCompanyDetail = {
+  company: CompanySummary & {
+    status?: string;
+    createdAt?: string;
+    updatedAt?: string;
+  };
+  subscription: CompanySubscription | null;
+  plan: SaasPlan | null;
+  branches: Array<
+    BranchSummary & {
+      status?: string;
+      createdAt?: string;
+      updatedAt?: string;
+      floorsCount: number;
+      tablesCount: number;
+    }
+  >;
+  owners: PlatformOwnerAssignment[];
+  saas: SaasStatusResult;
+};
+
+export type BootstrapCompanyInput = {
+  company: {
+    name: string;
+    slug: string;
+  };
+  owner: {
+    name: string;
+    email: string;
+  };
+  branch: {
+    name: string;
+    slug: string;
+    address?: string | null;
+  };
+  subscription: {
+    planCode: "pilot" | "starter" | "growth" | "enterprise";
+    status?: "trialing" | "active";
+  };
+  starterTables?: {
+    enabled: boolean;
+    floorLabel: string;
+    tablePrefix: string;
+    startNumber: number;
+    count: number;
+    seats: number;
+  };
+};
+
+export type BootstrapCompanyResult = {
+  company: PlatformCompanyDetail["company"];
+  branch: BranchSummary;
+  subscription: CompanySubscription & {
+    plan?: SaasPlan;
+  };
+  plan: SaasPlan;
+  ownerStaffUser: StaffUserSummary & {
+    passwordSetAt?: string | null;
+  };
+  ownerMembership: PlatformOwnerAssignment;
+  starterTables: {
+    floor: TenantOnboardingFloor;
+    created: TenantOnboardingTable[];
+    skipped: Array<{
+      code: string;
+      displayName: string;
+      reason: string;
+      table?: TenantOnboardingTable;
+    }>;
+    requestedCount: number;
+    createdCount: number;
+    skippedCount: number;
+  } | null;
+  companyId: string;
+  branchId: string;
+  ownerStaffUserId: string;
+  setupUrl: string;
+  billingUrl: string;
+  staffLoginUrl: string;
+  customerQrExamples: Array<{
+    tableId: string;
+    code: string;
+    qrToken: string;
+    customerUrl: string;
+  }>;
+  passwordSetup: {
+    ownerEmail: string;
+    passwordAlreadySet: boolean;
+    devBootstrapAvailable: boolean;
+    instructions: string;
+  };
+};
+
+export type UpdatePlatformSubscriptionPayload = {
+  planCode?: "pilot" | "starter" | "growth" | "enterprise";
+  status?: "trialing" | "active" | "past_due" | "suspended" | "cancelled";
+  cancellationReason?: string | null;
+};
+
+export type UpdatePlatformSubscriptionResult = {
+  company: CompanySummary;
+  subscription: CompanySubscription & {
+    plan?: SaasPlan;
+  };
+  plan: SaasPlan;
+  saas: SaasStatusResult;
+};
+
 export type SaasPlansResult = {
   plans: SaasPlan[];
 };

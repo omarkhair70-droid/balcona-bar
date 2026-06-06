@@ -69,6 +69,23 @@ enum StaffRole {
   menu_admin
 }
 
+enum PlatformAdminStatus {
+  active
+  disabled
+}
+
+enum PlatformAdminRole {
+  owner
+  admin
+  support
+}
+
+enum PlatformAdminSessionStatus {
+  active
+  revoked
+  expired
+}
+
 enum MenuCategoryStatus {
   active
   inactive
@@ -1126,6 +1143,64 @@ model StaffSession {
   @@index([staffUserId])
   @@index([status])
   @@index([expiresAt])
+  @@index([createdAt])
+}
+
+model PlatformAdminUser {
+  id           String              @id @default(uuid())
+  email        String              @unique
+  name         String
+  passwordHash String
+  role         PlatformAdminRole   @default(admin)
+  status       PlatformAdminStatus @default(active)
+  lastLoginAt  DateTime?
+  createdAt    DateTime            @default(now())
+  updatedAt    DateTime            @updatedAt
+
+  sessions    PlatformAdminSession[]
+  auditEvents PlatformAuditEvent[]
+
+  @@index([email])
+  @@index([role])
+  @@index([status])
+}
+
+model PlatformAdminSession {
+  id                  String                     @id @default(uuid())
+  platformAdminUserId String
+  status              PlatformAdminSessionStatus @default(active)
+  tokenHash           String                     @unique
+  userAgent           String?
+  ipAddress           String?
+  expiresAt           DateTime
+  revokedAt           DateTime?
+  lastUsedAt          DateTime?
+  metadata            Json?
+  createdAt           DateTime                   @default(now())
+  updatedAt           DateTime                   @updatedAt
+
+  platformAdminUser PlatformAdminUser @relation(fields: [platformAdminUserId], references: [id], onDelete: Cascade)
+
+  @@index([platformAdminUserId])
+  @@index([status])
+  @@index([expiresAt])
+  @@index([createdAt])
+}
+
+model PlatformAuditEvent {
+  id                  String   @id @default(uuid())
+  platformAdminUserId String?
+  action              String
+  targetType          String?
+  targetId            String?
+  metadata            Json?
+  createdAt           DateTime @default(now())
+
+  platformAdminUser PlatformAdminUser? @relation(fields: [platformAdminUserId], references: [id], onDelete: SetNull)
+
+  @@index([platformAdminUserId])
+  @@index([action])
+  @@index([targetType, targetId])
   @@index([createdAt])
 }
 

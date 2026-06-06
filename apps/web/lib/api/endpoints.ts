@@ -108,8 +108,15 @@ import type {
   OwnerAnalyticsQuery,
   OwnerAnalyticsSalesResult,
   OwnerAnalyticsSummaryResult,
+  PlatformAuthContext,
+  PlatformAuthResponse,
+  PlatformCompaniesResult,
+  PlatformCompanyDetail,
+  PlatformLoginPayload,
   OrderPreparationTasksResult,
   OpenCashierShiftPayload,
+  BootstrapCompanyInput,
+  BootstrapCompanyResult,
   PreparationTaskActionPayload,
   PreparationTaskDetailResult,
   PrintJobDetailResult,
@@ -148,6 +155,8 @@ import type {
   UpdateMenuItemPayload,
   UpdateModifierGroupPayload,
   UpdateModifierOptionPayload,
+  UpdatePlatformSubscriptionPayload,
+  UpdatePlatformSubscriptionResult,
   UpdateBranchPayload,
   UpdateFloorPayload,
   UpdateInventoryItemPayload,
@@ -172,6 +181,70 @@ import type {
 
 export function getCompanies() {
   return apiRequest<CompanySummary[]>("/companies");
+}
+
+export function platformLogin(payload: PlatformLoginPayload) {
+  return apiRequest<PlatformAuthResponse, PlatformLoginPayload>(
+    "/platform-auth/login",
+    {
+      method: "POST",
+      body: payload,
+    },
+  );
+}
+
+export function getPlatformMe(token: string) {
+  return apiRequest<PlatformAuthContext>("/platform-auth/me", {
+    token,
+  });
+}
+
+export function getPlatformPlans(token: string) {
+  return apiRequest<SaasPlansResult>("/platform/plans", {
+    token,
+  });
+}
+
+export function getPlatformCompanies(token: string) {
+  return apiRequest<PlatformCompaniesResult>("/platform/companies", {
+    token,
+  });
+}
+
+export function getPlatformCompany(companyId: string, token: string) {
+  return apiRequest<PlatformCompanyDetail>(
+    `/platform/companies/${companyId}`,
+    { token },
+  );
+}
+
+export function bootstrapPlatformCompany(
+  payload: BootstrapCompanyInput,
+  token: string,
+) {
+  return apiRequest<BootstrapCompanyResult, BootstrapCompanyInput>(
+    "/platform/companies/bootstrap",
+    {
+      method: "POST",
+      body: payload,
+      token,
+    },
+  );
+}
+
+export function updatePlatformCompanySubscription(
+  companyId: string,
+  payload: UpdatePlatformSubscriptionPayload,
+  token: string,
+) {
+  return apiRequest<
+    UpdatePlatformSubscriptionResult,
+    UpdatePlatformSubscriptionPayload
+  >(`/platform/companies/${companyId}/subscription`, {
+    method: "PATCH",
+    body: payload,
+    token,
+  });
 }
 
 export function getBranchEffectiveExperience(branchId: string) {

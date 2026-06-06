@@ -13,6 +13,8 @@ import {
 import { PrismaService } from "../prisma/prisma.service";
 import { AssignCompanyPlanDto } from "./dto/assign-company-plan.dto";
 
+type PrismaExecutor = PrismaService | Prisma.TransactionClient;
+
 const ACTIVE_SUBSCRIPTION_STATUSES: readonly CompanySubscriptionStatus[] = [
   CompanySubscriptionStatus.trialing,
   CompanySubscriptionStatus.active,
@@ -175,14 +177,20 @@ export class SaasService {
     return { plans };
   }
 
-  async getCompanySaasStatus(companyId: string): Promise<SaasStatusResult> {
-    const company = await this.findCompanyOrThrow(companyId);
+  async getCompanySaasStatus(
+    companyId: string,
+    tx: PrismaExecutor = this.prisma,
+  ): Promise<SaasStatusResult> {
+    const company = await this.findCompanyOrThrow(companyId, tx);
 
-    return this.buildCompanySaasStatus(company);
+    return this.buildCompanySaasStatus(company, tx);
   }
 
-  async getBranchSaasStatus(branchId: string) {
-    const branch = await this.prisma.branch.findUnique({
+  async getBranchSaasStatus(
+    branchId: string,
+    tx: PrismaExecutor = this.prisma,
+  ) {
+    const branch = await tx.branch.findUnique({
       where: { id: branchId },
       select: branchSelect,
     });
@@ -192,7 +200,7 @@ export class SaasService {
     }
 
     return {
-      ...(await this.buildCompanySaasStatus(branch.company)),
+      ...(await this.buildCompanySaasStatus(branch.company, tx)),
       branch,
     };
   }
@@ -236,8 +244,9 @@ export class SaasService {
   async assertCompanyFeatureEnabled(
     companyId: string,
     featureKey: SaasFeatureKey,
+    tx: PrismaExecutor = this.prisma,
   ) {
-    const status = await this.getCompanySaasStatus(companyId);
+    const status = await this.getCompanySaasStatus(companyId, tx);
     this.assertSubscriptionAllowsWrites(status);
     const entitlementKey = this.featureToEntitlementKey(featureKey);
 
@@ -252,8 +261,9 @@ export class SaasService {
     companyId: string,
     limitKey: LimitKey,
     nextIncrement = 1,
+    tx: PrismaExecutor = this.prisma,
   ) {
-    const status = await this.getCompanySaasStatus(companyId);
+    const status = await this.getCompanySaasStatus(companyId, tx);
     this.assertSubscriptionAllowsWrites(status);
     const metric = status.usage[this.limitToMetricKey(limitKey)];
 
@@ -270,13 +280,14 @@ export class SaasService {
 
   private async buildCompanySaasStatus(
     company: Prisma.CompanyGetPayload<{ select: typeof companySelect }>,
+    tx: PrismaExecutor = this.prisma,
   ): Promise<SaasStatusResult> {
     const [subscription, overrides, usageCounts] = await Promise.all([
-      this.prisma.companySubscription.findUnique({
+      tx.companySubscription.findUnique({
         where: { companyId: company.id },
         select: subscriptionSelect,
       }),
-      this.prisma.companyPlanLimitOverride.findMany({
+      tx.companyPlanLimitOverride.findMany({
         where: { companyId: company.id },
         select: {
           key: true,
@@ -285,7 +296,7 @@ export class SaasService {
           note: true,
         },
       }),
-      this.getUsageCounts(company.id),
+      this.getUsageCounts(company.id, tx),
     ]);
     const plan = subscription?.plan ?? null;
     const limits = this.buildLimits(plan, overrides);
@@ -322,7 +333,10 @@ export class SaasService {
     };
   }
 
-  private async getUsageCounts(companyId: string) {
+  private async getUsageCounts(
+    companyId: string,
+    tx: PrismaExecutor = this.prisma,
+  ) {
     const monthStart = this.startOfCurrentMonth();
     const [
       branchCount,
@@ -333,23 +347,23 @@ export class SaasService {
       aiMessagesThisMonth,
       onlinePaymentsThisMonth,
     ] = await Promise.all([
-      this.prisma.branch.count({ where: { companyId } }),
-      this.prisma.cafeTable.count({ where: { branch: { companyId } } }),
-      this.prisma.staffMembership.findMany({
+      tx.branch.count({ where: { companyId } }),
+      tx.cafeTable.count({ where: { branch: { companyId } } }),
+      tx.staffMembership.findMany({
         where: { companyId, status: "active" },
         distinct: ["staffUserId"],
         select: { staffUserId: true },
       }),
-      this.prisma.menuItem.count({
+      tx.menuItem.count({
         where: { companyId, status: { not: "archived" } },
       }),
-      this.prisma.inventoryItem.count({
+      tx.inventoryItem.count({
         where: { companyId, status: { not: "archived" } },
       }),
-      this.prisma.aiWaiterMessage.count({
+      tx.aiWaiterMessage.count({
         where: { companyId, createdAt: { gte: monthStart } },
       }),
-      this.prisma.onlinePaymentIntent.count({
+      tx.onlinePaymentIntent.count({
         where: {
           companyId,
           status: "succeeded",
@@ -666,8 +680,11 @@ export class SaasService {
     return override?.valueBoolean ?? fallback;
   }
 
-  private async findCompanyOrThrow(companyId: string) {
-    const company = await this.prisma.company.findUnique({
+  private async findCompanyOrThrow(
+    companyId: string,
+    tx: PrismaExecutor = this.prisma,
+  ) {
+    const company = await tx.company.findUnique({
       where: { id: companyId },
       select: companySelect,
     });

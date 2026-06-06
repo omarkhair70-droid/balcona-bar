@@ -24,6 +24,18 @@ export default () => ({
     devBootstrapEnabled:
       process.env.STAFF_AUTH_DEV_BOOTSTRAP_ENABLED === "true",
   },
+  platformAuth: {
+    sessionHours: Number.parseInt(
+      process.env.PLATFORM_AUTH_SESSION_HOURS ?? "12",
+      10,
+    ),
+    devBootstrapEnabled:
+      process.env.PLATFORM_ADMIN_DEV_BOOTSTRAP_ENABLED === "true",
+    bootstrapEmail:
+      process.env.PLATFORM_ADMIN_EMAIL ?? "platform@balcona.local",
+    bootstrapPassword:
+      process.env.PLATFORM_ADMIN_PASSWORD ?? "change-me-platform-123",
+  },
   customerAccess: {
     tokenHours: Number.parseInt(
       process.env.CUSTOMER_ACCESS_TOKEN_HOURS ?? "24",
