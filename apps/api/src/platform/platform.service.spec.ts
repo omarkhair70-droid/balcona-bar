@@ -414,4 +414,102 @@ describe("PlatformService", () => {
     expect(tx.company.create).not.toHaveBeenCalled();
     expect(tx.platformAuditEvent.create).not.toHaveBeenCalled();
   });
+
+  it("updates a company subscription to suspended and returns SaaS blockers", async () => {
+    const { service, prisma, saasService } = buildService();
+    const suspendedSubscription = {
+      ...subscription,
+      status: CompanySubscriptionStatus.suspended,
+    };
+    prisma.company.findUnique.mockResolvedValue(company);
+    prisma.companySubscription.findUnique.mockResolvedValue(subscription);
+    prisma.companySubscription.upsert.mockResolvedValue(suspendedSubscription);
+    saasService.getCompanySaasStatus.mockResolvedValueOnce({
+      company,
+      subscription: suspendedSubscription,
+      plan,
+      entitlements: {},
+      usage: {},
+      limits: {},
+      warnings: [],
+      blockers: [
+        {
+          code: "subscription_suspended",
+          message:
+            "Subscription is suspended. Plan-gated write features are blocked.",
+          severity: "blocker",
+        },
+      ],
+    });
+
+    const result = await service.updateCompanySubscription(
+      company.id,
+      { status: "suspended" },
+      "platform-admin-1",
+    );
+
+    expect(prisma.companySubscription.upsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        update: expect.objectContaining({
+          status: "suspended",
+        }),
+      }),
+    );
+    expect(result.subscription.status).toBe("suspended");
+    expect(result.saas.blockers).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ code: "subscription_suspended" }),
+      ]),
+    );
+  });
+
+  it("updates a company subscription to cancelled and returns SaaS blockers", async () => {
+    const { service, prisma, saasService } = buildService();
+    const cancelledSubscription = {
+      ...subscription,
+      status: CompanySubscriptionStatus.cancelled,
+      cancellationReason: "Customer churned",
+    };
+    prisma.company.findUnique.mockResolvedValue(company);
+    prisma.companySubscription.findUnique.mockResolvedValue(subscription);
+    prisma.companySubscription.upsert.mockResolvedValue(cancelledSubscription);
+    saasService.getCompanySaasStatus.mockResolvedValueOnce({
+      company,
+      subscription: cancelledSubscription,
+      plan,
+      entitlements: {},
+      usage: {},
+      limits: {},
+      warnings: [],
+      blockers: [
+        {
+          code: "subscription_cancelled",
+          message:
+            "Subscription is cancelled. Plan-gated write features are blocked.",
+          severity: "blocker",
+        },
+      ],
+    });
+
+    const result = await service.updateCompanySubscription(
+      company.id,
+      { status: "cancelled", cancellationReason: "Customer churned" },
+      "platform-admin-1",
+    );
+
+    expect(prisma.companySubscription.upsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        update: expect.objectContaining({
+          status: "cancelled",
+          cancellationReason: "Customer churned",
+        }),
+      }),
+    );
+    expect(result.subscription.status).toBe("cancelled");
+    expect(result.saas.blockers).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ code: "subscription_cancelled" }),
+      ]),
+    );
+  });
 });

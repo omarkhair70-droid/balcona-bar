@@ -44,6 +44,13 @@ import { formatMoney, humanizeStatus } from "@/features/staff/staff-format";
 
 const selectClassName =
   "min-h-11 w-full rounded-button border bg-surface px-3 text-sm text-foreground outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/35 disabled:cursor-not-allowed disabled:opacity-60";
+const platformSubscriptionStatuses = [
+  "trialing",
+  "active",
+  "past_due",
+  "suspended",
+  "cancelled"
+] as const;
 
 function badgeVariant(value?: string | null): NonNullable<BadgeProps["variant"]> {
   if (value === "active" || value === "trialing" || value === "ok") {
@@ -78,7 +85,11 @@ function normalizePlanCode(value?: string | null) {
 }
 
 function normalizeSubscriptionStatus(value?: string | null) {
-  return value === "active" || value === "trialing" ? value : "trialing";
+  return platformSubscriptionStatuses.includes(
+    value as (typeof platformSubscriptionStatuses)[number]
+  )
+    ? (value as NonNullable<UpdatePlatformSubscriptionPayload["status"]>)
+    : "trialing";
 }
 
 function UsageGrid({ company }: { company: PlatformCompanyDetail }) {
@@ -218,8 +229,11 @@ function SubscriptionPanel({ company }: { company: PlatformCompanyDetail }) {
               }
               className={selectClassName}
             >
-              <option value="trialing">Trialing</option>
-              <option value="active">Active</option>
+              {platformSubscriptionStatuses.map((subscriptionStatus) => (
+                <option key={subscriptionStatus} value={subscriptionStatus}>
+                  {humanizeStatus(subscriptionStatus)}
+                </option>
+              ))}
             </select>
           </label>
           {mutation.isError ? (

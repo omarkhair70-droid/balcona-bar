@@ -2126,7 +2126,7 @@ export type BootstrapCompanyResult = {
 
 export type UpdatePlatformSubscriptionPayload = {
   planCode?: "pilot" | "starter" | "growth" | "enterprise";
-  status?: "trialing" | "active";
+  status?: "trialing" | "active" | "past_due" | "suspended" | "cancelled";
   cancellationReason?: string | null;
 };
 
