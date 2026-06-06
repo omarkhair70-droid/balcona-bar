@@ -44,11 +44,21 @@ services:
     environment:
       NODE_ENV: production
       PORT: 3000
+      API_PREFIX: api/v1
       DATABASE_URL: postgresql://balcona:${POSTGRES_PASSWORD:-replace-me}@postgres:5432/balcona_bar?schema=public
       REDIS_URL: redis://redis:6379/0
       CORS_ORIGINS: ${WEB_ORIGIN:-http://localhost:3001}
+      PLATFORM_AUTH_SESSION_HOURS: "12"
+      PLATFORM_ADMIN_DEV_BOOTSTRAP_ENABLED: "false"
+      PLATFORM_ADMIN_BOOTSTRAP_ENABLED: "false"
       STAFF_AUTH_DEV_BOOTSTRAP_ENABLED: "false"
+      CUSTOMER_ACCESS_TOKEN_HOURS: "24"
       SWAGGER_ENABLED: "false"
+      JOBS_ENABLED: "true"
+      ONLINE_PAYMENTS_ENABLED: "true"
+      ONLINE_PAYMENT_PROVIDER: mock
+      MOCK_ONLINE_PAYMENTS_ENABLED: "false"
+      ONLINE_PAYMENT_CHECKOUT_BASE_URL: ${WEB_ORIGIN:-http://localhost:3001}
     depends_on:
       postgres:
         condition: service_healthy

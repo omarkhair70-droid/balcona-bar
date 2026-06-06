@@ -54,6 +54,41 @@ If `API_BASE_URL` is provided as a browser API URL ending in `/api/v1`, the
 scripts derive `/health` from the API origin because the health endpoint is not
 under the API prefix.
 
+## Staging Smoke Test
+
+PowerShell:
+
+```powershell
+.\scripts\deploy\staging-smoke.ps1 `
+  -WEB_BASE_URL https://staging.example.com `
+  -API_BASE_URL https://api-staging.example.com/api/v1
+```
+
+Bash:
+
+```bash
+WEB_BASE_URL=https://staging.example.com \
+API_BASE_URL=https://api-staging.example.com/api/v1 \
+./scripts/deploy/staging-smoke.sh
+```
+
+The staging smoke scripts check:
+
+- API `/health`
+- API `/api/v1/system/info`
+- Web `/`
+- Web `/platform/login`
+- Web `/platform/companies/new`
+- Web `/staff/login`
+- Web `/staff/setup`
+- Web `/staff/billing`
+- Web `/customer/table/balcona-main-t01`
+- that fetched HTML does not contain `[object Object]`
+
+These scripts do not log in, create cafes, submit orders, or require a real
+payment gateway. Use `docs/deployment/staging-smoke-test.md` for the manual
+authenticated flow.
+
 ## Terraform Local Validation
 
 PowerShell:

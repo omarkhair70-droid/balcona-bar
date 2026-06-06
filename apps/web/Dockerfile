@@ -31,6 +31,7 @@ ENV PORT=3001
 ENV PNPM_HOME="/pnpm"
 ENV PATH="$PNPM_HOME:$PATH"
 
+RUN apk add --no-cache wget
 RUN corepack enable
 
 WORKDIR /app
@@ -45,4 +46,4 @@ WORKDIR /app/apps/web
 
 EXPOSE 3001
 
-CMD ["pnpm", "start"]
+CMD ["sh", "-c", "pnpm exec next start --port ${PORT:-3001}"]
