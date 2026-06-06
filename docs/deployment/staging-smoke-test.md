@@ -1,7 +1,52 @@
 # Staging Smoke Test
 
-Use this after staging API and Web are deployed, migrations are applied, and the
-platform admin has been bootstrapped.
+Use this after staging API and Web are deployed. For the current staging web
+setup, the API may be a local API exposed through Cloudflare Tunnel and pointed
+to Neon Postgres plus Upstash Redis.
+
+Cloudflare Tunnel quick links are temporary. If the laptop, API process, or
+tunnel restarts, update the Vercel staging web environment variable that points
+to the API before running web smoke again.
+
+## First Cafe Workspace Flow
+
+1. Point the API at the staging Neon Postgres URL and Upstash Redis URL.
+2. Apply database migrations:
+
+   ```bash
+   pnpm --filter @balcona-bar/api prisma:migrate:deploy
+   ```
+
+3. Seed SaaS plans and demo data if the database is new or plans are missing:
+
+   ```bash
+   pnpm --filter @balcona-bar/api prisma:seed
+   ```
+
+4. Bootstrap the platform admin from the staging-safe environment variables:
+
+   ```bash
+   pnpm --filter @balcona-bar/api platform-admin:bootstrap
+   ```
+
+5. Start or restart the API and expose it through the current Cloudflare Tunnel
+   URL when using a laptop-hosted API.
+6. Confirm Vercel staging web has `NEXT_PUBLIC_API_BASE_URL` set to the current
+   API `/api/v1` URL, then redeploy or restart the web environment if changed.
+7. Open `/platform/login` and log in as the platform admin.
+8. Open `/platform/companies/new` and create a cafe workspace:
+   - plan: `pilot`
+   - status: `active`
+   - starter tables: enabled
+   - count: `2` or more
+9. Confirm the response page shows the company, branch, subscription, owner
+   staff user handoff, starter tables, and customer QR examples.
+10. Open the first returned QR example, `/customer/table/<qrToken>`, and start a
+    customer table session.
+11. Open `/staff/login`, then use the staff setup/password handoff path for the
+    owner account.
+12. Open `/staff/setup` and `/staff/billing` and confirm the staff routes load
+    without `[object Object]` errors.
 
 ## Automated Route Check
 
@@ -39,7 +84,8 @@ This verifies:
 1. Open `/platform/login`.
 2. Log in with the staging platform admin created from env-provided credentials.
 3. Open `/platform/companies/new`.
-4. Create a test cafe workspace with starter tables.
+4. Create a test cafe workspace with plan `pilot`, status `active`, starter
+   tables enabled, and at least two tables.
 5. Open the created company detail page and confirm plan, usage, and status
    render without raw object errors.
 6. Set the owner password through the documented staff auth bootstrap path for
@@ -47,8 +93,8 @@ This verifies:
 7. Log in at `/staff/login`.
 8. Open `/staff/setup` and confirm branch/table/setup readiness cards load.
 9. Open `/staff/billing` and confirm SaaS plan/status appears.
-10. Open `/customer/table/:qrToken` for a created table and confirm a customer
-    session can start.
+10. Open `/customer/table/:qrToken` for the first returned QR example and
+    confirm a customer session can start.
 11. If seeded menu data is intentionally available in that staging cafe, submit
     a basic customer order and confirm the cashier sees it.
 12. Confirm no visible page renders `[object Object]`.
