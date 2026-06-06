@@ -339,3 +339,10 @@ export const staffQueryKeys = {
   ],
   branchRealtime: (branchId?: string) => ["staff", "branch-realtime", branchId],
 } as const;
+
+export const platformQueryKeys = {
+  me: () => ["platform", "me"],
+  plans: () => ["platform", "plans"],
+  companies: () => ["platform", "companies"],
+  company: (companyId?: string) => ["platform", "company", companyId],
+} as const;

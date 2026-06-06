@@ -1,13 +1,17 @@
 import {
   CompanySubscriptionStatus,
+  PlatformAdminRole,
+  PlatformAdminStatus,
   PreparationStation,
   PrinterAdapterType,
   PrismaClient,
   SaasPlanStatus,
   StaffRole,
 } from '@prisma/client';
+import * as bcrypt from 'bcryptjs';
 
 const prisma = new PrismaClient();
+const PASSWORD_HASH_ROUNDS = 12;
 
 const companySlug = 'balcona-bar';
 const branchSlug = 'main-branch';
@@ -540,8 +544,47 @@ async function assignPilotSubscription(companyId: string) {
   });
 }
 
+async function seedPlatformAdminIfEnabled() {
+  const enabled = process.env.PLATFORM_ADMIN_DEV_BOOTSTRAP_ENABLED === 'true';
+
+  if (!enabled) {
+    return;
+  }
+
+  if (process.env.NODE_ENV === 'production') {
+    throw new Error('Platform admin dev bootstrap is disabled in production');
+  }
+
+  const email = (
+    process.env.PLATFORM_ADMIN_EMAIL ?? 'platform@balcona.local'
+  )
+    .trim()
+    .toLowerCase();
+  const password =
+    process.env.PLATFORM_ADMIN_PASSWORD ?? 'change-me-platform-123';
+  const passwordHash = await bcrypt.hash(password, PASSWORD_HASH_ROUNDS);
+
+  await prisma.platformAdminUser.upsert({
+    where: { email },
+    update: {
+      name: 'Balcona Platform Admin',
+      passwordHash,
+      role: PlatformAdminRole.owner,
+      status: PlatformAdminStatus.active,
+    },
+    create: {
+      email,
+      name: 'Balcona Platform Admin',
+      passwordHash,
+      role: PlatformAdminRole.owner,
+      status: PlatformAdminStatus.active,
+    },
+  });
+}
+
 async function main() {
   await seedSaasPlans();
+  await seedPlatformAdminIfEnabled();
 
   const company = await prisma.company.upsert({
     where: { slug: companySlug },

@@ -27,6 +27,8 @@ import { MenuModule } from "./menu/menu.module";
 import { OnlinePaymentsModule } from "./online-payments/online-payments.module";
 import { OrdersModule } from "./orders/orders.module";
 import { OwnerAnalyticsModule } from "./owner-analytics/owner-analytics.module";
+import { PlatformAuthModule } from "./platform-auth/platform-auth.module";
+import { PlatformModule } from "./platform/platform.module";
 import { PrintJobsModule } from "./print-jobs/print-jobs.module";
 import { PresenceNotificationsModule } from "./presence-notifications/presence-notifications.module";
 import { PreparationTasksModule } from "./preparation-tasks/preparation-tasks.module";
@@ -57,6 +59,7 @@ import { WaiterCallsModule } from "./waiter-calls/waiter-calls.module";
     AuditModule,
     AutopilotModule,
     StaffAuthModule,
+    PlatformAuthModule,
     PrismaModule,
     RedisModule,
     HealthModule,
@@ -79,6 +82,7 @@ import { WaiterCallsModule } from "./waiter-calls/waiter-calls.module";
     OnlinePaymentsModule,
     OrdersModule,
     OwnerAnalyticsModule,
+    PlatformModule,
     PresenceNotificationsModule,
     PreparationTasksModule,
     PrintJobsModule,
