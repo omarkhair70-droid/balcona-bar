@@ -49,6 +49,7 @@ DATABASE_URL=postgresql://USER:PASSWORD@NEON_HOST/DB?sslmode=require&schema=publ
 REDIS_URL=rediss://default:PASSWORD@UPSTASH_HOST:6379
 CORS_ORIGINS=https://staging.example.com
 STAFF_AUTH_SESSION_HOURS=12
+STAFF_INVITE_EXPIRES_DAYS=7
 PLATFORM_AUTH_SESSION_HOURS=12
 CUSTOMER_ACCESS_TOKEN_HOURS=24
 JOBS_ENABLED=true
@@ -73,6 +74,11 @@ Development bootstrap flags must stay false for deployed environments:
 STAFF_AUTH_DEV_BOOTSTRAP_ENABLED=false
 PLATFORM_ADMIN_DEV_BOOTSTRAP_ENABLED=false
 ```
+
+Staff passwords for staging tenants should be set through
+`/staff/invite/<inviteToken>` links generated from the platform company detail
+page or `/staff/setup`. Do not use the dev bootstrap endpoint in hosted
+staging.
 
 Optional AI provider:
 
@@ -240,8 +246,12 @@ For a clean staging tenant:
 1. Log in to `/platform/login`.
 2. Open `/platform/companies/new`.
 3. Create the cafe workspace with starter tables.
-4. Use `/staff/setup` to finish branch readiness.
-5. Use `/staff/billing` to confirm SaaS status.
+4. Open the created company detail page and generate a staff invite for the
+   owner or manager.
+5. Open `/staff/invite/<inviteToken>`, set the staff password, then log in at
+   `/staff/login`.
+6. Use `/staff/setup` to finish branch readiness and invite branch operators.
+7. Use `/staff/billing` to confirm SaaS status.
 
 This keeps staging data created through the product surface instead of fake
 seed data.
@@ -277,10 +287,12 @@ Minimum authenticated smoke after permanent API deploy:
 4. Create a cafe workspace from `/platform/companies/new` using plan `pilot`,
    status `active`, and at least two starter tables.
 5. Open the created company detail page.
-6. Set the owner staff password through the documented staging handoff.
-7. Log in at `/staff/login`.
-8. Open the first returned `/customer/table/<qrToken>` example.
-9. Confirm no visible page renders `[object Object]`.
+6. Generate an owner or manager staff invite and open the returned
+   `/staff/invite/<inviteToken>` link.
+7. Set a staff password and log in at `/staff/login`.
+8. Open `/staff/setup` and `/staff/billing`.
+9. Open the first returned `/customer/table/<qrToken>` example.
+10. Confirm no visible page renders `[object Object]`.
 
 ## Common Errors
 

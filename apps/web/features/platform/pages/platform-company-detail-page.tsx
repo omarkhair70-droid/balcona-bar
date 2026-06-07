@@ -5,10 +5,14 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   ArrowLeft,
   Building2,
+  Copy,
   CreditCard,
   ExternalLink,
+  KeyRound,
+  Loader2,
   RefreshCw,
   Save,
+  UserPlus,
   UsersRound
 } from "lucide-react";
 import { type FormEvent, useState } from "react";
@@ -23,20 +27,25 @@ import {
   CardTitle
 } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
+import { Input } from "@/components/ui/input";
 import { LoadingState } from "@/components/ui/loading-state";
 import { MetricCard } from "@/components/ui/metric-card";
 import { PlatformAuthGate } from "@/features/platform/components/platform-auth-gate";
 import { PlatformShell } from "@/features/platform/platform-shell";
 import { formatErrorMessage } from "@/lib/api/error-message";
 import {
+  createPlatformStaffInvite,
   getPlatformCompany,
   getPlatformPlans,
   updatePlatformCompanySubscription
 } from "@/lib/api/endpoints";
 import { platformQueryKeys } from "@/lib/api/query-keys";
 import type {
+  CreatePlatformStaffInvitePayload,
   PlatformCompanyDetail,
   SaasUsageMetric,
+  StaffInviteSummary,
+  TenantOnboardingStaffRole,
   UpdatePlatformSubscriptionPayload
 } from "@/lib/api/types";
 import { usePlatformAuthStore } from "@/lib/platform/platform-auth-store";
@@ -51,6 +60,23 @@ const platformSubscriptionStatuses = [
   "suspended",
   "cancelled"
 ] as const;
+const platformStaffRoles: TenantOnboardingStaffRole[] = [
+  "owner",
+  "branch_manager",
+  "cashier",
+  "waiter",
+  "kitchen",
+  "barista",
+  "menu_admin"
+];
+
+function buildInviteUrl(invitePath: string) {
+  if (typeof window === "undefined") {
+    return invitePath;
+  }
+
+  return new URL(invitePath, window.location.origin).toString();
+}
 
 function badgeVariant(value?: string | null): NonNullable<BadgeProps["variant"]> {
   if (value === "active" || value === "trialing" || value === "ok") {
@@ -76,6 +102,18 @@ function formatUsage(metric: SaasUsageMetric) {
   return `${metric.used.toLocaleString("en")} / ${metric.limit.toLocaleString(
     "en"
   )}`;
+}
+
+function inviteStatusBadge(invite?: StaffInviteSummary | null) {
+  if (!invite) {
+    return <Badge variant="warning">Invite needed</Badge>;
+  }
+
+  return (
+    <Badge variant={badgeVariant(invite.status)}>
+      {humanizeStatus(invite.status)}
+    </Badge>
+  );
 }
 
 function normalizePlanCode(value?: string | null) {
@@ -256,6 +294,187 @@ function SubscriptionPanel({ company }: { company: PlatformCompanyDetail }) {
   );
 }
 
+function StaffInvitePanel({ company }: { company: PlatformCompanyDetail }) {
+  const queryClient = useQueryClient();
+  const accessToken = usePlatformAuthStore((state) => state.accessToken);
+  const [inviteForm, setInviteForm] =
+    useState<CreatePlatformStaffInvitePayload>({
+      name: "",
+      email: "",
+      role: "owner",
+      branchId: company.branches[0]?.id ?? ""
+    });
+  const [lastInviteUrl, setLastInviteUrl] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
+  const roleRequiresBranch = inviteForm.role !== "owner";
+  const inviteMutation = useMutation({
+    mutationFn: (payload: CreatePlatformStaffInvitePayload) =>
+      createPlatformStaffInvite(company.company.id, payload, accessToken ?? ""),
+    onSuccess: (result) => {
+      setLastInviteUrl(buildInviteUrl(result.invitePath));
+      setCopied(false);
+      setInviteForm({
+        name: "",
+        email: "",
+        role: "owner",
+        branchId: company.branches[0]?.id ?? ""
+      });
+      queryClient.invalidateQueries({
+        queryKey: platformQueryKeys.company(company.company.id)
+      });
+      queryClient.invalidateQueries({
+        queryKey: platformQueryKeys.companies()
+      });
+    }
+  });
+
+  function submit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+
+    inviteMutation.mutate({
+      ...inviteForm,
+      branchId: roleRequiresBranch ? inviteForm.branchId : undefined
+    });
+  }
+
+  async function copyInviteUrl() {
+    if (!lastInviteUrl) {
+      return;
+    }
+
+    await navigator.clipboard.writeText(lastInviteUrl);
+    setCopied(true);
+  }
+
+  return (
+    <Card variant="glass" padding="lg">
+      <CardHeader>
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <Badge variant="muted" className="mb-3">
+              Staff handoff
+            </Badge>
+            <CardTitle>Create staff invite</CardTitle>
+            <CardDescription>
+              Generate a first-password link for owners, managers, or branch
+              operators in this workspace.
+            </CardDescription>
+          </div>
+          <UserPlus className="size-5 text-primary" aria-hidden="true" />
+        </div>
+      </CardHeader>
+      <form onSubmit={submit}>
+        <CardContent className="grid gap-3">
+          <label className="grid gap-2 text-sm font-medium text-foreground">
+            Name
+            <Input
+              value={inviteForm.name}
+              onChange={(event) =>
+                setInviteForm((current) => ({
+                  ...current,
+                  name: event.target.value
+                }))
+              }
+            />
+          </label>
+          <label className="grid gap-2 text-sm font-medium text-foreground">
+            Email
+            <Input
+              type="email"
+              value={inviteForm.email}
+              onChange={(event) =>
+                setInviteForm((current) => ({
+                  ...current,
+                  email: event.target.value
+                }))
+              }
+            />
+          </label>
+          <label className="grid gap-2 text-sm font-medium text-foreground">
+            Role
+            <select
+              value={inviteForm.role}
+              onChange={(event) =>
+                setInviteForm((current) => ({
+                  ...current,
+                  role: event.target.value as TenantOnboardingStaffRole
+                }))
+              }
+              className={selectClassName}
+            >
+              {platformStaffRoles.map((role) => (
+                <option key={role} value={role}>
+                  {humanizeStatus(role)}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="grid gap-2 text-sm font-medium text-foreground">
+            Branch
+            <select
+              value={inviteForm.branchId ?? ""}
+              disabled={!roleRequiresBranch}
+              onChange={(event) =>
+                setInviteForm((current) => ({
+                  ...current,
+                  branchId: event.target.value
+                }))
+              }
+              className={selectClassName}
+            >
+              {company.branches.map((branch) => (
+                <option key={branch.id} value={branch.id}>
+                  {branch.name}
+                </option>
+              ))}
+            </select>
+          </label>
+          {inviteMutation.isError ? (
+            <div
+              role="alert"
+              className="rounded-card border border-danger bg-danger/10 p-3 text-sm text-danger"
+            >
+              {formatErrorMessage(inviteMutation.error)}
+            </div>
+          ) : null}
+          {lastInviteUrl ? (
+            <div className="grid gap-2 rounded-button border bg-surface/70 p-3">
+              <p className="text-xs font-semibold uppercase text-muted-foreground">
+                Invite link
+              </p>
+              <div className="grid gap-2 md:grid-cols-[1fr_auto]">
+                <Input value={lastInviteUrl} readOnly />
+                <Button type="button" variant="secondary" onClick={copyInviteUrl}>
+                  <Copy className="size-4" aria-hidden="true" />
+                  {copied ? "Copied" : "Copy"}
+                </Button>
+              </div>
+            </div>
+          ) : null}
+        </CardContent>
+        <CardFooter>
+          <Button
+            type="submit"
+            disabled={
+              inviteMutation.isPending ||
+              inviteForm.name.trim().length === 0 ||
+              inviteForm.email.trim().length === 0 ||
+              (roleRequiresBranch && !inviteForm.branchId)
+            }
+          >
+            {inviteMutation.isPending ? (
+              <Loader2 className="size-4 animate-spin" aria-hidden="true" />
+            ) : (
+              <KeyRound className="size-4" aria-hidden="true" />
+            )}
+            Create invite
+          </Button>
+        </CardFooter>
+      </form>
+    </Card>
+  );
+}
+
 function CompanyDetailContent({ companyId }: { companyId: string }) {
   const accessToken = usePlatformAuthStore((state) => state.accessToken);
   const companyQuery = useQuery({
@@ -400,7 +619,15 @@ function CompanyDetailContent({ companyId }: { companyId: string }) {
                         {owner.staffUser.email}
                       </p>
                     </div>
-                    <Badge variant="muted">{humanizeStatus(owner.role)}</Badge>
+                    <div className="flex flex-wrap gap-2">
+                      <Badge variant="muted">{humanizeStatus(owner.role)}</Badge>
+                      {owner.staffUser.passwordSetAt ? (
+                        <Badge variant="success">Password set</Badge>
+                      ) : (
+                        <Badge variant="warning">Password pending</Badge>
+                      )}
+                      {inviteStatusBadge(owner.recentInvite)}
+                    </div>
                   </div>
                 </div>
               ))}
@@ -410,12 +637,18 @@ function CompanyDetailContent({ companyId }: { companyId: string }) {
           <UsageGrid company={data} />
         </div>
 
-        <SubscriptionPanel
-          key={`${data.company.id}-${data.plan?.code ?? "none"}-${
-            data.subscription?.status ?? "none"
-          }`}
-          company={data}
-        />
+        <div className="grid gap-5">
+          <SubscriptionPanel
+            key={`${data.company.id}-${data.plan?.code ?? "none"}-${
+              data.subscription?.status ?? "none"
+            }`}
+            company={data}
+          />
+          <StaffInvitePanel
+            key={`${data.company.id}-staff-invite`}
+            company={data}
+          />
+        </div>
       </section>
     </div>
   );

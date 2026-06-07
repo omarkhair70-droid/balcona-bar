@@ -10,6 +10,7 @@ import {
 import { CurrentPlatformAdmin } from "../platform-auth/decorators/current-platform-admin.decorator";
 import { PlatformSessionGuard } from "../platform-auth/guards/platform-session.guard";
 import { PlatformAuthContext } from "../platform-auth/platform-auth.types";
+import { CreateStaffInviteDto } from "../staff-invites/dto/create-staff-invite.dto";
 import { BootstrapPlatformCompanyDto } from "./dto/bootstrap-platform-company.dto";
 import { PlatformCompanyIdParamDto } from "./dto/platform-param.dto";
 import { UpdatePlatformSubscriptionDto } from "./dto/update-platform-subscription.dto";
@@ -41,6 +42,19 @@ export class PlatformController {
     @Body() body: BootstrapPlatformCompanyDto,
   ) {
     return this.platformService.bootstrapCompany(
+      body,
+      currentPlatformAdmin.platformAdminUser.id,
+    );
+  }
+
+  @Post("companies/:companyId/staff/invites")
+  createCompanyStaffInvite(
+    @CurrentPlatformAdmin() currentPlatformAdmin: PlatformAuthContext,
+    @Param() params: PlatformCompanyIdParamDto,
+    @Body() body: CreateStaffInviteDto,
+  ) {
+    return this.platformService.createCompanyStaffInvite(
+      params.companyId,
       body,
       currentPlatformAdmin.platformAdminUser.id,
     );

@@ -9,6 +9,7 @@ import {
   CheckCircle2,
   CircleDashed,
   ClipboardCheck,
+  Copy,
   CreditCard,
   KeyRound,
   Loader2,
@@ -174,6 +175,14 @@ function toNonNegativeInteger(value: string, fallback: number) {
   const parsed = Number.parseInt(value, 10);
 
   return Number.isFinite(parsed) && parsed >= 0 ? parsed : fallback;
+}
+
+function buildInviteUrl(invitePath: string) {
+  if (typeof window === "undefined") {
+    return invitePath;
+  }
+
+  return new URL(invitePath, window.location.origin).toString();
 }
 
 function getCompanyForm(company?: TenantOnboardingCompany): CompanyFormState {
@@ -351,6 +360,10 @@ function StaffSetupContent() {
     name: "",
     role: "cashier"
   });
+  const [lastStaffInviteUrl, setLastStaffInviteUrl] = useState<string | null>(
+    null
+  );
+  const [staffInviteCopied, setStaffInviteCopied] = useState(false);
   const [acknowledgementMessage, setAcknowledgementMessage] = useState<
     string | null
   >(null);
@@ -549,7 +562,9 @@ function StaffSetupContent() {
 
       return inviteOnboardingStaff(branchId, payload, token);
     },
-    onSuccess: () => {
+    onSuccess: (result) => {
+      setLastStaffInviteUrl(buildInviteUrl(result.invitePath));
+      setStaffInviteCopied(false);
       setStaffForm({ email: "", name: "", role: "cashier" });
       refreshOnboarding();
     }
@@ -630,6 +645,15 @@ function StaffSetupContent() {
       ...staffForm,
       role: staffRoleValue
     });
+  }
+
+  async function copyStaffInviteUrl() {
+    if (!lastStaffInviteUrl) {
+      return;
+    }
+
+    await navigator.clipboard.writeText(lastStaffInviteUrl);
+    setStaffInviteCopied(true);
   }
 
   const roleCounts = useMemo(() => onboarding?.staff.roleCounts ?? {}, [onboarding]);
@@ -1195,8 +1219,8 @@ function StaffSetupContent() {
                     </Badge>
                     <CardTitle>Invite branch operators</CardTitle>
                     <CardDescription>
-                      Create staff users and active memberships. Password setup
-                      stays in the secure auth flow.
+                      Create staff users, active memberships, and
+                      first-password invite links.
                     </CardDescription>
                   </div>
                   <UsersRound className="size-5 text-primary" aria-hidden="true" />
@@ -1265,9 +1289,27 @@ function StaffSetupContent() {
                     ) : (
                       <KeyRound className="size-4" aria-hidden="true" />
                     )}
-                    Create staff access
+                    Create invite
                   </Button>
                 </form>
+                {lastStaffInviteUrl ? (
+                  <div className="mt-4 grid gap-2 rounded-button border bg-surface/70 p-3">
+                    <p className="text-xs font-semibold uppercase text-muted-foreground">
+                      Invite link
+                    </p>
+                    <div className="grid gap-2 md:grid-cols-[1fr_auto]">
+                      <Input value={lastStaffInviteUrl} readOnly />
+                      <Button
+                        type="button"
+                        variant="secondary"
+                        onClick={copyStaffInviteUrl}
+                      >
+                        <Copy className="size-4" aria-hidden="true" />
+                        {staffInviteCopied ? "Copied" : "Copy"}
+                      </Button>
+                    </div>
+                  </div>
+                ) : null}
                 {!canInviteOwner ? (
                   <p className="mt-3 text-sm text-muted-foreground">
                     Owner membership creation requires company-level staff

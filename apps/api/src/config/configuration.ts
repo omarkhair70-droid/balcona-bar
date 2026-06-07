@@ -26,6 +26,10 @@ export default () => ({
       process.env.STAFF_AUTH_SESSION_HOURS ?? "12",
       10,
     ),
+    inviteExpiresDays: Number.parseInt(
+      process.env.STAFF_INVITE_EXPIRES_DAYS ?? "7",
+      10,
+    ),
     devBootstrapEnabled:
       process.env.STAFF_AUTH_DEV_BOOTSTRAP_ENABLED === "true",
   },

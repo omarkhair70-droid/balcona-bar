@@ -18,6 +18,7 @@ import {
 } from "@prisma/client";
 import { PrismaService } from "../prisma/prisma.service";
 import { SaasService } from "../saas/saas.service";
+import { StaffInvitesService } from "../staff-invites/staff-invites.service";
 import { StaffAccessService } from "../staff/staff-access.service";
 import {
   BulkCreateOnboardingTablesDto,
@@ -162,6 +163,7 @@ export class TenantOnboardingService {
     private readonly configService: ConfigService,
     private readonly staffAccessService: StaffAccessService,
     private readonly saasService: SaasService,
+    private readonly staffInvitesService: StaffInvitesService,
   ) {}
 
   async getCompanyOnboarding(companyId: string) {
@@ -562,20 +564,23 @@ export class TenantOnboardingService {
           : [null, null];
       const willCreateCountedStaffUser =
         !existingStaffUser ||
-        (!existingMembership && !existingActiveCompanyMembership);
+        (!existingActiveCompanyMembership &&
+          (!existingMembership ||
+            existingMembership.status !== StaffStatus.active));
 
       if (willCreateCountedStaffUser) {
         await this.saasService.assertWithinLimit(
           branch.companyId,
           "maxStaffUsers",
           1,
+          tx,
         );
       }
 
       const staffUser = existingStaffUser
         ? await tx.staffUser.update({
             where: { id: existingStaffUser.id },
-            data: { name: body.name.trim() },
+            data: { name: body.name.trim(), status: StaffStatus.active },
             select: staffUserSelect,
           })
         : await tx.staffUser.create({
@@ -586,32 +591,51 @@ export class TenantOnboardingService {
             },
             select: staffUserSelect,
           });
-      const membership =
-        existingMembership ??
-        (await tx.staffMembership.create({
-          data: {
-            staffUserId: staffUser.id,
-            companyId: branch.companyId,
-            branchId: membershipBranchId,
-            role,
-            status: StaffStatus.active,
+      const membership = existingMembership
+        ? existingMembership.status === StaffStatus.active
+          ? existingMembership
+          : await tx.staffMembership.update({
+              where: { id: existingMembership.id },
+              data: { status: StaffStatus.active },
+              select: staffMembershipSelect,
+            })
+        : await tx.staffMembership.create({
+            data: {
+              staffUserId: staffUser.id,
+              companyId: branch.companyId,
+              branchId: membershipBranchId,
+              role,
+              status: StaffStatus.active,
+            },
+            select: staffMembershipSelect,
+          });
+      const invite = await this.staffInvitesService.createStaffInvite(
+        {
+          companyId: branch.companyId,
+          branchId: membershipBranchId,
+          staffUserId: staffUser.id,
+          email,
+          name: staffUser.name,
+          role,
+          createdByStaffUserId: actorStaffUserId,
+          metadata: {
+            source: "tenant_onboarding",
+            branchId: branch.id,
           },
-          select: staffMembershipSelect,
-        }));
+        },
+        tx,
+      );
 
       return {
         staffUser,
         membership,
         createdStaffUser: !existingStaffUser,
         createdMembership: !existingMembership,
+        ...invite,
         passwordSetup: {
           required: !staffUser.passwordSetAt,
-          devBootstrapAvailable: this.configService.get<boolean>(
-            "staffAuth.devBootstrapEnabled",
-            false,
-          ),
           nextStep:
-            "Set the staff password through the secure staff auth flow. Development bootstrap is only available when explicitly enabled.",
+            "Send the invite link to the staff user so they can set their password and then log in at /staff/login.",
         },
         onboarding: await this.buildBranchOnboarding(branch, tx),
       };

@@ -166,6 +166,7 @@ function createPrisma(overrides: Record<string, unknown> = {}) {
     staffMembership: {
       findFirst: jest.fn().mockResolvedValue(null),
       create: jest.fn().mockResolvedValue(ownerMembership),
+      update: jest.fn(),
       findMany: jest.fn().mockResolvedValue([]),
     },
     floor: {
@@ -236,16 +237,39 @@ function buildService(overrides: Record<string, unknown> = {}) {
       return fallback;
     }),
   };
+  const staffInvitesService = {
+    createStaffInvite: jest.fn().mockResolvedValue({
+      invite: {
+        id: "invite-1",
+        companyId: company.id,
+        branchId: null,
+        staffUserId: ownerStaffUser.id,
+        email: ownerStaffUser.email,
+        name: ownerStaffUser.name,
+        role: StaffRole.owner,
+        status: "pending",
+        expiresAt: new Date("2026-06-13T10:00:00.000Z"),
+        acceptedAt: null,
+        revokedAt: null,
+        createdAt: now,
+        updatedAt: now,
+      },
+      inviteToken: "balcona_staff_invite_platform",
+      invitePath: "/staff/invite/balcona_staff_invite_platform",
+    }),
+  };
 
   return {
     service: new PlatformService(
       prisma as never,
       configService as never,
       saasService as never,
+      staffInvitesService as never,
     ),
     prisma,
     tx,
     saasService,
+    staffInvitesService,
   };
 }
 
@@ -459,6 +483,75 @@ describe("PlatformService", () => {
     ).rejects.toThrow("Staff user limit reached for this company plan.");
     expect(tx.staffUser.create).not.toHaveBeenCalled();
     expect(tx.staffMembership.create).not.toHaveBeenCalled();
+  });
+
+  it("creates a platform staff invite with SaaS staff limit enforcement", async () => {
+    const { service, tx, saasService, staffInvitesService } = buildService();
+    tx.company.findUnique.mockResolvedValueOnce(company);
+
+    const result = await service.createCompanyStaffInvite(
+      company.id,
+      {
+        email: "Owner@Test.Local",
+        name: "Owner",
+        role: StaffRole.owner,
+      },
+      "platform-admin-1",
+    );
+
+    expect(saasService.assertWithinLimit).toHaveBeenCalledWith(
+      company.id,
+      "maxStaffUsers",
+      1,
+      tx,
+    );
+    expect(tx.staffUser.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          email: "owner@test.local",
+          status: StaffStatus.active,
+        }),
+      }),
+    );
+    expect(tx.staffMembership.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          branchId: null,
+          role: StaffRole.owner,
+          status: StaffStatus.active,
+        }),
+      }),
+    );
+    expect(staffInvitesService.createStaffInvite).toHaveBeenCalledWith(
+      expect.objectContaining({
+        companyId: company.id,
+        branchId: null,
+        email: "owner@test.local",
+        role: StaffRole.owner,
+        createdByPlatformAdminId: "platform-admin-1",
+      }),
+      tx,
+    );
+    expect(result.inviteToken).toBe("balcona_staff_invite_platform");
+    expect(JSON.stringify(result)).not.toContain("tokenHash");
+  });
+
+  it("requires a branch before creating a branch-scoped platform staff invite", async () => {
+    const { service, tx } = buildService();
+    tx.company.findUnique.mockResolvedValueOnce(company);
+
+    await expect(
+      service.createCompanyStaffInvite(
+        company.id,
+        {
+          email: "manager@test.local",
+          name: "Manager",
+          role: StaffRole.branch_manager,
+        },
+        "platform-admin-1",
+      ),
+    ).rejects.toThrow("Branch is required for this staff role");
+    expect(tx.staffUser.create).not.toHaveBeenCalled();
   });
 
   it("fails transactionally before writes when the plan is invalid", async () => {
