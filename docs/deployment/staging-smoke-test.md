@@ -125,7 +125,7 @@ This verifies:
     render readable text rather than `[object Object]`.
 14. Open `/staff/branches`, select the active branch, and confirm tables show
     floor/area, code, display name, capacity, status, QR token, customer URL,
-    and a print-friendly card.
+    and a lightweight print handoff card.
 15. Copy a customer QR URL and open it.
 16. Regenerate a non-demo table QR token only after the confirmation prompt.
     Confirm the old token no longer opens and the new token starts or resumes a
@@ -144,4 +144,4 @@ remain explicit and staging-only until a real provider is added.
 
 PNG/PDF batch QR export remains a follow-up. The current staging surface should
 at minimum provide copy link, open QR link, regeneration with confirmation, and a
-print-friendly table card for each QR token.
+lightweight print handoff card for each QR token.

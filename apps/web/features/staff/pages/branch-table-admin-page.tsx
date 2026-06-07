@@ -34,7 +34,6 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { Input } from "@/components/ui/input";
 import { LoadingState } from "@/components/ui/loading-state";
 import { MetricCard } from "@/components/ui/metric-card";
-import { balkonaDemoQrToken } from "@/features/demo/balkona-demo";
 import {
   branchStatuses,
   branchTableAdminTabs,
@@ -253,8 +252,16 @@ function buildTablePayload(form: TableFormState): CreateTablePayload {
   };
 }
 
-function customerPreviewHref(path?: string | null) {
-  return path || `/customer/table/${balkonaDemoQrToken}`;
+function customerPreviewHref(path?: string | null, qrToken?: string | null) {
+  if (path) {
+    return path;
+  }
+
+  if (qrToken) {
+    return `/customer/table/${encodeURIComponent(qrToken)}`;
+  }
+
+  return null;
 }
 
 function toQrActionResult(
@@ -265,7 +272,9 @@ function toQrActionResult(
     action,
     tableName: result.table.displayName,
     qrToken: result.qrToken,
-    customerPreviewPath: customerPreviewHref(result.table.customerPreviewPath)
+    customerPreviewPath:
+      customerPreviewHref(result.table.customerPreviewPath, result.qrToken) ??
+      ""
   };
 }
 
@@ -279,13 +288,6 @@ function BranchTableActions() {
       <Link href="/staff/menu" className={buttonVariants({ variant: "ghost" })}>
         <Table2 className="size-4" aria-hidden="true" />
         Menu Admin
-      </Link>
-      <Link
-        href={`/customer/table/${balkonaDemoQrToken}`}
-        className={buttonVariants({ variant: "secondary" })}
-      >
-        <MonitorPlay className="size-4" aria-hidden="true" />
-        Balkona QR
       </Link>
     </div>
   );
@@ -966,11 +968,16 @@ function QrLinksSection({
       </CardHeader>
       <CardContent className="grid gap-3">
         {tables.map((table) => {
-          const href = customerPreviewHref(table.customerPreviewPath);
+          const href = customerPreviewHref(
+            table.customerPreviewPath,
+            table.qrToken
+          );
           const floorName = table.floor?.name ?? "No floor";
           const capacityLabel = table.capacity
             ? `${table.capacity} seats`
             : "Capacity not set";
+          const hasQrToken = Boolean(table.qrToken);
+          const canOpenCustomerQr = Boolean(href);
 
           return (
             <div key={table.id} className="rounded-card border bg-surface/70 p-4">
@@ -978,8 +985,8 @@ function QrLinksSection({
                 <div className="min-w-0">
                   <div className="flex flex-wrap items-center gap-2">
                     <p className="font-semibold">{table.displayName}</p>
-                    <Badge variant={table.qrToken ? "success" : "warning"}>
-                      {table.qrToken ? "Token ready" : "Missing token"}
+                    <Badge variant={hasQrToken ? "success" : "warning"}>
+                      {hasQrToken ? "Token ready" : "Missing token"}
                     </Badge>
                     <Badge variant="muted">
                       {humanizeBranchAdminValue(table.status)}
@@ -992,10 +999,10 @@ function QrLinksSection({
                     {table.qrToken || "No QR token"}
                   </p>
                   <p className="mt-1 break-all text-xs text-muted-foreground">
-                    {table.qrToken ? href : "Create or generate a QR token"}
+                    {href ?? "Generate QR token first"}
                   </p>
                   <div className="mt-4 flex flex-wrap gap-2">
-                    {table.qrToken ? (
+                    {hasQrToken ? (
                       <>
                         <Button
                           size="sm"
@@ -1008,21 +1015,33 @@ function QrLinksSection({
                         <Button
                           size="sm"
                           variant="secondary"
-                          onClick={() => void copyText(href)}
+                          onClick={() => {
+                            if (href) {
+                              void copyText(href);
+                            }
+                          }}
+                          disabled={!canOpenCustomerQr}
                         >
                           <LinkIcon className="size-3.5" aria-hidden="true" />
                           URL
                         </Button>
-                        <Link
-                          href={href}
-                          className={buttonVariants({
-                            variant: "secondary",
-                            size: "sm"
-                          })}
-                        >
-                          <Eye className="size-3.5" aria-hidden="true" />
-                          Open
-                        </Link>
+                        {href ? (
+                          <Link
+                            href={href}
+                            className={buttonVariants({
+                              variant: "secondary",
+                              size: "sm"
+                            })}
+                          >
+                            <Eye className="size-3.5" aria-hidden="true" />
+                            Open
+                          </Link>
+                        ) : (
+                          <Button size="sm" variant="secondary" disabled>
+                            <Eye className="size-3.5" aria-hidden="true" />
+                            Open
+                          </Button>
+                        )}
                         <Button
                           size="sm"
                           variant="secondary"
@@ -1034,21 +1053,36 @@ function QrLinksSection({
                         </Button>
                       </>
                     ) : (
-                      <Button
-                        size="sm"
-                        onClick={() => onGenerate(table)}
-                        disabled={isSaving}
-                      >
-                        <QrCode className="size-3.5" aria-hidden="true" />
-                        Generate
-                      </Button>
+                      <>
+                        <Button
+                          size="sm"
+                          onClick={() => onGenerate(table)}
+                          disabled={isSaving}
+                        >
+                          <QrCode className="size-3.5" aria-hidden="true" />
+                          Generate
+                        </Button>
+                        <Button size="sm" variant="secondary" disabled>
+                          <LinkIcon className="size-3.5" aria-hidden="true" />
+                          URL
+                        </Button>
+                        <Button size="sm" variant="secondary" disabled>
+                          <Eye className="size-3.5" aria-hidden="true" />
+                          Open
+                        </Button>
+                      </>
                     )}
+                    {!canOpenCustomerQr ? (
+                      <span className="self-center text-xs font-semibold uppercase text-muted-foreground">
+                        Generate QR token first
+                      </span>
+                    ) : null}
                   </div>
                 </div>
-                {table.qrToken ? (
+                {hasQrToken ? (
                   <div className="rounded-button border border-dashed bg-background p-3 text-center">
                     <p className="text-xs font-semibold uppercase text-muted-foreground">
-                      Print-friendly card
+                      Print handoff card
                     </p>
                     <p className="mt-2 text-lg font-semibold text-foreground">
                       {table.displayName}
@@ -1057,14 +1091,17 @@ function QrLinksSection({
                       {floorName} | {table.code}
                     </p>
                     <div className="mt-3 rounded-button border bg-surface p-3 font-mono text-xs text-foreground">
-                      <QrCode
-                        className="mx-auto mb-2 size-12 text-primary"
+                      <LinkIcon
+                        className="mx-auto mb-2 size-10 text-primary"
                         aria-hidden="true"
                       />
+                      <p className="mb-2 text-[11px] uppercase text-muted-foreground">
+                        Token and URL only
+                      </p>
                       <p className="break-all">{table.qrToken}</p>
                     </div>
                     <p className="mt-2 break-all text-[11px] text-muted-foreground">
-                      {href}
+                      {href ?? "Generate QR token first"}
                     </p>
                     <Button
                       type="button"
@@ -1072,14 +1109,15 @@ function QrLinksSection({
                       variant="secondary"
                       className="mt-3"
                       onClick={() => window.print()}
+                      disabled={!canOpenCustomerQr}
                     >
                       <Printer className="size-3.5" aria-hidden="true" />
-                      Print
+                      Print page
                     </Button>
                   </div>
                 ) : (
                   <div className="rounded-button border border-dashed bg-background p-3 text-sm text-muted-foreground">
-                    Generate a QR token before printing this table card.
+                    Generate QR token first.
                   </div>
                 )}
               </div>
