@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { QRCodeSVG } from "qrcode.react";
 import {
   AlertTriangle,
   Building2,
@@ -13,13 +14,20 @@ import {
   LinkIcon,
   Loader2,
   MonitorPlay,
+  Printer,
   QrCode,
   RefreshCw,
   Save,
   Table2,
   UsersRound
 } from "lucide-react";
-import { type FormEvent, type ReactNode, useMemo, useState } from "react";
+import {
+  type FormEvent,
+  type ReactNode,
+  useMemo,
+  useState,
+  useSyncExternalStore
+} from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button, buttonVariants } from "@/components/ui/button";
 import {
@@ -33,7 +41,6 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { Input } from "@/components/ui/input";
 import { LoadingState } from "@/components/ui/loading-state";
 import { MetricCard } from "@/components/ui/metric-card";
-import { balkonaDemoQrToken } from "@/features/demo/balkona-demo";
 import {
   branchStatuses,
   branchTableAdminTabs,
@@ -73,6 +80,7 @@ import type {
   CreateBranchPayload,
   CreateFloorPayload,
   CreateTablePayload,
+  QrTokenMutationResult,
   UpdateBranchPayload,
   UpdateFloorPayload,
   UpdateTablePayload
@@ -103,6 +111,13 @@ type TableFormState = {
   floorId: string;
   status: BranchAdminTableStatus;
   qrToken: string;
+};
+
+type QrActionResult = {
+  action: "generated" | "regenerated";
+  tableName: string;
+  qrToken: string;
+  customerPreviewPath: string;
 };
 
 const emptyBranchForm: BranchFormState = {
@@ -244,8 +259,54 @@ function buildTablePayload(form: TableFormState): CreateTablePayload {
   };
 }
 
-function customerPreviewHref(path?: string | null) {
-  return path || `/customer/table/${balkonaDemoQrToken}`;
+function customerPreviewHref(path?: string | null, qrToken?: string | null) {
+  if (path) {
+    return path;
+  }
+
+  if (qrToken) {
+    return `/customer/table/${encodeURIComponent(qrToken)}`;
+  }
+
+  return null;
+}
+
+function absoluteCustomerUrl(path: string | null, origin: string | null) {
+  if (!path || !origin) {
+    return null;
+  }
+
+  try {
+    return new URL(path, origin).toString();
+  } catch {
+    return null;
+  }
+}
+
+function subscribeToOrigin() {
+  return () => undefined;
+}
+
+function getBrowserOrigin() {
+  return typeof window === "undefined" ? null : window.location.origin;
+}
+
+function getServerOrigin() {
+  return null;
+}
+
+function toQrActionResult(
+  action: QrActionResult["action"],
+  result: QrTokenMutationResult
+): QrActionResult {
+  return {
+    action,
+    tableName: result.table.displayName,
+    qrToken: result.qrToken,
+    customerPreviewPath:
+      customerPreviewHref(result.table.customerPreviewPath, result.qrToken) ??
+      ""
+  };
 }
 
 function BranchTableActions() {
@@ -258,13 +319,6 @@ function BranchTableActions() {
       <Link href="/staff/menu" className={buttonVariants({ variant: "ghost" })}>
         <Table2 className="size-4" aria-hidden="true" />
         Menu Admin
-      </Link>
-      <Link
-        href={`/customer/table/${balkonaDemoQrToken}`}
-        className={buttonVariants({ variant: "secondary" })}
-      >
-        <MonitorPlay className="size-4" aria-hidden="true" />
-        Balkona QR
       </Link>
     </div>
   );
@@ -283,6 +337,55 @@ function MutationMessage({ error }: { error: unknown }) {
         <p className="text-muted-foreground">
           {getBranchAdminErrorMessage(error)}
         </p>
+      </div>
+    </div>
+  );
+}
+
+function QrActionMessage({ result }: { result: QrActionResult | null }) {
+  if (!result) {
+    return null;
+  }
+
+  const actionLabel =
+    result.action === "regenerated" ? "QR token regenerated" : "QR token ready";
+
+  return (
+    <div className="grid gap-3 rounded-card border border-success/35 bg-success/10 p-4 text-sm">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <p className="flex items-center gap-2 font-semibold text-foreground">
+            <CheckCircle2 className="size-4 text-success" aria-hidden="true" />
+            {actionLabel}
+          </p>
+          <p className="mt-1 text-muted-foreground">
+            {result.tableName} now uses token {result.qrToken}.
+          </p>
+        </div>
+        <Badge variant="success">
+          {result.action === "regenerated" ? "Printed QR invalidated" : "Ready"}
+        </Badge>
+      </div>
+      <div className="grid gap-2 md:grid-cols-[minmax(0,1fr)_auto_auto]">
+        <Input value={result.customerPreviewPath} readOnly />
+        <Button
+          type="button"
+          variant="secondary"
+          onClick={() => void copyText(result.customerPreviewPath)}
+        >
+          <LinkIcon className="size-4" aria-hidden="true" />
+          Copy URL
+        </Button>
+        <Link
+          href={result.customerPreviewPath}
+          className={buttonVariants({
+            variant: "secondary",
+            size: "md"
+          })}
+        >
+          <Eye className="size-4" aria-hidden="true" />
+          Open QR
+        </Link>
       </div>
     </div>
   );
@@ -875,11 +978,13 @@ function TableRow({
 
 function QrLinksSection({
   tables,
+  webOrigin,
   isSaving,
   onGenerate,
   onRegenerate
 }: {
   tables: BranchAdminTable[];
+  webOrigin: string | null;
   isSaving: boolean;
   onGenerate: (table: BranchAdminTable) => void;
   onRegenerate: (table: BranchAdminTable) => void;
@@ -896,75 +1001,169 @@ function QrLinksSection({
       </CardHeader>
       <CardContent className="grid gap-3">
         {tables.map((table) => {
-          const href = customerPreviewHref(table.customerPreviewPath);
+          const href = customerPreviewHref(
+            table.customerPreviewPath,
+            table.qrToken
+          );
+          const floorName = table.floor?.name ?? "No floor";
+          const capacityLabel = table.capacity
+            ? `${table.capacity} seats`
+            : "Capacity not set";
+          const hasQrToken = Boolean(table.qrToken);
+          const canOpenCustomerQr = Boolean(href);
+          const qrValue = absoluteCustomerUrl(href, webOrigin);
 
           return (
             <div key={table.id} className="rounded-card border bg-surface/70 p-4">
-              <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_auto]">
-                <div>
+              <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_18rem]">
+                <div className="min-w-0">
                   <div className="flex flex-wrap items-center gap-2">
                     <p className="font-semibold">{table.displayName}</p>
-                    <Badge variant={table.qrToken ? "success" : "warning"}>
-                      {table.qrToken ? "Token ready" : "Missing token"}
+                    <Badge variant={hasQrToken ? "success" : "warning"}>
+                      {hasQrToken ? "Token ready" : "Missing token"}
+                    </Badge>
+                    <Badge variant="muted">
+                      {humanizeBranchAdminValue(table.status)}
                     </Badge>
                   </div>
                   <p className="mt-1 text-sm text-muted-foreground">
+                    {floorName} | {table.code} | {capacityLabel}
+                  </p>
+                  <p className="mt-3 break-all font-mono text-sm text-muted-foreground">
                     {table.qrToken || "No QR token"}
                   </p>
                   <p className="mt-1 break-all text-xs text-muted-foreground">
-                    {table.qrToken ? href : "Create or generate a QR token"}
+                    {href ?? "Generate QR token first"}
                   </p>
+                  <div className="mt-4 flex flex-wrap gap-2">
+                    {hasQrToken ? (
+                      <>
+                        <Button
+                          size="sm"
+                          variant="secondary"
+                          onClick={() => void copyText(table.qrToken)}
+                        >
+                          <Copy className="size-3.5" aria-hidden="true" />
+                          Token
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="secondary"
+                          onClick={() => {
+                            if (href) {
+                              void copyText(href);
+                            }
+                          }}
+                          disabled={!canOpenCustomerQr}
+                        >
+                          <LinkIcon className="size-3.5" aria-hidden="true" />
+                          URL
+                        </Button>
+                        {href ? (
+                          <Link
+                            href={href}
+                            className={buttonVariants({
+                              variant: "secondary",
+                              size: "sm"
+                            })}
+                          >
+                            <Eye className="size-3.5" aria-hidden="true" />
+                            Open
+                          </Link>
+                        ) : (
+                          <Button size="sm" variant="secondary" disabled>
+                            <Eye className="size-3.5" aria-hidden="true" />
+                            Open
+                          </Button>
+                        )}
+                        <Button
+                          size="sm"
+                          variant="secondary"
+                          onClick={() => onRegenerate(table)}
+                          disabled={isSaving}
+                        >
+                          <RefreshCw className="size-3.5" aria-hidden="true" />
+                          Regenerate
+                        </Button>
+                      </>
+                    ) : (
+                      <>
+                        <Button
+                          size="sm"
+                          onClick={() => onGenerate(table)}
+                          disabled={isSaving}
+                        >
+                          <QrCode className="size-3.5" aria-hidden="true" />
+                          Generate
+                        </Button>
+                        <Button size="sm" variant="secondary" disabled>
+                          <LinkIcon className="size-3.5" aria-hidden="true" />
+                          URL
+                        </Button>
+                        <Button size="sm" variant="secondary" disabled>
+                          <Eye className="size-3.5" aria-hidden="true" />
+                          Open
+                        </Button>
+                      </>
+                    )}
+                    {!canOpenCustomerQr ? (
+                      <span className="self-center text-xs font-semibold uppercase text-muted-foreground">
+                        Generate QR token first
+                      </span>
+                    ) : null}
+                  </div>
                 </div>
-                <div className="flex flex-wrap gap-2">
-                  {table.qrToken ? (
-                    <>
-                      <Button
-                        size="sm"
-                        variant="secondary"
-                        onClick={() => void copyText(table.qrToken)}
-                      >
-                        <Copy className="size-3.5" aria-hidden="true" />
-                        Token
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="secondary"
-                        onClick={() => void copyText(href)}
-                      >
-                        <LinkIcon className="size-3.5" aria-hidden="true" />
-                        URL
-                      </Button>
-                      <Link
-                        href={href}
-                        className={buttonVariants({
-                          variant: "secondary",
-                          size: "sm"
-                        })}
-                      >
-                        <Eye className="size-3.5" aria-hidden="true" />
-                        Open
-                      </Link>
-                      <Button
-                        size="sm"
-                        variant="secondary"
-                        onClick={() => onRegenerate(table)}
-                        disabled={isSaving}
-                      >
-                        <RefreshCw className="size-3.5" aria-hidden="true" />
-                        Regenerate
-                      </Button>
-                    </>
-                  ) : (
+                {hasQrToken && canOpenCustomerQr ? (
+                  <div className="rounded-button border border-dashed bg-background p-3 text-center">
+                    <p className="text-xs font-semibold uppercase text-muted-foreground">
+                      Printable QR card
+                    </p>
+                    <p className="mt-2 text-lg font-semibold text-foreground">
+                      {table.displayName}
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      {floorName} | {table.code}
+                    </p>
+                    <div className="mt-3 rounded-button border bg-white p-3 text-xs text-slate-950">
+                      {qrValue ? (
+                        <QRCodeSVG
+                          value={qrValue}
+                          size={168}
+                          level="M"
+                          includeMargin
+                          bgColor="#ffffff"
+                          fgColor="#0f172a"
+                          className="mx-auto"
+                        />
+                      ) : (
+                        <div className="grid min-h-40 place-items-center rounded-button border border-dashed border-slate-300 p-3 text-slate-600">
+                          Preparing QR image
+                        </div>
+                      )}
+                    </div>
+                    <p className="mt-2 break-all text-[11px] text-muted-foreground">
+                      {table.qrToken}
+                    </p>
+                    <p className="mt-1 break-all text-[11px] text-muted-foreground">
+                      {qrValue ?? href}
+                    </p>
                     <Button
+                      type="button"
                       size="sm"
-                      onClick={() => onGenerate(table)}
-                      disabled={isSaving}
+                      variant="secondary"
+                      className="mt-3"
+                      onClick={() => window.print()}
+                      disabled={!canOpenCustomerQr}
                     >
-                      <QrCode className="size-3.5" aria-hidden="true" />
-                      Generate
+                      <Printer className="size-3.5" aria-hidden="true" />
+                      Print page
                     </Button>
-                  )}
-                </div>
+                  </div>
+                ) : (
+                  <div className="rounded-button border border-dashed bg-background p-3 text-sm text-muted-foreground">
+                    Generate QR token first.
+                  </div>
+                )}
               </div>
             </div>
           );
@@ -1143,6 +1342,12 @@ function BranchTableAdminContent() {
     useState<BranchFormState>(emptyBranchForm);
   const [floorForm, setFloorForm] = useState<FloorFormState>(emptyFloorForm);
   const [tableForm, setTableForm] = useState<TableFormState>(emptyTableForm);
+  const [lastQrAction, setLastQrAction] = useState<QrActionResult | null>(null);
+  const webOrigin = useSyncExternalStore(
+    subscribeToOrigin,
+    getBrowserOrigin,
+    getServerOrigin
+  );
   const overviewQuery = useQuery({
     queryKey: staffQueryKeys.branchTableAdminOverview(
       selectedCompanyId,
@@ -1322,7 +1527,11 @@ function BranchTableAdminContent() {
 
       return generateTableQrToken(branchId, table.id, token);
     },
-    onSuccess: refreshBranchAdmin
+    onMutate: () => setLastQrAction(null),
+    onSuccess: (result) => {
+      setLastQrAction(toQrActionResult("generated", result));
+      refreshBranchAdmin();
+    }
   });
   const regenerateQrMutation = useMutation({
     mutationFn: (table: BranchAdminTable) => {
@@ -1330,7 +1539,11 @@ function BranchTableAdminContent() {
 
       return regenerateTableQrToken(branchId, table.id, token);
     },
-    onSuccess: refreshBranchAdmin
+    onMutate: () => setLastQrAction(null),
+    onSuccess: (result) => {
+      setLastQrAction(toQrActionResult("regenerated", result));
+      refreshBranchAdmin();
+    }
   });
   const isMutating =
     createBranchMutation.isPending ||
@@ -1468,6 +1681,7 @@ function BranchTableAdminContent() {
 
       <BranchTableMetrics overview={overview} />
       <MutationMessage error={mutationError} />
+      <QrActionMessage result={lastQrAction} />
 
       <div className="flex flex-wrap gap-2 rounded-card border bg-surface/70 p-2">
         {branchTableAdminTabs.map((tab) => (
@@ -1511,6 +1725,7 @@ function BranchTableAdminContent() {
             setBranchForm(emptyBranchForm);
             setFloorForm(emptyFloorForm);
             setTableForm(emptyTableForm);
+            setLastQrAction(null);
           }}
           onFormChange={setBranchForm}
           onSubmit={handleBranchSubmit}
@@ -1549,6 +1764,7 @@ function BranchTableAdminContent() {
       {activeTab === "qr" ? (
         <QrLinksSection
           tables={allTables}
+          webOrigin={webOrigin}
           isSaving={isMutating}
           onGenerate={(table) => generateQrMutation.mutate(table)}
           onRegenerate={(table) => {

@@ -90,6 +90,7 @@ check_url "Platform status" "${web_base}/platform/status"
 check_url "Platform company creation page" "${web_base}/platform/companies/new"
 check_url "Staff login" "${web_base}/staff/login"
 check_url "Staff setup" "${web_base}/staff/setup"
+check_url "Staff branch and QR management" "${web_base}/staff/branches"
 check_url "Staff billing" "${web_base}/staff/billing"
 check_url "Demo customer table" "${web_base}/customer/table/balcona-main-t01"
 
