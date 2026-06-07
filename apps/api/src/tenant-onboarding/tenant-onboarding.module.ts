@@ -1,11 +1,12 @@
 import { Module } from '@nestjs/common';
 import { SaasModule } from '../saas/saas.module';
+import { StaffInvitesModule } from '../staff-invites/staff-invites.module';
 import { StaffModule } from '../staff/staff.module';
 import { TenantOnboardingController } from './tenant-onboarding.controller';
 import { TenantOnboardingService } from './tenant-onboarding.service';
 
 @Module({
-  imports: [SaasModule, StaffModule],
+  imports: [SaasModule, StaffModule, StaffInvitesModule],
   controllers: [TenantOnboardingController],
   providers: [TenantOnboardingService],
   exports: [TenantOnboardingService],

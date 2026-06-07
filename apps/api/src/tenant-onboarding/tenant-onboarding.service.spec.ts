@@ -234,14 +234,36 @@ function buildService(overrides: Record<string, unknown> = {}) {
     assertCompanyFeatureEnabled: jest.fn().mockResolvedValue(undefined),
     assertWithinLimit: jest.fn().mockResolvedValue(undefined),
   };
+  const staffInvitesService = {
+    createStaffInvite: jest.fn().mockResolvedValue({
+      invite: {
+        id: 'invite-1',
+        companyId: company.id,
+        branchId: branch.id,
+        staffUserId: 'staff-new',
+        email: 'new@test.local',
+        name: 'New Staff',
+        role: StaffRole.cashier,
+        status: 'pending',
+        expiresAt: new Date('2026-01-08T00:00:00.000Z'),
+        acceptedAt: null,
+        revokedAt: null,
+        createdAt: now,
+        updatedAt: now,
+      },
+      inviteToken: 'balcona_staff_invite_test',
+      invitePath: '/staff/invite/balcona_staff_invite_test',
+    }),
+  };
   const service = new TenantOnboardingService(
     prisma as never,
     { get: jest.fn().mockReturnValue(false) } as never,
     { assertCan: jest.fn().mockResolvedValue({ allowed: true }) } as never,
     saasService as never,
+    staffInvitesService as never,
   );
 
-  return { service, prisma, tx, saasService };
+  return { service, prisma, tx, saasService, staffInvitesService };
 }
 
 describe('TenantOnboardingService', () => {
@@ -382,6 +404,7 @@ describe('TenantOnboardingService', () => {
       company.id,
       'maxStaffUsers',
       1,
+      tx,
     );
     expect(tx.staffUser.create).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -400,6 +423,7 @@ describe('TenantOnboardingService', () => {
       }),
     );
     expect(result.passwordSetup.required).toBe(true);
+    expect(result.inviteToken).toBe('balcona_staff_invite_test');
   });
 
   it('re-invites an existing membership at the staff limit without consuming a seat', async () => {
@@ -454,6 +478,7 @@ describe('TenantOnboardingService', () => {
       company.id,
       'maxStaffUsers',
       1,
+      tx,
     );
     expect(tx.staffUser.create).not.toHaveBeenCalled();
     expect(tx.staffMembership.create).not.toHaveBeenCalled();

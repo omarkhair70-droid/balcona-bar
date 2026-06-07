@@ -63,6 +63,8 @@ export type TenantOnboardingStaffRole =
   | "barista"
   | "menu_admin";
 
+export type StaffInviteStatus = "pending" | "accepted" | "revoked" | "expired";
+
 export type TenantOnboardingCompany = CompanySummary & {
   status: TenantOnboardingCompanyStatus | string;
   createdAt?: string;
@@ -302,9 +304,12 @@ export type InviteOnboardingStaffResult = {
   };
   createdStaffUser: boolean;
   createdMembership: boolean;
+  invite: StaffInviteSummary;
+  inviteToken: string;
+  invitePath: string;
   passwordSetup: {
     required: boolean;
-    devBootstrapAvailable: boolean;
+    devBootstrapAvailable?: boolean;
     nextStep: string;
   };
   onboarding: BranchOnboardingResult;
@@ -1608,9 +1613,47 @@ export type StaffUserSummary = {
   email: string;
   name: string;
   status: string;
+  passwordSetAt?: string | null;
   lastLoginAt?: string | null;
   createdAt?: string;
   updatedAt?: string;
+};
+
+export type StaffInviteSummary = {
+  id: string;
+  companyId: string;
+  branchId?: string | null;
+  staffUserId?: string | null;
+  email: string;
+  name?: string | null;
+  role: TenantOnboardingStaffRole | string;
+  status: StaffInviteStatus | string;
+  expiresAt: string;
+  acceptedAt?: string | null;
+  revokedAt?: string | null;
+  createdAt?: string;
+  updatedAt?: string;
+  company?: CompanySummary & {
+    status?: string;
+  };
+  branch?: BranchSummary | null;
+  staffUser?: StaffUserSummary | null;
+};
+
+export type StaffInviteCheckResult = {
+  invite: StaffInviteSummary;
+  canAccept: boolean;
+  staffLoginPath: string;
+};
+
+export type AcceptStaffInvitePayload = {
+  password: string;
+};
+
+export type AcceptStaffInviteResult = {
+  invite: StaffInviteSummary;
+  staffUser: StaffUserSummary;
+  staffLoginPath: string;
 };
 
 export type StaffSessionSummary = {
@@ -2039,6 +2082,7 @@ export type PlatformOwnerAssignment = {
   staffUser: StaffUserSummary & {
     passwordSetAt?: string | null;
   };
+  recentInvite?: StaffInviteSummary | null;
 };
 
 export type PlatformCompanyDetail = {
@@ -2060,6 +2104,29 @@ export type PlatformCompanyDetail = {
   >;
   owners: PlatformOwnerAssignment[];
   saas: SaasStatusResult;
+};
+
+export type CreatePlatformStaffInvitePayload = {
+  email: string;
+  name: string;
+  role: TenantOnboardingStaffRole;
+  branchId?: string | null;
+};
+
+export type CreatePlatformStaffInviteResult = {
+  company: CompanySummary;
+  branch?: BranchSummary | null;
+  staffUser: StaffUserSummary;
+  membership: PlatformOwnerAssignment;
+  createdStaffUser: boolean;
+  createdMembership: boolean;
+  invite: StaffInviteSummary;
+  inviteToken: string;
+  invitePath: string;
+  passwordSetup: {
+    required: boolean;
+    nextStep: string;
+  };
 };
 
 export type BootstrapCompanyInput = {

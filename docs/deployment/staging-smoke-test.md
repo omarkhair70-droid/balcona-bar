@@ -49,9 +49,11 @@ tunnel restarts.
    staff user handoff, starter tables, and customer QR examples.
 12. Open the first returned QR example, `/customer/table/<qrToken>`, and start a
     customer table session.
-13. Open `/staff/login`, then use the staff setup/password handoff path for the
-    owner account.
-14. Open `/staff/setup` and `/staff/billing` and confirm the staff routes load
+13. Open the created company detail page, generate a staff invite for the owner
+    or manager, and copy the returned `/staff/invite/<inviteToken>` link.
+14. Open the invite link, set a staff password, then log in at `/staff/login`
+    with the invited staff email.
+15. Open `/staff/setup` and `/staff/billing` and confirm the staff routes load
     without `[object Object]` errors.
 
 ## Automated Route Check
@@ -100,16 +102,17 @@ This verifies:
    tables enabled, and at least two tables.
 7. Open the created company detail page and confirm plan, usage, and status
    render without raw object errors.
-8. Set the owner password through the documented staff auth bootstrap path for
-   staging, or use a staging-only staff credential created during setup.
-9. Log in at `/staff/login`.
-10. Open `/staff/setup` and confirm branch/table/setup readiness cards load.
-11. Open `/staff/billing` and confirm SaaS plan/status appears.
-12. Open `/customer/table/:qrToken` for the first returned QR example and
+8. Open the company detail page, generate a staff invite for the owner or
+   manager, and copy the `/staff/invite/<inviteToken>` link.
+9. Open the invite link and set a password of at least 12 characters.
+10. Log in at `/staff/login` with the invited staff email and new password.
+11. Open `/staff/setup` and confirm branch/table/setup readiness cards load.
+12. Open `/staff/billing` and confirm SaaS plan/status appears.
+13. Open `/customer/table/:qrToken` for the first returned QR example and
     confirm a customer session can start.
-13. If seeded menu data is intentionally available in that staging cafe, submit
+14. If seeded menu data is intentionally available in that staging cafe, submit
     a basic customer order and confirm the cashier sees it.
-14. Confirm no visible page renders `[object Object]`.
+15. Confirm no visible page renders `[object Object]`.
 
 The smoke does not require a real payment gateway. Mock online payment should
 remain explicit and staging-only until a real provider is added.

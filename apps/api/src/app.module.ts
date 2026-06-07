@@ -38,6 +38,7 @@ import { SaasModule } from "./saas/saas.module";
 import { RedisModule } from "./redis/redis.module";
 import { SmartCashierModule } from "./smart-cashier/smart-cashier.module";
 import { StaffAuthModule } from "./staff-auth/staff-auth.module";
+import { StaffInvitesModule } from "./staff-invites/staff-invites.module";
 import { StaffModule } from "./staff/staff.module";
 import { SystemModule } from "./system/system.module";
 import { TableSessionsModule } from "./table-sessions/table-sessions.module";
@@ -59,6 +60,7 @@ import { WaiterCallsModule } from "./waiter-calls/waiter-calls.module";
     AuditModule,
     AutopilotModule,
     StaffAuthModule,
+    StaffInvitesModule,
     PlatformAuthModule,
     PrismaModule,
     RedisModule,

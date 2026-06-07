@@ -94,6 +94,12 @@ class EnvironmentVariables {
   @IsOptional()
   STAFF_AUTH_SESSION_HOURS?: number;
 
+  @IsInt()
+  @Min(1)
+  @Max(90)
+  @IsOptional()
+  STAFF_INVITE_EXPIRES_DAYS?: number;
+
   @IsBooleanString()
   @IsOptional()
   STAFF_AUTH_DEV_BOOTSTRAP_ENABLED?: string;

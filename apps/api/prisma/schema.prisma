@@ -59,6 +59,13 @@ enum StaffSessionStatus {
   expired
 }
 
+enum StaffInviteStatus {
+  pending
+  accepted
+  revoked
+  expired
+}
+
 enum StaffRole {
   owner
   branch_manager
@@ -733,6 +740,9 @@ enum AuditActorType {
 enum AuditAction {
   staff_login
   staff_logout
+  staff_invite_created
+  staff_invite_accepted
+  staff_invite_revoked
   staff_password_bootstrapped
   staff_session_revoked
   settings_updated
@@ -870,6 +880,7 @@ model Company {
   smartCashierSettings          BranchSmartCashierSettings[]
   smartCashierReviewRules       SmartCashierReviewRule[]
   staffMemberships              StaffMembership[]
+  staffInvites                  StaffInvite[]
   staffSessions                 StaffSession[]
   tableAttentionSnapshots       TableAttentionSnapshot[]
   tableAttentionEvents          TableAttentionEvent[]
@@ -1006,6 +1017,7 @@ model Branch {
   tableAttentionEvents      TableAttentionEvent[]
   tables                    CafeTable[]
   staffMemberships          StaffMembership[]
+  staffInvites              StaffInvite[]
   staffSessions             StaffSession[]
   tableSessions             TableSession[]
   customerSessionIdentities CustomerSessionIdentity[]
@@ -1067,6 +1079,7 @@ model StaffUser {
 
   memberships              StaffMembership[]
   sessions                 StaffSession[]
+  staffInvites             StaffInvite[]
   servedOrders             Order[]                 @relation("OrderServedByStaff")
   completedOrders          Order[]                 @relation("OrderCompletedByStaff")
   orderEvents              OrderEvent[]
@@ -1094,6 +1107,38 @@ model StaffUser {
   auditLogs                AuditLog[]
 
   @@index([email])
+}
+
+model StaffInvite {
+  id                       String            @id @default(uuid())
+  companyId                String
+  branchId                 String?
+  staffUserId              String?
+  email                    String
+  name                     String?
+  role                     StaffRole
+  status                   StaffInviteStatus @default(pending)
+  tokenHash                String            @unique
+  expiresAt                DateTime
+  acceptedAt               DateTime?
+  revokedAt                DateTime?
+  createdByPlatformAdminId String?
+  createdByStaffUserId     String?
+  metadata                 Json?
+  createdAt                DateTime          @default(now())
+  updatedAt                DateTime          @updatedAt
+
+  company   Company    @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  branch    Branch?    @relation(fields: [branchId], references: [id], onDelete: SetNull)
+  staffUser StaffUser? @relation(fields: [staffUserId], references: [id], onDelete: SetNull)
+
+  @@index([companyId])
+  @@index([branchId])
+  @@index([staffUserId])
+  @@index([email])
+  @@index([status])
+  @@index([expiresAt])
+  @@index([createdAt])
 }
 
 model StaffMembership {

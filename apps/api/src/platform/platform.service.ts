@@ -16,6 +16,8 @@ import {
 } from "@prisma/client";
 import { PrismaService } from "../prisma/prisma.service";
 import { SaasService } from "../saas/saas.service";
+import { CreateStaffInviteDto } from "../staff-invites/dto/create-staff-invite.dto";
+import { StaffInvitesService } from "../staff-invites/staff-invites.service";
 import { BootstrapPlatformCompanyDto } from "./dto/bootstrap-platform-company.dto";
 import { UpdatePlatformSubscriptionDto } from "./dto/update-platform-subscription.dto";
 
@@ -93,6 +95,22 @@ const staffMembershipSelect = {
   staffUser: { select: staffUserSelect },
 } satisfies Prisma.StaffMembershipSelect;
 
+const staffInviteSummarySelect = {
+  id: true,
+  companyId: true,
+  branchId: true,
+  staffUserId: true,
+  email: true,
+  name: true,
+  role: true,
+  status: true,
+  expiresAt: true,
+  acceptedAt: true,
+  revokedAt: true,
+  createdAt: true,
+  updatedAt: true,
+} satisfies Prisma.StaffInviteSelect;
+
 const planSelect = {
   id: true,
   code: true,
@@ -147,6 +165,7 @@ export class PlatformService {
     private readonly prisma: PrismaService,
     private readonly configService: ConfigService,
     private readonly saasService: SaasService,
+    private readonly staffInvitesService: StaffInvitesService,
   ) {}
 
   async getPlans() {
@@ -235,6 +254,11 @@ export class PlatformService {
       throw new NotFoundException("Company not found");
     }
 
+    const latestInviteByStaffUserId = await this.getLatestInviteByStaffUserId(
+      company.id,
+      company.staffMemberships.map((membership) => membership.staffUserId),
+    );
+
     return {
       company: {
         id: company.id,
@@ -258,9 +282,160 @@ export class PlatformService {
         floorsCount: branch._count.floors,
         tablesCount: branch._count.tables,
       })),
-      owners: company.staffMemberships,
+      owners: company.staffMemberships.map((membership) => ({
+        ...membership,
+        recentInvite:
+          latestInviteByStaffUserId.get(membership.staffUserId) ?? null,
+      })),
       saas: await this.saasService.getCompanySaasStatus(company.id),
     };
+  }
+
+  async createCompanyStaffInvite(
+    companyId: string,
+    body: CreateStaffInviteDto,
+    platformAdminUserId: string,
+  ) {
+    return this.prisma.$transaction(
+      async (tx) => {
+        const company = await tx.company.findUnique({
+          where: { id: companyId },
+          select: companySelect,
+        });
+
+        if (!company) {
+          throw new NotFoundException("Company not found");
+        }
+
+        const email = body.email.trim().toLowerCase();
+        const role = body.role;
+        const membershipBranchId =
+          role === StaffRole.owner ? null : (body.branchId ?? null);
+
+        if (role !== StaffRole.owner && !membershipBranchId) {
+          throw new BadRequestException("Branch is required for this staff role");
+        }
+
+        const branch = membershipBranchId
+          ? await tx.branch.findUnique({
+              where: { id: membershipBranchId },
+              select: branchSelect,
+            })
+          : null;
+
+        if (membershipBranchId && branch?.companyId !== company.id) {
+          throw new BadRequestException("Branch must belong to this company");
+        }
+
+        const existingStaffUser = await tx.staffUser.findUnique({
+          where: { email },
+          select: staffUserSelect,
+        });
+        const [existingMembership, existingActiveCompanyMembership] =
+          existingStaffUser
+            ? await Promise.all([
+                tx.staffMembership.findFirst({
+                  where: {
+                    staffUserId: existingStaffUser.id,
+                    companyId: company.id,
+                    branchId: membershipBranchId,
+                    role,
+                  },
+                  select: staffMembershipSelect,
+                }),
+                tx.staffMembership.findFirst({
+                  where: {
+                    staffUserId: existingStaffUser.id,
+                    companyId: company.id,
+                    status: StaffStatus.active,
+                  },
+                  select: { id: true },
+                }),
+              ])
+            : [null, null];
+        const willCreateCountedStaffUser =
+          !existingStaffUser ||
+          (!existingActiveCompanyMembership &&
+            (!existingMembership ||
+              existingMembership.status !== StaffStatus.active));
+
+        if (willCreateCountedStaffUser) {
+          await this.saasService.assertWithinLimit(
+            company.id,
+            "maxStaffUsers",
+            1,
+            tx,
+          );
+        }
+
+        const staffUser = existingStaffUser
+          ? await tx.staffUser.update({
+              where: { id: existingStaffUser.id },
+              data: {
+                name: body.name.trim(),
+                status: StaffStatus.active,
+              },
+              select: staffUserSelect,
+            })
+          : await tx.staffUser.create({
+              data: {
+                email,
+                name: body.name.trim(),
+                status: StaffStatus.active,
+              },
+              select: staffUserSelect,
+            });
+        const membership = existingMembership
+          ? existingMembership.status === StaffStatus.active
+            ? existingMembership
+            : await tx.staffMembership.update({
+                where: { id: existingMembership.id },
+                data: { status: StaffStatus.active },
+                select: staffMembershipSelect,
+              })
+          : await tx.staffMembership.create({
+              data: {
+                staffUserId: staffUser.id,
+                companyId: company.id,
+                branchId: membershipBranchId,
+                role,
+                status: StaffStatus.active,
+              },
+              select: staffMembershipSelect,
+            });
+        const invite = await this.staffInvitesService.createStaffInvite(
+          {
+            companyId: company.id,
+            branchId: membershipBranchId,
+            staffUserId: staffUser.id,
+            email,
+            name: staffUser.name,
+            role,
+            createdByPlatformAdminId: platformAdminUserId,
+            metadata: {
+              source: "platform_company_detail",
+            },
+          },
+          tx,
+        );
+
+        return {
+          company,
+          branch,
+          staffUser,
+          membership,
+          createdStaffUser: !existingStaffUser,
+          createdMembership: !existingMembership,
+          ...invite,
+          passwordSetup: {
+            required: !staffUser.passwordSetAt,
+            nextStep:
+              "Send the invite link to the staff user so they can set their password and then log in at /staff/login.",
+          },
+        };
+      },
+      bootstrapCompanyTransactionOptions,
+    );
   }
 
   async bootstrapCompany(
@@ -642,6 +817,38 @@ export class PlatformService {
       createdCount: created.length,
       skippedCount: skipped.length,
     };
+  }
+
+  private async getLatestInviteByStaffUserId(
+    companyId: string,
+    staffUserIds: string[],
+  ) {
+    if (staffUserIds.length === 0) {
+      return new Map<string, Prisma.StaffInviteGetPayload<{
+        select: typeof staffInviteSummarySelect;
+      }>>();
+    }
+
+    const invites = await this.prisma.staffInvite.findMany({
+      where: {
+        companyId,
+        staffUserId: { in: staffUserIds },
+      },
+      orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+      select: staffInviteSummarySelect,
+    });
+    const latestInviteByStaffUserId = new Map<
+      string,
+      Prisma.StaffInviteGetPayload<{ select: typeof staffInviteSummarySelect }>
+    >();
+
+    for (const invite of invites) {
+      if (invite.staffUserId && !latestInviteByStaffUserId.has(invite.staffUserId)) {
+        latestInviteByStaffUserId.set(invite.staffUserId, invite);
+      }
+    }
+
+    return latestInviteByStaffUserId;
   }
 
   private async generateAvailableQrToken(

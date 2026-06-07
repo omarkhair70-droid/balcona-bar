@@ -1,6 +1,8 @@
 import { apiRequest } from "./client";
 import type {
   AddCartItemPayload,
+  AcceptStaffInvitePayload,
+  AcceptStaffInviteResult,
   AiCartProposalActionResult,
   AiWaiterCloseResult,
   AiWaiterEscalateResult,
@@ -70,6 +72,8 @@ import type {
   CreateModifierOptionPayload,
   CreateBranchPayload,
   CreateCashAdjustmentPayload,
+  CreatePlatformStaffInvitePayload,
+  CreatePlatformStaffInviteResult,
   CreateOnboardingFloorPayload,
   CreateOnboardingFloorResult,
   CreateBranchResult,
@@ -135,6 +139,7 @@ import type {
   SendAiWaiterMessagePayload,
   SendAiWaiterMessageResult,
   StaffAuthContext,
+  StaffInviteCheckResult,
   StaffLoginPayload,
   StaffLoginResult,
   SessionOrdersResult,
@@ -257,6 +262,44 @@ export function updatePlatformCompanySubscription(
     body: payload,
     token,
   });
+}
+
+export function createPlatformStaffInvite(
+  companyId: string,
+  payload: CreatePlatformStaffInvitePayload,
+  token: string,
+) {
+  return apiRequest<
+    CreatePlatformStaffInviteResult,
+    CreatePlatformStaffInvitePayload
+  >(`/platform/companies/${companyId}/staff/invites`, {
+    method: "POST",
+    body: payload,
+    token,
+  });
+}
+
+export function getStaffInvite(inviteToken: string) {
+  return apiRequest<StaffInviteCheckResult>(
+    `/staff-auth/invites/${encodeURIComponent(inviteToken)}`,
+    {
+      timeoutMs: 10_000,
+    },
+  );
+}
+
+export function acceptStaffInvite(
+  inviteToken: string,
+  payload: AcceptStaffInvitePayload,
+) {
+  return apiRequest<AcceptStaffInviteResult, AcceptStaffInvitePayload>(
+    `/staff-auth/invites/${encodeURIComponent(inviteToken)}/accept`,
+    {
+      method: "POST",
+      body: payload,
+      timeoutMs: 10_000,
+    },
+  );
 }
 
 export function getBranchEffectiveExperience(branchId: string) {
