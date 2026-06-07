@@ -8,6 +8,16 @@ export type ApiQueryValue =
 
 export type ApiQueryParams = Record<string, ApiQueryValue>;
 
+export type SystemInfoResult = {
+  name?: string;
+  version?: string;
+  environment?: string;
+  appEnvironment?: string;
+  nodeEnvironment?: string;
+  apiPrefix?: string;
+  timestamp?: string;
+};
+
 export type CompanySummary = {
   id: string;
   name: string;

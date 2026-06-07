@@ -342,6 +342,7 @@ export const staffQueryKeys = {
 
 export const platformQueryKeys = {
   me: () => ["platform", "me"],
+  systemInfo: () => ["platform", "system-info"],
   plans: () => ["platform", "plans"],
   companies: () => ["platform", "companies"],
   company: (companyId?: string) => ["platform", "company", companyId],

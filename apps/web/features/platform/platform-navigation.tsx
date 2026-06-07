@@ -1,4 +1,10 @@
-import { Building2, LayoutDashboard, LogIn, PlusCircle } from "lucide-react";
+import {
+  Activity,
+  Building2,
+  LayoutDashboard,
+  LogIn,
+  PlusCircle,
+} from "lucide-react";
 import type { AppShellNavItem } from "@/components/ui/app-shell";
 
 export function getPlatformNavItems(isAuthenticated?: boolean): AppShellNavItem[] {
@@ -12,6 +18,11 @@ export function getPlatformNavItems(isAuthenticated?: boolean): AppShellNavItem[
       href: "/platform/companies/new",
       label: "Add Cafe",
       icon: <PlusCircle className="size-4" aria-hidden="true" />
+    },
+    {
+      href: "/platform/status",
+      label: "Status",
+      icon: <Activity className="size-4" aria-hidden="true" />
     }
   ];
 

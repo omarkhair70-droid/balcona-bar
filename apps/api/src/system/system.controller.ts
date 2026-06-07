@@ -7,10 +7,14 @@ export class SystemController {
 
   @Get('info')
   info() {
+    const appEnvironment = this.configService.get<string>('app.environment');
+
     return {
       name: this.configService.get<string>('app.name'),
       version: this.configService.get<string>('app.version'),
-      environment: this.configService.get<string>('app.environment'),
+      environment: appEnvironment,
+      appEnvironment,
+      nodeEnvironment: this.configService.get<string>('app.nodeEnvironment'),
       apiPrefix: this.configService.get<string>('app.prefix'),
       timestamp: new Date().toISOString(),
     };

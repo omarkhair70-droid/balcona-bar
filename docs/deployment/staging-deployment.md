@@ -1,9 +1,8 @@
 # Permanent Staging API Runtime
 
-Product Phase 4DEPLOY.2 moves Balcona Bar staging away from a laptop-hosted API
-and temporary Cloudflare Tunnel. The staging Web can stay on Vercel, but the API
-must run on a permanent Docker-compatible host so client demos and product smoke
-do not depend on a developer machine.
+Product Phase 4DEPLOY.2 moved Balcona Bar staging away from a laptop-hosted API
+and temporary Cloudflare Tunnel. Product Phase 4STAGE.3 hardens that permanent
+runtime for Vercel Web, Railway API, Neon Postgres, and Upstash Redis.
 
 The target remains provider-agnostic, with a simple recommended path:
 
@@ -107,16 +106,22 @@ Required:
 
 ```text
 NEXT_PUBLIC_API_BASE_URL=https://api-staging.example.com/api/v1
+NEXT_PUBLIC_APP_ENV=staging
 ```
 
-This value is browser-visible and must not contain secrets. For Vercel-style
-hosting, configure:
+These values are browser-visible and must not contain secrets.
+`NEXT_PUBLIC_APP_ENV=staging` enables a build-time guard that rejects
+`localhost`, `127.0.0.1`, `.localhost`, and `*.trycloudflare.com` API URLs in
+hosted staging builds. Staging Vercel must point to the permanent Railway API
+URL.
+
+For Vercel-style hosting, configure:
 
 - Root directory: repo root.
 - Install command: `pnpm install --frozen-lockfile`.
 - Build command: `pnpm --filter @balcona-bar/web build`.
 - Output: Next.js default.
-- Environment: `NEXT_PUBLIC_API_BASE_URL`.
+- Environment: `NEXT_PUBLIC_API_BASE_URL`, `NEXT_PUBLIC_APP_ENV`.
 
 ## API Docker Deployment
 
@@ -190,10 +195,12 @@ The process reads `PORT` from the environment.
 10. Deploy or restart the API service and confirm `/health` and
     `/api/v1/system/info`.
 11. Update Vercel staging Web `NEXT_PUBLIC_API_BASE_URL` to the permanent API
-    URL including `/api/v1`.
+    URL including `/api/v1`, and set `NEXT_PUBLIC_APP_ENV=staging`.
 12. Redeploy the Vercel staging Web so browser clients stop using the temporary
     Cloudflare Tunnel URL.
 13. Run the automated and manual staging smoke tests.
+14. Log in to `/platform/status` and confirm the Web API target is the Railway
+    URL and the API reports `APP_ENV=staging` with `NODE_ENV=production`.
 
 ## Platform Admin Bootstrap
 
@@ -257,25 +264,31 @@ PowerShell:
   -API_BASE_URL https://api-staging.example.com/api/v1
 ```
 
+The smoke scripts fail fast if the API URL is `localhost`, `127.0.0.1`,
+`.localhost`, or `*.trycloudflare.com`.
+
 Manual smoke steps are in `docs/deployment/staging-smoke-test.md`.
 
 Minimum authenticated smoke after permanent API deploy:
 
 1. Log in at `/platform/login`.
-2. Create a cafe workspace from `/platform/companies/new` using plan `pilot`,
+2. Open `/platform/status` and confirm Vercel points at the Railway API.
+3. Open `/platform/companies`.
+4. Create a cafe workspace from `/platform/companies/new` using plan `pilot`,
    status `active`, and at least two starter tables.
-3. Open the created company detail page.
-4. Set the owner staff password through the documented staging handoff.
-5. Log in at `/staff/login`.
-6. Open the first returned `/customer/table/<qrToken>` example.
-7. Confirm no visible page renders `[object Object]`.
+5. Open the created company detail page.
+6. Set the owner staff password through the documented staging handoff.
+7. Log in at `/staff/login`.
+8. Open the first returned `/customer/table/<qrToken>` example.
+9. Confirm no visible page renders `[object Object]`.
 
 ## Common Errors
 
 - API health fails: confirm the API host exposes `PORT` and the container starts
   with the configured environment.
-- Web cannot call API: confirm `NEXT_PUBLIC_API_BASE_URL` includes `/api/v1`
-  and `CORS_ORIGINS` exactly includes the Web origin.
+- Web cannot call API: confirm `NEXT_PUBLIC_API_BASE_URL` includes `/api/v1`,
+  `NEXT_PUBLIC_APP_ENV=staging`, and `CORS_ORIGINS` exactly includes the Web
+  origin.
 - Prisma migration fails: confirm `DATABASE_URL` points at the managed
   Postgres database and use `prisma:migrate:deploy`, not `migrate dev`.
 - Platform login fails: confirm the platform admin bootstrap command ran after

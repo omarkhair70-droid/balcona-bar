@@ -5,6 +5,7 @@ function appEnvironment() {
 export default () => ({
   app: {
     environment: appEnvironment(),
+    nodeEnvironment: process.env.NODE_ENV ?? "development",
     name: process.env.APP_NAME ?? "balcona-bar-api",
     port: Number.parseInt(process.env.PORT ?? "3000", 10),
     prefix: process.env.API_PREFIX ?? "api/v1",
