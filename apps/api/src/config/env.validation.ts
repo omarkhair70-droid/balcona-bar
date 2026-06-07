@@ -18,6 +18,13 @@ enum NodeEnvironment {
   Production = "production",
 }
 
+enum AppEnvironment {
+  Development = "development",
+  Test = "test",
+  Staging = "staging",
+  Production = "production",
+}
+
 enum AiWaiterProvider {
   Stub = "stub",
   Groq = "groq",
@@ -32,6 +39,10 @@ class EnvironmentVariables {
   @IsEnum(NodeEnvironment)
   @IsOptional()
   NODE_ENV?: NodeEnvironment;
+
+  @IsEnum(AppEnvironment)
+  @IsOptional()
+  APP_ENV?: AppEnvironment;
 
   @IsInt()
   @Min(1)

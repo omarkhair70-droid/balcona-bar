@@ -708,8 +708,10 @@ export class SaasService {
     );
     const environment =
       this.configService.get<string>("app.environment") ?? "development";
+    const protectedRuntime =
+      environment === "production" || environment === "staging";
 
-    if (!devBootstrapEnabled || environment === "production") {
+    if (!devBootstrapEnabled || protectedRuntime) {
       throw new ForbiddenException(
         "Development SaaS plan assignment is not enabled.",
       );

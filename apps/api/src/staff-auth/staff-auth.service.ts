@@ -245,8 +245,10 @@ export class StaffAuthService {
       'staffAuth.devBootstrapEnabled',
       false,
     );
+    const protectedRuntime =
+      environment === 'production' || environment === 'staging';
 
-    if (environment === 'production' && !enabled) {
+    if (protectedRuntime && !enabled) {
       throw new ForbiddenException('Dev password bootstrap is disabled');
     }
 

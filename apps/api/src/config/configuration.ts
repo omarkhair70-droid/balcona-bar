@@ -1,6 +1,10 @@
+function appEnvironment() {
+  return process.env.APP_ENV ?? process.env.NODE_ENV ?? "development";
+}
+
 export default () => ({
   app: {
-    environment: process.env.NODE_ENV ?? "development",
+    environment: appEnvironment(),
     name: process.env.APP_NAME ?? "balcona-bar-api",
     port: Number.parseInt(process.env.PORT ?? "3000", 10),
     prefix: process.env.API_PREFIX ?? "api/v1",
@@ -74,7 +78,7 @@ export default () => ({
     provider: process.env.ONLINE_PAYMENT_PROVIDER ?? "mock",
     mockEnabled:
       process.env.MOCK_ONLINE_PAYMENTS_ENABLED !== "false" &&
-      process.env.NODE_ENV !== "production",
+      appEnvironment() !== "production",
     checkoutBaseUrl:
       process.env.ONLINE_PAYMENT_CHECKOUT_BASE_URL ?? "http://localhost:3001",
   },

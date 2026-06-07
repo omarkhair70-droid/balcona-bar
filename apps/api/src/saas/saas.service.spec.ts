@@ -71,6 +71,7 @@ function subscription(overrides: Record<string, unknown> = {}) {
 function createService({
   subscriptionRecord = subscription(),
   counts = {},
+  environment = "development",
 }: {
   subscriptionRecord?: ReturnType<typeof subscription> | null;
   counts?: Partial<{
@@ -82,6 +83,7 @@ function createService({
     aiMessages: number;
     onlinePayments: number;
   }>;
+  environment?: string;
 } = {}) {
   const prisma = {
     company: { findUnique: jest.fn().mockResolvedValue(company) },
@@ -123,7 +125,7 @@ function createService({
       }
 
       if (key === "app.environment") {
-        return "development";
+        return environment;
       }
 
       return undefined;
@@ -220,5 +222,14 @@ describe("SaasService", () => {
     await expect(
       service.assertWithinLimit(company.id, "maxTables", 1),
     ).rejects.toThrow("Table limit reached for this company plan.");
+  });
+
+  it("blocks development plan assignment in staging runtime", async () => {
+    const { service, prisma } = createService({ environment: "staging" });
+
+    await expect(
+      service.assignCompanyPlanForDev(company.id, { planCode: "starter" }),
+    ).rejects.toBeInstanceOf(ForbiddenException);
+    expect(prisma.saasPlan.findUnique).not.toHaveBeenCalled();
   });
 });
