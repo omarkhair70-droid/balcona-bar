@@ -40,6 +40,28 @@ api_origin_url() {
   printf '%s' "${value}"
 }
 
+assert_permanent_api_base_url() {
+  local value host_port host
+
+  value="$(api_base_url "$1")"
+  host_port="${value#*://}"
+  host_port="${host_port%%/*}"
+
+  if [[ "${host_port}" == \[* ]]; then
+    host="${host_port#\[}"
+    host="${host%%\]*}"
+  else
+    host="${host_port%%:*}"
+  fi
+
+  host="${host,,}"
+
+  if [[ "${host}" == "localhost" || "${host}" == "127.0.0.1" || "${host}" == "::1" || "${host}" == *.localhost || "${host}" == *.trycloudflare.com ]]; then
+    echo "Staging API URL must use the permanent Railway host, not ${host}" >&2
+    exit 1
+  fi
+}
+
 check_url() {
   local label="$1"
   local url="$2"
@@ -55,6 +77,7 @@ check_url() {
 }
 
 web_base="$(trim_trailing_slash "${WEB_BASE_URL}")"
+assert_permanent_api_base_url "${API_BASE_URL}"
 api_base="$(api_base_url "${API_BASE_URL}")"
 api_origin="$(api_origin_url "${API_BASE_URL}")"
 
@@ -62,6 +85,8 @@ check_url "API health" "${api_origin}/health"
 check_url "API system info" "${api_base}/system/info"
 check_url "Web root" "${web_base}/"
 check_url "Platform login" "${web_base}/platform/login"
+check_url "Platform companies" "${web_base}/platform/companies"
+check_url "Platform status" "${web_base}/platform/status"
 check_url "Platform company creation page" "${web_base}/platform/companies/new"
 check_url "Staff login" "${web_base}/staff/login"
 check_url "Staff setup" "${web_base}/staff/setup"

@@ -35,6 +35,7 @@ describe("API runtime configuration", () => {
     const config = configuration();
 
     expect(config.app.environment).toBe("staging");
+    expect(config.app.nodeEnvironment).toBe("production");
     expect(config.onlinePayments.provider).toBe("mock");
     expect(config.onlinePayments.mockEnabled).toBe(true);
   });

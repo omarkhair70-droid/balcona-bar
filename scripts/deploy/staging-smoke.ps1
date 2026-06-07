@@ -37,6 +37,21 @@ function Get-ApiOriginUrl {
   return $baseUrl
 }
 
+function Assert-PermanentApiBaseUrl {
+  param([Parameter(Mandatory = $true)][string]$ApiBaseUrl)
+
+  $url = [System.Uri](Get-ApiBaseUrl -ApiBaseUrl $ApiBaseUrl)
+  $hostName = $url.Host.ToLowerInvariant()
+  $isLocalhost = $hostName -eq "localhost" -or
+    $hostName -eq "127.0.0.1" -or
+    $hostName -eq "::1" -or
+    $hostName.EndsWith(".localhost")
+
+  if ($isLocalhost -or $hostName.EndsWith(".trycloudflare.com")) {
+    throw "Staging API URL must use the permanent Railway host, not $hostName"
+  }
+}
+
 function Test-Url {
   param(
     [Parameter(Mandatory = $true)][string]$Label,
@@ -57,6 +72,7 @@ function Test-Url {
 }
 
 $webBase = Trim-TrailingSlash -Value $WEB_BASE_URL
+Assert-PermanentApiBaseUrl -ApiBaseUrl $API_BASE_URL
 $apiBase = Get-ApiBaseUrl -ApiBaseUrl $API_BASE_URL
 $apiOrigin = Get-ApiOriginUrl -ApiBaseUrl $API_BASE_URL
 
@@ -64,6 +80,8 @@ Test-Url -Label "API health" -Url "$apiOrigin/health"
 Test-Url -Label "API system info" -Url "$apiBase/system/info"
 Test-Url -Label "Web root" -Url "$webBase/"
 Test-Url -Label "Platform login" -Url "$webBase/platform/login"
+Test-Url -Label "Platform companies" -Url "$webBase/platform/companies"
+Test-Url -Label "Platform status" -Url "$webBase/platform/status"
 Test-Url -Label "Platform company creation page" -Url "$webBase/platform/companies/new"
 Test-Url -Label "Staff login" -Url "$webBase/staff/login"
 Test-Url -Label "Staff setup" -Url "$webBase/staff/setup"

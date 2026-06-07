@@ -141,6 +141,7 @@ import type {
   StartAiWaiterPayload,
   StartTableSessionPayload,
   StartTableSessionResult,
+  SystemInfoResult,
   SubmitCartPayload,
   SubmitCartResult,
   InviteOnboardingStaffPayload,
@@ -179,8 +180,19 @@ import type {
   WaiterCallsResult,
 } from "./types";
 
+type TableSessionStartOptions = {
+  signal?: AbortSignal;
+  timeoutMs?: number;
+};
+
 export function getCompanies() {
   return apiRequest<CompanySummary[]>("/companies");
+}
+
+export function getSystemInfo() {
+  return apiRequest<SystemInfoResult>("/system/info", {
+    timeoutMs: 8_000,
+  });
 }
 
 export function platformLogin(payload: PlatformLoginPayload) {
@@ -1032,12 +1044,17 @@ export function deleteMenuItemModifierGroup(
   );
 }
 
-export function startTableSession(payload: StartTableSessionPayload) {
+export function startTableSession(
+  payload: StartTableSessionPayload,
+  options: TableSessionStartOptions = {},
+) {
   return apiRequest<StartTableSessionResult, StartTableSessionPayload>(
     "/table-sessions/start",
     {
       method: "POST",
       body: payload,
+      signal: options.signal,
+      timeoutMs: options.timeoutMs,
     },
   );
 }

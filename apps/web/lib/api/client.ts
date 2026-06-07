@@ -12,6 +12,7 @@ type ApiRequestOptions<TBody = unknown> = {
   query?: ApiQueryParams;
   signal?: AbortSignal;
   baseUrl?: string;
+  timeoutMs?: number;
 };
 
 export class ApiError extends Error {
@@ -24,6 +25,45 @@ export class ApiError extends Error {
     this.status = status;
     this.details = details;
   }
+}
+
+function timeoutLabel(timeoutMs: number) {
+  const seconds = Math.round(timeoutMs / 1000);
+
+  return `${seconds} second${seconds === 1 ? "" : "s"}`;
+}
+
+function createRequestSignal(signal?: AbortSignal, timeoutMs?: number) {
+  if (!timeoutMs) {
+    return {
+      signal,
+      didTimeout: () => false,
+      cleanup: () => undefined
+    };
+  }
+
+  const controller = new AbortController();
+  let timedOut = false;
+  const timeoutId = globalThis.setTimeout(() => {
+    timedOut = true;
+    controller.abort();
+  }, timeoutMs);
+  const onAbort = () => controller.abort();
+
+  if (signal?.aborted) {
+    controller.abort();
+  } else {
+    signal?.addEventListener("abort", onAbort, { once: true });
+  }
+
+  return {
+    signal: controller.signal,
+    didTimeout: () => timedOut,
+    cleanup: () => {
+      globalThis.clearTimeout(timeoutId);
+      signal?.removeEventListener("abort", onAbort);
+    }
+  };
 }
 
 function appendQueryValue(
@@ -78,7 +118,8 @@ export async function apiRequest<TResponse, TBody = unknown>(
     headers,
     query,
     signal,
-    baseUrl
+    baseUrl,
+    timeoutMs
   } = options;
   const requestHeaders = new Headers(headers);
 
@@ -86,10 +127,11 @@ export async function apiRequest<TResponse, TBody = unknown>(
     requestHeaders.set("Authorization", `Bearer ${token}`);
   }
 
+  const requestSignal = createRequestSignal(signal, timeoutMs);
   const init: RequestInit = {
     method,
     headers: requestHeaders,
-    signal
+    signal: requestSignal.signal
   };
 
   if (body !== undefined) {
@@ -97,7 +139,31 @@ export async function apiRequest<TResponse, TBody = unknown>(
     init.body = JSON.stringify(body);
   }
 
-  const response = await fetch(buildApiUrl(path, query, baseUrl), init);
+  let response: Response;
+
+  try {
+    response = await fetch(buildApiUrl(path, query, baseUrl), init);
+  } catch (error) {
+    if (requestSignal.didTimeout() && timeoutMs) {
+      throw new ApiError(
+        `The API did not respond within ${timeoutLabel(timeoutMs)}.`,
+        0,
+        { code: "client_timeout", timeoutMs }
+      );
+    }
+
+    if (signal?.aborted) {
+      throw error;
+    }
+
+    throw new ApiError(
+      "The API could not be reached. Check the staging API URL and try again.",
+      0,
+      { code: "network_error" }
+    );
+  } finally {
+    requestSignal.cleanup();
+  }
 
   if (!response.ok) {
     const payload = await readErrorPayload(response);
