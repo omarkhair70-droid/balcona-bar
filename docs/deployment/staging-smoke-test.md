@@ -58,13 +58,16 @@ tunnel restarts.
     warning should only appear for owner-role context.
 16. Create a branch staff invite, then confirm the success state shows the
     invite link, Copy link, Open invite, email, role, and branch summary.
-17. Open `/staff/branches`, copy a customer QR URL, and open it in a new tab.
-18. Regenerate one non-demo table QR token with confirmation. Confirm the token
+17. Open `/staff/branches`, copy a customer QR URL, open it in a new tab, and
+    confirm a visible scannable QR image appears for a table with a token.
+18. Scan the QR with a phone camera and confirm it opens the customer
+    `/customer/table/<qrToken>` route and starts or resumes a table session.
+19. Regenerate one non-demo table QR token with confirmation. Confirm the token
     changes, the old `/customer/table/<oldToken>` no longer opens, and the new
-    `/customer/table/<newToken>` opens a customer table session.
-19. Log in as a lower-privilege branch staff role such as cashier or waiter and
+    QR image scans/opens `/customer/table/<newToken>` correctly.
+20. Log in as a lower-privilege branch staff role such as cashier or waiter and
     confirm QR regeneration is not available.
-20. Open `/staff/billing` and confirm the staff routes load without
+21. Open `/staff/billing` and confirm the staff routes load without
     `[object Object]` errors.
 
 ## Automated Route Check
@@ -125,11 +128,12 @@ This verifies:
     render readable text rather than `[object Object]`.
 14. Open `/staff/branches`, select the active branch, and confirm tables show
     floor/area, code, display name, capacity, status, QR token, customer URL,
-    and a lightweight print handoff card.
-15. Copy a customer QR URL and open it.
+    and a printable QR card with a visible scannable QR image.
+15. Copy a customer QR URL, open it, then scan the visible QR with a phone
+    camera and confirm it opens the matching customer table/session URL.
 16. Regenerate a non-demo table QR token only after the confirmation prompt.
-    Confirm the old token no longer opens and the new token starts or resumes a
-    customer table session.
+    Confirm the old token no longer opens and the new QR image scans/opens the
+    new customer table/session URL.
 17. Log in as a lower-privilege branch role such as cashier or waiter and
     confirm QR regeneration is unavailable.
 18. Open `/staff/billing` and confirm SaaS plan/status appears.
@@ -144,4 +148,4 @@ remain explicit and staging-only until a real provider is added.
 
 PNG/PDF batch QR export remains a follow-up. The current staging surface should
 at minimum provide copy link, open QR link, regeneration with confirmation, and a
-lightweight print handoff card for each QR token.
+printable scannable QR card for each QR token.

@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { QRCodeSVG } from "qrcode.react";
 import {
   AlertTriangle,
   Building2,
@@ -20,7 +21,13 @@ import {
   Table2,
   UsersRound
 } from "lucide-react";
-import { type FormEvent, type ReactNode, useMemo, useState } from "react";
+import {
+  type FormEvent,
+  type ReactNode,
+  useMemo,
+  useState,
+  useSyncExternalStore
+} from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button, buttonVariants } from "@/components/ui/button";
 import {
@@ -261,6 +268,30 @@ function customerPreviewHref(path?: string | null, qrToken?: string | null) {
     return `/customer/table/${encodeURIComponent(qrToken)}`;
   }
 
+  return null;
+}
+
+function absoluteCustomerUrl(path: string | null, origin: string | null) {
+  if (!path || !origin) {
+    return null;
+  }
+
+  try {
+    return new URL(path, origin).toString();
+  } catch {
+    return null;
+  }
+}
+
+function subscribeToOrigin() {
+  return () => undefined;
+}
+
+function getBrowserOrigin() {
+  return typeof window === "undefined" ? null : window.location.origin;
+}
+
+function getServerOrigin() {
   return null;
 }
 
@@ -947,11 +978,13 @@ function TableRow({
 
 function QrLinksSection({
   tables,
+  webOrigin,
   isSaving,
   onGenerate,
   onRegenerate
 }: {
   tables: BranchAdminTable[];
+  webOrigin: string | null;
   isSaving: boolean;
   onGenerate: (table: BranchAdminTable) => void;
   onRegenerate: (table: BranchAdminTable) => void;
@@ -978,6 +1011,7 @@ function QrLinksSection({
             : "Capacity not set";
           const hasQrToken = Boolean(table.qrToken);
           const canOpenCustomerQr = Boolean(href);
+          const qrValue = absoluteCustomerUrl(href, webOrigin);
 
           return (
             <div key={table.id} className="rounded-card border bg-surface/70 p-4">
@@ -1079,10 +1113,10 @@ function QrLinksSection({
                     ) : null}
                   </div>
                 </div>
-                {hasQrToken ? (
+                {hasQrToken && canOpenCustomerQr ? (
                   <div className="rounded-button border border-dashed bg-background p-3 text-center">
                     <p className="text-xs font-semibold uppercase text-muted-foreground">
-                      Print handoff card
+                      Printable QR card
                     </p>
                     <p className="mt-2 text-lg font-semibold text-foreground">
                       {table.displayName}
@@ -1090,18 +1124,28 @@ function QrLinksSection({
                     <p className="text-xs text-muted-foreground">
                       {floorName} | {table.code}
                     </p>
-                    <div className="mt-3 rounded-button border bg-surface p-3 font-mono text-xs text-foreground">
-                      <LinkIcon
-                        className="mx-auto mb-2 size-10 text-primary"
-                        aria-hidden="true"
-                      />
-                      <p className="mb-2 text-[11px] uppercase text-muted-foreground">
-                        Token and URL only
-                      </p>
-                      <p className="break-all">{table.qrToken}</p>
+                    <div className="mt-3 rounded-button border bg-white p-3 text-xs text-slate-950">
+                      {qrValue ? (
+                        <QRCodeSVG
+                          value={qrValue}
+                          size={168}
+                          level="M"
+                          includeMargin
+                          bgColor="#ffffff"
+                          fgColor="#0f172a"
+                          className="mx-auto"
+                        />
+                      ) : (
+                        <div className="grid min-h-40 place-items-center rounded-button border border-dashed border-slate-300 p-3 text-slate-600">
+                          Preparing QR image
+                        </div>
+                      )}
                     </div>
                     <p className="mt-2 break-all text-[11px] text-muted-foreground">
-                      {href ?? "Generate QR token first"}
+                      {table.qrToken}
+                    </p>
+                    <p className="mt-1 break-all text-[11px] text-muted-foreground">
+                      {qrValue ?? href}
                     </p>
                     <Button
                       type="button"
@@ -1299,6 +1343,11 @@ function BranchTableAdminContent() {
   const [floorForm, setFloorForm] = useState<FloorFormState>(emptyFloorForm);
   const [tableForm, setTableForm] = useState<TableFormState>(emptyTableForm);
   const [lastQrAction, setLastQrAction] = useState<QrActionResult | null>(null);
+  const webOrigin = useSyncExternalStore(
+    subscribeToOrigin,
+    getBrowserOrigin,
+    getServerOrigin
+  );
   const overviewQuery = useQuery({
     queryKey: staffQueryKeys.branchTableAdminOverview(
       selectedCompanyId,
@@ -1715,6 +1764,7 @@ function BranchTableAdminContent() {
       {activeTab === "qr" ? (
         <QrLinksSection
           tables={allTables}
+          webOrigin={webOrigin}
           isSaving={isMutating}
           onGenerate={(table) => generateQrMutation.mutate(table)}
           onRegenerate={(table) => {
