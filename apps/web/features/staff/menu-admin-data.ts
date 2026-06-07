@@ -6,6 +6,7 @@ import type {
 } from "@/lib/api/types";
 
 export const menuAdminTabs = [
+  { id: "overview", label: "Overview" },
   { id: "categories", label: "Categories" },
   { id: "items", label: "Items" },
   { id: "availability", label: "Availability" },
@@ -48,7 +49,7 @@ export function slugifyMenuAdminValue(value: string) {
     .replace(/^-+|-+$/g, "");
 }
 
-export function formatMenuMoney(minor: number, currency = "USD") {
+export function formatMenuMoney(minor: number, currency = "EGP") {
   return new Intl.NumberFormat("en-US", {
     style: "currency",
     currency,

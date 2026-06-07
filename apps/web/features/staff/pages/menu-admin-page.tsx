@@ -1,5 +1,7 @@
 "use client";
 
+/* eslint-disable @next/next/no-img-element -- Cafe image URLs are user-provided and cannot be preconfigured in Next image remote patterns. */
+
 import Link from "next/link";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
@@ -9,10 +11,10 @@ import {
   CheckCircle2,
   Eye,
   EyeOff,
+  ImageIcon,
   LayoutDashboard,
   LinkIcon,
   Loader2,
-  MonitorPlay,
   RefreshCw,
   Save,
   Settings2,
@@ -41,7 +43,6 @@ import { Input } from "@/components/ui/input";
 import { LoadingState } from "@/components/ui/loading-state";
 import { MetricCard } from "@/components/ui/metric-card";
 import { StaffPageShell } from "@/features/staff/staff-page-shell";
-import { balkonaDemoQrToken } from "@/features/demo/balkona-demo";
 import {
   formatMenuMoney,
   getMenuAdminErrorMessage,
@@ -232,7 +233,10 @@ function getVisibleMenuAdminTabs(canManageFullMenu: boolean) {
   return canManageFullMenu
     ? menuAdminTabs
     : menuAdminTabs.filter(
-        (tab) => tab.id === "availability" || tab.id === "preview"
+        (tab) =>
+          tab.id === "overview" ||
+          tab.id === "availability" ||
+          tab.id === "preview"
       );
 }
 
@@ -387,13 +391,6 @@ function MenuAdminActions() {
         <LayoutDashboard className="size-4" aria-hidden="true" />
         Staff overview
       </Link>
-      <Link
-        href={`/customer/table/${balkonaDemoQrToken}`}
-        className={buttonVariants({ variant: "secondary" })}
-      >
-        <MonitorPlay className="size-4" aria-hidden="true" />
-        Customer preview
-      </Link>
     </div>
   );
 }
@@ -432,6 +429,251 @@ function MenuAdminMetrics({ overview }: { overview: MenuAdminOverviewResult }) {
   );
 }
 
+type MenuAdminDerivedStats = {
+  activeCategories: number;
+  inactiveCategories: number;
+  activeItems: number;
+  inactiveItems: number;
+  archivedItems: number;
+  featuredItems: number;
+  missingImageItems: number;
+  missingPriceItems: number;
+  branchOverrides: number;
+  activeModifierGroups: number;
+  inactiveModifierGroups: number;
+  modifierOptions: number;
+  activeModifierOptions: number;
+};
+
+function getMenuAdminDerivedStats(
+  overview: MenuAdminOverviewResult
+): MenuAdminDerivedStats {
+  const items = overview.categories.flatMap((category) => category.items);
+
+  return {
+    activeCategories: overview.categories.filter(
+      (category) => category.status === "active"
+    ).length,
+    inactiveCategories: overview.categories.filter(
+      (category) => category.status !== "active"
+    ).length,
+    activeItems: items.filter((item) => item.status === "active").length,
+    inactiveItems: items.filter((item) => item.status === "inactive").length,
+    archivedItems: items.filter((item) => item.status === "archived").length,
+    featuredItems: items.filter((item) => item.isFeatured).length,
+    missingImageItems: items.filter((item) => !item.imageUrl?.trim()).length,
+    missingPriceItems: items.filter((item) => item.basePriceMinor <= 0).length,
+    branchOverrides: items.filter((item) => item.hasBranchOverride).length,
+    activeModifierGroups: overview.modifierGroups.filter(
+      (group) => group.status === "active"
+    ).length,
+    inactiveModifierGroups: overview.modifierGroups.filter(
+      (group) => group.status !== "active"
+    ).length,
+    modifierOptions: overview.modifierGroups.reduce(
+      (count, group) => count + group.options.length,
+      0
+    ),
+    activeModifierOptions: overview.modifierGroups.reduce(
+      (count, group) =>
+        count + group.options.filter((option) => option.status === "active").length,
+      0
+    )
+  };
+}
+
+function OverviewMetric({
+  label,
+  value,
+  detail,
+  tone = "default"
+}: {
+  label: string;
+  value: string;
+  detail: string;
+  tone?: "default" | "success" | "warning";
+}) {
+  const toneClassName =
+    tone === "success"
+      ? "border-success/40 bg-success/10"
+      : tone === "warning"
+        ? "border-warning/40 bg-warning/10"
+        : "border-border bg-surface/70";
+
+  return (
+    <div className={`rounded-card border p-4 ${toneClassName}`}>
+      <p className="text-xs font-semibold uppercase text-muted-foreground">
+        {label}
+      </p>
+      <p className="mt-2 text-2xl font-semibold">{value}</p>
+      <p className="mt-1 text-sm text-muted-foreground">{detail}</p>
+    </div>
+  );
+}
+
+function OverviewSection({ overview }: { overview: MenuAdminOverviewResult }) {
+  const stats = getMenuAdminDerivedStats(overview);
+  const issuePreview = overview.setupIssues.slice(0, 5);
+
+  return (
+    <section className="grid gap-4">
+      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+        <OverviewMetric
+          label="Categories"
+          value={`${stats.activeCategories}/${overview.categories.length}`}
+          detail={`${stats.inactiveCategories} inactive categories`}
+          tone={stats.activeCategories > 0 ? "success" : "warning"}
+        />
+        <OverviewMetric
+          label="Items"
+          value={`${stats.activeItems}/${overview.stats.items}`}
+          detail={`${stats.inactiveItems} inactive, ${stats.archivedItems} archived`}
+          tone={stats.activeItems > 0 ? "success" : "warning"}
+        />
+        <OverviewMetric
+          label="Branch availability"
+          value={String(overview.stats.visibleItems)}
+          detail={`${overview.stats.hiddenItems} hidden, ${overview.stats.unavailableItems} unavailable`}
+          tone={overview.stats.visibleItems > 0 ? "success" : "warning"}
+        />
+        <OverviewMetric
+          label="Modifiers"
+          value={`${stats.activeModifierGroups}/${overview.stats.modifierGroups}`}
+          detail={`${stats.activeModifierOptions}/${stats.modifierOptions} active options`}
+          tone={
+            overview.stats.modifierGroups === 0 || stats.activeModifierGroups > 0
+              ? "success"
+              : "warning"
+          }
+        />
+      </div>
+
+      <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
+        <Card variant="quiet">
+          <CardHeader>
+            <Badge variant="muted">Company menu setup</Badge>
+            <CardTitle>Catalog readiness</CardTitle>
+            <CardDescription>
+              Company-level records define the base menu used by every branch.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="grid gap-3 text-sm">
+            <div className="flex flex-wrap items-center justify-between gap-3 rounded-card border bg-surface/70 p-3">
+              <span>Featured items</span>
+              <Badge variant={stats.featuredItems > 0 ? "success" : "muted"}>
+                {stats.featuredItems}
+              </Badge>
+            </div>
+            <div className="flex flex-wrap items-center justify-between gap-3 rounded-card border bg-surface/70 p-3">
+              <span>Items without image URL</span>
+              <Badge variant={stats.missingImageItems > 0 ? "warning" : "success"}>
+                {stats.missingImageItems}
+              </Badge>
+            </div>
+            <div className="flex flex-wrap items-center justify-between gap-3 rounded-card border bg-surface/70 p-3">
+              <span>Items with zero base price</span>
+              <Badge variant={stats.missingPriceItems > 0 ? "warning" : "success"}>
+                {stats.missingPriceItems}
+              </Badge>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card variant="glass">
+          <CardHeader>
+            <Badge variant="muted">Branch readiness</Badge>
+            <CardTitle>{overview.branch.name}</CardTitle>
+            <CardDescription>
+              Branch overrides control customer visibility, availability, and
+              price adjustments without changing the base menu.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="grid gap-3 text-sm">
+            <div className="flex flex-wrap items-center justify-between gap-3 rounded-card border bg-surface/70 p-3">
+              <span>Branch overrides</span>
+              <Badge variant={stats.branchOverrides > 0 ? "warning" : "muted"}>
+                {stats.branchOverrides}
+              </Badge>
+            </div>
+            <div className="flex flex-wrap items-center justify-between gap-3 rounded-card border bg-surface/70 p-3">
+              <span>Customer visible items</span>
+              <Badge
+                variant={overview.stats.visibleItems > 0 ? "success" : "warning"}
+              >
+                {overview.stats.visibleItems}
+              </Badge>
+            </div>
+            <div className="flex flex-wrap items-center justify-between gap-3 rounded-card border bg-surface/70 p-3">
+              <span>Setup warnings</span>
+              <Badge
+                variant={overview.setupIssues.length > 0 ? "warning" : "success"}
+              >
+                {overview.setupIssues.length}
+              </Badge>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      <Card variant={overview.setupIssues.length > 0 ? "accent" : "quiet"}>
+        <CardHeader>
+          <Badge
+            variant={overview.setupIssues.length > 0 ? "warning" : "success"}
+          >
+            Readiness check
+          </Badge>
+          <CardTitle>
+            {overview.setupIssues.length > 0
+              ? "Setup warnings need review"
+              : "Menu is customer-ready"}
+          </CardTitle>
+          <CardDescription>
+            Customer QR sessions use this branch menu data directly.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="grid gap-3">
+          {issuePreview.map((issue) => (
+            <div
+              key={`${issue.code}-${issue.itemId ?? issue.categoryId ?? issue.modifierGroupId ?? issue.scope}`}
+              className="rounded-card border bg-surface/70 p-3 text-sm"
+            >
+              <div className="flex flex-wrap items-center gap-2">
+                <Badge
+                  variant={issue.severity === "error" ? "danger" : "warning"}
+                >
+                  {issue.severity}
+                </Badge>
+                <Badge variant="muted">{humanizeMenuAdminValue(issue.scope)}</Badge>
+              </div>
+              <p className="mt-2 text-foreground">{issue.message}</p>
+            </div>
+          ))}
+          {overview.setupIssues.length > issuePreview.length ? (
+            <p className="text-sm text-muted-foreground">
+              {overview.setupIssues.length - issuePreview.length} more warnings
+              are listed in Preview Issues.
+            </p>
+          ) : null}
+          {overview.setupIssues.length === 0 ? (
+            <div className="flex items-start gap-3 rounded-card border border-success/40 bg-success/10 p-4">
+              <CheckCircle2
+                className="mt-0.5 size-4 text-success"
+                aria-hidden="true"
+              />
+              <div>
+                <p className="font-semibold">No setup issues</p>
+                <p className="text-sm text-muted-foreground">
+                  Active customer QR sessions can use this menu.
+                </p>
+              </div>
+            </div>
+          ) : null}
+        </CardContent>
+      </Card>
+    </section>
+  );
+}
+
 function MutationMessage({ error }: { error: unknown }) {
   if (!error) {
     return null;
@@ -446,6 +688,68 @@ function MutationMessage({ error }: { error: unknown }) {
           {getMenuAdminErrorMessage(error)}
         </p>
       </div>
+    </div>
+  );
+}
+
+function SuccessMessage({ message }: { message: string | null }) {
+  if (!message) {
+    return null;
+  }
+
+  return (
+    <div className="flex items-start gap-3 rounded-card border border-success/40 bg-success/10 p-4 text-sm text-foreground">
+      <CheckCircle2 className="mt-0.5 size-4 text-success" aria-hidden="true" />
+      <div>
+        <p className="font-semibold">Saved</p>
+        <p className="text-muted-foreground">{message}</p>
+      </div>
+    </div>
+  );
+}
+
+function MenuImagePreview({
+  imageUrl,
+  label,
+  compact = false
+}: {
+  imageUrl?: string | null;
+  label: string;
+  compact?: boolean;
+}) {
+  const normalizedUrl = imageUrl?.trim();
+  const [failedUrl, setFailedUrl] = useState<string | null>(null);
+  const hasFailed = Boolean(normalizedUrl && failedUrl === normalizedUrl);
+  const minHeightClassName = compact ? "min-h-24" : "min-h-44";
+  const imageHeightClassName = compact ? "h-24" : "h-44";
+
+  if (!normalizedUrl || hasFailed) {
+    return (
+      <div
+        className={`grid ${minHeightClassName} place-items-center rounded-card border border-dashed bg-surface/60 p-4 text-center text-sm text-muted-foreground`}
+      >
+        <div className="grid justify-items-center gap-2">
+          <ImageIcon className="size-5" aria-hidden="true" />
+          <span>
+            {normalizedUrl
+              ? "Image preview could not load"
+              : "No image URL yet"}
+          </span>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div
+      className={`overflow-hidden rounded-card border bg-surface ${minHeightClassName}`}
+    >
+      <img
+        src={normalizedUrl}
+        alt={`${label} menu image preview`}
+        className={`${imageHeightClassName} w-full object-cover`}
+        onError={() => setFailedUrl(normalizedUrl)}
+      />
     </div>
   );
 }
@@ -649,6 +953,19 @@ function ItemSection({
   onDeactivate: (item: MenuAdminItem) => void;
   onArchive: (item: MenuAdminItem) => void;
 }) {
+  const [categoryFilter, setCategoryFilter] = useState("all");
+  const [statusFilter, setStatusFilter] = useState("all");
+  const [stationFilter, setStationFilter] = useState("all");
+  const filteredItems = items.filter((item) => {
+    const categoryMatches =
+      categoryFilter === "all" || item.categoryId === categoryFilter;
+    const statusMatches = statusFilter === "all" || item.status === statusFilter;
+    const stationMatches =
+      stationFilter === "all" || item.station === stationFilter;
+
+    return categoryMatches && statusMatches && stationMatches;
+  });
+
   return (
     <section className="grid gap-4 xl:grid-cols-[minmax(0,0.95fr)_minmax(0,1.05fr)]">
       <Card variant="quiet">
@@ -724,6 +1041,11 @@ function ItemSection({
                 placeholder="https://..."
               />
             </FieldLabel>
+            <MenuImagePreview
+              key={form.imageUrl.trim() || "empty-item-image-preview"}
+              imageUrl={form.imageUrl}
+              label={form.name || "Menu item"}
+            />
             <div className="grid gap-4 md:grid-cols-3">
               <FieldLabel label="Base price">
                 <Input
@@ -835,63 +1157,122 @@ function ItemSection({
           </CardDescription>
         </CardHeader>
         <CardContent className="grid gap-3">
-          {items.map((item) => (
+          <div className="grid gap-3 rounded-card border bg-surface/70 p-3 md:grid-cols-3">
+            <FieldLabel label="Category filter">
+              <select
+                value={categoryFilter}
+                onChange={(event) => setCategoryFilter(event.target.value)}
+                className={selectClassName}
+              >
+                <option value="all">All categories</option>
+                {categories.map((category) => (
+                  <option key={category.id} value={category.id}>
+                    {category.name}
+                  </option>
+                ))}
+              </select>
+            </FieldLabel>
+            <FieldLabel label="Status filter">
+              <select
+                value={statusFilter}
+                onChange={(event) => setStatusFilter(event.target.value)}
+                className={selectClassName}
+              >
+                <option value="all">All statuses</option>
+                {menuItemStatuses.map((status) => (
+                  <option key={status} value={status}>
+                    {humanizeMenuAdminValue(status)}
+                  </option>
+                ))}
+              </select>
+            </FieldLabel>
+            <FieldLabel label="Station filter">
+              <select
+                value={stationFilter}
+                onChange={(event) => setStationFilter(event.target.value)}
+                className={selectClassName}
+              >
+                <option value="all">All stations</option>
+                {menuPreparationStations.map((station) => (
+                  <option key={station} value={station}>
+                    {humanizeMenuAdminValue(station)}
+                  </option>
+                ))}
+              </select>
+            </FieldLabel>
+          </div>
+
+          {filteredItems.map((item) => (
             <div key={item.id} className="rounded-card border bg-surface/70 p-4">
-              <div className="flex flex-wrap items-start justify-between gap-3">
-                <div>
-                  <div className="flex flex-wrap items-center gap-2">
-                    <h3 className="font-semibold">{item.name}</h3>
-                    <Badge variant={statusVariant(item.status)}>
-                      {item.status}
-                    </Badge>
-                    <Badge variant="muted">
-                      {humanizeMenuAdminValue(item.station)}
-                    </Badge>
+              <div className="grid gap-4 md:grid-cols-[7rem_minmax(0,1fr)]">
+                <MenuImagePreview
+                  key={`${item.id}-${item.imageUrl ?? "empty"}`}
+                  imageUrl={item.imageUrl}
+                  label={item.name}
+                  compact
+                />
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <h3 className="font-semibold">{item.name}</h3>
+                      <Badge variant={statusVariant(item.status)}>
+                        {item.status}
+                      </Badge>
+                      <Badge variant="muted">
+                        {humanizeMenuAdminValue(item.station)}
+                      </Badge>
+                    </div>
+                    <p className="mt-1 text-sm text-muted-foreground">
+                      {item.category.name} /{" "}
+                      {formatMenuMoney(item.basePriceMinor, item.currency)}
+                    </p>
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      {item.modifierGroups.length} modifier groups /{" "}
+                      {item.customerVisible
+                        ? "visible to customer"
+                        : "not visible to customer"}
+                    </p>
                   </div>
-                  <p className="mt-1 text-sm text-muted-foreground">
-                    {item.category.name} /{" "}
-                    {formatMenuMoney(item.basePriceMinor, item.currency)}
-                  </p>
-                  <p className="mt-1 text-xs text-muted-foreground">
-                    {item.modifierGroups.length} modifier groups /{" "}
-                    {item.customerVisible
-                      ? "visible to customer"
-                      : "not visible to customer"}
-                  </p>
-                </div>
-                <div className="flex flex-wrap gap-2">
-                  <Button
-                    size="sm"
-                    variant="secondary"
-                    onClick={() => onEdit(item)}
-                  >
-                    Edit
-                  </Button>
-                  {item.status === "active" ? (
+                  <div className="flex flex-wrap gap-2">
                     <Button
                       size="sm"
                       variant="secondary"
-                      onClick={() => onDeactivate(item)}
+                      onClick={() => onEdit(item)}
                     >
-                      Deactivate
+                      Edit
                     </Button>
-                  ) : (
-                    <Button size="sm" onClick={() => onActivate(item)}>
-                      Activate
+                    {item.status === "active" ? (
+                      <Button
+                        size="sm"
+                        variant="secondary"
+                        onClick={() => onDeactivate(item)}
+                      >
+                        Deactivate
+                      </Button>
+                    ) : (
+                      <Button size="sm" onClick={() => onActivate(item)}>
+                        Activate
+                      </Button>
+                    )}
+                    <Button
+                      size="sm"
+                      variant="danger"
+                      onClick={() => onArchive(item)}
+                    >
+                      <Archive className="size-3.5" aria-hidden="true" />
+                      Archive
                     </Button>
-                  )}
-                  <Button
-                    size="sm"
-                    variant="danger"
-                    onClick={() => onArchive(item)}
-                  >
-                    <Archive className="size-3.5" aria-hidden="true" />
-                    Archive
-                  </Button>
+                  </div>
                 </div>
               </div>
             </div>
           ))}
+          {items.length > 0 && filteredItems.length === 0 ? (
+            <EmptyState
+              title="No matching items"
+              description="Adjust the filters to see more configured items."
+            />
+          ) : null}
           {items.length === 0 ? (
             <EmptyState
               title="No items yet"
@@ -974,7 +1355,7 @@ function AvailabilitySection({
                       : "No branch override yet"}
                   </p>
                 </div>
-                <div className="grid gap-3 md:grid-cols-[1fr_1fr_1fr_auto] md:items-end">
+                <div className="grid gap-3 md:grid-cols-[1fr_1fr_1fr_1fr_auto] md:items-end">
                   <label className="flex min-h-11 items-center gap-3 rounded-button border bg-surface px-3 text-sm font-semibold">
                     <input
                       type="checkbox"
@@ -1019,6 +1400,19 @@ function AvailabilitySection({
                         })
                       }
                       placeholder="Use base"
+                    />
+                  </FieldLabel>
+                  <FieldLabel label="Sort order">
+                    <Input
+                      type="number"
+                      value={draft.sortOrder}
+                      disabled={!canManageOverrides}
+                      onChange={(event) =>
+                        onDraftChange(item.id, {
+                          ...draft,
+                          sortOrder: event.target.value
+                        })
+                      }
                     />
                   </FieldLabel>
                   <div className="flex flex-wrap gap-2">
@@ -1726,7 +2120,7 @@ function MenuAdminContent() {
   const setSelectedBranchId = useStaffAuthStore(
     (state) => state.setSelectedBranchId
   );
-  const [activeTab, setActiveTab] = useState<MenuAdminTab>("availability");
+  const [activeTab, setActiveTab] = useState<MenuAdminTab>("overview");
   const [categoryForm, setCategoryForm] =
     useState<CategoryFormState>(emptyCategoryForm);
   const [itemForm, setItemForm] = useState<ItemFormState>(emptyItemForm);
@@ -1739,6 +2133,7 @@ function MenuAdminContent() {
     Record<string, AvailabilityDraft>
   >({});
   const [linkForm, setLinkForm] = useState<LinkFormState>(emptyLinkForm);
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const selectedBranch = effectiveAccess?.branches.find(
     (entry) => entry.branch.id === selectedBranchId
   )?.branch;
@@ -1771,11 +2166,15 @@ function MenuAdminContent() {
   );
   const activeVisibleTab = visibleTabs.some((tab) => tab.id === activeTab)
     ? activeTab
-    : visibleTabs[0]?.id ?? "availability";
+    : visibleTabs[0]?.id ?? "overview";
 
-  function refreshMenuAdmin() {
+  function refreshMenuAdmin(message?: string) {
     if (!selectedBranchId) {
       return;
+    }
+
+    if (message) {
+      setSuccessMessage(message);
     }
 
     setAvailabilityDrafts({});
@@ -1815,7 +2214,7 @@ function MenuAdminContent() {
     },
     onSuccess: () => {
       setCategoryForm(emptyCategoryForm);
-      refreshMenuAdmin();
+      refreshMenuAdmin("Category created.");
     }
   });
   const updateCategoryMutation = useMutation({
@@ -1828,7 +2227,7 @@ function MenuAdminContent() {
     }) => updateMenuCategory(categoryId, payload, accessToken),
     onSuccess: () => {
       setCategoryForm(emptyCategoryForm);
-      refreshMenuAdmin();
+      refreshMenuAdmin("Category saved.");
     }
   });
   const toggleCategoryMutation = useMutation({
@@ -1836,7 +2235,12 @@ function MenuAdminContent() {
       category.status === "active"
         ? deactivateMenuCategory(category.id, accessToken)
         : activateMenuCategory(category.id, accessToken),
-    onSuccess: refreshMenuAdmin
+    onSuccess: (_result, category) =>
+      refreshMenuAdmin(
+        category.status === "active"
+          ? "Category deactivated."
+          : "Category activated."
+      )
   });
   const createItemMutation = useMutation({
     mutationFn: (payload: CreateMenuItemPayload) => {
@@ -1849,7 +2253,7 @@ function MenuAdminContent() {
         ...emptyItemForm,
         categoryId: overview?.categories[0]?.id ?? ""
       });
-      refreshMenuAdmin();
+      refreshMenuAdmin("Item created.");
     }
   });
   const updateItemMutation = useMutation({
@@ -1865,20 +2269,20 @@ function MenuAdminContent() {
         ...emptyItemForm,
         categoryId: overview?.categories[0]?.id ?? ""
       });
-      refreshMenuAdmin();
+      refreshMenuAdmin("Item saved.");
     }
   });
   const activateItemMutation = useMutation({
     mutationFn: (item: MenuAdminItem) => activateMenuItem(item.id, accessToken),
-    onSuccess: refreshMenuAdmin
+    onSuccess: () => refreshMenuAdmin("Item activated.")
   });
   const deactivateItemMutation = useMutation({
     mutationFn: (item: MenuAdminItem) => deactivateMenuItem(item.id, accessToken),
-    onSuccess: refreshMenuAdmin
+    onSuccess: () => refreshMenuAdmin("Item deactivated.")
   });
   const archiveItemMutation = useMutation({
     mutationFn: (item: MenuAdminItem) => archiveMenuItem(item.id, accessToken),
-    onSuccess: refreshMenuAdmin
+    onSuccess: () => refreshMenuAdmin("Item archived.")
   });
   const upsertOverrideMutation = useMutation({
     mutationFn: ({
@@ -1899,7 +2303,7 @@ function MenuAdminContent() {
         accessToken
       );
     },
-    onSuccess: refreshMenuAdmin
+    onSuccess: () => refreshMenuAdmin("Branch override saved.")
   });
   const deleteOverrideMutation = useMutation({
     mutationFn: (itemId: string) => {
@@ -1909,7 +2313,7 @@ function MenuAdminContent() {
 
       return deleteBranchMenuItemOverride(selectedBranchId, itemId, accessToken);
     },
-    onSuccess: refreshMenuAdmin
+    onSuccess: () => refreshMenuAdmin("Branch override cleared.")
   });
   const createModifierGroupMutation = useMutation({
     mutationFn: (payload: CreateModifierGroupPayload) => {
@@ -1924,7 +2328,7 @@ function MenuAdminContent() {
         modifierGroupId: result.modifierGroup.id
       }));
       setModifierGroupForm(emptyModifierGroupForm);
-      refreshMenuAdmin();
+      refreshMenuAdmin("Modifier group created.");
     }
   });
   const updateModifierGroupMutation = useMutation({
@@ -1937,7 +2341,7 @@ function MenuAdminContent() {
     }) => updateModifierGroup(groupId, payload, accessToken),
     onSuccess: () => {
       setModifierGroupForm(emptyModifierGroupForm);
-      refreshMenuAdmin();
+      refreshMenuAdmin("Modifier group saved.");
     }
   });
   const toggleModifierGroupMutation = useMutation({
@@ -1945,7 +2349,12 @@ function MenuAdminContent() {
       group.status === "active"
         ? deactivateModifierGroup(group.id, accessToken)
         : activateModifierGroup(group.id, accessToken),
-    onSuccess: refreshMenuAdmin
+    onSuccess: (_result, group) =>
+      refreshMenuAdmin(
+        group.status === "active"
+          ? "Modifier group deactivated."
+          : "Modifier group activated."
+      )
   });
   const createModifierOptionMutation = useMutation({
     mutationFn: ({
@@ -1957,7 +2366,7 @@ function MenuAdminContent() {
     }) => createModifierOption(groupId, payload, accessToken),
     onSuccess: () => {
       setModifierOptionForm(emptyModifierOptionForm);
-      refreshMenuAdmin();
+      refreshMenuAdmin("Modifier option created.");
     }
   });
   const updateModifierOptionMutation = useMutation({
@@ -1970,7 +2379,7 @@ function MenuAdminContent() {
     }) => updateModifierOption(optionId, payload, accessToken),
     onSuccess: () => {
       setModifierOptionForm(emptyModifierOptionForm);
-      refreshMenuAdmin();
+      refreshMenuAdmin("Modifier option saved.");
     }
   });
   const toggleModifierOptionMutation = useMutation({
@@ -1978,7 +2387,12 @@ function MenuAdminContent() {
       option.status === "active"
         ? deactivateModifierOption(option.id, accessToken)
         : activateModifierOption(option.id, accessToken),
-    onSuccess: refreshMenuAdmin
+    onSuccess: (_result, option) =>
+      refreshMenuAdmin(
+        option.status === "active"
+          ? "Modifier option deactivated."
+          : "Modifier option activated."
+      )
   });
   const createItemModifierGroupMutation = useMutation({
     mutationFn: ({
@@ -1993,13 +2407,13 @@ function MenuAdminContent() {
         ...current,
         sortOrder: "0"
       }));
-      refreshMenuAdmin();
+      refreshMenuAdmin("Modifier group attached to item.");
     }
   });
   const deleteItemModifierGroupMutation = useMutation({
     mutationFn: ({ itemId, linkId }: { itemId: string; linkId: string }) =>
       deleteMenuItemModifierGroup(itemId, linkId, accessToken),
-    onSuccess: refreshMenuAdmin
+    onSuccess: () => refreshMenuAdmin("Modifier group detached from item.")
   });
 
   const isMutating =
@@ -2242,6 +2656,7 @@ function MenuAdminContent() {
 
       <MenuAdminMetrics overview={overview} />
       <MutationMessage error={mutationError} />
+      {mutationError ? null : <SuccessMessage message={successMessage} />}
 
       <div className="flex flex-wrap gap-2 rounded-card border bg-surface/70 p-2">
         {visibleTabs.map((tab) => (
@@ -2251,6 +2666,9 @@ function MenuAdminContent() {
             variant={activeVisibleTab === tab.id ? "primary" : "ghost"}
             onClick={() => setActiveTab(tab.id)}
           >
+            {tab.id === "overview" ? (
+              <LayoutDashboard className="size-4" aria-hidden="true" />
+            ) : null}
             {tab.id === "categories" ? (
               <Tags className="size-4" aria-hidden="true" />
             ) : null}
@@ -2270,6 +2688,10 @@ function MenuAdminContent() {
           </Button>
         ))}
       </div>
+
+      {activeVisibleTab === "overview" ? (
+        <OverviewSection overview={overview} />
+      ) : null}
 
       {activeVisibleTab === "categories" ? (
         <CategorySection
