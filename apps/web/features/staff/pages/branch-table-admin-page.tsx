@@ -13,6 +13,7 @@ import {
   LinkIcon,
   Loader2,
   MonitorPlay,
+  Printer,
   QrCode,
   RefreshCw,
   Save,
@@ -73,6 +74,7 @@ import type {
   CreateBranchPayload,
   CreateFloorPayload,
   CreateTablePayload,
+  QrTokenMutationResult,
   UpdateBranchPayload,
   UpdateFloorPayload,
   UpdateTablePayload
@@ -103,6 +105,13 @@ type TableFormState = {
   floorId: string;
   status: BranchAdminTableStatus;
   qrToken: string;
+};
+
+type QrActionResult = {
+  action: "generated" | "regenerated";
+  tableName: string;
+  qrToken: string;
+  customerPreviewPath: string;
 };
 
 const emptyBranchForm: BranchFormState = {
@@ -248,6 +257,18 @@ function customerPreviewHref(path?: string | null) {
   return path || `/customer/table/${balkonaDemoQrToken}`;
 }
 
+function toQrActionResult(
+  action: QrActionResult["action"],
+  result: QrTokenMutationResult
+): QrActionResult {
+  return {
+    action,
+    tableName: result.table.displayName,
+    qrToken: result.qrToken,
+    customerPreviewPath: customerPreviewHref(result.table.customerPreviewPath)
+  };
+}
+
 function BranchTableActions() {
   return (
     <div className="flex flex-wrap gap-3">
@@ -283,6 +304,55 @@ function MutationMessage({ error }: { error: unknown }) {
         <p className="text-muted-foreground">
           {getBranchAdminErrorMessage(error)}
         </p>
+      </div>
+    </div>
+  );
+}
+
+function QrActionMessage({ result }: { result: QrActionResult | null }) {
+  if (!result) {
+    return null;
+  }
+
+  const actionLabel =
+    result.action === "regenerated" ? "QR token regenerated" : "QR token ready";
+
+  return (
+    <div className="grid gap-3 rounded-card border border-success/35 bg-success/10 p-4 text-sm">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <p className="flex items-center gap-2 font-semibold text-foreground">
+            <CheckCircle2 className="size-4 text-success" aria-hidden="true" />
+            {actionLabel}
+          </p>
+          <p className="mt-1 text-muted-foreground">
+            {result.tableName} now uses token {result.qrToken}.
+          </p>
+        </div>
+        <Badge variant="success">
+          {result.action === "regenerated" ? "Printed QR invalidated" : "Ready"}
+        </Badge>
+      </div>
+      <div className="grid gap-2 md:grid-cols-[minmax(0,1fr)_auto_auto]">
+        <Input value={result.customerPreviewPath} readOnly />
+        <Button
+          type="button"
+          variant="secondary"
+          onClick={() => void copyText(result.customerPreviewPath)}
+        >
+          <LinkIcon className="size-4" aria-hidden="true" />
+          Copy URL
+        </Button>
+        <Link
+          href={result.customerPreviewPath}
+          className={buttonVariants({
+            variant: "secondary",
+            size: "md"
+          })}
+        >
+          <Eye className="size-4" aria-hidden="true" />
+          Open QR
+        </Link>
       </div>
     </div>
   );
@@ -897,74 +967,121 @@ function QrLinksSection({
       <CardContent className="grid gap-3">
         {tables.map((table) => {
           const href = customerPreviewHref(table.customerPreviewPath);
+          const floorName = table.floor?.name ?? "No floor";
+          const capacityLabel = table.capacity
+            ? `${table.capacity} seats`
+            : "Capacity not set";
 
           return (
             <div key={table.id} className="rounded-card border bg-surface/70 p-4">
-              <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_auto]">
-                <div>
+              <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_18rem]">
+                <div className="min-w-0">
                   <div className="flex flex-wrap items-center gap-2">
                     <p className="font-semibold">{table.displayName}</p>
                     <Badge variant={table.qrToken ? "success" : "warning"}>
                       {table.qrToken ? "Token ready" : "Missing token"}
                     </Badge>
+                    <Badge variant="muted">
+                      {humanizeBranchAdminValue(table.status)}
+                    </Badge>
                   </div>
                   <p className="mt-1 text-sm text-muted-foreground">
+                    {floorName} | {table.code} | {capacityLabel}
+                  </p>
+                  <p className="mt-3 break-all font-mono text-sm text-muted-foreground">
                     {table.qrToken || "No QR token"}
                   </p>
                   <p className="mt-1 break-all text-xs text-muted-foreground">
                     {table.qrToken ? href : "Create or generate a QR token"}
                   </p>
-                </div>
-                <div className="flex flex-wrap gap-2">
-                  {table.qrToken ? (
-                    <>
+                  <div className="mt-4 flex flex-wrap gap-2">
+                    {table.qrToken ? (
+                      <>
+                        <Button
+                          size="sm"
+                          variant="secondary"
+                          onClick={() => void copyText(table.qrToken)}
+                        >
+                          <Copy className="size-3.5" aria-hidden="true" />
+                          Token
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="secondary"
+                          onClick={() => void copyText(href)}
+                        >
+                          <LinkIcon className="size-3.5" aria-hidden="true" />
+                          URL
+                        </Button>
+                        <Link
+                          href={href}
+                          className={buttonVariants({
+                            variant: "secondary",
+                            size: "sm"
+                          })}
+                        >
+                          <Eye className="size-3.5" aria-hidden="true" />
+                          Open
+                        </Link>
+                        <Button
+                          size="sm"
+                          variant="secondary"
+                          onClick={() => onRegenerate(table)}
+                          disabled={isSaving}
+                        >
+                          <RefreshCw className="size-3.5" aria-hidden="true" />
+                          Regenerate
+                        </Button>
+                      </>
+                    ) : (
                       <Button
                         size="sm"
-                        variant="secondary"
-                        onClick={() => void copyText(table.qrToken)}
-                      >
-                        <Copy className="size-3.5" aria-hidden="true" />
-                        Token
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="secondary"
-                        onClick={() => void copyText(href)}
-                      >
-                        <LinkIcon className="size-3.5" aria-hidden="true" />
-                        URL
-                      </Button>
-                      <Link
-                        href={href}
-                        className={buttonVariants({
-                          variant: "secondary",
-                          size: "sm"
-                        })}
-                      >
-                        <Eye className="size-3.5" aria-hidden="true" />
-                        Open
-                      </Link>
-                      <Button
-                        size="sm"
-                        variant="secondary"
-                        onClick={() => onRegenerate(table)}
+                        onClick={() => onGenerate(table)}
                         disabled={isSaving}
                       >
-                        <RefreshCw className="size-3.5" aria-hidden="true" />
-                        Regenerate
+                        <QrCode className="size-3.5" aria-hidden="true" />
+                        Generate
                       </Button>
-                    </>
-                  ) : (
-                    <Button
-                      size="sm"
-                      onClick={() => onGenerate(table)}
-                      disabled={isSaving}
-                    >
-                      <QrCode className="size-3.5" aria-hidden="true" />
-                      Generate
-                    </Button>
-                  )}
+                    )}
+                  </div>
                 </div>
+                {table.qrToken ? (
+                  <div className="rounded-button border border-dashed bg-background p-3 text-center">
+                    <p className="text-xs font-semibold uppercase text-muted-foreground">
+                      Print-friendly card
+                    </p>
+                    <p className="mt-2 text-lg font-semibold text-foreground">
+                      {table.displayName}
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      {floorName} | {table.code}
+                    </p>
+                    <div className="mt-3 rounded-button border bg-surface p-3 font-mono text-xs text-foreground">
+                      <QrCode
+                        className="mx-auto mb-2 size-12 text-primary"
+                        aria-hidden="true"
+                      />
+                      <p className="break-all">{table.qrToken}</p>
+                    </div>
+                    <p className="mt-2 break-all text-[11px] text-muted-foreground">
+                      {href}
+                    </p>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="secondary"
+                      className="mt-3"
+                      onClick={() => window.print()}
+                    >
+                      <Printer className="size-3.5" aria-hidden="true" />
+                      Print
+                    </Button>
+                  </div>
+                ) : (
+                  <div className="rounded-button border border-dashed bg-background p-3 text-sm text-muted-foreground">
+                    Generate a QR token before printing this table card.
+                  </div>
+                )}
               </div>
             </div>
           );
@@ -1143,6 +1260,7 @@ function BranchTableAdminContent() {
     useState<BranchFormState>(emptyBranchForm);
   const [floorForm, setFloorForm] = useState<FloorFormState>(emptyFloorForm);
   const [tableForm, setTableForm] = useState<TableFormState>(emptyTableForm);
+  const [lastQrAction, setLastQrAction] = useState<QrActionResult | null>(null);
   const overviewQuery = useQuery({
     queryKey: staffQueryKeys.branchTableAdminOverview(
       selectedCompanyId,
@@ -1322,7 +1440,11 @@ function BranchTableAdminContent() {
 
       return generateTableQrToken(branchId, table.id, token);
     },
-    onSuccess: refreshBranchAdmin
+    onMutate: () => setLastQrAction(null),
+    onSuccess: (result) => {
+      setLastQrAction(toQrActionResult("generated", result));
+      refreshBranchAdmin();
+    }
   });
   const regenerateQrMutation = useMutation({
     mutationFn: (table: BranchAdminTable) => {
@@ -1330,7 +1452,11 @@ function BranchTableAdminContent() {
 
       return regenerateTableQrToken(branchId, table.id, token);
     },
-    onSuccess: refreshBranchAdmin
+    onMutate: () => setLastQrAction(null),
+    onSuccess: (result) => {
+      setLastQrAction(toQrActionResult("regenerated", result));
+      refreshBranchAdmin();
+    }
   });
   const isMutating =
     createBranchMutation.isPending ||
@@ -1468,6 +1594,7 @@ function BranchTableAdminContent() {
 
       <BranchTableMetrics overview={overview} />
       <MutationMessage error={mutationError} />
+      <QrActionMessage result={lastQrAction} />
 
       <div className="flex flex-wrap gap-2 rounded-card border bg-surface/70 p-2">
         {branchTableAdminTabs.map((tab) => (
@@ -1511,6 +1638,7 @@ function BranchTableAdminContent() {
             setBranchForm(emptyBranchForm);
             setFloorForm(emptyFloorForm);
             setTableForm(emptyTableForm);
+            setLastQrAction(null);
           }}
           onFormChange={setBranchForm}
           onSubmit={handleBranchSubmit}

@@ -11,7 +11,9 @@ import {
   ClipboardCheck,
   Copy,
   CreditCard,
+  ExternalLink,
   KeyRound,
+  LinkIcon,
   Loader2,
   MapPinned,
   QrCode,
@@ -19,6 +21,7 @@ import {
   Rocket,
   Save,
   ShieldCheck,
+  Table2,
   UsersRound
 } from "lucide-react";
 import { type FormEvent, useMemo, useState } from "react";
@@ -53,6 +56,7 @@ import { staffQueryKeys } from "@/lib/api/query-keys";
 import type {
   BulkCreateOnboardingTablesPayload,
   CreateOnboardingFloorPayload,
+  InviteOnboardingStaffResult,
   InviteOnboardingStaffPayload,
   TenantOnboardingBranch,
   TenantOnboardingBranchStatus,
@@ -113,6 +117,15 @@ type CompanyDraftState = {
 type BranchDraftState = {
   branchId?: string;
   values: Partial<BranchFormState>;
+};
+
+type StaffInviteResultState = {
+  inviteUrl: string;
+  email: string;
+  name: string;
+  role: TenantOnboardingStaffRole | string;
+  branchName: string;
+  expiresAt?: string | null;
 };
 
 const emptyCompanyForm: CompanyFormState = {
@@ -177,12 +190,33 @@ function toNonNegativeInteger(value: string, fallback: number) {
   return Number.isFinite(parsed) && parsed >= 0 ? parsed : fallback;
 }
 
-function buildInviteUrl(invitePath: string) {
+function buildAppUrl(path: string) {
   if (typeof window === "undefined") {
-    return invitePath;
+    return path;
   }
 
-  return new URL(invitePath, window.location.origin).toString();
+  return new URL(path, window.location.origin).toString();
+}
+
+function buildInviteUrl(invitePath: string) {
+  return buildAppUrl(invitePath);
+}
+
+function formatInviteExpiry(value?: string | null) {
+  if (!value) {
+    return "Not set";
+  }
+
+  const date = new Date(value);
+
+  if (Number.isNaN(date.getTime())) {
+    return value;
+  }
+
+  return new Intl.DateTimeFormat("en-US", {
+    dateStyle: "medium",
+    timeStyle: "short"
+  }).format(date);
 }
 
 function getCompanyForm(company?: TenantOnboardingCompany): CompanyFormState {
@@ -360,10 +394,10 @@ function StaffSetupContent() {
     name: "",
     role: "cashier"
   });
-  const [lastStaffInviteUrl, setLastStaffInviteUrl] = useState<string | null>(
-    null
-  );
+  const [lastStaffInvite, setLastStaffInvite] =
+    useState<StaffInviteResultState | null>(null);
   const [staffInviteCopied, setStaffInviteCopied] = useState(false);
+  const [copiedQrTableId, setCopiedQrTableId] = useState<string | null>(null);
   const [acknowledgementMessage, setAcknowledgementMessage] = useState<
     string | null
   >(null);
@@ -436,6 +470,7 @@ function StaffSetupContent() {
   const staffRoleValue = visibleStaffRoles.includes(staffForm.role)
     ? staffForm.role
     : visibleStaffRoles[0] ?? "cashier";
+  const selectedStaffRoleLabel = getStaffRoleLabel(staffRoleValue);
 
   const checklistItems =
     launchChecklistQuery.data?.launchChecklist ?? onboarding?.launchChecklist ?? [];
@@ -453,6 +488,20 @@ function StaffSetupContent() {
     ...(saasStatus?.blockers ?? []),
     ...(saasStatus?.warnings ?? [])
   ];
+
+  function toStaffInviteResultState(
+    result: InviteOnboardingStaffResult
+  ): StaffInviteResultState {
+    return {
+      inviteUrl: buildInviteUrl(result.invitePath),
+      email: result.invite.email,
+      name: result.invite.name ?? result.staffUser.name,
+      role: result.invite.role,
+      branchName:
+        result.invite.branch?.name ?? onboarding?.branch.name ?? "Selected branch",
+      expiresAt: result.invite.expiresAt ?? null
+    };
+  }
 
   function refreshOnboarding() {
     if (selectedBranchId) {
@@ -563,7 +612,7 @@ function StaffSetupContent() {
       return inviteOnboardingStaff(branchId, payload, token);
     },
     onSuccess: (result) => {
-      setLastStaffInviteUrl(buildInviteUrl(result.invitePath));
+      setLastStaffInvite(toStaffInviteResultState(result));
       setStaffInviteCopied(false);
       setStaffForm({ email: "", name: "", role: "cashier" });
       refreshOnboarding();
@@ -593,7 +642,6 @@ function StaffSetupContent() {
     updateBranchMutation.error ??
     createFloorMutation.error ??
     bulkCreateTablesMutation.error ??
-    inviteStaffMutation.error ??
     readinessMutation.error;
 
   function handleCompanySubmit(event: FormEvent<HTMLFormElement>) {
@@ -648,12 +696,17 @@ function StaffSetupContent() {
   }
 
   async function copyStaffInviteUrl() {
-    if (!lastStaffInviteUrl) {
+    if (!lastStaffInvite) {
       return;
     }
 
-    await navigator.clipboard.writeText(lastStaffInviteUrl);
+    await navigator.clipboard.writeText(lastStaffInvite.inviteUrl);
     setStaffInviteCopied(true);
+  }
+
+  async function copyQrPreviewUrl(tableId: string, customerPreviewPath: string) {
+    await navigator.clipboard.writeText(buildAppUrl(customerPreviewPath));
+    setCopiedQrTableId(tableId);
   }
 
   const roleCounts = useMemo(() => onboarding?.staff.roleCounts ?? {}, [onboarding]);
@@ -1011,10 +1064,23 @@ function StaffSetupContent() {
                     <CardTitle>Branch service map</CardTitle>
                     <CardDescription>
                       Create floor labels and deterministic table codes with QR
-                      tokens for launch smoke testing.
+                      tokens, then manage live QR links from the branch control
+                      surface.
                     </CardDescription>
                   </div>
-                  <QrCode className="size-5 text-primary" aria-hidden="true" />
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Link
+                      href="/staff/branches"
+                      className={buttonVariants({
+                        variant: "secondary",
+                        size: "sm"
+                      })}
+                    >
+                      <Table2 className="size-4" aria-hidden="true" />
+                      Manage tables & QR
+                    </Link>
+                    <QrCode className="size-5 text-primary" aria-hidden="true" />
+                  </div>
                 </div>
               </CardHeader>
               <CardContent className="grid gap-5">
@@ -1164,10 +1230,24 @@ function StaffSetupContent() {
 
             <Card variant="quiet">
               <CardHeader>
-                <CardTitle>Recent QR preview</CardTitle>
-                <CardDescription>
-                  These links remain backed by real table QR tokens.
-                </CardDescription>
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div>
+                    <CardTitle>Recent QR preview</CardTitle>
+                    <CardDescription>
+                      These links remain backed by real table QR tokens.
+                    </CardDescription>
+                  </div>
+                  <Link
+                    href="/staff/branches"
+                    className={buttonVariants({
+                      variant: "secondary",
+                      size: "sm"
+                    })}
+                  >
+                    <QrCode className="size-4" aria-hidden="true" />
+                    QR manager
+                  </Link>
+                </div>
               </CardHeader>
               <CardContent>
                 <div className="grid gap-3">
@@ -1179,26 +1259,48 @@ function StaffSetupContent() {
                   {onboarding.tables.recentTables.map((table) => (
                     <div
                       key={table.id}
-                      className="flex items-center justify-between gap-3 rounded-button border bg-surface/60 p-3"
+                      className="grid gap-3 rounded-button border bg-surface/60 p-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center"
                     >
-                      <div>
+                      <div className="min-w-0">
                         <p className="font-semibold text-foreground">
                           {table.displayName}
                         </p>
-                        <p className="text-xs text-muted-foreground">
+                        <p className="break-all text-xs text-muted-foreground">
                           {table.qrToken ?? "QR token pending"}
                         </p>
                       </div>
                       {table.customerPreviewPath ? (
-                        <Link
-                          href={table.customerPreviewPath}
-                          className={buttonVariants({
-                            variant: "secondary",
-                            size: "sm"
-                          })}
-                        >
-                          Open QR
-                        </Link>
+                        <div className="flex flex-wrap gap-2">
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="secondary"
+                            onClick={() =>
+                              void copyQrPreviewUrl(
+                                table.id,
+                                table.customerPreviewPath ?? ""
+                              )
+                            }
+                          >
+                            <LinkIcon className="size-4" aria-hidden="true" />
+                            {copiedQrTableId === table.id
+                              ? "Copied"
+                              : "Copy URL"}
+                          </Button>
+                          <Link
+                            href={table.customerPreviewPath}
+                            className={buttonVariants({
+                              variant: "secondary",
+                              size: "sm"
+                            })}
+                          >
+                            <ExternalLink
+                              className="size-4"
+                              aria-hidden="true"
+                            />
+                            Open QR
+                          </Link>
+                        </div>
                       ) : (
                         <Badge variant="warning">Missing QR</Badge>
                       )}
@@ -1220,7 +1322,9 @@ function StaffSetupContent() {
                     <CardTitle>Invite branch operators</CardTitle>
                     <CardDescription>
                       Create staff users, active memberships, and
-                      first-password invite links.
+                      first-password invite links for day-to-day branch
+                      operations. Platform handles company and owner setup
+                      repairs.
                     </CardDescription>
                   </div>
                   <UsersRound className="size-5 text-primary" aria-hidden="true" />
@@ -1292,28 +1396,94 @@ function StaffSetupContent() {
                     Create invite
                   </Button>
                 </form>
-                {lastStaffInviteUrl ? (
-                  <div className="mt-4 grid gap-2 rounded-button border bg-surface/70 p-3">
-                    <p className="text-xs font-semibold uppercase text-muted-foreground">
-                      Invite link
-                    </p>
-                    <div className="grid gap-2 md:grid-cols-[1fr_auto]">
-                      <Input value={lastStaffInviteUrl} readOnly />
+                {inviteStaffMutation.isError ? (
+                  <div className="mt-4 rounded-button border border-danger/40 bg-danger/10 p-3 text-sm text-foreground">
+                    {formatErrorMessage(inviteStaffMutation.error)}
+                  </div>
+                ) : null}
+                {lastStaffInvite ? (
+                  <div className="mt-4 grid gap-4 rounded-button border border-success/35 bg-success/10 p-4">
+                    <div className="flex flex-wrap items-start justify-between gap-3">
+                      <div>
+                        <p className="text-sm font-semibold text-foreground">
+                          Invite created
+                        </p>
+                        <p className="text-sm text-muted-foreground">
+                          Send this link to {lastStaffInvite.name} so they can
+                          set their first staff password.
+                        </p>
+                      </div>
+                      <Badge variant="success">
+                        {getStaffRoleLabel(lastStaffInvite.role)}
+                      </Badge>
+                    </div>
+                    <div className="grid gap-2 md:grid-cols-[minmax(0,1fr)_auto_auto]">
+                      <Input value={lastStaffInvite.inviteUrl} readOnly />
                       <Button
                         type="button"
                         variant="secondary"
                         onClick={copyStaffInviteUrl}
                       >
                         <Copy className="size-4" aria-hidden="true" />
-                        {staffInviteCopied ? "Copied" : "Copy"}
+                        {staffInviteCopied ? "Copied" : "Copy link"}
                       </Button>
+                      <a
+                        href={lastStaffInvite.inviteUrl}
+                        target="_blank"
+                        rel="noreferrer"
+                        className={buttonVariants({
+                          variant: "secondary",
+                          size: "md"
+                        })}
+                      >
+                        <ExternalLink className="size-4" aria-hidden="true" />
+                        Open invite
+                      </a>
+                    </div>
+                    <div className="grid gap-2 text-sm text-muted-foreground sm:grid-cols-2">
+                      <p>
+                        <span className="font-semibold text-foreground">
+                          Email:
+                        </span>{" "}
+                        {lastStaffInvite.email}
+                      </p>
+                      <p>
+                        <span className="font-semibold text-foreground">
+                          Branch:
+                        </span>{" "}
+                        {lastStaffInvite.branchName}
+                      </p>
+                      <p>
+                        <span className="font-semibold text-foreground">
+                          Role:
+                        </span>{" "}
+                        {getStaffRoleLabel(lastStaffInvite.role)}
+                      </p>
+                      <p>
+                        <span className="font-semibold text-foreground">
+                          Expires:
+                        </span>{" "}
+                        {formatInviteExpiry(lastStaffInvite.expiresAt)}
+                      </p>
                     </div>
                   </div>
                 ) : null}
-                {!canInviteOwner ? (
+                {staffRoleValue === "owner" && !canInviteOwner ? (
                   <p className="mt-3 text-sm text-muted-foreground">
                     Owner membership creation requires company-level staff
                     management. Branch managers can create branch roles.
+                  </p>
+                ) : null}
+                {staffRoleValue === "owner" && canInviteOwner ? (
+                  <p className="mt-3 text-sm text-muted-foreground">
+                    Owner invites create company-level staff access for this
+                    cafe.
+                  </p>
+                ) : null}
+                {staffRoleValue !== "owner" ? (
+                  <p className="mt-3 text-sm text-muted-foreground">
+                    This invite creates a {selectedStaffRoleLabel} membership
+                    for {onboarding.branch.name}.
                   </p>
                 ) : null}
               </CardContent>

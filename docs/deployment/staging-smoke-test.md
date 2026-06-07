@@ -53,8 +53,19 @@ tunnel restarts.
     or manager, and copy the returned `/staff/invite/<inviteToken>` link.
 14. Open the invite link, set a staff password, then log in at `/staff/login`
     with the invited staff email.
-15. Open `/staff/setup` and `/staff/billing` and confirm the staff routes load
-    without `[object Object]` errors.
+15. Open `/staff/setup` and confirm the branch staff invite card explains that
+    branch roles receive access to the selected branch. The owner/company-level
+    warning should only appear for owner-role context.
+16. Create a branch staff invite, then confirm the success state shows the
+    invite link, Copy link, Open invite, email, role, and branch summary.
+17. Open `/staff/branches`, copy a customer QR URL, and open it in a new tab.
+18. Regenerate one non-demo table QR token with confirmation. Confirm the token
+    changes, the old `/customer/table/<oldToken>` no longer opens, and the new
+    `/customer/table/<newToken>` opens a customer table session.
+19. Log in as a lower-privilege branch staff role such as cashier or waiter and
+    confirm QR regeneration is not available.
+20. Open `/staff/billing` and confirm the staff routes load without
+    `[object Object]` errors.
 
 ## Automated Route Check
 
@@ -85,6 +96,7 @@ This verifies:
 - cafe creation page: `/platform/companies/new`
 - staff login: `/staff/login`
 - setup page: `/staff/setup`
+- branch/table QR management: `/staff/branches`
 - billing page: `/staff/billing`
 - customer QR route: `/customer/table/balcona-main-t01`
 - no fetched page contains `[object Object]`
@@ -107,12 +119,29 @@ This verifies:
 9. Open the invite link and set a password of at least 12 characters.
 10. Log in at `/staff/login` with the invited staff email and new password.
 11. Open `/staff/setup` and confirm branch/table/setup readiness cards load.
-12. Open `/staff/billing` and confirm SaaS plan/status appears.
-13. Open `/customer/table/:qrToken` for the first returned QR example and
+12. Create a branch staff invite from `/staff/setup`; confirm the success panel
+    shows the invite link, Copy link, Open invite, email, role, and branch.
+13. Confirm invite failure states, if triggered by a duplicate or invalid email,
+    render readable text rather than `[object Object]`.
+14. Open `/staff/branches`, select the active branch, and confirm tables show
+    floor/area, code, display name, capacity, status, QR token, customer URL,
+    and a print-friendly card.
+15. Copy a customer QR URL and open it.
+16. Regenerate a non-demo table QR token only after the confirmation prompt.
+    Confirm the old token no longer opens and the new token starts or resumes a
+    customer table session.
+17. Log in as a lower-privilege branch role such as cashier or waiter and
+    confirm QR regeneration is unavailable.
+18. Open `/staff/billing` and confirm SaaS plan/status appears.
+19. Open `/customer/table/:qrToken` for the first returned QR example and
     confirm a customer session can start.
-14. If seeded menu data is intentionally available in that staging cafe, submit
+20. If seeded menu data is intentionally available in that staging cafe, submit
     a basic customer order and confirm the cashier sees it.
-15. Confirm no visible page renders `[object Object]`.
+21. Confirm no visible page renders `[object Object]`.
 
 The smoke does not require a real payment gateway. Mock online payment should
 remain explicit and staging-only until a real provider is added.
+
+PNG/PDF batch QR export remains a follow-up. The current staging surface should
+at minimum provide copy link, open QR link, regeneration with confirmation, and a
+print-friendly table card for each QR token.
