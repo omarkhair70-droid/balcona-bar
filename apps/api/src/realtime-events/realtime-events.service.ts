@@ -373,7 +373,7 @@ export class RealtimeEventsService {
     );
   }
 
-  async recordOrderSubmitted(orderId: string, tx: PrismaExecutor) {
+  async recordOrderSubmitted(orderId: string, tx: PrismaExecutor = this.prisma) {
     return this.recordOrderEvent(
       orderId,
       RealtimeEventType.order_submitted,

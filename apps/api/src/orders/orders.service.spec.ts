@@ -1,3 +1,4 @@
+import { BadRequestException, NotFoundException } from '@nestjs/common';
 import { OrderEventActorType, OrderEventType, OrderSource, OrderStatus, PreparationTaskStatus } from '@prisma/client';
 import { OrdersService } from './orders.service';
 
@@ -181,6 +182,278 @@ function buildService(input: {
     inventoryService,
   };
 }
+
+const submitSession = {
+  id: 'session-1',
+  companyId: 'company-1',
+  branchId: 'branch-1',
+};
+
+const submitCart = {
+  id: 'cart-1',
+  currency: 'EGP',
+  items: [
+    {
+      id: 'cart-item-1',
+      menuItemId: 'spanish-latte',
+      quantity: 1,
+      notes: null,
+      itemNameSnapshot: 'Spanish Latte',
+      itemSlugSnapshot: 'spanish-latte',
+      basePriceMinorSnapshot: 11500,
+      effectiveBasePriceMinorSnapshot: 11500,
+      modifiersTotalMinorSnapshot: 0,
+      unitPriceMinorSnapshot: 11500,
+      lineTotalMinorSnapshot: 11500,
+      currency: 'EGP',
+      modifierOptions: [
+        {
+          modifierGroupId: 'size',
+          modifierOptionId: 'small',
+          modifierGroupNameSnapshot: 'Size',
+          modifierGroupSlugSnapshot: 'size',
+          modifierOptionNameSnapshot: 'Small',
+          modifierOptionSlugSnapshot: 'small',
+          priceDeltaMinorSnapshot: 0,
+        },
+        {
+          modifierGroupId: 'temperature',
+          modifierOptionId: 'iced',
+          modifierGroupNameSnapshot: 'Temperature',
+          modifierGroupSlugSnapshot: 'temperature',
+          modifierOptionNameSnapshot: 'Iced',
+          modifierOptionSlugSnapshot: 'iced',
+          priceDeltaMinorSnapshot: 0,
+        },
+      ],
+    },
+  ],
+};
+
+function buildSubmitService(input: {
+  existingOrder?: ReturnType<typeof orderResponse> | null;
+  cartValidationError?: Error;
+  smartCashierRejects?: boolean;
+  responseStatus?: OrderStatus;
+} = {}) {
+  const tx = {
+    $executeRaw: jest.fn().mockResolvedValue(0),
+    order: {
+      count: jest.fn().mockResolvedValue(0),
+      findUnique: jest.fn((args: any) => {
+        if (args.where?.tableSessionId_idempotencyKey) {
+          return Promise.resolve(input.existingOrder ?? null);
+        }
+
+        return Promise.resolve(null);
+      }),
+      create: jest.fn().mockResolvedValue({ id: 'order-1' }),
+    },
+    cart: {
+      update: jest.fn().mockResolvedValue({ id: 'cart-1' }),
+    },
+  };
+  const prisma = {
+    $transaction: jest.fn((callback: (txArg: typeof tx) => unknown) =>
+      callback(tx),
+    ),
+    order: {
+      findUnique: jest.fn().mockResolvedValue(
+        orderResponse(input.responseStatus ?? OrderStatus.submitted),
+      ),
+    },
+  };
+  const cartService = {
+    getValidatedDraftCartForSubmit: input.cartValidationError
+      ? jest.fn().mockRejectedValue(input.cartValidationError)
+      : jest.fn().mockResolvedValue({
+          session: submitSession,
+          cart: submitCart,
+          totals: {
+            subtotalMinor: 11500,
+            totalQuantity: 1,
+            itemCount: 1,
+          },
+        }),
+  };
+  const preparationTasksService = {
+    createTasksForAcceptedOrder: jest.fn().mockResolvedValue(undefined),
+    cancelActiveTasksForOrderCancellation: jest.fn().mockResolvedValue([]),
+  };
+  const presenceNotificationsService = {
+    createOrderSubmittedNotification: jest.fn().mockResolvedValue({}),
+    createOrderAcceptedNotification: jest.fn().mockResolvedValue({}),
+    createOrderRejectedNotification: jest.fn().mockResolvedValue({}),
+    createOrderServedNotification: jest.fn().mockResolvedValue({}),
+  };
+  const realtimeEventsService = {
+    recordOrderSubmitted: jest.fn().mockResolvedValue({}),
+    recordOrderAccepted: jest.fn().mockResolvedValue({}),
+    recordOrderRejected: jest.fn().mockResolvedValue({}),
+    recordOrderServed: jest.fn().mockResolvedValue({}),
+    recordOrderCompleted: jest.fn().mockResolvedValue({}),
+    recordOrderCancelled: jest.fn().mockResolvedValue({}),
+  };
+  const smartCashierService = {
+    attemptAutoAcceptOrder: input.smartCashierRejects
+      ? jest.fn().mockRejectedValue(new Error('Printer timeout token=secret'))
+      : jest.fn().mockResolvedValue({ autoAccepted: false, stored: true }),
+  };
+  const tableAttentionService = {
+    recalculateForTableSession: jest.fn().mockResolvedValue({}),
+  };
+  const kitchenTicketsService = {
+    syncTicketsForOrderServed: jest.fn().mockResolvedValue(1),
+    syncTicketsForOrderCancelled: jest.fn().mockResolvedValue(1),
+  };
+  const inventoryService = {
+    consumeStockForAcceptedOrder: jest.fn().mockResolvedValue({
+      consumed: true,
+      movements: [],
+    }),
+  };
+  const service = new OrdersService(
+    prisma as never,
+    cartService as never,
+    preparationTasksService as never,
+    presenceNotificationsService as never,
+    realtimeEventsService as never,
+    smartCashierService as never,
+    tableAttentionService as never,
+    kitchenTicketsService as never,
+    inventoryService as never,
+  );
+
+  return {
+    service,
+    tx,
+    prisma,
+    cartService,
+    presenceNotificationsService,
+    realtimeEventsService,
+    smartCashierService,
+    tableAttentionService,
+  };
+}
+
+describe('OrdersService submit cart', () => {
+  it('submits a cart with modifiers and customer note', async () => {
+    const {
+      service,
+      tx,
+      presenceNotificationsService,
+      realtimeEventsService,
+      smartCashierService,
+    } = buildSubmitService();
+
+    const result = await service.submitCart(
+      'session-1',
+      { customerNote: '  Please make it iced  ' },
+      'submit-key-1',
+      'request-1',
+    );
+
+    expect(result.order.status).toBe(OrderStatus.submitted);
+    expect(tx.order.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          customerNote: 'Please make it iced',
+          idempotencyKey: 'submit-key-1',
+          items: {
+            create: [
+              expect.objectContaining({
+                menuItemId: 'spanish-latte',
+                quantity: 1,
+                modifierOptions: {
+                  create: [
+                    expect.objectContaining({
+                      modifierGroupId: 'size',
+                      modifierOptionId: 'small',
+                    }),
+                    expect.objectContaining({
+                      modifierGroupId: 'temperature',
+                      modifierOptionId: 'iced',
+                    }),
+                  ],
+                },
+              }),
+            ],
+          },
+        }),
+      }),
+    );
+    expect(presenceNotificationsService.createOrderSubmittedNotification).toHaveBeenCalledWith(
+      'order-1',
+    );
+    expect(realtimeEventsService.recordOrderSubmitted).toHaveBeenCalledWith(
+      'order-1',
+    );
+    expect(smartCashierService.attemptAutoAcceptOrder).toHaveBeenCalledWith(
+      'order-1',
+    );
+  });
+
+  it('returns success and leaves manual review available when auto-accept throws', async () => {
+    const { service, smartCashierService, prisma } = buildSubmitService({
+      smartCashierRejects: true,
+      responseStatus: OrderStatus.submitted,
+    });
+
+    const result = await service.submitCart('session-1', {}, 'submit-key-2');
+
+    expect(smartCashierService.attemptAutoAcceptOrder).toHaveBeenCalledWith(
+      'order-1',
+    );
+    expect(prisma.order.findUnique).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { id: 'order-1' } }),
+    );
+    expect(result.order.status).toBe(OrderStatus.submitted);
+    expect(result.lifecycle.allowedActions).toContain('accept');
+  });
+
+  it('returns readable bad request for invalid carts', async () => {
+    const { service, tx } = buildSubmitService({
+      cartValidationError: new BadRequestException('Cart is empty'),
+    });
+
+    await expect(service.submitCart('session-1')).rejects.toThrow(
+      'Cart is empty',
+    );
+    expect(tx.order.create).not.toHaveBeenCalled();
+  });
+
+  it('returns readable bad request for invalid table sessions', async () => {
+    const { service, tx } = buildSubmitService({
+      cartValidationError: new NotFoundException('Table session not found'),
+    });
+
+    await expect(service.submitCart('missing-session')).rejects.toThrow(
+      'Table session is invalid or unavailable',
+    );
+    expect(tx.order.create).not.toHaveBeenCalled();
+  });
+
+  it('replays idempotent submissions without rerunning automation', async () => {
+    const existingOrder = orderResponse(OrderStatus.submitted);
+    const { service, tx, cartService, smartCashierService } = buildSubmitService({
+      existingOrder,
+    });
+
+    const result = await service.submitCart(
+      'session-1',
+      {},
+      ' submit-key-3 ',
+    );
+
+    expect(result.idempotency).toEqual({
+      replayed: true,
+      key: 'submit-key-3',
+    });
+    expect(cartService.getValidatedDraftCartForSubmit).not.toHaveBeenCalled();
+    expect(tx.order.create).not.toHaveBeenCalled();
+    expect(smartCashierService.attemptAutoAcceptOrder).not.toHaveBeenCalled();
+  });
+});
 
 describe('OrdersService lifecycle hardening', () => {
   it('accepts a submitted order and consumes stock after the guarded update', async () => {

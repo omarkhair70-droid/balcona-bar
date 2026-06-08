@@ -1,6 +1,8 @@
 import {
   BadRequestException,
+  HttpException,
   Injectable,
+  Logger,
   NotFoundException,
 } from '@nestjs/common';
 import {
@@ -54,8 +56,28 @@ type IdempotencyReplay = {
   key: string | null;
 };
 
+type SubmitCartLogContext = {
+  requestId?: string;
+  sessionId: string;
+  orderId?: string;
+};
+
+type SubmitCartTransactionResult =
+  | {
+      replayed: true;
+      response: any;
+    }
+  | {
+      replayed: false;
+      orderId: string;
+      sessionId: string;
+      idempotency: IdempotencyReplay;
+    };
+
 @Injectable()
 export class OrdersService {
+  private readonly logger = new Logger(OrdersService.name);
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly cartService: CartService,
@@ -72,117 +94,139 @@ export class OrdersService {
     sessionId: string,
     body: SubmitCartDto = {},
     rawIdempotencyKey?: string,
+    requestId?: string,
   ) {
     const idempotencyKey = this.normalizeIdempotencyKey(rawIdempotencyKey);
     const customerNote = this.normalizeOptionalText(body.customerNote);
+    const logContext = { requestId, sessionId };
 
-    return this.prisma.$transaction(async (tx) => {
-      await this.lockSubmitForSession(sessionId, tx);
+    let transactionResult: SubmitCartTransactionResult;
 
-      if (idempotencyKey) {
-        const existingOrder = await this.findByIdempotencyKey(
-          sessionId,
-          idempotencyKey,
-          tx,
-        );
+    try {
+      transactionResult = await this.prisma.$transaction(async (tx) => {
+        await this.lockSubmitForSession(sessionId, tx);
 
-        if (existingOrder) {
-          return this.toOrderResponse(existingOrder, {
-            replayed: true,
-            key: idempotencyKey,
-          });
+        if (idempotencyKey) {
+          const existingOrder = await this.findByIdempotencyKey(
+            sessionId,
+            idempotencyKey,
+            tx,
+          );
+
+          if (existingOrder) {
+            return {
+              replayed: true,
+              response: this.toOrderResponse(existingOrder, {
+                replayed: true,
+                key: idempotencyKey,
+              }),
+            };
+          }
         }
-      }
 
-      const { session, cart, totals } =
-        await this.cartService.getValidatedDraftCartForSubmit(sessionId, tx);
-      const orderNumber = await this.generateOrderNumber(session.branchId, tx);
-      const submittedAt = new Date();
-      const submittedMetadata: Record<string, string> = {
-        cartId: cart.id,
-        action: 'submit',
-        nextStatus: OrderStatus.submitted,
-        source: 'customer',
-      };
-
-      if (idempotencyKey) {
-        submittedMetadata.idempotencyKey = idempotencyKey;
-      }
-
-      const order = await tx.order.create({
-        data: {
-          companyId: session.companyId,
-          branchId: session.branchId,
-          tableSessionId: session.id,
+        const { session, cart, totals } =
+          await this.cartService.getValidatedDraftCartForSubmit(sessionId, tx);
+        const orderNumber = await this.generateOrderNumber(session.branchId, tx);
+        const submittedAt = new Date();
+        const submittedMetadata: Record<string, string> = {
           cartId: cart.id,
-          orderNumber,
-          status: OrderStatus.submitted,
-          source: OrderSource.customer_qr,
-          currency: cart.currency,
-          subtotalMinor: totals.subtotalMinor,
-          totalQuantity: totals.totalQuantity,
-          itemCount: totals.itemCount,
-          customerNote,
-          idempotencyKey,
-          submittedAt,
-          items: {
-            create: cart.items.map((item: any) => ({
-              menuItemId: item.menuItemId,
-              quantity: item.quantity,
-              notes: item.notes,
-              itemNameSnapshot: item.itemNameSnapshot,
-              itemSlugSnapshot: item.itemSlugSnapshot,
-              basePriceMinorSnapshot: item.basePriceMinorSnapshot,
-              effectiveBasePriceMinorSnapshot:
-                item.effectiveBasePriceMinorSnapshot,
-              modifiersTotalMinorSnapshot: item.modifiersTotalMinorSnapshot,
-              unitPriceMinorSnapshot: item.unitPriceMinorSnapshot,
-              lineTotalMinorSnapshot: item.lineTotalMinorSnapshot,
-              currency: item.currency,
-              modifierOptions: {
-                create: item.modifierOptions.map((option: any) => ({
-                  modifierGroupId: option.modifierGroupId,
-                  modifierOptionId: option.modifierOptionId,
-                  modifierGroupNameSnapshot: option.modifierGroupNameSnapshot,
-                  modifierGroupSlugSnapshot: option.modifierGroupSlugSnapshot,
-                  modifierOptionNameSnapshot: option.modifierOptionNameSnapshot,
-                  modifierOptionSlugSnapshot: option.modifierOptionSlugSnapshot,
-                  priceDeltaMinorSnapshot: option.priceDeltaMinorSnapshot,
-                })),
+          action: 'submit',
+          nextStatus: OrderStatus.submitted,
+          source: 'customer',
+        };
+
+        if (idempotencyKey) {
+          submittedMetadata.idempotencyKey = idempotencyKey;
+        }
+
+        const order = await tx.order.create({
+          data: {
+            companyId: session.companyId,
+            branchId: session.branchId,
+            tableSessionId: session.id,
+            cartId: cart.id,
+            orderNumber,
+            status: OrderStatus.submitted,
+            source: OrderSource.customer_qr,
+            currency: cart.currency,
+            subtotalMinor: totals.subtotalMinor,
+            totalQuantity: totals.totalQuantity,
+            itemCount: totals.itemCount,
+            customerNote,
+            idempotencyKey,
+            submittedAt,
+            items: {
+              create: cart.items.map((item: any) => ({
+                menuItemId: item.menuItemId,
+                quantity: item.quantity,
+                notes: item.notes,
+                itemNameSnapshot: item.itemNameSnapshot,
+                itemSlugSnapshot: item.itemSlugSnapshot,
+                basePriceMinorSnapshot: item.basePriceMinorSnapshot,
+                effectiveBasePriceMinorSnapshot:
+                  item.effectiveBasePriceMinorSnapshot,
+                modifiersTotalMinorSnapshot: item.modifiersTotalMinorSnapshot,
+                unitPriceMinorSnapshot: item.unitPriceMinorSnapshot,
+                lineTotalMinorSnapshot: item.lineTotalMinorSnapshot,
+                currency: item.currency,
+                modifierOptions: {
+                  create: item.modifierOptions.map((option: any) => ({
+                    modifierGroupId: option.modifierGroupId,
+                    modifierOptionId: option.modifierOptionId,
+                    modifierGroupNameSnapshot: option.modifierGroupNameSnapshot,
+                    modifierGroupSlugSnapshot: option.modifierGroupSlugSnapshot,
+                    modifierOptionNameSnapshot: option.modifierOptionNameSnapshot,
+                    modifierOptionSlugSnapshot: option.modifierOptionSlugSnapshot,
+                    priceDeltaMinorSnapshot: option.priceDeltaMinorSnapshot,
+                  })),
+                },
+              })),
+            },
+            events: {
+              create: {
+                type: OrderEventType.submitted,
+                actorType: OrderEventActorType.customer,
+                metadata: submittedMetadata,
               },
-            })),
-          },
-          events: {
-            create: {
-              type: OrderEventType.submitted,
-              actorType: OrderEventActorType.customer,
-              metadata: submittedMetadata,
             },
           },
-        },
-        select: { id: true },
-      });
+          select: { id: true },
+        });
 
-      await tx.cart.update({
-        where: { id: cart.id },
-        data: { status: CartStatus.converted },
-      });
+        await tx.cart.update({
+          where: { id: cart.id },
+          data: { status: CartStatus.converted },
+        });
 
-      await this.presenceNotificationsService.createOrderSubmittedNotification(
-        order.id,
-        tx,
-      );
-      await this.realtimeEventsService.recordOrderSubmitted(order.id, tx);
-      await this.smartCashierService.attemptAutoAcceptOrder(order.id, tx);
-      await this.recalculateAttention(session.id, tx, 'order_submitted', {
-        orderId: order.id,
+        return {
+          replayed: false,
+          orderId: order.id,
+          sessionId: session.id,
+          idempotency: {
+            replayed: false,
+            key: idempotencyKey,
+          },
+        };
       });
+    } catch (error) {
+      throw this.toSubmitCartError(error, logContext);
+    }
 
-      return this.getOrderResponse(order.id, tx, {
-        replayed: false,
-        key: idempotencyKey,
-      });
+    if (transactionResult.replayed) {
+      return transactionResult.response;
+    }
+
+    await this.runPostSubmitAutomation({
+      ...logContext,
+      sessionId: transactionResult.sessionId,
+      orderId: transactionResult.orderId,
     });
+
+    return this.getOrderResponse(
+      transactionResult.orderId,
+      this.prisma,
+      transactionResult.idempotency,
+    );
   }
 
   async findCashierOrders(branchId: string, query: CashierOrdersQueryDto = {}) {
@@ -797,7 +841,7 @@ export class OrdersService {
 
   private async recalculateAttention(
     tableSessionId: string,
-    tx: Prisma.TransactionClient,
+    tx: PrismaExecutor,
     source: string,
     metadata: Record<string, unknown>,
   ) {
@@ -840,6 +884,121 @@ export class OrdersService {
     const normalizedValue = value.trim();
 
     return normalizedValue.length > 0 ? normalizedValue : null;
+  }
+
+  private async runPostSubmitAutomation(context: SubmitCartLogContext) {
+    const { orderId, sessionId } = context;
+
+    if (!orderId) {
+      return;
+    }
+
+    await this.runPostSubmitAutomationStep(
+      'order_submitted_notification',
+      context,
+      () =>
+        this.presenceNotificationsService.createOrderSubmittedNotification(
+          orderId,
+        ),
+    );
+    await this.runPostSubmitAutomationStep(
+      'order_submitted_realtime',
+      context,
+      () => this.realtimeEventsService.recordOrderSubmitted(orderId),
+    );
+    await this.runPostSubmitAutomationStep(
+      'smart_cashier_auto_accept',
+      context,
+      () => this.smartCashierService.attemptAutoAcceptOrder(orderId),
+    );
+    await this.runPostSubmitAutomationStep(
+      'table_attention_recalculate',
+      context,
+      () =>
+        this.recalculateAttention(sessionId, this.prisma, 'order_submitted', {
+          orderId,
+        }),
+    );
+  }
+
+  private async runPostSubmitAutomationStep(
+    stage: string,
+    context: SubmitCartLogContext,
+    operation: () => Promise<unknown>,
+  ) {
+    try {
+      await operation();
+    } catch (error) {
+      this.logger.warn({
+        message:
+          'Post-submit automation failed; order remains submitted for manual review',
+        stage,
+        ...context,
+        exception: this.safeExceptionSummary(error),
+      });
+    }
+  }
+
+  private toSubmitCartError(error: unknown, context: SubmitCartLogContext) {
+    if (error instanceof NotFoundException) {
+      this.logger.warn({
+        message: 'Cart submit rejected because table session is invalid',
+        ...context,
+        exception: this.safeExceptionSummary(error),
+      });
+
+      return new BadRequestException('Table session is invalid or unavailable');
+    }
+
+    if (!(error instanceof HttpException)) {
+      this.logger.error({
+        message: 'Cart submit failed before order creation completed',
+        ...context,
+        exception: this.safeExceptionSummary(error),
+      });
+    }
+
+    return error;
+  }
+
+  private safeExceptionSummary(error: unknown) {
+    if (error instanceof Error) {
+      return {
+        name: error.name,
+        message: this.redactSensitiveText(error.message),
+        code: this.stringProperty(error, 'code'),
+      };
+    }
+
+    if (typeof error === 'string') {
+      return { message: this.redactSensitiveText(error) };
+    }
+
+    return { type: typeof error };
+  }
+
+  private stringProperty(value: object, key: string) {
+    const property = (value as Record<string, unknown>)[key];
+
+    return typeof property === 'string'
+      ? this.redactSensitiveText(property)
+      : undefined;
+  }
+
+  private redactSensitiveText(value: string) {
+    const redacted = value
+      .replace(
+        /(password|passwd|pwd|secret|token|api[_-]?key|authorization|cookie)(\s*[:=]\s*)([^,\s}]+)/gi,
+        '$1$2[redacted]',
+      )
+      .replace(
+        /(postgres(?:ql)?:\/\/[^:\s]+:)([^@\s]+)(@)/gi,
+        '$1[redacted]$3',
+      );
+
+    return redacted.length > 1_000
+      ? `${redacted.slice(0, 1_000)}...`
+      : redacted;
   }
 
   private toOrderResponse(order: any, idempotency?: IdempotencyReplay) {
