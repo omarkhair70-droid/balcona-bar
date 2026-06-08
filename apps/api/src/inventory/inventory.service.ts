@@ -11,15 +11,24 @@ import {
   MenuCategoryStatus,
   MenuItemStatus,
   Prisma,
+  PurchaseOrderStatus,
   SaasFeatureKey,
+  SupplierStatus,
 } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { SaasService } from '../saas/saas.service';
 import {
   AdjustInventoryLevelDto,
   CreateInventoryItemDto,
+  CreatePurchaseOrderDto,
+  CreatePurchaseOrderLineDto,
+  CreateSupplierDto,
+  ReceivePurchaseOrderDto,
   ReplaceMenuItemInventoryRequirementsDto,
   UpdateInventoryItemDto,
+  UpdatePurchaseOrderDto,
+  UpdatePurchaseOrderLineDto,
+  UpdateSupplierDto,
 } from './dto/inventory.dto';
 
 type PrismaExecutor = PrismaService | Prisma.TransactionClient;
@@ -107,6 +116,92 @@ const movementSelect = {
     select: inventoryItemSelect,
   },
 } satisfies Prisma.InventoryMovementSelect;
+
+const supplierSelect = {
+  id: true,
+  companyId: true,
+  name: true,
+  contact: true,
+  phone: true,
+  email: true,
+  taxId: true,
+  address: true,
+  notes: true,
+  status: true,
+  createdAt: true,
+  updatedAt: true,
+} satisfies Prisma.SupplierSelect;
+
+const purchaseOrderLineSelect = {
+  id: true,
+  purchaseOrderId: true,
+  inventoryItemId: true,
+  quantityOrdered: true,
+  quantityReceived: true,
+  unitCostMinor: true,
+  notes: true,
+  createdAt: true,
+  updatedAt: true,
+  inventoryItem: {
+    select: inventoryItemSelect,
+  },
+} satisfies Prisma.PurchaseOrderLineSelect;
+
+const inventoryReceiptLineSelect = {
+  id: true,
+  receiptId: true,
+  purchaseOrderLineId: true,
+  inventoryItemId: true,
+  quantityReceived: true,
+  unitCostMinor: true,
+  createdAt: true,
+  inventoryItem: {
+    select: inventoryItemSelect,
+  },
+} satisfies Prisma.InventoryReceiptLineSelect;
+
+const purchaseOrderSelect = {
+  id: true,
+  companyId: true,
+  branchId: true,
+  supplierId: true,
+  orderNumber: true,
+  status: true,
+  expectedAt: true,
+  notes: true,
+  currency: true,
+  createdByStaffUserId: true,
+  createdAt: true,
+  updatedAt: true,
+  supplier: {
+    select: supplierSelect,
+  },
+  lines: {
+    orderBy: [{ createdAt: 'asc' as const }, { id: 'asc' as const }],
+    select: purchaseOrderLineSelect,
+  },
+} satisfies Prisma.PurchaseOrderSelect;
+
+const inventoryReceiptSelect = {
+  id: true,
+  companyId: true,
+  branchId: true,
+  supplierId: true,
+  purchaseOrderId: true,
+  receiptNumber: true,
+  receivedAt: true,
+  notes: true,
+  createdByStaffUserId: true,
+  createdAt: true,
+  updatedAt: true,
+  supplier: {
+    select: supplierSelect,
+  },
+  lines: {
+    orderBy: [{ createdAt: 'asc' as const }, { id: 'asc' as const }],
+    select: inventoryReceiptLineSelect,
+  },
+} satisfies Prisma.InventoryReceiptSelect;
 
 type InventoryMovementRecord = Prisma.InventoryMovementGetPayload<{
   select: typeof movementSelect;
@@ -523,6 +618,624 @@ export class InventoryService {
           item.reasons.includes('stock_blocked'),
         ).length,
       },
+    };
+  }
+
+  async listSuppliers(companyId: string) {
+    const company = await this.findCompanyOrThrow(companyId, this.prisma);
+    const suppliers = await this.prisma.supplier.findMany({
+      where: { companyId, status: { not: SupplierStatus.archived } },
+      orderBy: [{ status: 'asc' }, { name: 'asc' }, { id: 'asc' }],
+      select: supplierSelect,
+    });
+
+    return { company, suppliers };
+  }
+
+  async listBranchSuppliers(branchId: string) {
+    const branch = await this.findBranchOrThrow(branchId, this.prisma);
+    const suppliers = await this.prisma.supplier.findMany({
+      where: {
+        companyId: branch.companyId,
+        status: { not: SupplierStatus.archived },
+      },
+      orderBy: [{ status: 'asc' }, { name: 'asc' }, { id: 'asc' }],
+      select: supplierSelect,
+    });
+
+    return {
+      branch: this.toBranchSummary(branch),
+      company: branch.company,
+      suppliers,
+    };
+  }
+
+  async createSupplier(companyId: string, body: CreateSupplierDto) {
+    const company = await this.findCompanyOrThrow(companyId, this.prisma);
+    await this.saasService.assertCompanyFeatureEnabled(
+      company.id,
+      SaasFeatureKey.inventory,
+    );
+
+    const supplier = await this.prisma.supplier.create({
+      data: {
+        companyId: company.id,
+        name: body.name.trim(),
+        contact: this.normalizeOptionalText(body.contact),
+        phone: this.normalizeOptionalText(body.phone),
+        email: this.normalizeOptionalText(body.email),
+        taxId: this.normalizeOptionalText(body.taxId),
+        address: this.normalizeOptionalText(body.address),
+        notes: this.normalizeOptionalText(body.notes),
+        status: body.status ?? SupplierStatus.active,
+      },
+      select: supplierSelect,
+    });
+
+    return { company, supplier };
+  }
+
+  async updateSupplier(supplierId: string, body: UpdateSupplierDto) {
+    const existing = await this.findSupplierOrThrow(supplierId, this.prisma);
+    await this.saasService.assertCompanyFeatureEnabled(
+      existing.companyId,
+      SaasFeatureKey.inventory,
+    );
+    const data: Prisma.SupplierUpdateInput = {};
+
+    if (body.name !== undefined) {
+      data.name = body.name.trim();
+    }
+
+    for (const field of [
+      'contact',
+      'phone',
+      'email',
+      'taxId',
+      'address',
+      'notes',
+    ] as const) {
+      if (Object.prototype.hasOwnProperty.call(body, field)) {
+        data[field] = this.normalizeOptionalText(body[field]);
+      }
+    }
+
+    if (body.status !== undefined) {
+      data.status = body.status;
+    }
+
+    if (Object.keys(data).length === 0) {
+      throw new BadRequestException('Provide at least one supplier field');
+    }
+
+    const supplier = await this.prisma.supplier.update({
+      where: { id: existing.id },
+      data,
+      select: supplierSelect,
+    });
+
+    return {
+      company: await this.findCompanyOrThrow(supplier.companyId, this.prisma),
+      supplier,
+    };
+  }
+
+  async listPurchaseOrders(branchId: string) {
+    const branch = await this.findBranchOrThrow(branchId, this.prisma);
+    const purchaseOrders = await this.prisma.purchaseOrder.findMany({
+      where: { branchId },
+      orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+      select: purchaseOrderSelect,
+    });
+
+    return {
+      branch: this.toBranchSummary(branch),
+      company: branch.company,
+      purchaseOrders,
+    };
+  }
+
+  async createPurchaseOrder(
+    branchId: string,
+    body: CreatePurchaseOrderDto,
+    staffUserId?: string,
+  ) {
+    return this.prisma.$transaction(async (tx) => {
+      const branch = await this.findBranchOrThrow(branchId, tx);
+      const supplier = await this.findSupplierOrThrow(body.supplierId, tx);
+
+      await this.saasService.assertCompanyFeatureEnabled(
+        branch.companyId,
+        SaasFeatureKey.inventory,
+      );
+      this.assertSupplierUsableForCompany(supplier, branch.companyId);
+
+      const purchaseOrderCount = await tx.purchaseOrder.count({
+        where: { branchId: branch.id },
+      });
+      const purchaseOrder = await tx.purchaseOrder.create({
+        data: {
+          companyId: branch.companyId,
+          branchId: branch.id,
+          supplierId: supplier.id,
+          orderNumber: this.buildSequenceNumber('PO', purchaseOrderCount + 1),
+          expectedAt: this.optionalDate(body.expectedAt),
+          notes: this.normalizeOptionalText(body.notes),
+          currency: this.normalizeCurrency(body.currency),
+          createdByStaffUserId: staffUserId,
+        },
+        select: purchaseOrderSelect,
+      });
+
+      return {
+        branch: this.toBranchSummary(branch),
+        company: branch.company,
+        purchaseOrder,
+      };
+    });
+  }
+
+  async getPurchaseOrder(purchaseOrderId: string) {
+    const purchaseOrder = await this.findPurchaseOrderOrThrow(
+      purchaseOrderId,
+      this.prisma,
+    );
+    const branch = await this.findBranchOrThrow(purchaseOrder.branchId, this.prisma);
+
+    return {
+      branch: this.toBranchSummary(branch),
+      company: branch.company,
+      purchaseOrder,
+    };
+  }
+
+  async updatePurchaseOrder(
+    purchaseOrderId: string,
+    body: UpdatePurchaseOrderDto,
+  ) {
+    return this.prisma.$transaction(async (tx) => {
+      const purchaseOrder = await this.findPurchaseOrderOrThrow(
+        purchaseOrderId,
+        tx,
+      );
+      const branch = await this.findBranchOrThrow(purchaseOrder.branchId, tx);
+
+      await this.saasService.assertCompanyFeatureEnabled(
+        purchaseOrder.companyId,
+        SaasFeatureKey.inventory,
+      );
+      this.assertDraftPurchaseOrder(purchaseOrder);
+
+      const data: Prisma.PurchaseOrderUpdateInput = {};
+
+      if (body.supplierId !== undefined) {
+        const supplier = await this.findSupplierOrThrow(body.supplierId, tx);
+        this.assertSupplierUsableForCompany(supplier, purchaseOrder.companyId);
+        data.supplier = { connect: { id: supplier.id } };
+      }
+
+      if (Object.prototype.hasOwnProperty.call(body, 'expectedAt')) {
+        data.expectedAt = this.optionalDate(body.expectedAt);
+      }
+
+      if (Object.prototype.hasOwnProperty.call(body, 'notes')) {
+        data.notes = this.normalizeOptionalText(body.notes);
+      }
+
+      if (body.currency !== undefined) {
+        data.currency = this.normalizeCurrency(body.currency);
+      }
+
+      if (Object.keys(data).length === 0) {
+        throw new BadRequestException('Provide at least one purchase order field');
+      }
+
+      const updated = await tx.purchaseOrder.update({
+        where: { id: purchaseOrder.id },
+        data,
+        select: purchaseOrderSelect,
+      });
+
+      return {
+        branch: this.toBranchSummary(branch),
+        company: branch.company,
+        purchaseOrder: updated,
+      };
+    });
+  }
+
+  async submitPurchaseOrder(purchaseOrderId: string) {
+    return this.prisma.$transaction(async (tx) => {
+      const purchaseOrder = await this.findPurchaseOrderOrThrow(
+        purchaseOrderId,
+        tx,
+      );
+      const branch = await this.findBranchOrThrow(purchaseOrder.branchId, tx);
+
+      await this.saasService.assertCompanyFeatureEnabled(
+        purchaseOrder.companyId,
+        SaasFeatureKey.inventory,
+      );
+      this.assertDraftPurchaseOrder(purchaseOrder);
+
+      if (purchaseOrder.lines.length === 0) {
+        throw new BadRequestException(
+          'Purchase order must have at least one line before submit',
+        );
+      }
+
+      const updated = await tx.purchaseOrder.update({
+        where: { id: purchaseOrder.id },
+        data: { status: PurchaseOrderStatus.submitted },
+        select: purchaseOrderSelect,
+      });
+
+      return {
+        branch: this.toBranchSummary(branch),
+        company: branch.company,
+        purchaseOrder: updated,
+      };
+    });
+  }
+
+  async cancelPurchaseOrder(purchaseOrderId: string) {
+    return this.prisma.$transaction(async (tx) => {
+      const purchaseOrder = await this.findPurchaseOrderOrThrow(
+        purchaseOrderId,
+        tx,
+      );
+      const branch = await this.findBranchOrThrow(purchaseOrder.branchId, tx);
+
+      await this.saasService.assertCompanyFeatureEnabled(
+        purchaseOrder.companyId,
+        SaasFeatureKey.inventory,
+      );
+
+      if (purchaseOrder.status === PurchaseOrderStatus.received) {
+        throw new BadRequestException('Received purchase orders cannot be cancelled');
+      }
+
+      if (purchaseOrder.status === PurchaseOrderStatus.cancelled) {
+        throw new BadRequestException('Purchase order is already cancelled');
+      }
+
+      const updated = await tx.purchaseOrder.update({
+        where: { id: purchaseOrder.id },
+        data: { status: PurchaseOrderStatus.cancelled },
+        select: purchaseOrderSelect,
+      });
+
+      return {
+        branch: this.toBranchSummary(branch),
+        company: branch.company,
+        purchaseOrder: updated,
+      };
+    });
+  }
+
+  async addPurchaseOrderLine(
+    purchaseOrderId: string,
+    body: CreatePurchaseOrderLineDto,
+  ) {
+    return this.prisma.$transaction(async (tx) => {
+      const purchaseOrder = await this.findPurchaseOrderOrThrow(
+        purchaseOrderId,
+        tx,
+      );
+      const item = await this.findInventoryItemOrThrow(body.inventoryItemId, tx);
+      const branch = await this.findBranchOrThrow(purchaseOrder.branchId, tx);
+
+      await this.saasService.assertCompanyFeatureEnabled(
+        purchaseOrder.companyId,
+        SaasFeatureKey.inventory,
+      );
+      this.assertDraftPurchaseOrder(purchaseOrder);
+      this.assertInventoryItemUsableForBranch(item, branch);
+
+      if (
+        purchaseOrder.lines.some(
+          (line) => line.inventoryItemId === body.inventoryItemId,
+        )
+      ) {
+        throw new BadRequestException(
+          'Purchase order already has a line for this inventory item',
+        );
+      }
+
+      await tx.purchaseOrderLine.create({
+        data: {
+          purchaseOrderId: purchaseOrder.id,
+          inventoryItemId: item.id,
+          quantityOrdered: body.quantityOrdered,
+          unitCostMinor: body.unitCostMinor,
+          notes: this.normalizeOptionalText(body.notes),
+        },
+      });
+
+      const updated = await this.findPurchaseOrderOrThrow(purchaseOrder.id, tx);
+
+      return {
+        branch: this.toBranchSummary(branch),
+        company: branch.company,
+        purchaseOrder: updated,
+      };
+    });
+  }
+
+  async updatePurchaseOrderLine(
+    purchaseOrderId: string,
+    purchaseOrderLineId: string,
+    body: UpdatePurchaseOrderLineDto,
+  ) {
+    return this.prisma.$transaction(async (tx) => {
+      const purchaseOrder = await this.findPurchaseOrderOrThrow(
+        purchaseOrderId,
+        tx,
+      );
+      const branch = await this.findBranchOrThrow(purchaseOrder.branchId, tx);
+      const line = purchaseOrder.lines.find(
+        (entry) => entry.id === purchaseOrderLineId,
+      );
+
+      await this.saasService.assertCompanyFeatureEnabled(
+        purchaseOrder.companyId,
+        SaasFeatureKey.inventory,
+      );
+      this.assertDraftPurchaseOrder(purchaseOrder);
+
+      if (!line) {
+        throw new NotFoundException('Purchase order line not found');
+      }
+
+      const data: Prisma.PurchaseOrderLineUpdateInput = {};
+
+      if (body.quantityOrdered !== undefined) {
+        if (body.quantityOrdered < line.quantityReceived) {
+          throw new BadRequestException(
+            'Ordered quantity cannot be below received quantity',
+          );
+        }
+
+        data.quantityOrdered = body.quantityOrdered;
+      }
+
+      if (body.unitCostMinor !== undefined) {
+        data.unitCostMinor = body.unitCostMinor;
+      }
+
+      if (Object.prototype.hasOwnProperty.call(body, 'notes')) {
+        data.notes = this.normalizeOptionalText(body.notes);
+      }
+
+      if (Object.keys(data).length === 0) {
+        throw new BadRequestException('Provide at least one purchase order line field');
+      }
+
+      await tx.purchaseOrderLine.update({
+        where: { id: line.id },
+        data,
+      });
+
+      const updated = await this.findPurchaseOrderOrThrow(purchaseOrder.id, tx);
+
+      return {
+        branch: this.toBranchSummary(branch),
+        company: branch.company,
+        purchaseOrder: updated,
+      };
+    });
+  }
+
+  async removePurchaseOrderLine(
+    purchaseOrderId: string,
+    purchaseOrderLineId: string,
+  ) {
+    return this.prisma.$transaction(async (tx) => {
+      const purchaseOrder = await this.findPurchaseOrderOrThrow(
+        purchaseOrderId,
+        tx,
+      );
+      const branch = await this.findBranchOrThrow(purchaseOrder.branchId, tx);
+      const line = purchaseOrder.lines.find(
+        (entry) => entry.id === purchaseOrderLineId,
+      );
+
+      await this.saasService.assertCompanyFeatureEnabled(
+        purchaseOrder.companyId,
+        SaasFeatureKey.inventory,
+      );
+      this.assertDraftPurchaseOrder(purchaseOrder);
+
+      if (!line) {
+        throw new NotFoundException('Purchase order line not found');
+      }
+
+      await tx.purchaseOrderLine.delete({ where: { id: line.id } });
+
+      const updated = await this.findPurchaseOrderOrThrow(purchaseOrder.id, tx);
+
+      return {
+        branch: this.toBranchSummary(branch),
+        company: branch.company,
+        purchaseOrder: updated,
+        deleted: true,
+      };
+    });
+  }
+
+  async receivePurchaseOrder(
+    purchaseOrderId: string,
+    body: ReceivePurchaseOrderDto,
+    staffUserId?: string,
+  ) {
+    return this.prisma.$transaction(async (tx) => {
+      const purchaseOrder = await this.findPurchaseOrderOrThrow(
+        purchaseOrderId,
+        tx,
+      );
+      const branch = await this.findBranchOrThrow(purchaseOrder.branchId, tx);
+
+      await this.saasService.assertCompanyFeatureEnabled(
+        purchaseOrder.companyId,
+        SaasFeatureKey.inventory,
+      );
+      this.assertReceivablePurchaseOrder(purchaseOrder);
+
+      const receiptLines = this.resolveReceiptLines(purchaseOrder, body);
+      const receiptCount = await tx.inventoryReceipt.count({
+        where: { branchId: purchaseOrder.branchId },
+      });
+      const receiptNumber = this.buildSequenceNumber('GR', receiptCount + 1);
+      const receipt = await tx.inventoryReceipt.create({
+        data: {
+          companyId: purchaseOrder.companyId,
+          branchId: purchaseOrder.branchId,
+          supplierId: purchaseOrder.supplierId,
+          purchaseOrderId: purchaseOrder.id,
+          receiptNumber,
+          receivedAt: this.optionalDate(body.receivedAt) ?? undefined,
+          notes: this.normalizeOptionalText(body.notes),
+          createdByStaffUserId: staffUserId,
+        },
+        select: { id: true },
+      });
+      const movements: InventoryMovementRecord[] = [];
+
+      for (const entry of receiptLines) {
+        const line = entry.line;
+        const quantityReceived = entry.quantityReceived;
+        const unitCostMinor = entry.unitCostMinor ?? line.unitCostMinor;
+        const guardedLineUpdate = await tx.purchaseOrderLine.updateMany({
+          where: {
+            id: line.id,
+            quantityReceived: {
+              lte: line.quantityOrdered - quantityReceived,
+            },
+          },
+          data: { quantityReceived: { increment: quantityReceived } },
+        });
+
+        if (guardedLineUpdate.count === 0) {
+          throw new BadRequestException(
+            `${line.inventoryItem.name} was already received or cannot be over-received`,
+          );
+        }
+
+        await this.lockInventoryLevel(branch.id, line.inventoryItemId, tx);
+
+        const existingLevel = await tx.branchInventoryLevel.findUnique({
+          where: {
+            branchId_inventoryItemId: {
+              branchId: branch.id,
+              inventoryItemId: line.inventoryItemId,
+            },
+          },
+          select: {
+            id: true,
+            quantityOnHand: true,
+            lowStockThresholdQuantity: true,
+          },
+        });
+        const quantityAfter =
+          (existingLevel?.quantityOnHand ?? 0) + quantityReceived;
+
+        if (existingLevel) {
+          await tx.branchInventoryLevel.update({
+            where: { id: existingLevel.id },
+            data: { quantityOnHand: quantityAfter },
+            select: inventoryLevelSelect,
+          });
+        } else {
+          await tx.branchInventoryLevel.create({
+            data: {
+              companyId: branch.companyId,
+              branchId: branch.id,
+              inventoryItemId: line.inventoryItemId,
+              quantityOnHand: quantityAfter,
+            },
+            select: inventoryLevelSelect,
+          });
+        }
+
+        await tx.inventoryReceiptLine.create({
+          data: {
+            receiptId: receipt.id,
+            purchaseOrderLineId: line.id,
+            inventoryItemId: line.inventoryItemId,
+            quantityReceived,
+            unitCostMinor,
+          },
+        });
+
+        movements.push(
+          await tx.inventoryMovement.create({
+            data: {
+              companyId: branch.companyId,
+              branchId: branch.id,
+              inventoryItemId: line.inventoryItemId,
+              staffUserId,
+              type: InventoryMovementType.stock_in,
+              quantityDelta: quantityReceived,
+              quantityAfter,
+              unit: line.inventoryItem.unit,
+              sourceType: 'purchase_order_receipt',
+              sourceId: receipt.id,
+              note: this.receiptMovementNote(
+                purchaseOrder.orderNumber,
+                receiptNumber,
+                body.notes,
+              ),
+            },
+            select: movementSelect,
+          }),
+        );
+      }
+
+      const freshLines = await tx.purchaseOrderLine.findMany({
+        where: { purchaseOrderId: purchaseOrder.id },
+        select: {
+          quantityOrdered: true,
+          quantityReceived: true,
+        },
+      });
+      const nextStatus = freshLines.every(
+        (line) => line.quantityReceived >= line.quantityOrdered,
+      )
+        ? PurchaseOrderStatus.received
+        : PurchaseOrderStatus.partially_received;
+      const updatedPurchaseOrder = await tx.purchaseOrder.update({
+        where: { id: purchaseOrder.id },
+        data: { status: nextStatus },
+        select: purchaseOrderSelect,
+      });
+      const fullReceipt = await tx.inventoryReceipt.findUnique({
+        where: { id: receipt.id },
+        select: inventoryReceiptSelect,
+      });
+
+      return {
+        branch: this.toBranchSummary(branch),
+        company: branch.company,
+        purchaseOrder: updatedPurchaseOrder,
+        receipt: fullReceipt,
+        movements,
+      };
+    });
+  }
+
+  async listInventoryReceipts(branchId: string) {
+    const branch = await this.findBranchOrThrow(branchId, this.prisma);
+    const receipts = await this.prisma.inventoryReceipt.findMany({
+      where: { branchId },
+      orderBy: [{ receivedAt: 'desc' }, { id: 'desc' }],
+      take: 50,
+      select: inventoryReceiptSelect,
+    });
+
+    return {
+      branch: this.toBranchSummary(branch),
+      company: branch.company,
+      receipts,
     };
   }
 
@@ -1010,6 +1723,133 @@ export class InventoryService {
     };
   }
 
+  private resolveReceiptLines(
+    purchaseOrder: Prisma.PurchaseOrderGetPayload<{
+      select: typeof purchaseOrderSelect;
+    }>,
+    body: ReceivePurchaseOrderDto,
+  ) {
+    const seen = new Set<string>();
+    const lineById = new Map(
+      purchaseOrder.lines.map((line) => [line.id, line]),
+    );
+
+    return body.lines.map((entry) => {
+      if (seen.has(entry.purchaseOrderLineId)) {
+        throw new BadRequestException('Duplicate receipt lines are not allowed');
+      }
+
+      seen.add(entry.purchaseOrderLineId);
+      const line = lineById.get(entry.purchaseOrderLineId);
+
+      if (!line) {
+        throw new NotFoundException('Purchase order line not found');
+      }
+
+      if (line.inventoryItem.status === InventoryItemStatus.archived) {
+        throw new BadRequestException('Archived inventory item cannot be received');
+      }
+
+      const remaining = line.quantityOrdered - line.quantityReceived;
+
+      if (remaining <= 0) {
+        throw new BadRequestException(
+          `${line.inventoryItem.name} has already been fully received`,
+        );
+      }
+
+      if (entry.quantityReceived > remaining) {
+        throw new BadRequestException(
+          `${line.inventoryItem.name} cannot be over-received`,
+        );
+      }
+
+      return {
+        line,
+        quantityReceived: entry.quantityReceived,
+        unitCostMinor: entry.unitCostMinor,
+      };
+    });
+  }
+
+  private assertDraftPurchaseOrder(
+    purchaseOrder: Pick<
+      Prisma.PurchaseOrderGetPayload<{ select: typeof purchaseOrderSelect }>,
+      'status'
+    >,
+  ) {
+    if (purchaseOrder.status !== PurchaseOrderStatus.draft) {
+      throw new BadRequestException('Only draft purchase orders can be edited');
+    }
+  }
+
+  private assertReceivablePurchaseOrder(
+    purchaseOrder: Pick<
+      Prisma.PurchaseOrderGetPayload<{ select: typeof purchaseOrderSelect }>,
+      'status'
+    >,
+  ) {
+    if (purchaseOrder.status === PurchaseOrderStatus.draft) {
+      throw new BadRequestException('Submit the purchase order before receiving');
+    }
+
+    if (purchaseOrder.status === PurchaseOrderStatus.cancelled) {
+      throw new BadRequestException('Cancelled purchase orders cannot be received');
+    }
+
+    if (purchaseOrder.status === PurchaseOrderStatus.received) {
+      throw new BadRequestException('Purchase order is already fully received');
+    }
+  }
+
+  private assertSupplierUsableForCompany(
+    supplier: Prisma.SupplierGetPayload<{ select: typeof supplierSelect }>,
+    companyId: string,
+  ) {
+    if (supplier.companyId !== companyId) {
+      throw new BadRequestException(
+        'Supplier does not belong to this branch company',
+      );
+    }
+
+    if (supplier.status !== SupplierStatus.active) {
+      throw new BadRequestException('Only active suppliers can be used for purchase orders');
+    }
+  }
+
+  private buildSequenceNumber(prefix: string, value: number) {
+    return `${prefix}-${String(value).padStart(4, '0')}`;
+  }
+
+  private optionalDate(value?: string | null) {
+    if (value === undefined) {
+      return undefined;
+    }
+
+    if (value === null || value.trim().length === 0) {
+      return null;
+    }
+
+    return new Date(value);
+  }
+
+  private normalizeCurrency(value?: string | null) {
+    const normalized = value?.trim().toUpperCase();
+
+    return normalized && normalized.length > 0 ? normalized : 'EGP';
+  }
+
+  private receiptMovementNote(
+    orderNumber: string,
+    receiptNumber: string,
+    note?: string | null,
+  ) {
+    const normalizedNote = this.normalizeOptionalText(note);
+    const base = `Receipt ${receiptNumber} for PO ${orderNumber}`;
+
+    return normalizedNote ? `${base}: ${normalizedNote}` : base;
+  }
+
   private async findCompanyOrThrow(companyId: string, tx: PrismaExecutor) {
     const company = await tx.company.findUnique({
       where: { id: companyId },
@@ -1050,6 +1890,35 @@ export class InventoryService {
     }
 
     return item;
+  }
+
+  private async findSupplierOrThrow(supplierId: string, tx: PrismaExecutor) {
+    const supplier = await tx.supplier.findUnique({
+      where: { id: supplierId },
+      select: supplierSelect,
+    });
+
+    if (!supplier) {
+      throw new NotFoundException('Supplier not found');
+    }
+
+    return supplier;
+  }
+
+  private async findPurchaseOrderOrThrow(
+    purchaseOrderId: string,
+    tx: PrismaExecutor,
+  ) {
+    const purchaseOrder = await tx.purchaseOrder.findUnique({
+      where: { id: purchaseOrderId },
+      select: purchaseOrderSelect,
+    });
+
+    if (!purchaseOrder) {
+      throw new NotFoundException('Purchase order not found');
+    }
+
+    return purchaseOrder;
   }
 
   private async findMenuItemOrThrow(menuItemId: string, tx: PrismaExecutor) {

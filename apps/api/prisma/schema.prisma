@@ -132,6 +132,20 @@ enum InventoryStockStatus {
   out_of_stock
 }
 
+enum SupplierStatus {
+  active
+  inactive
+  archived
+}
+
+enum PurchaseOrderStatus {
+  draft
+  submitted
+  partially_received
+  received
+  cancelled
+}
+
 enum ModifierGroupStatus {
   active
   inactive
@@ -862,6 +876,9 @@ model Company {
   inventoryItems                InventoryItem[]
   inventoryLevels               BranchInventoryLevel[]
   inventoryMovements            InventoryMovement[]
+  suppliers                     Supplier[]
+  purchaseOrders                PurchaseOrder[]
+  inventoryReceipts             InventoryReceipt[]
   menuItemInventoryRequirements MenuItemInventoryRequirement[]
   orders                        Order[]
   presenceEvents                PresenceEvent[]
@@ -997,6 +1014,8 @@ model Branch {
   contentBlocks             ContentBlock[]
   inventoryLevels           BranchInventoryLevel[]
   inventoryMovements        InventoryMovement[]
+  purchaseOrders            PurchaseOrder[]
+  inventoryReceipts         InventoryReceipt[]
   orders                    Order[]
   presenceEvents            PresenceEvent[]
   preparationTasks          PreparationTask[]
@@ -1099,6 +1118,8 @@ model StaffUser {
   cashDrawerTransactions   CashDrawerTransaction[]
   generatedCashierReports  CashierShiftReport[]
   inventoryMovements       InventoryMovement[]
+  createdPurchaseOrders     PurchaseOrder[]      @relation("PurchaseOrderCreatedByStaff")
+  createdInventoryReceipts  InventoryReceipt[]   @relation("InventoryReceiptCreatedByStaff")
   billEvents               BillEvent[]
   preparationTaskEvents    PreparationTaskEvent[]
   requestedPrintJobs       PrintJob[]              @relation("PrintJobRequestedByStaff")
@@ -1319,6 +1340,8 @@ model InventoryItem {
   company          Company                        @relation(fields: [companyId], references: [id], onDelete: Cascade)
   branchLevels     BranchInventoryLevel[]
   movements        InventoryMovement[]
+  purchaseOrderLines PurchaseOrderLine[]
+  receiptLines       InventoryReceiptLine[]
   menuRequirements MenuItemInventoryRequirement[]
 
   @@unique([companyId, sku])
@@ -1377,6 +1400,129 @@ model InventoryMovement {
   @@index([createdAt])
   @@index([branchId, createdAt])
   @@index([sourceType, sourceId])
+}
+
+model Supplier {
+  id        String         @id @default(uuid())
+  companyId String
+  name      String
+  contact   String?
+  phone     String?
+  email     String?
+  taxId     String?
+  address   String?
+  notes     String?
+  status    SupplierStatus @default(active)
+  createdAt DateTime       @default(now())
+  updatedAt DateTime       @updatedAt
+
+  company           Company            @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  purchaseOrders    PurchaseOrder[]
+  inventoryReceipts InventoryReceipt[]
+
+  @@index([companyId])
+  @@index([status])
+  @@index([companyId, status])
+  @@index([name])
+}
+
+model PurchaseOrder {
+  id                   String              @id @default(uuid())
+  companyId            String
+  branchId             String
+  supplierId           String
+  orderNumber          String
+  status               PurchaseOrderStatus @default(draft)
+  expectedAt           DateTime?
+  notes                String?
+  currency             String              @default("EGP")
+  createdByStaffUserId String?
+  createdAt            DateTime            @default(now())
+  updatedAt            DateTime            @updatedAt
+
+  company            Company                @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  branch             Branch                 @relation(fields: [branchId], references: [id], onDelete: Cascade)
+  supplier           Supplier               @relation(fields: [supplierId], references: [id], onDelete: Restrict)
+  createdByStaffUser StaffUser?             @relation("PurchaseOrderCreatedByStaff", fields: [createdByStaffUserId], references: [id], onDelete: SetNull)
+  lines              PurchaseOrderLine[]
+  receipts           InventoryReceipt[]
+
+  @@unique([branchId, orderNumber])
+  @@index([companyId])
+  @@index([branchId])
+  @@index([supplierId])
+  @@index([createdByStaffUserId])
+  @@index([status])
+  @@index([branchId, status])
+  @@index([createdAt])
+}
+
+model PurchaseOrderLine {
+  id                String   @id @default(uuid())
+  purchaseOrderId   String
+  inventoryItemId   String
+  quantityOrdered   Int
+  quantityReceived  Int      @default(0)
+  unitCostMinor     Int
+  notes             String?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  purchaseOrder PurchaseOrder          @relation(fields: [purchaseOrderId], references: [id], onDelete: Cascade)
+  inventoryItem InventoryItem          @relation(fields: [inventoryItemId], references: [id], onDelete: Restrict)
+  receiptLines  InventoryReceiptLine[]
+
+  @@index([purchaseOrderId])
+  @@index([inventoryItemId])
+  @@index([purchaseOrderId, inventoryItemId])
+}
+
+model InventoryReceipt {
+  id                   String   @id @default(uuid())
+  companyId            String
+  branchId             String
+  supplierId           String?
+  purchaseOrderId      String?
+  receiptNumber        String
+  receivedAt           DateTime @default(now())
+  notes                String?
+  createdByStaffUserId String?
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+
+  company            Company                @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  branch             Branch                 @relation(fields: [branchId], references: [id], onDelete: Cascade)
+  supplier           Supplier?              @relation(fields: [supplierId], references: [id], onDelete: SetNull)
+  purchaseOrder      PurchaseOrder?         @relation(fields: [purchaseOrderId], references: [id], onDelete: SetNull)
+  createdByStaffUser StaffUser?             @relation("InventoryReceiptCreatedByStaff", fields: [createdByStaffUserId], references: [id], onDelete: SetNull)
+  lines              InventoryReceiptLine[]
+
+  @@unique([branchId, receiptNumber])
+  @@index([companyId])
+  @@index([branchId])
+  @@index([supplierId])
+  @@index([purchaseOrderId])
+  @@index([createdByStaffUserId])
+  @@index([receivedAt])
+  @@index([branchId, receivedAt])
+}
+
+model InventoryReceiptLine {
+  id                  String   @id @default(uuid())
+  receiptId           String
+  purchaseOrderLineId String?
+  inventoryItemId     String
+  quantityReceived    Int
+  unitCostMinor       Int?
+  createdAt           DateTime @default(now())
+
+  receipt           InventoryReceipt  @relation(fields: [receiptId], references: [id], onDelete: Cascade)
+  purchaseOrderLine PurchaseOrderLine? @relation(fields: [purchaseOrderLineId], references: [id], onDelete: SetNull)
+  inventoryItem     InventoryItem     @relation(fields: [inventoryItemId], references: [id], onDelete: Restrict)
+
+  @@index([receiptId])
+  @@index([purchaseOrderLineId])
+  @@index([inventoryItemId])
 }
 
 model MenuItemInventoryRequirement {

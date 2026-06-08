@@ -206,5 +206,7 @@ The phase should validate with:
 - `pnpm --filter @balcona-bar/web typecheck`
 - `pnpm web:build`
 
-Next recommended phase: inventory refinement for purchasing, supplier
-receiving, transfer workflows, costing, and stock reversal policy.
+Supplier purchasing and PO receiving are now covered by
+`docs/architecture/product-phase-6inv1-suppliers-purchase-orders-receiving.md`.
+Later inventory refinements can focus on transfers, costing, valuation, and
+stock reversal policy.

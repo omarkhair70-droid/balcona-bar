@@ -328,12 +328,15 @@ Product Phase 4I.0 adds the first inventory and branch stock foundation:
 - `inventory.read` and `inventory.manage` permissions with branch/company scope.
 
 Existing local dev, Balkona demo routes, cashier, KDS, waiter, bills, shifts,
-and owner dashboards remain intact. This phase does not add suppliers, purchase
-orders, COGS, barcode scanning, branch transfers, expiry/batch tracking, online
-payments, or automatic sale reversal. See
+and owner dashboards remain intact. Product Phase 6INV.1 adds suppliers,
+purchase orders, and receipt-based `stock_in` while still excluding COGS,
+barcode scanning, branch transfers, expiry/batch tracking, online payments, and
+automatic sale reversal. See
 `docs/architecture/product-phase-4i0-inventory-stock-foundation.md` for the data
 model, endpoints, stock movement policy, ordering integration, non-goals, and
-smoke path.
+smoke path, and
+`docs/architecture/product-phase-6inv1-suppliers-purchase-orders-receiving.md`
+for the purchasing/receiving workflow.
 
 ## Product Phase 4P.0 status
 

@@ -324,6 +324,36 @@ export const staffQueryKeys = {
     "menu-availability",
     branchId,
   ],
+  suppliers: (companyId?: string) => [
+    "staff",
+    "inventory",
+    "suppliers",
+    companyId,
+  ],
+  branchSuppliers: (branchId?: string) => [
+    "staff",
+    "inventory",
+    "branch-suppliers",
+    branchId,
+  ],
+  branchPurchaseOrders: (branchId?: string) => [
+    "staff",
+    "inventory",
+    "purchase-orders",
+    branchId,
+  ],
+  purchaseOrder: (purchaseOrderId?: string) => [
+    "staff",
+    "inventory",
+    "purchase-order",
+    purchaseOrderId,
+  ],
+  branchInventoryReceipts: (branchId?: string) => [
+    "staff",
+    "inventory",
+    "receipts",
+    branchId,
+  ],
   staffMenuAdminOverview: (branchId?: string) => [
     "staff",
     "menu-admin",

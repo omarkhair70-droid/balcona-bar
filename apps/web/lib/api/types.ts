@@ -1017,6 +1017,167 @@ export type BranchInventoryMenuAvailabilityResult = {
   };
 };
 
+export type SupplierStatus = "active" | "inactive" | "archived";
+export type PurchaseOrderStatus =
+  | "draft"
+  | "submitted"
+  | "partially_received"
+  | "received"
+  | "cancelled";
+
+export type Supplier = {
+  id: string;
+  companyId: string;
+  name: string;
+  contact?: string | null;
+  phone?: string | null;
+  email?: string | null;
+  taxId?: string | null;
+  address?: string | null;
+  notes?: string | null;
+  status: SupplierStatus;
+  createdAt?: string;
+  updatedAt?: string;
+};
+
+export type PurchaseOrderLine = {
+  id: string;
+  purchaseOrderId: string;
+  inventoryItemId: string;
+  quantityOrdered: number;
+  quantityReceived: number;
+  unitCostMinor: number;
+  notes?: string | null;
+  createdAt?: string;
+  updatedAt?: string;
+  inventoryItem: InventoryItem;
+};
+
+export type PurchaseOrder = {
+  id: string;
+  companyId: string;
+  branchId: string;
+  supplierId: string;
+  orderNumber: string;
+  status: PurchaseOrderStatus;
+  expectedAt?: string | null;
+  notes?: string | null;
+  currency: string;
+  createdByStaffUserId?: string | null;
+  createdAt?: string;
+  updatedAt?: string;
+  supplier: Supplier;
+  lines: PurchaseOrderLine[];
+};
+
+export type InventoryReceiptLine = {
+  id: string;
+  receiptId: string;
+  purchaseOrderLineId?: string | null;
+  inventoryItemId: string;
+  quantityReceived: number;
+  unitCostMinor?: number | null;
+  createdAt?: string;
+  inventoryItem: InventoryItem;
+};
+
+export type InventoryReceipt = {
+  id: string;
+  companyId: string;
+  branchId: string;
+  supplierId?: string | null;
+  purchaseOrderId?: string | null;
+  receiptNumber: string;
+  receivedAt: string;
+  notes?: string | null;
+  createdByStaffUserId?: string | null;
+  createdAt?: string;
+  updatedAt?: string;
+  supplier?: Supplier | null;
+  lines: InventoryReceiptLine[];
+};
+
+export type SuppliersResult = {
+  company: CompanySummary;
+  branch?: BranchSummary;
+  suppliers: Supplier[];
+};
+
+export type SupplierMutationResult = {
+  company: CompanySummary;
+  supplier: Supplier;
+};
+
+export type CreateSupplierPayload = {
+  name: string;
+  contact?: string | null;
+  phone?: string | null;
+  email?: string | null;
+  taxId?: string | null;
+  address?: string | null;
+  notes?: string | null;
+  status?: SupplierStatus;
+};
+
+export type UpdateSupplierPayload = Partial<CreateSupplierPayload>;
+
+export type PurchaseOrdersResult = {
+  company: CompanySummary;
+  branch: BranchSummary;
+  purchaseOrders: PurchaseOrder[];
+};
+
+export type PurchaseOrderResult = {
+  company: CompanySummary;
+  branch: BranchSummary;
+  purchaseOrder: PurchaseOrder;
+};
+
+export type PurchaseOrderMutationResult = PurchaseOrderResult & {
+  deleted?: boolean;
+};
+
+export type CreatePurchaseOrderPayload = {
+  supplierId: string;
+  expectedAt?: string | null;
+  notes?: string | null;
+  currency?: string;
+};
+
+export type UpdatePurchaseOrderPayload =
+  Partial<CreatePurchaseOrderPayload>;
+
+export type CreatePurchaseOrderLinePayload = {
+  inventoryItemId: string;
+  quantityOrdered: number;
+  unitCostMinor: number;
+  notes?: string | null;
+};
+
+export type UpdatePurchaseOrderLinePayload =
+  Partial<Omit<CreatePurchaseOrderLinePayload, "inventoryItemId">>;
+
+export type ReceivePurchaseOrderPayload = {
+  receivedAt?: string | null;
+  notes?: string | null;
+  lines: Array<{
+    purchaseOrderLineId: string;
+    quantityReceived: number;
+    unitCostMinor?: number | null;
+  }>;
+};
+
+export type ReceivePurchaseOrderResult = PurchaseOrderResult & {
+  receipt: InventoryReceipt | null;
+  movements: InventoryMovement[];
+};
+
+export type InventoryReceiptsResult = {
+  company: CompanySummary;
+  branch: BranchSummary;
+  receipts: InventoryReceipt[];
+};
+
 export type MenuAdminCategoryStatus = "active" | "inactive";
 export type MenuAdminItemStatus = "active" | "inactive" | "archived";
 export type MenuAdminModifierStatus = "active" | "inactive";

@@ -18,6 +18,24 @@ export class InventoryItemIdParamDto {
   inventoryItemId!: string;
 }
 
+export class SupplierIdParamDto {
+  @IsUUID()
+  @IsNotEmpty()
+  supplierId!: string;
+}
+
+export class PurchaseOrderIdParamDto {
+  @IsUUID()
+  @IsNotEmpty()
+  purchaseOrderId!: string;
+}
+
+export class PurchaseOrderLineIdParamDto extends PurchaseOrderIdParamDto {
+  @IsUUID()
+  @IsNotEmpty()
+  purchaseOrderLineId!: string;
+}
+
 export class BranchInventoryItemParamDto extends BranchIdParamDto {
   @IsUUID()
   @IsNotEmpty()

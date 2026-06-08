@@ -166,6 +166,65 @@ describe('StaffScopedAccessService', () => {
     expect(staffAccessService.assertCan).not.toHaveBeenCalled();
   });
 
+  it('resolves supplier company scope before asserting inventory permission', async () => {
+    const prisma = {
+      supplier: {
+        findUnique: jest.fn().mockResolvedValue({
+          companyId: 'company-1',
+        }),
+      },
+    };
+    const staffAccessService = {
+      assertCan: jest.fn().mockResolvedValue({ allowed: true }),
+    };
+    const service = new StaffScopedAccessService(
+      prisma as never,
+      staffAccessService as never,
+    );
+
+    await service.assertCanForSupplier(
+      'staff-1',
+      'inventory.manage',
+      'supplier-1',
+    );
+
+    expect(staffAccessService.assertCan).toHaveBeenCalledWith(
+      'staff-1',
+      'inventory.manage',
+      { companyId: 'company-1' },
+    );
+  });
+
+  it('resolves purchase order branch scope before asserting inventory permission', async () => {
+    const prisma = {
+      purchaseOrder: {
+        findUnique: jest.fn().mockResolvedValue({
+          companyId: 'company-1',
+          branchId: 'branch-1',
+        }),
+      },
+    };
+    const staffAccessService = {
+      assertCan: jest.fn().mockResolvedValue({ allowed: true }),
+    };
+    const service = new StaffScopedAccessService(
+      prisma as never,
+      staffAccessService as never,
+    );
+
+    await service.assertCanForPurchaseOrder(
+      'staff-1',
+      'inventory.manage',
+      'po-1',
+    );
+
+    expect(staffAccessService.assertCan).toHaveBeenCalledWith(
+      'staff-1',
+      'inventory.manage',
+      { companyId: 'company-1', branchId: 'branch-1' },
+    );
+  });
+
   it('resolves bill branch scope before asserting payment permission', async () => {
     const prisma = {
       bill: {
