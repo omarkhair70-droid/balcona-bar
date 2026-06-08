@@ -58,17 +58,38 @@ tunnel restarts.
     warning should only appear for owner-role context.
 16. Create a branch staff invite, then confirm the success state shows the
     invite link, Copy link, Open invite, email, role, and branch summary.
-17. Open `/staff/branches`, copy a customer QR URL, open it in a new tab, and
+17. Open `/staff/menu` as an owner or `menu_admin` and confirm the Overview tab
+    shows category, item, modifier, branch availability, and setup warning
+    counts.
+18. Create a menu category with a clear slug, active status, and sort order.
+19. Create a menu item in that category with an EGP base price, station, status,
+    sort order, and an external `imageUrl`. Confirm the image preview renders;
+    if the URL is empty or broken, the UI should show the preview fallback.
+20. Edit the item price/status and confirm the success state is readable.
+21. Create a modifier group and option, then attach the modifier group to the
+    item if the account has full menu permissions.
+22. Open the Availability tab and save a branch override for visibility,
+    availability, optional price override, and sort order.
+23. Open a customer QR/session for the same branch and confirm menu
+    visibility, availability, and displayed price match the branch override.
+24. Log in as a lower-privilege branch role such as cashier, waiter, or kitchen
+    and confirm category, item, modifier, and branch override edits are not
+    available unless that role has the matching menu permissions.
+25. Open `/staff/branches`, copy a customer QR URL, open it in a new tab, and
     confirm a visible scannable QR image appears for a table with a token.
-18. Scan the QR with a phone camera and confirm it opens the customer
+26. Scan the QR with a phone camera and confirm it opens the customer
     `/customer/table/<qrToken>` route and starts or resumes a table session.
-19. Regenerate one non-demo table QR token with confirmation. Confirm the token
+27. Regenerate one non-demo table QR token with confirmation. Confirm the token
     changes, the old `/customer/table/<oldToken>` no longer opens, and the new
     QR image scans/opens `/customer/table/<newToken>` correctly.
-20. Log in as a lower-privilege branch staff role such as cashier or waiter and
+28. Log in as a lower-privilege branch staff role such as cashier or waiter and
     confirm QR regeneration is not available.
-21. Open `/staff/billing` and confirm the staff routes load without
+29. Open `/staff/billing` and confirm the staff routes load without
     `[object Object]` errors.
+
+Menu media upload and storage are not part of this smoke. Menu Admin accepts an
+`imageUrl`, previews it in the web UI, and lets the backend validate the URL.
+Upload/media library support remains a follow-up.
 
 ## Automated Route Check
 
@@ -99,6 +120,7 @@ This verifies:
 - cafe creation page: `/platform/companies/new`
 - staff login: `/staff/login`
 - setup page: `/staff/setup`
+- menu admin: `/staff/menu`
 - branch/table QR management: `/staff/branches`
 - billing page: `/staff/billing`
 - customer QR route: `/customer/table/balcona-main-t01`
@@ -126,22 +148,38 @@ This verifies:
     shows the invite link, Copy link, Open invite, email, role, and branch.
 13. Confirm invite failure states, if triggered by a duplicate or invalid email,
     render readable text rather than `[object Object]`.
-14. Open `/staff/branches`, select the active branch, and confirm tables show
+14. Open `/staff/menu` as an owner or `menu_admin`; confirm Overview shows
+    catalog, branch availability, modifier, and setup warning counts.
+15. Create an active category with slug and sort order.
+16. Create an active item with EGP price, station, sort order, and `imageUrl`;
+    confirm the image preview renders or falls back cleanly for an empty/broken
+    URL.
+17. Edit the item price/status and confirm the success or failure message is
+    readable.
+18. Create a modifier group and option, then attach the group to the item if
+    the account has full menu permissions.
+19. Save a branch override for the item, including visibility, availability,
+    optional price override, and sort order.
+20. Open a customer QR/session for the same branch and verify customer menu
+    visibility, availability, and price reflect the saved override.
+21. Log in as a cashier, waiter, or kitchen user and confirm menu edit controls
+    are not available unless that user has matching menu permissions.
+22. Open `/staff/branches`, select the active branch, and confirm tables show
     floor/area, code, display name, capacity, status, QR token, customer URL,
     and a printable QR card with a visible scannable QR image.
-15. Copy a customer QR URL, open it, then scan the visible QR with a phone
+23. Copy a customer QR URL, open it, then scan the visible QR with a phone
     camera and confirm it opens the matching customer table/session URL.
-16. Regenerate a non-demo table QR token only after the confirmation prompt.
+24. Regenerate a non-demo table QR token only after the confirmation prompt.
     Confirm the old token no longer opens and the new QR image scans/opens the
     new customer table/session URL.
-17. Log in as a lower-privilege branch role such as cashier or waiter and
+25. Log in as a lower-privilege branch role such as cashier or waiter and
     confirm QR regeneration is unavailable.
-18. Open `/staff/billing` and confirm SaaS plan/status appears.
-19. Open `/customer/table/:qrToken` for the first returned QR example and
+26. Open `/staff/billing` and confirm SaaS plan/status appears.
+27. Open `/customer/table/:qrToken` for the first returned QR example and
     confirm a customer session can start.
-20. If seeded menu data is intentionally available in that staging cafe, submit
+28. If seeded menu data is intentionally available in that staging cafe, submit
     a basic customer order and confirm the cashier sees it.
-21. Confirm no visible page renders `[object Object]`.
+29. Confirm no visible page renders `[object Object]`.
 
 The smoke does not require a real payment gateway. Mock online payment should
 remain explicit and staging-only until a real provider is added.

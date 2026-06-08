@@ -78,9 +78,13 @@ The staging smoke scripts check:
 - API `/api/v1/system/info`
 - Web `/`
 - Web `/platform/login`
+- Web `/platform/companies`
+- Web `/platform/status`
 - Web `/platform/companies/new`
 - Web `/staff/login`
 - Web `/staff/setup`
+- Web `/staff/menu`
+- Web `/staff/branches`
 - Web `/staff/billing`
 - Web `/customer/table/balcona-main-t01`
 - that fetched HTML does not contain `[object Object]`
