@@ -206,7 +206,7 @@ export class PresenceNotificationsService {
 
   async createOrderAcceptedNotification(
     orderId: string,
-    tx: Prisma.TransactionClient,
+    tx: PrismaExecutor = this.prisma,
   ) {
     const order = await this.findOrderNotificationContext(orderId, tx);
 
@@ -233,7 +233,7 @@ export class PresenceNotificationsService {
   async createOrderRejectedNotification(
     orderId: string,
     reason: string | null,
-    tx: Prisma.TransactionClient,
+    tx: PrismaExecutor = this.prisma,
   ) {
     const order = await this.findOrderNotificationContext(orderId, tx);
     const reasonText = reason ? ` السبب: ${reason}` : '';

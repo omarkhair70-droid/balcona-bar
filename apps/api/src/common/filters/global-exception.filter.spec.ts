@@ -102,8 +102,34 @@ describe('GlobalExceptionFilter', () => {
     expect(loggedPayload).toContain('password=[redacted]');
     expect(loggedPayload).toContain('token=[redacted]');
     expect(loggedPayload).toContain('postgresql://user:[redacted]@localhost/db');
+    expect(loggedPayload).toContain('stackFirstLine');
     expect(loggedPayload).not.toContain('super-secret');
     expect(loggedPayload).not.toContain('abc123');
     expect(loggedPayload).not.toContain('secret-token');
+  });
+
+  it('logs a non-empty summary for unexpected errors with empty messages', () => {
+    const loggerSpy = jest
+      .spyOn(Logger.prototype, 'error')
+      .mockImplementation();
+    const filter = new GlobalExceptionFilter();
+    const { host, response } = createHttpHost({
+      method: 'POST',
+      path: '/orders/order-1/cashier/accept',
+      url: '/orders/order-1/cashier/accept',
+      requestId: 'req-empty',
+    });
+
+    filter.catch(new Error(''), host);
+
+    expect(response.status).toHaveBeenCalledWith(500);
+
+    const loggedPayload = JSON.stringify(loggerSpy.mock.calls[0][0]);
+
+    expect(loggedPayload).toContain('req-empty');
+    expect(loggedPayload).toContain('/orders/order-1/cashier/accept');
+    expect(loggedPayload).toContain('"name":"Error"');
+    expect(loggedPayload).toContain('"message":"Error"');
+    expect(loggedPayload).toContain('stackFirstLine');
   });
 });

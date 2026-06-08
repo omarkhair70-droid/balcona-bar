@@ -83,15 +83,21 @@ export function CustomerCartPage({ sessionId }: CustomerCartPageProps) {
     }
   });
   const submitMutation = useMutation({
-    mutationFn: () =>
+    mutationFn: ({ idempotencyKey }: { idempotencyKey: string }) =>
       submitCart(
         sessionId,
         { customerNote: customerNote.trim() || null },
-        createIdempotencyKey(sessionId),
+        idempotencyKey,
         token
       ),
     onSuccess: () => {
       vibrateSuccess();
+      void queryClient.invalidateQueries({
+        queryKey: customerQueryKeys.cart(sessionId)
+      });
+      void queryClient.invalidateQueries({
+        queryKey: customerQueryKeys.cartValidation(sessionId)
+      });
       void queryClient.invalidateQueries({
         queryKey: customerQueryKeys.orders(sessionId)
       });
@@ -208,7 +214,11 @@ export function CustomerCartPage({ sessionId }: CustomerCartPageProps) {
             </CardContent>
             <CardFooter>
               <Button
-                onClick={() => submitMutation.mutate()}
+                onClick={() =>
+                  submitMutation.mutate({
+                    idempotencyKey: createIdempotencyKey(sessionId)
+                  })
+                }
                 disabled={!isValid || submitMutation.isPending}
               >
                 <Send className="size-4" aria-hidden="true" />

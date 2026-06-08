@@ -29,6 +29,16 @@ export function getOrderStatus(value: unknown) {
   return getRecordString(getOrderRecord(value), "status");
 }
 
+export function getOrderTableSessionId(value: unknown) {
+  const envelope = getOrderEnvelopeRecord(value);
+  const tableSession = getRecord(envelope.tableSession);
+
+  return (
+    getRecordString(tableSession, "id") ||
+    getRecordString(getOrderRecord(value), "tableSessionId")
+  );
+}
+
 export function getOrderSubmittedAt(value: unknown) {
   const order = getOrderRecord(value);
 

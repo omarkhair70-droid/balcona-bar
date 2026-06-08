@@ -85,6 +85,7 @@ export class OrdersController {
     @CurrentStaff() currentStaff: StaffAuthContext,
     @Param() params: OrderIdParamDto,
     @Body() body: CashierAcceptOrderDto = {},
+    @Headers('x-request-id') requestId?: string,
   ) {
     await this.staffScopedAccessService.assertCanForOrder(
       currentStaff.staffUser.id,
@@ -96,6 +97,7 @@ export class OrdersController {
       params.orderId,
       body ?? {},
       currentStaff.staffUser.id,
+      requestId,
     );
   }
 
@@ -105,6 +107,7 @@ export class OrdersController {
     @CurrentStaff() currentStaff: StaffAuthContext,
     @Param() params: OrderIdParamDto,
     @Body() body: CashierRejectOrderDto = {},
+    @Headers('x-request-id') requestId?: string,
   ) {
     await this.staffScopedAccessService.assertCanForOrder(
       currentStaff.staffUser.id,
@@ -116,6 +119,7 @@ export class OrdersController {
       params.orderId,
       body ?? {},
       currentStaff.staffUser.id,
+      requestId,
     );
   }
 
@@ -145,6 +149,7 @@ export class OrdersController {
     @CurrentStaff() currentStaff: StaffAuthContext,
     @Param() params: OrderIdParamDto,
     @Body() body: OrderLifecycleActionDto = {},
+    @Headers('x-request-id') requestId?: string,
   ) {
     await this.staffScopedAccessService.assertCanForOrder(
       currentStaff.staffUser.id,
@@ -156,6 +161,7 @@ export class OrdersController {
       params.orderId,
       body ?? {},
       currentStaff.staffUser.id,
+      requestId,
     );
   }
 
@@ -165,6 +171,7 @@ export class OrdersController {
     @CurrentStaff() currentStaff: StaffAuthContext,
     @Param() params: OrderIdParamDto,
     @Body() body: CancelOrderDto = {},
+    @Headers('x-request-id') requestId?: string,
   ) {
     await this.staffScopedAccessService.assertCanForOrder(
       currentStaff.staffUser.id,
@@ -176,6 +183,7 @@ export class OrdersController {
       params.orderId,
       body ?? {},
       currentStaff.staffUser.id,
+      requestId,
     );
   }
 

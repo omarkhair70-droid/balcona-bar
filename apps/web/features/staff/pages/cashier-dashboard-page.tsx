@@ -35,6 +35,7 @@ import {
   getBillRequestStatus,
   getOrderId,
   getOrderStatus,
+  getOrderTableSessionId,
 } from "@/features/staff/cashier-data";
 import {
   formatDateTime,
@@ -65,7 +66,7 @@ import {
   staffLogout,
 } from "@/lib/api/endpoints";
 import { formatErrorMessage } from "@/lib/api/error-message";
-import { staffQueryKeys } from "@/lib/api/query-keys";
+import { customerQueryKeys, staffQueryKeys } from "@/lib/api/query-keys";
 import type {
   BranchBillRequestStatusFilter,
   CashierShiftReportSnapshot,
@@ -87,6 +88,8 @@ import { StaffRealtimeStatus } from "../components/staff-realtime-status";
 type Notice = {
   tone: "success" | "error";
   message: string;
+  actionLabel?: string;
+  onAction?: () => void;
 };
 
 type BillAction = {
@@ -191,7 +194,20 @@ function NoticeBanner({ notice }: { notice?: Notice }) {
           : "rounded-card border border-danger bg-danger/10 p-4 text-sm text-danger"
       }
     >
-      {notice.message}
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <span>{notice.message}</span>
+        {notice.onAction ? (
+          <Button
+            type="button"
+            variant="secondary"
+            size="sm"
+            onClick={notice.onAction}
+          >
+            <RefreshCw className="size-4" aria-hidden="true" />
+            {notice.actionLabel ?? "Refresh now"}
+          </Button>
+        ) : null}
+      </div>
     </div>
   );
 }
@@ -783,6 +799,65 @@ function CashierDashboardContent() {
       queryKey: staffQueryKeys.branchRealtime(selectedBranchId),
     });
   };
+  const refreshOrderActionState = (
+    orderId?: string,
+    actionResult?: unknown,
+  ) => {
+    if (selectedBranchId) {
+      void queryClient.invalidateQueries({
+        queryKey: staffQueryKeys.branchOrders(selectedBranchId),
+      });
+      void queryClient.invalidateQueries({
+        queryKey: staffQueryKeys.branchOrders(selectedBranchId, "all"),
+      });
+      void queryClient.invalidateQueries({
+        queryKey: staffQueryKeys.branchOrders(selectedBranchId, orderStatus),
+      });
+      void queryClient.invalidateQueries({
+        queryKey: staffQueryKeys.branchRealtime(selectedBranchId),
+      });
+    }
+
+    if (orderId) {
+      void queryClient.invalidateQueries({
+        queryKey: staffQueryKeys.order(orderId),
+      });
+    }
+
+    const tableSessionId =
+      getOrderTableSessionId(actionResult) ||
+      getOrderTableSessionId(orderDetailQuery.data);
+
+    if (tableSessionId) {
+      void queryClient.invalidateQueries({
+        queryKey: customerQueryKeys.orders(tableSessionId),
+      });
+      void queryClient.invalidateQueries({
+        queryKey: customerQueryKeys.status(tableSessionId),
+      });
+      void queryClient.invalidateQueries({
+        queryKey: customerQueryKeys.timeline(tableSessionId),
+      });
+    }
+  };
+  const showOrderActionError = (action: string, error: Error, orderId?: string) => {
+    refreshOrderActionState(orderId);
+    setNotice({
+      tone: "error",
+      message: `Order could not be ${action}. ${formatErrorMessage(error)}`,
+      actionLabel: "Refresh now",
+      onAction: refreshBranch,
+    });
+  };
+  const showOrderActionSuccess = (
+    message: string,
+    orderId: string | undefined,
+    actionResult: unknown,
+  ) => {
+    setNotice({ tone: "success", message });
+    setUserSelectedOrderId(undefined);
+    refreshOrderActionState(orderId, actionResult);
+  };
   const invalidateShiftState = (shiftId?: string) => {
     if (!selectedBranchId) {
       return;
@@ -869,23 +944,11 @@ function CashierDashboardContent() {
   });
   const acceptMutation = useMutation({
     mutationFn: (orderId: string) => acceptOrder(orderId, {}, accessToken),
-    onSuccess: (_, orderId) => {
-      setNotice({ tone: "success", message: "Order accepted." });
-      void queryClient.invalidateQueries({
-        queryKey: staffQueryKeys.branchOrders(selectedBranchId),
-      });
-      void queryClient.invalidateQueries({
-        queryKey: staffQueryKeys.order(orderId),
-      });
-      void queryClient.invalidateQueries({
-        queryKey: staffQueryKeys.branchRealtime(selectedBranchId),
-      });
+    onSuccess: (result, orderId) => {
+      showOrderActionSuccess("Order accepted.", orderId, result);
     },
-    onError: (error: Error) => {
-      setNotice({
-        tone: "error",
-        message: `Order could not be accepted. ${formatErrorMessage(error)}`,
-      });
+    onError: (error: Error, orderId) => {
+      showOrderActionError("accepted", error, orderId);
     },
   });
   const rejectMutation = useMutation({
@@ -896,66 +959,30 @@ function CashierDashboardContent() {
       orderId: string;
       reason?: string | null;
     }) => rejectOrder(orderId, { reason }, accessToken),
-    onSuccess: (_, variables) => {
-      setNotice({ tone: "success", message: "Order rejected." });
-      void queryClient.invalidateQueries({
-        queryKey: staffQueryKeys.branchOrders(selectedBranchId),
-      });
-      void queryClient.invalidateQueries({
-        queryKey: staffQueryKeys.order(variables.orderId),
-      });
-      void queryClient.invalidateQueries({
-        queryKey: staffQueryKeys.branchRealtime(selectedBranchId),
-      });
+    onSuccess: (result, variables) => {
+      showOrderActionSuccess("Order rejected.", variables.orderId, result);
     },
-    onError: (error: Error) => {
-      setNotice({
-        tone: "error",
-        message: `Order could not be rejected. ${formatErrorMessage(error)}`,
-      });
+    onError: (error: Error, variables) => {
+      showOrderActionError("rejected", error, variables.orderId);
     },
   });
   const completeOrderMutation = useMutation({
     mutationFn: (orderId: string) => completeOrder(orderId, {}, accessToken),
-    onSuccess: (_, orderId) => {
-      setNotice({ tone: "success", message: "Order completed." });
-      void queryClient.invalidateQueries({
-        queryKey: staffQueryKeys.branchOrders(selectedBranchId),
-      });
-      void queryClient.invalidateQueries({
-        queryKey: staffQueryKeys.order(orderId),
-      });
-      void queryClient.invalidateQueries({
-        queryKey: staffQueryKeys.branchRealtime(selectedBranchId),
-      });
+    onSuccess: (result, orderId) => {
+      showOrderActionSuccess("Order completed.", orderId, result);
     },
-    onError: (error: Error) => {
-      setNotice({
-        tone: "error",
-        message: `Order could not be completed. ${formatErrorMessage(error)}`,
-      });
+    onError: (error: Error, orderId) => {
+      showOrderActionError("completed", error, orderId);
     },
   });
   const cancelOrderMutation = useMutation({
     mutationFn: ({ orderId, reason }: { orderId: string; reason: string }) =>
       cancelOrder(orderId, { reason }, accessToken),
-    onSuccess: (_, variables) => {
-      setNotice({ tone: "success", message: "Order cancelled." });
-      void queryClient.invalidateQueries({
-        queryKey: staffQueryKeys.branchOrders(selectedBranchId),
-      });
-      void queryClient.invalidateQueries({
-        queryKey: staffQueryKeys.order(variables.orderId),
-      });
-      void queryClient.invalidateQueries({
-        queryKey: staffQueryKeys.branchRealtime(selectedBranchId),
-      });
+    onSuccess: (result, variables) => {
+      showOrderActionSuccess("Order cancelled.", variables.orderId, result);
     },
-    onError: (error: Error) => {
-      setNotice({
-        tone: "error",
-        message: `Order could not be cancelled. ${formatErrorMessage(error)}`,
-      });
+    onError: (error: Error, variables) => {
+      showOrderActionError("cancelled", error, variables.orderId);
     },
   });
   const billActionMutation = useMutation({
@@ -1032,6 +1059,11 @@ function CashierDashboardContent() {
       });
     },
   });
+  const orderActionPending =
+    acceptMutation.isPending ||
+    rejectMutation.isPending ||
+    completeOrderMutation.isPending ||
+    cancelOrderMutation.isPending;
 
   if (!selectedBranchId || !selectedBranch) {
     return (
@@ -1175,23 +1207,24 @@ function CashierDashboardContent() {
           rejectPending={rejectMutation.isPending}
           cancelPending={cancelOrderMutation.isPending}
           completePending={completeOrderMutation.isPending}
+          actionPending={orderActionPending}
           onAccept={() => {
-            if (selectedOrderId) {
+            if (selectedOrderId && !orderActionPending) {
               acceptMutation.mutate(selectedOrderId);
             }
           }}
           onReject={(reason) => {
-            if (selectedOrderId) {
+            if (selectedOrderId && !orderActionPending) {
               rejectMutation.mutate({ orderId: selectedOrderId, reason });
             }
           }}
           onCancel={(reason) => {
-            if (selectedOrderId) {
+            if (selectedOrderId && !orderActionPending) {
               cancelOrderMutation.mutate({ orderId: selectedOrderId, reason });
             }
           }}
           onComplete={() => {
-            if (selectedOrderId) {
+            if (selectedOrderId && !orderActionPending) {
               completeOrderMutation.mutate(selectedOrderId);
             }
           }}

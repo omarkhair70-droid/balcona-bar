@@ -60,6 +60,7 @@ type CashierOrderDetailPanelProps = {
   rejectPending?: boolean;
   cancelPending?: boolean;
   completePending?: boolean;
+  actionPending?: boolean;
   onAccept: () => void;
   onReject: (reason?: string | null) => void;
   onCancel: (reason: string) => void;
@@ -125,6 +126,7 @@ export function CashierOrderDetailPanel({
   rejectPending,
   cancelPending,
   completePending,
+  actionPending,
   onAccept,
   onReject,
   onCancel,
@@ -362,6 +364,7 @@ export function CashierOrderDetailPanel({
               rejectPending={rejectPending}
               cancelPending={cancelPending}
               completePending={completePending}
+              actionPending={actionPending}
               disabledReason={disabledReason}
               onRejectReasonChange={setRejectReason}
               onCancelReasonChange={setCancelReason}

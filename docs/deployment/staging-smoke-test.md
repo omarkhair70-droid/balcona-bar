@@ -244,6 +244,33 @@ This verifies:
     a basic customer order and confirm the cashier sees it.
 40. Confirm no visible page renders `[object Object]`.
 
+## Operational Action Reliability Smoke
+
+Run this after the authenticated smoke when the staging cafe has at least one
+available menu item and a logged-in cashier/manager:
+
+1. Open a customer table session and submit the cart once. Confirm the cart
+   button disables while pending and the customer status page shows the new
+   submitted order without repeated-click workarounds.
+2. Open `/staff/cashier`, select the submitted order, and click Accept once.
+   Confirm all lifecycle buttons disable while Accept is pending, then the
+   order status changes to accepted.
+3. Confirm the order leaves or updates in the current cashier lane, the selected
+   order changes to the next visible order or clears, and branch realtime/order
+   data refreshes without a manual page reload.
+4. Confirm any item with inventory requirements consumes stock when enough
+   branch stock exists.
+5. Try accepting the same order again from a stale tab or direct API call. The
+   response should be a readable stale/lifecycle 400, not a hang or generic 500.
+6. Try an out-of-stock inventory-linked item. Cashier Accept should fail once
+   with readable copy such as `Item is out of stock`, including safe stock
+   details when returned by the API.
+7. Confirm the customer order/status view updates after staff actions.
+8. If any action fails, confirm the UI shows backend error text, a request ID
+   when present, and a Refresh now action. Railway logs should include
+   `requestId`, method, path, status code, exception name/message/code, and a
+   sanitized stack first line for unexpected exceptions.
+
 The smoke does not require a real payment gateway. Mock online payment should
 remain explicit and staging-only until a real provider is added.
 
