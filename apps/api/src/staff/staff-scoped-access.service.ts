@@ -294,6 +294,55 @@ export class StaffScopedAccessService {
     );
   }
 
+  async assertCanForSupplier(
+    staffUserId: string,
+    permission: StaffPermission,
+    supplierId: string,
+  ) {
+    const supplier = await this.prisma.supplier.findUnique({
+      where: { id: supplierId },
+      select: { companyId: true },
+    });
+
+    return this.assertCanForRecord(staffUserId, permission, supplier, "Supplier");
+  }
+
+  async assertCanForPurchaseOrder(
+    staffUserId: string,
+    permission: StaffPermission,
+    purchaseOrderId: string,
+  ) {
+    const purchaseOrder = await this.prisma.purchaseOrder.findUnique({
+      where: { id: purchaseOrderId },
+      select: { companyId: true, branchId: true },
+    });
+
+    return this.assertCanForRecord(
+      staffUserId,
+      permission,
+      purchaseOrder,
+      "Purchase order",
+    );
+  }
+
+  async assertCanForInventoryReceipt(
+    staffUserId: string,
+    permission: StaffPermission,
+    receiptId: string,
+  ) {
+    const receipt = await this.prisma.inventoryReceipt.findUnique({
+      where: { id: receiptId },
+      select: { companyId: true, branchId: true },
+    });
+
+    return this.assertCanForRecord(
+      staffUserId,
+      permission,
+      receipt,
+      "Inventory receipt",
+    );
+  }
+
   async assertCanForModifierGroup(
     staffUserId: string,
     permission: StaffPermission,

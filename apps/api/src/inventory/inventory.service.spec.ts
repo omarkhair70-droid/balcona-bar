@@ -5,6 +5,8 @@ import {
   InventoryUnit,
   MenuCategoryStatus,
   MenuItemStatus,
+  PurchaseOrderStatus,
+  SupplierStatus,
 } from '@prisma/client';
 import { InventoryService } from './inventory.service';
 
@@ -32,6 +34,20 @@ const inventoryItem = {
   status: InventoryItemStatus.active,
   parLevelQuantity: null,
   lowStockThresholdQuantity: 400,
+  createdAt: new Date('2026-01-01T00:00:00.000Z'),
+  updatedAt: new Date('2026-01-01T00:00:00.000Z'),
+};
+const supplier = {
+  id: 'supplier-1',
+  companyId: company.id,
+  name: 'Cairo Dairy',
+  contact: 'Nour',
+  phone: '01000000000',
+  email: 'orders@example.test',
+  taxId: null,
+  address: null,
+  notes: null,
+  status: SupplierStatus.active,
   createdAt: new Date('2026-01-01T00:00:00.000Z'),
   updatedAt: new Date('2026-01-01T00:00:00.000Z'),
 };
@@ -67,6 +83,68 @@ function movement(quantityDelta: number, quantityAfter: number) {
     note: null,
     createdAt: new Date('2026-01-01T00:00:00.000Z'),
     inventoryItem,
+  };
+}
+
+function purchaseOrder(overrides: Record<string, unknown> = {}) {
+  const line = {
+    id: 'po-line-1',
+    purchaseOrderId: 'po-1',
+    inventoryItemId: inventoryItem.id,
+    quantityOrdered: 10,
+    quantityReceived: 0,
+    unitCostMinor: 1250,
+    notes: null,
+    createdAt: new Date('2026-01-01T00:00:00.000Z'),
+    updatedAt: new Date('2026-01-01T00:00:00.000Z'),
+    inventoryItem,
+  };
+
+  return {
+    id: 'po-1',
+    companyId: company.id,
+    branchId: branch.id,
+    supplierId: supplier.id,
+    orderNumber: 'PO-0001',
+    status: PurchaseOrderStatus.submitted,
+    expectedAt: null,
+    notes: null,
+    currency: 'EGP',
+    createdByStaffUserId: 'staff-1',
+    createdAt: new Date('2026-01-01T00:00:00.000Z'),
+    updatedAt: new Date('2026-01-01T00:00:00.000Z'),
+    supplier,
+    lines: [line],
+    ...overrides,
+  };
+}
+
+function inventoryReceipt(quantityReceived: number) {
+  return {
+    id: 'receipt-1',
+    companyId: company.id,
+    branchId: branch.id,
+    supplierId: supplier.id,
+    purchaseOrderId: 'po-1',
+    receiptNumber: 'GR-0001',
+    receivedAt: new Date('2026-01-02T00:00:00.000Z'),
+    notes: 'First delivery',
+    createdByStaffUserId: 'staff-1',
+    createdAt: new Date('2026-01-02T00:00:00.000Z'),
+    updatedAt: new Date('2026-01-02T00:00:00.000Z'),
+    supplier,
+    lines: [
+      {
+        id: 'receipt-line-1',
+        receiptId: 'receipt-1',
+        purchaseOrderLineId: 'po-line-1',
+        inventoryItemId: inventoryItem.id,
+        quantityReceived,
+        unitCostMinor: 1250,
+        createdAt: new Date('2026-01-02T00:00:00.000Z'),
+        inventoryItem,
+      },
+    ],
   };
 }
 
@@ -110,6 +188,26 @@ describe('InventoryService', () => {
       }),
     ).rejects.toThrow('Inventory is not enabled on this plan.');
     expect(prisma.inventoryItem.create).not.toHaveBeenCalled();
+  });
+
+  it('blocks supplier creation when inventory is not enabled on the plan', async () => {
+    const saasService = createSaasService();
+    saasService.assertCompanyFeatureEnabled.mockRejectedValueOnce(
+      new Error('Inventory is not enabled on this plan.'),
+    );
+    const prisma = {
+      company: { findUnique: jest.fn().mockResolvedValue(company) },
+      supplier: { create: jest.fn() },
+    };
+    const service = new InventoryService(prisma as never, saasService as never);
+
+    await expect(
+      service.createSupplier(company.id, {
+        name: 'Cairo Dairy',
+        phone: '01000000000',
+      }),
+    ).rejects.toThrow('Inventory is not enabled on this plan.');
+    expect(prisma.supplier.create).not.toHaveBeenCalled();
   });
 
   it('creates a branch level and movement for opening balance', async () => {
@@ -184,6 +282,166 @@ describe('InventoryService', () => {
         'staff-1',
       ),
     ).rejects.toThrow('Inventory adjustment cannot make stock negative');
+    expect(tx.inventoryMovement.create).not.toHaveBeenCalled();
+  });
+
+  it('receives a submitted purchase order transactionally and records stock-in movement', async () => {
+    const submittedPurchaseOrder = purchaseOrder();
+    const updatedPurchaseOrder = purchaseOrder({
+      status: PurchaseOrderStatus.partially_received,
+      lines: [
+        {
+          ...submittedPurchaseOrder.lines[0],
+          quantityReceived: 4,
+        },
+      ],
+    });
+    const tx = {
+      $executeRaw: jest.fn().mockResolvedValue(1),
+      purchaseOrder: {
+        findUnique: jest.fn().mockResolvedValue(submittedPurchaseOrder),
+        update: jest.fn().mockResolvedValue(updatedPurchaseOrder),
+      },
+      branch: { findUnique: jest.fn().mockResolvedValue(branch) },
+      inventoryReceipt: {
+        count: jest.fn().mockResolvedValue(0),
+        create: jest.fn().mockResolvedValue({ id: 'receipt-1' }),
+        findUnique: jest.fn().mockResolvedValue(inventoryReceipt(4)),
+      },
+      branchInventoryLevel: {
+        findUnique: jest.fn().mockResolvedValue({
+          id: 'level-1',
+          quantityOnHand: 6,
+          lowStockThresholdQuantity: null,
+        }),
+        update: jest.fn().mockResolvedValue(level(10)),
+      },
+      purchaseOrderLine: {
+        update: jest.fn().mockResolvedValue({
+          ...submittedPurchaseOrder.lines[0],
+          quantityReceived: 4,
+        }),
+      },
+      inventoryReceiptLine: {
+        create: jest.fn().mockResolvedValue(inventoryReceipt(4).lines[0]),
+      },
+      inventoryMovement: {
+        create: jest.fn().mockResolvedValue({
+          ...movement(4, 10),
+          type: InventoryMovementType.stock_in,
+          sourceType: 'purchase_order_receipt',
+          sourceId: 'receipt-1',
+        }),
+      },
+    };
+    const { service } = serviceWithTransaction(tx);
+
+    const result = await service.receivePurchaseOrder(
+      'po-1',
+      {
+        notes: 'First delivery',
+        lines: [
+          {
+            purchaseOrderLineId: 'po-line-1',
+            quantityReceived: 4,
+          },
+        ],
+      },
+      'staff-1',
+    );
+
+    expect(tx.inventoryReceipt.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          receiptNumber: 'GR-0001',
+          supplierId: supplier.id,
+          purchaseOrderId: 'po-1',
+        }),
+      }),
+    );
+    expect(tx.purchaseOrderLine.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: { quantityReceived: { increment: 4 } },
+      }),
+    );
+    expect(tx.branchInventoryLevel.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: { quantityOnHand: 10 },
+      }),
+    );
+    expect(tx.inventoryMovement.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          type: InventoryMovementType.stock_in,
+          quantityDelta: 4,
+          quantityAfter: 10,
+          sourceType: 'purchase_order_receipt',
+          sourceId: 'receipt-1',
+          note: 'Receipt GR-0001 for PO PO-0001: First delivery',
+        }),
+      }),
+    );
+    expect(result.purchaseOrder.status).toBe(
+      PurchaseOrderStatus.partially_received,
+    );
+    expect(result.receipt?.receiptNumber).toBe('GR-0001');
+  });
+
+  it('blocks over-receiving a purchase order line before changing stock', async () => {
+    const tx = {
+      purchaseOrder: { findUnique: jest.fn().mockResolvedValue(purchaseOrder()) },
+      branch: { findUnique: jest.fn().mockResolvedValue(branch) },
+      inventoryReceipt: { create: jest.fn() },
+      inventoryMovement: { create: jest.fn() },
+    };
+    const { service } = serviceWithTransaction(tx);
+
+    await expect(
+      service.receivePurchaseOrder(
+        'po-1',
+        {
+          lines: [
+            {
+              purchaseOrderLineId: 'po-line-1',
+              quantityReceived: 11,
+            },
+          ],
+        },
+        'staff-1',
+      ),
+    ).rejects.toThrow('Milk cannot be over-received');
+    expect(tx.inventoryReceipt.create).not.toHaveBeenCalled();
+    expect(tx.inventoryMovement.create).not.toHaveBeenCalled();
+  });
+
+  it('blocks receiving cancelled purchase orders before changing stock', async () => {
+    const tx = {
+      purchaseOrder: {
+        findUnique: jest.fn().mockResolvedValue(
+          purchaseOrder({ status: PurchaseOrderStatus.cancelled }),
+        ),
+      },
+      branch: { findUnique: jest.fn().mockResolvedValue(branch) },
+      inventoryReceipt: { create: jest.fn() },
+      inventoryMovement: { create: jest.fn() },
+    };
+    const { service } = serviceWithTransaction(tx);
+
+    await expect(
+      service.receivePurchaseOrder(
+        'po-1',
+        {
+          lines: [
+            {
+              purchaseOrderLineId: 'po-line-1',
+              quantityReceived: 1,
+            },
+          ],
+        },
+        'staff-1',
+      ),
+    ).rejects.toThrow('Cancelled purchase orders cannot be received');
+    expect(tx.inventoryReceipt.create).not.toHaveBeenCalled();
     expect(tx.inventoryMovement.create).not.toHaveBeenCalled();
   });
 

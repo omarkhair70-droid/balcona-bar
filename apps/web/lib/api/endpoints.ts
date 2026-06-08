@@ -80,6 +80,9 @@ import type {
   CreateFloorPayload,
   CreateFloorResult,
   CreateInventoryItemPayload,
+  CreatePurchaseOrderLinePayload,
+  CreatePurchaseOrderPayload,
+  CreateSupplierPayload,
   CreateTablePayload,
   CreateTableResult,
   CreateModifierOptionResult,
@@ -153,6 +156,7 @@ import type {
   InviteOnboardingStaffResult,
   InventoryItemMutationResult,
   InventoryItemsResult,
+  InventoryReceiptsResult,
   UpdateBranchOnboardingProfilePayload,
   UpdateBranchOnboardingProfileResult,
   UpdateCompanyOnboardingProfilePayload,
@@ -166,6 +170,9 @@ import type {
   UpdateBranchPayload,
   UpdateFloorPayload,
   UpdateInventoryItemPayload,
+  UpdatePurchaseOrderLinePayload,
+  UpdatePurchaseOrderPayload,
+  UpdateSupplierPayload,
   UpdateTablePayload,
   TableSessionAttentionResult,
   TableMutationResult,
@@ -177,7 +184,14 @@ import type {
   AdjustInventoryLevelPayload,
   AdjustInventoryLevelResult,
   MenuItemInventoryRequirementsResult,
+  PurchaseOrderMutationResult,
+  PurchaseOrderResult,
+  PurchaseOrdersResult,
+  ReceivePurchaseOrderPayload,
+  ReceivePurchaseOrderResult,
   ReplaceMenuItemInventoryRequirementsPayload,
+  SupplierMutationResult,
+  SuppliersResult,
   WaiterCallDetailResult,
   WaiterCallPayload,
   WaiterCallStaffActionPayload,
@@ -620,6 +634,179 @@ export function getBranchInventoryMenuAvailability(
 ) {
   return apiRequest<BranchInventoryMenuAvailabilityResult>(
     `/branches/${branchId}/inventory/menu-availability`,
+    { token },
+  );
+}
+
+export function getSuppliers(companyId: string, token?: string) {
+  return apiRequest<SuppliersResult>(`/companies/${companyId}/suppliers`, {
+    token,
+  });
+}
+
+export function getBranchSuppliers(branchId: string, token?: string) {
+  return apiRequest<SuppliersResult>(`/branches/${branchId}/suppliers`, {
+    token,
+  });
+}
+
+export function createSupplier(
+  companyId: string,
+  payload: CreateSupplierPayload,
+  token?: string,
+) {
+  return apiRequest<SupplierMutationResult, CreateSupplierPayload>(
+    `/companies/${companyId}/suppliers`,
+    {
+      method: "POST",
+      body: payload,
+      token,
+    },
+  );
+}
+
+export function updateSupplier(
+  supplierId: string,
+  payload: UpdateSupplierPayload,
+  token?: string,
+) {
+  return apiRequest<SupplierMutationResult, UpdateSupplierPayload>(
+    `/suppliers/${supplierId}`,
+    {
+      method: "PATCH",
+      body: payload,
+      token,
+    },
+  );
+}
+
+export function getBranchPurchaseOrders(branchId: string, token?: string) {
+  return apiRequest<PurchaseOrdersResult>(
+    `/branches/${branchId}/purchase-orders`,
+    { token },
+  );
+}
+
+export function createPurchaseOrder(
+  branchId: string,
+  payload: CreatePurchaseOrderPayload,
+  token?: string,
+) {
+  return apiRequest<PurchaseOrderResult, CreatePurchaseOrderPayload>(
+    `/branches/${branchId}/purchase-orders`,
+    {
+      method: "POST",
+      body: payload,
+      token,
+    },
+  );
+}
+
+export function getPurchaseOrder(purchaseOrderId: string, token?: string) {
+  return apiRequest<PurchaseOrderResult>(
+    `/purchase-orders/${purchaseOrderId}`,
+    { token },
+  );
+}
+
+export function updatePurchaseOrder(
+  purchaseOrderId: string,
+  payload: UpdatePurchaseOrderPayload,
+  token?: string,
+) {
+  return apiRequest<PurchaseOrderMutationResult, UpdatePurchaseOrderPayload>(
+    `/purchase-orders/${purchaseOrderId}`,
+    {
+      method: "PATCH",
+      body: payload,
+      token,
+    },
+  );
+}
+
+export function submitPurchaseOrder(purchaseOrderId: string, token?: string) {
+  return apiRequest<PurchaseOrderMutationResult>(
+    `/purchase-orders/${purchaseOrderId}/submit`,
+    {
+      method: "POST",
+      token,
+    },
+  );
+}
+
+export function cancelPurchaseOrder(purchaseOrderId: string, token?: string) {
+  return apiRequest<PurchaseOrderMutationResult>(
+    `/purchase-orders/${purchaseOrderId}/cancel`,
+    {
+      method: "POST",
+      token,
+    },
+  );
+}
+
+export function addPurchaseOrderLine(
+  purchaseOrderId: string,
+  payload: CreatePurchaseOrderLinePayload,
+  token?: string,
+) {
+  return apiRequest<PurchaseOrderMutationResult, CreatePurchaseOrderLinePayload>(
+    `/purchase-orders/${purchaseOrderId}/lines`,
+    {
+      method: "POST",
+      body: payload,
+      token,
+    },
+  );
+}
+
+export function updatePurchaseOrderLine(
+  purchaseOrderId: string,
+  purchaseOrderLineId: string,
+  payload: UpdatePurchaseOrderLinePayload,
+  token?: string,
+) {
+  return apiRequest<PurchaseOrderMutationResult, UpdatePurchaseOrderLinePayload>(
+    `/purchase-orders/${purchaseOrderId}/lines/${purchaseOrderLineId}`,
+    {
+      method: "PATCH",
+      body: payload,
+      token,
+    },
+  );
+}
+
+export function removePurchaseOrderLine(
+  purchaseOrderId: string,
+  purchaseOrderLineId: string,
+  token?: string,
+) {
+  return apiRequest<PurchaseOrderMutationResult>(
+    `/purchase-orders/${purchaseOrderId}/lines/${purchaseOrderLineId}`,
+    {
+      method: "DELETE",
+      token,
+    },
+  );
+}
+
+export function receivePurchaseOrder(
+  purchaseOrderId: string,
+  payload: ReceivePurchaseOrderPayload,
+  token?: string,
+) {
+  return apiRequest<ReceivePurchaseOrderResult, ReceivePurchaseOrderPayload>(
+    `/purchase-orders/${purchaseOrderId}/receipts`,
+    {
+      method: "POST",
+      body: payload,
+      token,
+    },
+  );
+}
+
+export function getBranchInventoryReceipts(branchId: string, token?: string) {
+  return apiRequest<InventoryReceiptsResult>(
+    `/branches/${branchId}/inventory/receipts`,
     { token },
   );
 }

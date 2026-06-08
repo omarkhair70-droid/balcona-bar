@@ -8,16 +8,20 @@ import {
   Boxes,
   CheckCircle2,
   ClipboardList,
+  FilePlus2,
   Gauge,
   History,
   Loader2,
   PackageCheck,
   PackagePlus,
   RefreshCw,
+  ReceiptText,
   Save,
   Search,
+  Send,
   SlidersHorizontal,
   Trash2,
+  Truck,
   Utensils
 } from "lucide-react";
 import { type FormEvent, type ReactNode, useMemo, useState } from "react";
@@ -48,19 +52,36 @@ import {
 } from "@/features/staff/inventory-data";
 import {
   adjustBranchInventoryLevel,
+  addPurchaseOrderLine,
+  cancelPurchaseOrder,
   createInventoryItem,
+  createPurchaseOrder,
+  createSupplier,
   getBranchInventoryAlerts,
   getBranchInventoryLevels,
   getBranchInventoryMenuAvailability,
+  getBranchInventoryReceipts,
   getBranchMenuAdminOverview,
+  getBranchPurchaseOrders,
+  getBranchSuppliers,
   getInventoryItems,
   getMenuItemInventoryRequirements,
+  receivePurchaseOrder,
+  removePurchaseOrderLine,
+  submitPurchaseOrder,
   updateInventoryItem,
-  updateMenuItemInventoryRequirements
+  updateMenuItemInventoryRequirements,
+  updatePurchaseOrder,
+  updatePurchaseOrderLine,
+  updateSupplier
 } from "@/lib/api/endpoints";
 import { customerQueryKeys, staffQueryKeys } from "@/lib/api/query-keys";
 import type {
   AdjustInventoryLevelPayload,
+  CreatePurchaseOrderLinePayload,
+  CreatePurchaseOrderPayload,
+  CreateSupplierPayload,
+  InventoryReceipt,
   CreateInventoryItemPayload,
   InventoryItem,
   InventoryItemStatus,
@@ -72,8 +93,17 @@ import type {
   InventoryUnit,
   MenuAdminItem,
   MenuItemInventoryRequirement,
+  PurchaseOrder,
+  PurchaseOrderLine,
+  PurchaseOrderStatus,
+  ReceivePurchaseOrderPayload,
   ReplaceMenuItemInventoryRequirementsPayload,
-  UpdateInventoryItemPayload
+  Supplier,
+  SupplierStatus,
+  UpdateInventoryItemPayload,
+  UpdatePurchaseOrderLinePayload,
+  UpdatePurchaseOrderPayload,
+  UpdateSupplierPayload
 } from "@/lib/api/types";
 import { getInventoryAccessMode } from "@/lib/staff/staff-access";
 import { useStaffAuthStore } from "@/lib/staff/staff-auth-store";
@@ -107,12 +137,52 @@ type RequirementFormState = {
   isRequired: boolean;
 };
 
+type SupplierFormState = {
+  id: string | null;
+  name: string;
+  contact: string;
+  phone: string;
+  email: string;
+  taxId: string;
+  address: string;
+  notes: string;
+  status: SupplierStatus;
+};
+
+type PurchaseOrderFormState = {
+  id: string | null;
+  supplierId: string;
+  expectedAt: string;
+  notes: string;
+  currency: string;
+};
+
+type PurchaseOrderLineFormState = {
+  id: string | null;
+  purchaseOrderId: string;
+  inventoryItemId: string;
+  quantityOrdered: string;
+  unitCostEgp: string;
+  notes: string;
+};
+
+type ReceivingFormState = {
+  purchaseOrderId: string;
+  receivedAt: string;
+  notes: string;
+  quantitiesByLineId: Record<string, string>;
+  unitCostByLineId: Record<string, string>;
+};
+
 type InventoryTab =
   | "overview"
   | "items"
   | "levels"
   | "alerts"
   | "adjustments"
+  | "suppliers"
+  | "purchase_orders"
+  | "receiving"
   | "requirements"
   | "availability"
   | "movements";
@@ -123,10 +193,19 @@ const inventoryTabs: Array<{ id: InventoryTab; label: string }> = [
   { id: "levels", label: "Stock levels" },
   { id: "alerts", label: "Alerts" },
   { id: "adjustments", label: "Adjustments" },
+  { id: "suppliers", label: "Suppliers" },
+  { id: "purchase_orders", label: "Purchase orders" },
+  { id: "receiving", label: "Receiving" },
   { id: "requirements", label: "Requirements" },
   { id: "availability", label: "Menu availability" },
   { id: "movements", label: "Recent movements" }
 ];
+
+const supplierStatuses: SupplierStatus[] = ["active", "inactive", "archived"];
+const receivablePurchaseOrderStatuses = new Set<PurchaseOrderStatus>([
+  "submitted",
+  "partially_received"
+]);
 
 const riskyAdjustmentTypes = new Set<AdjustmentFormState["type"]>([
   "stock_out",
@@ -164,10 +243,50 @@ const emptyRequirementForm: RequirementFormState = {
   isRequired: true
 };
 
+const emptySupplierForm: SupplierFormState = {
+  id: null,
+  name: "",
+  contact: "",
+  phone: "",
+  email: "",
+  taxId: "",
+  address: "",
+  notes: "",
+  status: "active"
+};
+
+const emptyPurchaseOrderForm: PurchaseOrderFormState = {
+  id: null,
+  supplierId: "",
+  expectedAt: "",
+  notes: "",
+  currency: "EGP"
+};
+
+const emptyPurchaseOrderLineForm: PurchaseOrderLineFormState = {
+  id: null,
+  purchaseOrderId: "",
+  inventoryItemId: "",
+  quantityOrdered: "",
+  unitCostEgp: "",
+  notes: ""
+};
+
+const emptyReceivingForm: ReceivingFormState = {
+  purchaseOrderId: "",
+  receivedAt: "",
+  notes: "",
+  quantitiesByLineId: {},
+  unitCostByLineId: {}
+};
+
 const emptyInventoryItems: InventoryItem[] = [];
 const emptyInventoryLevels: InventoryLevel[] = [];
 const emptyInventoryMovements: InventoryMovement[] = [];
 const emptyMenuAvailabilityItems: InventoryMenuAvailabilityItem[] = [];
+const emptySuppliers: Supplier[] = [];
+const emptyPurchaseOrders: PurchaseOrder[] = [];
+const emptyInventoryReceipts: InventoryReceipt[] = [];
 
 function getAllMenuItems(items: MenuAdminItem[] = []) {
   return items
@@ -240,6 +359,135 @@ function toAdjustmentPayload(
   };
 }
 
+function optionalText(value: string) {
+  const trimmed = value.trim();
+
+  return trimmed.length > 0 ? trimmed : null;
+}
+
+function toSupplierPayload(
+  form: SupplierFormState
+): CreateSupplierPayload | UpdateSupplierPayload {
+  return {
+    name: form.name.trim(),
+    contact: optionalText(form.contact),
+    phone: optionalText(form.phone),
+    email: optionalText(form.email),
+    taxId: optionalText(form.taxId),
+    address: optionalText(form.address),
+    notes: optionalText(form.notes),
+    status: form.status
+  };
+}
+
+function toSupplierForm(supplier: Supplier): SupplierFormState {
+  return {
+    id: supplier.id,
+    name: supplier.name,
+    contact: supplier.contact ?? "",
+    phone: supplier.phone ?? "",
+    email: supplier.email ?? "",
+    taxId: supplier.taxId ?? "",
+    address: supplier.address ?? "",
+    notes: supplier.notes ?? "",
+    status: supplier.status
+  };
+}
+
+function toPurchaseOrderPayload(
+  form: PurchaseOrderFormState
+): CreatePurchaseOrderPayload | UpdatePurchaseOrderPayload {
+  return {
+    supplierId: form.supplierId,
+    expectedAt: optionalText(form.expectedAt),
+    notes: optionalText(form.notes),
+    currency: form.currency.trim().toUpperCase() || "EGP"
+  };
+}
+
+function toPurchaseOrderForm(order: PurchaseOrder): PurchaseOrderFormState {
+  return {
+    id: order.id,
+    supplierId: order.supplierId,
+    expectedAt: order.expectedAt ? order.expectedAt.slice(0, 10) : "",
+    notes: order.notes ?? "",
+    currency: order.currency
+  };
+}
+
+function moneyInputToMinor(value: string, label: string) {
+  const normalized = value.trim();
+  const parsed = Number(normalized);
+
+  if (!Number.isFinite(parsed) || parsed < 0) {
+    throw new Error(`${label} must be a non-negative amount.`);
+  }
+
+  return Math.round(parsed * 100);
+}
+
+function optionalMoneyInputToMinor(value: string, label: string) {
+  return value.trim().length === 0 ? null : moneyInputToMinor(value, label);
+}
+
+function minorToMoneyInput(value?: number | null) {
+  return value === null || value === undefined ? "" : (value / 100).toFixed(2);
+}
+
+function formatMinor(value: number, currency = "EGP") {
+  return new Intl.NumberFormat("en-EG", {
+    style: "currency",
+    currency,
+    maximumFractionDigits: 2
+  }).format(value / 100);
+}
+
+function toPurchaseOrderLinePayload(
+  form: PurchaseOrderLineFormState
+): CreatePurchaseOrderLinePayload {
+  return {
+    inventoryItemId: form.inventoryItemId,
+    quantityOrdered: inventoryInputToQuantity(
+      form.quantityOrdered,
+      "Ordered quantity"
+    ),
+    unitCostMinor: moneyInputToMinor(form.unitCostEgp, "Unit cost"),
+    notes: optionalText(form.notes)
+  };
+}
+
+function toPurchaseOrderLineForm(
+  orderId: string,
+  line: PurchaseOrderLine
+): PurchaseOrderLineFormState {
+  return {
+    id: line.id,
+    purchaseOrderId: orderId,
+    inventoryItemId: line.inventoryItemId,
+    quantityOrdered: quantityToInput(line.quantityOrdered),
+    unitCostEgp: minorToMoneyInput(line.unitCostMinor),
+    notes: line.notes ?? ""
+  };
+}
+
+function purchaseOrderLineRemaining(line: PurchaseOrderLine) {
+  return Math.max(0, line.quantityOrdered - line.quantityReceived);
+}
+
+function purchaseOrderEstimatedValue(order: PurchaseOrder) {
+  return order.lines.reduce(
+    (total, line) => total + line.quantityOrdered * line.unitCostMinor,
+    0
+  );
+}
+
+function purchaseOrderReceivedValue(order: PurchaseOrder) {
+  return order.lines.reduce(
+    (total, line) => total + line.quantityReceived * line.unitCostMinor,
+    0
+  );
+}
+
 function getThreshold(level: InventoryLevel) {
   return (
     level.lowStockThresholdQuantity ?? level.item.lowStockThresholdQuantity ?? null
@@ -302,6 +550,24 @@ function movementVariant(
   }
 
   return "danger";
+}
+
+function purchaseOrderStatusVariant(
+  status: PurchaseOrderStatus
+): "success" | "warning" | "danger" | "muted" {
+  if (status === "received") {
+    return "success";
+  }
+
+  if (status === "submitted" || status === "partially_received") {
+    return "warning";
+  }
+
+  if (status === "cancelled") {
+    return "danger";
+  }
+
+  return "muted";
 }
 
 function stockFilterMatches(
@@ -398,6 +664,18 @@ function TabIcon({ tabId }: { tabId: InventoryTab }) {
     return <SlidersHorizontal className="size-4" aria-hidden="true" />;
   }
 
+  if (tabId === "suppliers") {
+    return <Truck className="size-4" aria-hidden="true" />;
+  }
+
+  if (tabId === "purchase_orders") {
+    return <FilePlus2 className="size-4" aria-hidden="true" />;
+  }
+
+  if (tabId === "receiving") {
+    return <ReceiptText className="size-4" aria-hidden="true" />;
+  }
+
   if (tabId === "requirements") {
     return <ClipboardList className="size-4" aria-hidden="true" />;
   }
@@ -444,6 +722,15 @@ function StaffInventoryContent() {
   const [selectedMenuItemId, setSelectedMenuItemId] = useState("");
   const [requirementForm, setRequirementForm] =
     useState<RequirementFormState>(emptyRequirementForm);
+  const [supplierForm, setSupplierForm] =
+    useState<SupplierFormState>(emptySupplierForm);
+  const [purchaseOrderForm, setPurchaseOrderForm] =
+    useState<PurchaseOrderFormState>(emptyPurchaseOrderForm);
+  const [purchaseOrderLineForm, setPurchaseOrderLineForm] =
+    useState<PurchaseOrderLineFormState>(emptyPurchaseOrderLineForm);
+  const [selectedPurchaseOrderId, setSelectedPurchaseOrderId] = useState("");
+  const [receivingForm, setReceivingForm] =
+    useState<ReceivingFormState>(emptyReceivingForm);
   const [formError, setFormError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
@@ -484,6 +771,27 @@ function StaffInventoryContent() {
     enabled: Boolean(selectedBranchId && token && canReadCompanyInventory),
     staleTime: 30_000
   });
+  const suppliersQuery = useQuery({
+    queryKey: staffQueryKeys.branchSuppliers(selectedBranchId),
+    queryFn: () =>
+      getBranchSuppliers(selectedBranchId ?? "", token ?? undefined),
+    enabled: Boolean(selectedBranchId && token),
+    staleTime: 30_000
+  });
+  const purchaseOrdersQuery = useQuery({
+    queryKey: staffQueryKeys.branchPurchaseOrders(selectedBranchId),
+    queryFn: () =>
+      getBranchPurchaseOrders(selectedBranchId ?? "", token ?? undefined),
+    enabled: Boolean(selectedBranchId && token),
+    staleTime: 30_000
+  });
+  const receiptsQuery = useQuery({
+    queryKey: staffQueryKeys.branchInventoryReceipts(selectedBranchId),
+    queryFn: () =>
+      getBranchInventoryReceipts(selectedBranchId ?? "", token ?? undefined),
+    enabled: Boolean(selectedBranchId && token),
+    staleTime: 30_000
+  });
   const menuItems = useMemo(
     () =>
       getAllMenuItems(
@@ -502,6 +810,24 @@ function StaffInventoryContent() {
   });
   const companyInventoryItems =
     inventoryItemsQuery.data?.items ?? emptyInventoryItems;
+  const suppliers = suppliersQuery.data?.suppliers ?? emptySuppliers;
+  const activeSuppliers = suppliers.filter(
+    (supplier) => supplier.status === "active"
+  );
+  const purchaseOrders =
+    purchaseOrdersQuery.data?.purchaseOrders ?? emptyPurchaseOrders;
+  const selectedPurchaseOrder =
+    purchaseOrders.find((order) => order.id === selectedPurchaseOrderId) ??
+    purchaseOrders[0];
+  const receivablePurchaseOrders = purchaseOrders.filter((order) =>
+    receivablePurchaseOrderStatuses.has(order.status)
+  );
+  const activeReceivingPurchaseOrderId =
+    receivingForm.purchaseOrderId || receivablePurchaseOrders[0]?.id || "";
+  const selectedReceivingPurchaseOrder = purchaseOrders.find(
+    (order) => order.id === activeReceivingPurchaseOrderId
+  );
+  const receipts = receiptsQuery.data?.receipts ?? emptyInventoryReceipts;
   const levels = levelsQuery.data?.levels ?? emptyInventoryLevels;
   const lowStockLevels =
     alertsQuery.data?.lowStockLevels ?? emptyInventoryLevels;
@@ -598,12 +924,18 @@ function StaffInventoryContent() {
     alertsQuery.error ??
     menuAvailabilityQuery.error ??
     menuOverviewQuery.error ??
-    requirementsQuery.error;
+    requirementsQuery.error ??
+    suppliersQuery.error ??
+    purchaseOrdersQuery.error ??
+    receiptsQuery.error;
   const isLoading =
     (canReadCompanyInventory && inventoryItemsQuery.isPending) ||
     levelsQuery.isPending ||
     alertsQuery.isPending ||
-    menuAvailabilityQuery.isPending;
+    menuAvailabilityQuery.isPending ||
+    suppliersQuery.isPending ||
+    purchaseOrdersQuery.isPending ||
+    receiptsQuery.isPending;
 
   const invalidateInventory = async () => {
     await Promise.all([
@@ -618,6 +950,18 @@ function StaffInventoryContent() {
       }),
       queryClient.invalidateQueries({
         queryKey: staffQueryKeys.branchInventoryMenuAvailability(selectedBranchId)
+      }),
+      queryClient.invalidateQueries({
+        queryKey: staffQueryKeys.branchSuppliers(selectedBranchId)
+      }),
+      queryClient.invalidateQueries({
+        queryKey: staffQueryKeys.suppliers(companyId)
+      }),
+      queryClient.invalidateQueries({
+        queryKey: staffQueryKeys.branchPurchaseOrders(selectedBranchId)
+      }),
+      queryClient.invalidateQueries({
+        queryKey: staffQueryKeys.branchInventoryReceipts(selectedBranchId)
       }),
       queryClient.invalidateQueries({
         queryKey: staffQueryKeys.staffMenuAdminOverview(selectedBranchId)
@@ -716,6 +1060,208 @@ function StaffInventoryContent() {
         }),
         invalidateInventory()
       ]);
+    },
+    onError: (error) => {
+      setSuccessMessage(null);
+      setFormError(getInventoryErrorMessage(error));
+    }
+  });
+  const createSupplierMutation = useMutation({
+    mutationFn: (payload: CreateSupplierPayload) =>
+      createSupplier(companyId ?? "", payload, token ?? undefined),
+    onSuccess: async (result) => {
+      setSupplierForm(emptySupplierForm);
+      setFormError(null);
+      setSuccessMessage(`${result.supplier.name} was added as a supplier.`);
+      await invalidateInventory();
+    },
+    onError: (error) => {
+      setSuccessMessage(null);
+      setFormError(getInventoryErrorMessage(error));
+    }
+  });
+  const updateSupplierMutation = useMutation({
+    mutationFn: (input: {
+      supplierId: string;
+      payload: UpdateSupplierPayload;
+    }) => updateSupplier(input.supplierId, input.payload, token ?? undefined),
+    onSuccess: async (result) => {
+      setSupplierForm(emptySupplierForm);
+      setFormError(null);
+      setSuccessMessage(`${result.supplier.name} was saved.`);
+      await invalidateInventory();
+    },
+    onError: (error) => {
+      setSuccessMessage(null);
+      setFormError(getInventoryErrorMessage(error));
+    }
+  });
+  const createPurchaseOrderMutation = useMutation({
+    mutationFn: (payload: CreatePurchaseOrderPayload) =>
+      createPurchaseOrder(selectedBranchId ?? "", payload, token ?? undefined),
+    onSuccess: async (result) => {
+      setPurchaseOrderForm(emptyPurchaseOrderForm);
+      setSelectedPurchaseOrderId(result.purchaseOrder.id);
+      setPurchaseOrderLineForm({
+        ...emptyPurchaseOrderLineForm,
+        purchaseOrderId: result.purchaseOrder.id
+      });
+      setFormError(null);
+      setSuccessMessage(`${result.purchaseOrder.orderNumber} was created.`);
+      await invalidateInventory();
+    },
+    onError: (error) => {
+      setSuccessMessage(null);
+      setFormError(getInventoryErrorMessage(error));
+    }
+  });
+  const updatePurchaseOrderMutation = useMutation({
+    mutationFn: (input: {
+      purchaseOrderId: string;
+      payload: UpdatePurchaseOrderPayload;
+    }) =>
+      updatePurchaseOrder(
+        input.purchaseOrderId,
+        input.payload,
+        token ?? undefined
+      ),
+    onSuccess: async (result) => {
+      setPurchaseOrderForm(emptyPurchaseOrderForm);
+      setSelectedPurchaseOrderId(result.purchaseOrder.id);
+      setFormError(null);
+      setSuccessMessage(`${result.purchaseOrder.orderNumber} was saved.`);
+      await invalidateInventory();
+    },
+    onError: (error) => {
+      setSuccessMessage(null);
+      setFormError(getInventoryErrorMessage(error));
+    }
+  });
+  const addPurchaseOrderLineMutation = useMutation({
+    mutationFn: (input: {
+      purchaseOrderId: string;
+      payload: CreatePurchaseOrderLinePayload;
+    }) =>
+      addPurchaseOrderLine(
+        input.purchaseOrderId,
+        input.payload,
+        token ?? undefined
+      ),
+    onSuccess: async (result) => {
+      setPurchaseOrderLineForm({
+        ...emptyPurchaseOrderLineForm,
+        purchaseOrderId: result.purchaseOrder.id
+      });
+      setSelectedPurchaseOrderId(result.purchaseOrder.id);
+      setFormError(null);
+      setSuccessMessage(`${result.purchaseOrder.orderNumber} line was saved.`);
+      await invalidateInventory();
+    },
+    onError: (error) => {
+      setSuccessMessage(null);
+      setFormError(getInventoryErrorMessage(error));
+    }
+  });
+  const updatePurchaseOrderLineMutation = useMutation({
+    mutationFn: (input: {
+      purchaseOrderId: string;
+      purchaseOrderLineId: string;
+      payload: UpdatePurchaseOrderLinePayload;
+    }) =>
+      updatePurchaseOrderLine(
+        input.purchaseOrderId,
+        input.purchaseOrderLineId,
+        input.payload,
+        token ?? undefined
+      ),
+    onSuccess: async (result) => {
+      setPurchaseOrderLineForm({
+        ...emptyPurchaseOrderLineForm,
+        purchaseOrderId: result.purchaseOrder.id
+      });
+      setSelectedPurchaseOrderId(result.purchaseOrder.id);
+      setFormError(null);
+      setSuccessMessage(`${result.purchaseOrder.orderNumber} line was saved.`);
+      await invalidateInventory();
+    },
+    onError: (error) => {
+      setSuccessMessage(null);
+      setFormError(getInventoryErrorMessage(error));
+    }
+  });
+  const removePurchaseOrderLineMutation = useMutation({
+    mutationFn: (input: {
+      purchaseOrderId: string;
+      purchaseOrderLineId: string;
+    }) =>
+      removePurchaseOrderLine(
+        input.purchaseOrderId,
+        input.purchaseOrderLineId,
+        token ?? undefined
+      ),
+    onSuccess: async (result) => {
+      setPurchaseOrderLineForm({
+        ...emptyPurchaseOrderLineForm,
+        purchaseOrderId: result.purchaseOrder.id
+      });
+      setSelectedPurchaseOrderId(result.purchaseOrder.id);
+      setFormError(null);
+      setSuccessMessage(`${result.purchaseOrder.orderNumber} line was removed.`);
+      await invalidateInventory();
+    },
+    onError: (error) => {
+      setSuccessMessage(null);
+      setFormError(getInventoryErrorMessage(error));
+    }
+  });
+  const submitPurchaseOrderMutation = useMutation({
+    mutationFn: (purchaseOrderId: string) =>
+      submitPurchaseOrder(purchaseOrderId, token ?? undefined),
+    onSuccess: async (result) => {
+      setSelectedPurchaseOrderId(result.purchaseOrder.id);
+      setFormError(null);
+      setSuccessMessage(`${result.purchaseOrder.orderNumber} was submitted.`);
+      await invalidateInventory();
+    },
+    onError: (error) => {
+      setSuccessMessage(null);
+      setFormError(getInventoryErrorMessage(error));
+    }
+  });
+  const cancelPurchaseOrderMutation = useMutation({
+    mutationFn: (purchaseOrderId: string) =>
+      cancelPurchaseOrder(purchaseOrderId, token ?? undefined),
+    onSuccess: async (result) => {
+      setSelectedPurchaseOrderId(result.purchaseOrder.id);
+      setFormError(null);
+      setSuccessMessage(`${result.purchaseOrder.orderNumber} was cancelled.`);
+      await invalidateInventory();
+    },
+    onError: (error) => {
+      setSuccessMessage(null);
+      setFormError(getInventoryErrorMessage(error));
+    }
+  });
+  const receivePurchaseOrderMutation = useMutation({
+    mutationFn: (input: {
+      purchaseOrderId: string;
+      payload: ReceivePurchaseOrderPayload;
+    }) =>
+      receivePurchaseOrder(
+        input.purchaseOrderId,
+        input.payload,
+        token ?? undefined
+      ),
+    onSuccess: async (result) => {
+      setReceivingForm(emptyReceivingForm);
+      setSelectedPurchaseOrderId(result.purchaseOrder.id);
+      setFormError(null);
+      setSuccessMessage(
+        `${result.receipt?.receiptNumber ?? "Receipt"} posted for ${
+          result.purchaseOrder.orderNumber
+        }.`
+      );
+      await invalidateInventory();
     },
     onError: (error) => {
       setSuccessMessage(null);
@@ -833,6 +1379,224 @@ function StaffInventoryContent() {
       ];
 
       replaceRequirements(nextRequirements);
+    } catch (error) {
+      setFormError(getInventoryErrorMessage(error));
+    }
+  }
+
+  function handleSaveSupplier(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setFormError(null);
+    setSuccessMessage(null);
+
+    if (!canManageCompanyInventory) {
+      setFormError("Supplier management requires company-level inventory access.");
+      return;
+    }
+
+    try {
+      const payload = toSupplierPayload(supplierForm);
+
+      if (supplierForm.id) {
+        updateSupplierMutation.mutate({
+          supplierId: supplierForm.id,
+          payload
+        });
+        return;
+      }
+
+      createSupplierMutation.mutate(payload as CreateSupplierPayload);
+    } catch (error) {
+      setFormError(getInventoryErrorMessage(error));
+    }
+  }
+
+  function handleSavePurchaseOrder(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setFormError(null);
+    setSuccessMessage(null);
+
+    if (!canManageBranchStock) {
+      setFormError("Purchase orders require branch-level inventory management.");
+      return;
+    }
+
+    try {
+      const payload = toPurchaseOrderPayload(purchaseOrderForm);
+
+      if (!payload.supplierId) {
+        setFormError("Choose an active supplier before saving the purchase order.");
+        return;
+      }
+
+      if (purchaseOrderForm.id) {
+        updatePurchaseOrderMutation.mutate({
+          purchaseOrderId: purchaseOrderForm.id,
+          payload
+        });
+        return;
+      }
+
+      createPurchaseOrderMutation.mutate(payload as CreatePurchaseOrderPayload);
+    } catch (error) {
+      setFormError(getInventoryErrorMessage(error));
+    }
+  }
+
+  function handleSavePurchaseOrderLine(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setFormError(null);
+    setSuccessMessage(null);
+
+    if (!canManageBranchStock) {
+      setFormError("Purchase order lines require branch-level inventory management.");
+      return;
+    }
+
+    const purchaseOrderId =
+      purchaseOrderLineForm.purchaseOrderId || selectedPurchaseOrder?.id;
+
+    if (!purchaseOrderId) {
+      setFormError("Choose a draft purchase order before adding lines.");
+      return;
+    }
+
+    try {
+      const payload = toPurchaseOrderLinePayload(purchaseOrderLineForm);
+
+      if (purchaseOrderLineForm.id) {
+        const lineUpdatePayload: UpdatePurchaseOrderLinePayload = {
+          quantityOrdered: payload.quantityOrdered,
+          unitCostMinor: payload.unitCostMinor,
+          notes: payload.notes
+        };
+        updatePurchaseOrderLineMutation.mutate({
+          purchaseOrderId,
+          purchaseOrderLineId: purchaseOrderLineForm.id,
+          payload: lineUpdatePayload
+        });
+        return;
+      }
+
+      addPurchaseOrderLineMutation.mutate({
+        purchaseOrderId,
+        payload: payload as CreatePurchaseOrderLinePayload
+      });
+    } catch (error) {
+      setFormError(getInventoryErrorMessage(error));
+    }
+  }
+
+  function handleSubmitPurchaseOrder(order: PurchaseOrder) {
+    setFormError(null);
+    setSuccessMessage(null);
+
+    if (!canManageBranchStock) {
+      setFormError("Submitting purchase orders requires inventory management.");
+      return;
+    }
+
+    submitPurchaseOrderMutation.mutate(order.id);
+  }
+
+  function handleCancelPurchaseOrder(order: PurchaseOrder) {
+    setFormError(null);
+    setSuccessMessage(null);
+
+    if (!canManageBranchStock) {
+      setFormError("Cancelling purchase orders requires inventory management.");
+      return;
+    }
+
+    if (
+      !window.confirm(`Cancel ${order.orderNumber}? This stops further receiving.`)
+    ) {
+      return;
+    }
+
+    cancelPurchaseOrderMutation.mutate(order.id);
+  }
+
+  function handleRemovePurchaseOrderLine(line: PurchaseOrderLine) {
+    const purchaseOrderId = selectedPurchaseOrder?.id;
+
+    setFormError(null);
+    setSuccessMessage(null);
+
+    if (!canManageBranchStock) {
+      setFormError("Removing purchase order lines requires inventory management.");
+      return;
+    }
+
+    if (!purchaseOrderId) {
+      setFormError("Choose a purchase order before removing a line.");
+      return;
+    }
+
+    removePurchaseOrderLineMutation.mutate({
+      purchaseOrderId,
+      purchaseOrderLineId: line.id
+    });
+  }
+
+  function handleReceivePurchaseOrder(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setFormError(null);
+    setSuccessMessage(null);
+
+    if (!canManageBranchStock) {
+      setFormError("Receiving requires branch-level inventory management.");
+      return;
+    }
+
+    if (!selectedReceivingPurchaseOrder) {
+      setFormError("Choose a submitted purchase order before receiving.");
+      return;
+    }
+
+    try {
+      const lines: ReceivePurchaseOrderPayload["lines"] = [];
+
+      for (const line of selectedReceivingPurchaseOrder.lines) {
+        const quantityValue = receivingForm.quantitiesByLineId[line.id] ?? "";
+
+        if (quantityValue.trim().length === 0) {
+          continue;
+        }
+
+        const quantityReceived = inventoryInputToQuantity(
+          quantityValue,
+          `${line.inventoryItem.name} received quantity`
+        );
+        const remaining = purchaseOrderLineRemaining(line);
+
+        if (quantityReceived > remaining) {
+          throw new Error(`${line.inventoryItem.name} cannot be over-received.`);
+        }
+
+        lines.push({
+          purchaseOrderLineId: line.id,
+          quantityReceived,
+          unitCostMinor: optionalMoneyInputToMinor(
+            receivingForm.unitCostByLineId[line.id] ?? "",
+            `${line.inventoryItem.name} unit cost`
+          )
+        });
+      }
+
+      if (lines.length === 0) {
+        setFormError("Enter at least one received quantity.");
+        return;
+      }
+
+      receivePurchaseOrderMutation.mutate({
+        purchaseOrderId: selectedReceivingPurchaseOrder.id,
+        payload: {
+          receivedAt: optionalText(receivingForm.receivedAt),
+          notes: optionalText(receivingForm.notes),
+          lines
+        }
+      });
     } catch (error) {
       setFormError(getInventoryErrorMessage(error));
     }
@@ -990,6 +1754,99 @@ function StaffInventoryContent() {
             isSaving={adjustmentMutation.isPending}
             onFormChange={setAdjustmentForm}
             onSubmit={handleAdjustLevel}
+          />
+        ) : null}
+
+        {activeTab === "suppliers" ? (
+          <SuppliersSection
+            canManageCompanyInventory={canManageCompanyInventory}
+            supplierForm={supplierForm}
+            suppliers={suppliers}
+            isSaving={
+              createSupplierMutation.isPending ||
+              updateSupplierMutation.isPending
+            }
+            onFormChange={setSupplierForm}
+            onSubmit={handleSaveSupplier}
+            onEdit={setSupplierForm}
+            onReset={() => setSupplierForm(emptySupplierForm)}
+          />
+        ) : null}
+
+        {activeTab === "purchase_orders" ? (
+          <PurchaseOrdersSection
+            canManageBranchStock={canManageBranchStock}
+            purchaseOrderForm={purchaseOrderForm}
+            lineForm={purchaseOrderLineForm}
+            suppliers={activeSuppliers}
+            purchaseOrders={purchaseOrders}
+            selectedPurchaseOrder={selectedPurchaseOrder}
+            selectedPurchaseOrderId={selectedPurchaseOrder?.id ?? ""}
+            inventoryItems={visibleInventoryItems}
+            isSavingOrder={
+              createPurchaseOrderMutation.isPending ||
+              updatePurchaseOrderMutation.isPending
+            }
+            isSavingLine={
+              addPurchaseOrderLineMutation.isPending ||
+              updatePurchaseOrderLineMutation.isPending ||
+              removePurchaseOrderLineMutation.isPending
+            }
+            isTransitioning={
+              submitPurchaseOrderMutation.isPending ||
+              cancelPurchaseOrderMutation.isPending
+            }
+            onOrderFormChange={setPurchaseOrderForm}
+            onLineFormChange={setPurchaseOrderLineForm}
+            onSubmitOrderForm={handleSavePurchaseOrder}
+            onSubmitLineForm={handleSavePurchaseOrderLine}
+            onSelectOrder={(order) => {
+              setSelectedPurchaseOrderId(order.id);
+              setPurchaseOrderLineForm({
+                ...emptyPurchaseOrderLineForm,
+                purchaseOrderId: order.id
+              });
+            }}
+            onEditOrder={(order) => setPurchaseOrderForm(toPurchaseOrderForm(order))}
+            onEditLine={(line) => {
+              if (!selectedPurchaseOrder) {
+                return;
+              }
+
+              setPurchaseOrderLineForm(
+                toPurchaseOrderLineForm(selectedPurchaseOrder.id, line)
+              );
+            }}
+            onRemoveLine={handleRemovePurchaseOrderLine}
+            onSubmitPurchaseOrder={handleSubmitPurchaseOrder}
+            onCancelPurchaseOrder={handleCancelPurchaseOrder}
+            onResetOrder={() => setPurchaseOrderForm(emptyPurchaseOrderForm)}
+            onResetLine={() =>
+              setPurchaseOrderLineForm({
+                ...emptyPurchaseOrderLineForm,
+                purchaseOrderId: selectedPurchaseOrder?.id ?? ""
+              })
+            }
+          />
+        ) : null}
+
+        {activeTab === "receiving" ? (
+          <ReceivingSection
+            canManageBranchStock={canManageBranchStock}
+            purchaseOrders={receivablePurchaseOrders}
+            selectedPurchaseOrder={selectedReceivingPurchaseOrder}
+            activePurchaseOrderId={activeReceivingPurchaseOrderId}
+            receivingForm={receivingForm}
+            receipts={receipts}
+            isSaving={receivePurchaseOrderMutation.isPending}
+            onPurchaseOrderChange={(purchaseOrderId) =>
+              setReceivingForm({
+                ...emptyReceivingForm,
+                purchaseOrderId
+              })
+            }
+            onFormChange={setReceivingForm}
+            onSubmit={handleReceivePurchaseOrder}
           />
         ) : null}
 
@@ -1799,6 +2656,927 @@ function AdjustmentSection({
         )}
       </CardContent>
     </Card>
+  );
+}
+
+function SuppliersSection({
+  canManageCompanyInventory,
+  supplierForm,
+  suppliers,
+  isSaving,
+  onFormChange,
+  onSubmit,
+  onEdit,
+  onReset
+}: {
+  canManageCompanyInventory: boolean;
+  supplierForm: SupplierFormState;
+  suppliers: Supplier[];
+  isSaving: boolean;
+  onFormChange: (form: SupplierFormState) => void;
+  onSubmit: (event: FormEvent<HTMLFormElement>) => void;
+  onEdit: (form: SupplierFormState) => void;
+  onReset: () => void;
+}) {
+  return (
+    <section className="grid gap-4 xl:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)]">
+      <Card variant="quiet">
+        <CardHeader>
+          <Badge variant="muted">Company suppliers</Badge>
+          <CardTitle>
+            {supplierForm.id ? "Edit supplier" : "Create supplier"}
+          </CardTitle>
+          <CardDescription>
+            Suppliers are company-scoped and can be used by branch purchase
+            orders.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          {canManageCompanyInventory ? (
+            <form onSubmit={onSubmit} className="grid gap-4">
+              <div className="grid gap-4 md:grid-cols-2">
+                <FieldLabel label="Name">
+                  <Input
+                    value={supplierForm.name}
+                    onChange={(event) =>
+                      onFormChange({ ...supplierForm, name: event.target.value })
+                    }
+                    placeholder="Cairo Dairy"
+                    required
+                  />
+                </FieldLabel>
+                <FieldLabel label="Contact">
+                  <Input
+                    value={supplierForm.contact}
+                    onChange={(event) =>
+                      onFormChange({
+                        ...supplierForm,
+                        contact: event.target.value
+                      })
+                    }
+                    placeholder="Nour"
+                  />
+                </FieldLabel>
+              </div>
+              <div className="grid gap-4 md:grid-cols-2">
+                <FieldLabel label="Phone">
+                  <Input
+                    value={supplierForm.phone}
+                    onChange={(event) =>
+                      onFormChange({ ...supplierForm, phone: event.target.value })
+                    }
+                    placeholder="01000000000"
+                  />
+                </FieldLabel>
+                <FieldLabel label="Email">
+                  <Input
+                    type="email"
+                    value={supplierForm.email}
+                    onChange={(event) =>
+                      onFormChange({ ...supplierForm, email: event.target.value })
+                    }
+                    placeholder="orders@example.com"
+                  />
+                </FieldLabel>
+              </div>
+              <div className="grid gap-4 md:grid-cols-2">
+                <FieldLabel label="Tax ID">
+                  <Input
+                    value={supplierForm.taxId}
+                    onChange={(event) =>
+                      onFormChange({ ...supplierForm, taxId: event.target.value })
+                    }
+                    placeholder="Optional"
+                  />
+                </FieldLabel>
+                <FieldLabel label="Status">
+                  <select
+                    value={supplierForm.status}
+                    onChange={(event) =>
+                      onFormChange({
+                        ...supplierForm,
+                        status: event.target.value as SupplierStatus
+                      })
+                    }
+                    className={selectClassName}
+                  >
+                    {supplierStatuses.map((status) => (
+                      <option key={status} value={status}>
+                        {humanizeInventoryValue(status)}
+                      </option>
+                    ))}
+                  </select>
+                </FieldLabel>
+              </div>
+              <FieldLabel label="Address">
+                <textarea
+                  value={supplierForm.address}
+                  onChange={(event) =>
+                    onFormChange({ ...supplierForm, address: event.target.value })
+                  }
+                  className={textareaClassName}
+                  placeholder="Delivery address or supplier address"
+                />
+              </FieldLabel>
+              <FieldLabel label="Notes">
+                <textarea
+                  value={supplierForm.notes}
+                  onChange={(event) =>
+                    onFormChange({ ...supplierForm, notes: event.target.value })
+                  }
+                  className={textareaClassName}
+                  placeholder="Payment terms, order days, contact notes"
+                />
+              </FieldLabel>
+              <div className="flex flex-wrap gap-3">
+                <Button type="submit" disabled={isSaving}>
+                  {isSaving ? (
+                    <Loader2 className="size-4 animate-spin" aria-hidden="true" />
+                  ) : (
+                    <Save className="size-4" aria-hidden="true" />
+                  )}
+                  {supplierForm.id ? "Save supplier" : "Create supplier"}
+                </Button>
+                {supplierForm.id ? (
+                  <Button type="button" variant="secondary" onClick={onReset}>
+                    Reset
+                  </Button>
+                ) : null}
+              </div>
+            </form>
+          ) : (
+            <div className="rounded-card border bg-muted/40 p-3 text-sm text-muted-foreground">
+              Supplier create/edit requires company-level inventory management.
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      <Card variant="glass">
+        <CardHeader>
+          <Badge variant="muted">Supplier directory</Badge>
+          <CardTitle>Suppliers</CardTitle>
+          <CardDescription>
+            Branch purchase orders can use active suppliers from this company.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="grid gap-3">
+          {suppliers.map((supplier) => (
+            <div
+              key={supplier.id}
+              className="grid gap-3 rounded-card border bg-surface/70 p-4 md:grid-cols-[1fr_auto]"
+            >
+              <div>
+                <div className="flex flex-wrap items-center gap-2">
+                  <p className="font-semibold text-foreground">{supplier.name}</p>
+                  <Badge
+                    variant={supplier.status === "active" ? "success" : "muted"}
+                  >
+                    {humanizeInventoryValue(supplier.status)}
+                  </Badge>
+                </div>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  {supplier.contact ?? "No contact"} /{" "}
+                  {supplier.phone ?? "No phone"} /{" "}
+                  {supplier.email ?? "No email"}
+                </p>
+                {supplier.notes ? (
+                  <p className="mt-2 rounded-button border bg-muted/40 px-3 py-2 text-sm text-muted-foreground">
+                    {supplier.notes}
+                  </p>
+                ) : null}
+              </div>
+              {canManageCompanyInventory ? (
+                <Button
+                  type="button"
+                  variant="secondary"
+                  size="sm"
+                  onClick={() => onEdit(toSupplierForm(supplier))}
+                >
+                  Edit
+                </Button>
+              ) : null}
+            </div>
+          ))}
+          {suppliers.length === 0 ? (
+            <EmptyState
+              title="No suppliers yet"
+              description="Create active suppliers before drafting purchase orders."
+            />
+          ) : null}
+        </CardContent>
+      </Card>
+    </section>
+  );
+}
+
+function PurchaseOrdersSection({
+  canManageBranchStock,
+  purchaseOrderForm,
+  lineForm,
+  suppliers,
+  purchaseOrders,
+  selectedPurchaseOrder,
+  selectedPurchaseOrderId,
+  inventoryItems,
+  isSavingOrder,
+  isSavingLine,
+  isTransitioning,
+  onOrderFormChange,
+  onLineFormChange,
+  onSubmitOrderForm,
+  onSubmitLineForm,
+  onSelectOrder,
+  onEditOrder,
+  onEditLine,
+  onRemoveLine,
+  onSubmitPurchaseOrder,
+  onCancelPurchaseOrder,
+  onResetOrder,
+  onResetLine
+}: {
+  canManageBranchStock: boolean;
+  purchaseOrderForm: PurchaseOrderFormState;
+  lineForm: PurchaseOrderLineFormState;
+  suppliers: Supplier[];
+  purchaseOrders: PurchaseOrder[];
+  selectedPurchaseOrder?: PurchaseOrder;
+  selectedPurchaseOrderId: string;
+  inventoryItems: InventoryItem[];
+  isSavingOrder: boolean;
+  isSavingLine: boolean;
+  isTransitioning: boolean;
+  onOrderFormChange: (form: PurchaseOrderFormState) => void;
+  onLineFormChange: (form: PurchaseOrderLineFormState) => void;
+  onSubmitOrderForm: (event: FormEvent<HTMLFormElement>) => void;
+  onSubmitLineForm: (event: FormEvent<HTMLFormElement>) => void;
+  onSelectOrder: (order: PurchaseOrder) => void;
+  onEditOrder: (order: PurchaseOrder) => void;
+  onEditLine: (line: PurchaseOrderLine) => void;
+  onRemoveLine: (line: PurchaseOrderLine) => void;
+  onSubmitPurchaseOrder: (order: PurchaseOrder) => void;
+  onCancelPurchaseOrder: (order: PurchaseOrder) => void;
+  onResetOrder: () => void;
+  onResetLine: () => void;
+}) {
+  const selectedIsDraft = selectedPurchaseOrder?.status === "draft";
+  const linePurchaseOrderId = lineForm.purchaseOrderId || selectedPurchaseOrderId;
+
+  return (
+    <section className="grid gap-4 xl:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)]">
+      <div className="grid gap-4">
+        <Card variant="quiet">
+          <CardHeader>
+            <Badge variant="muted">Purchase order</Badge>
+            <CardTitle>
+              {purchaseOrderForm.id ? "Edit draft PO" : "Create draft PO"}
+            </CardTitle>
+            <CardDescription>
+              Draft and submitted purchase orders do not change stock.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            {canManageBranchStock ? (
+              <form onSubmit={onSubmitOrderForm} className="grid gap-4">
+                <div className="grid gap-4 md:grid-cols-2">
+                  <FieldLabel label="Supplier">
+                    <select
+                      value={purchaseOrderForm.supplierId}
+                      onChange={(event) =>
+                        onOrderFormChange({
+                          ...purchaseOrderForm,
+                          supplierId: event.target.value
+                        })
+                      }
+                      className={selectClassName}
+                      required
+                    >
+                      <option value="">Choose active supplier</option>
+                      {suppliers.map((supplier) => (
+                        <option key={supplier.id} value={supplier.id}>
+                          {supplier.name}
+                        </option>
+                      ))}
+                    </select>
+                  </FieldLabel>
+                  <FieldLabel label="Expected date">
+                    <Input
+                      type="date"
+                      value={purchaseOrderForm.expectedAt}
+                      onChange={(event) =>
+                        onOrderFormChange({
+                          ...purchaseOrderForm,
+                          expectedAt: event.target.value
+                        })
+                      }
+                    />
+                  </FieldLabel>
+                </div>
+                <div className="grid gap-4 md:grid-cols-[9rem_1fr]">
+                  <FieldLabel label="Currency">
+                    <Input
+                      value={purchaseOrderForm.currency}
+                      onChange={(event) =>
+                        onOrderFormChange({
+                          ...purchaseOrderForm,
+                          currency: event.target.value
+                        })
+                      }
+                      maxLength={8}
+                    />
+                  </FieldLabel>
+                  <FieldLabel label="Notes">
+                    <Input
+                      value={purchaseOrderForm.notes}
+                      onChange={(event) =>
+                        onOrderFormChange({
+                          ...purchaseOrderForm,
+                          notes: event.target.value
+                        })
+                      }
+                      placeholder="Delivery window or supplier reference"
+                    />
+                  </FieldLabel>
+                </div>
+                <div className="flex flex-wrap gap-3">
+                  <Button type="submit" disabled={isSavingOrder}>
+                    {isSavingOrder ? (
+                      <Loader2
+                        className="size-4 animate-spin"
+                        aria-hidden="true"
+                      />
+                    ) : (
+                      <FilePlus2 className="size-4" aria-hidden="true" />
+                    )}
+                    {purchaseOrderForm.id ? "Save PO" : "Create PO"}
+                  </Button>
+                  {purchaseOrderForm.id ? (
+                    <Button type="button" variant="secondary" onClick={onResetOrder}>
+                      Reset
+                    </Button>
+                  ) : null}
+                </div>
+              </form>
+            ) : (
+              <div className="rounded-card border bg-muted/40 p-3 text-sm text-muted-foreground">
+                Purchase order creation requires branch-level inventory
+                management.
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        <Card variant="glass">
+          <CardHeader>
+            <Badge variant="muted">Draft line</Badge>
+            <CardTitle>{lineForm.id ? "Edit line" : "Add line"}</CardTitle>
+            <CardDescription>
+              Lines can only be changed while the purchase order is draft.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            {canManageBranchStock && selectedIsDraft ? (
+              <form onSubmit={onSubmitLineForm} className="grid gap-4">
+                <input type="hidden" value={linePurchaseOrderId} readOnly />
+                <div className="grid gap-4 md:grid-cols-[1fr_8rem_9rem]">
+                  <FieldLabel label="Stock item">
+                    <select
+                      value={lineForm.inventoryItemId}
+                      onChange={(event) =>
+                        onLineFormChange({
+                          ...lineForm,
+                          purchaseOrderId: linePurchaseOrderId,
+                          inventoryItemId: event.target.value
+                        })
+                      }
+                      className={selectClassName}
+                      disabled={Boolean(lineForm.id)}
+                      required
+                    >
+                      <option value="">Choose stock item</option>
+                      {inventoryItems
+                        .filter((item) => item.status !== "archived")
+                        .map((item) => (
+                          <option key={item.id} value={item.id}>
+                            {item.name} ({humanizeInventoryValue(item.unit)})
+                          </option>
+                        ))}
+                    </select>
+                  </FieldLabel>
+                  <FieldLabel label="Quantity">
+                    <Input
+                      type="number"
+                      min="1"
+                      step="1"
+                      value={lineForm.quantityOrdered}
+                      onChange={(event) =>
+                        onLineFormChange({
+                          ...lineForm,
+                          quantityOrdered: event.target.value
+                        })
+                      }
+                      required
+                    />
+                  </FieldLabel>
+                  <FieldLabel label="Unit cost EGP">
+                    <Input
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      value={lineForm.unitCostEgp}
+                      onChange={(event) =>
+                        onLineFormChange({
+                          ...lineForm,
+                          unitCostEgp: event.target.value
+                        })
+                      }
+                      required
+                    />
+                  </FieldLabel>
+                </div>
+                <FieldLabel label="Notes">
+                  <Input
+                    value={lineForm.notes}
+                    onChange={(event) =>
+                      onLineFormChange({ ...lineForm, notes: event.target.value })
+                    }
+                    placeholder="Pack size, brand, delivery note"
+                  />
+                </FieldLabel>
+                <div className="flex flex-wrap gap-3">
+                  <Button type="submit" disabled={isSavingLine}>
+                    {isSavingLine ? (
+                      <Loader2
+                        className="size-4 animate-spin"
+                        aria-hidden="true"
+                      />
+                    ) : (
+                      <Save className="size-4" aria-hidden="true" />
+                    )}
+                    {lineForm.id ? "Save line" : "Add line"}
+                  </Button>
+                  {lineForm.id ? (
+                    <Button type="button" variant="secondary" onClick={onResetLine}>
+                      Reset
+                    </Button>
+                  ) : null}
+                </div>
+              </form>
+            ) : (
+              <div className="rounded-card border bg-muted/40 p-3 text-sm text-muted-foreground">
+                Choose a draft purchase order to add or edit lines.
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      </div>
+
+      <div className="grid gap-4">
+        <Card variant="glass">
+          <CardHeader>
+            <Badge variant="muted">Selected PO</Badge>
+            <CardTitle>
+              {selectedPurchaseOrder?.orderNumber ?? "No purchase order selected"}
+            </CardTitle>
+            <CardDescription>
+              Submit when the draft is ready. Receiving happens in the Receiving
+              tab.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="grid gap-3">
+            {selectedPurchaseOrder ? (
+              <>
+                <div className="grid gap-3 rounded-card border bg-surface/70 p-4 md:grid-cols-[1fr_auto]">
+                  <div>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <p className="font-semibold">
+                        {selectedPurchaseOrder.supplier.name}
+                      </p>
+                      <Badge
+                        variant={purchaseOrderStatusVariant(
+                          selectedPurchaseOrder.status
+                        )}
+                      >
+                        {humanizeInventoryValue(selectedPurchaseOrder.status)}
+                      </Badge>
+                    </div>
+                    <p className="mt-1 text-sm text-muted-foreground">
+                      Expected{" "}
+                      {selectedPurchaseOrder.expectedAt
+                        ? new Date(
+                            selectedPurchaseOrder.expectedAt
+                          ).toLocaleDateString()
+                        : "not set"}{" "}
+                      / Estimate{" "}
+                      {formatMinor(
+                        purchaseOrderEstimatedValue(selectedPurchaseOrder),
+                        selectedPurchaseOrder.currency
+                      )}{" "}
+                      / Received{" "}
+                      {formatMinor(
+                        purchaseOrderReceivedValue(selectedPurchaseOrder),
+                        selectedPurchaseOrder.currency
+                      )}
+                    </p>
+                    {selectedPurchaseOrder.notes ? (
+                      <p className="mt-2 rounded-button border bg-muted/40 px-3 py-2 text-sm text-muted-foreground">
+                        {selectedPurchaseOrder.notes}
+                      </p>
+                    ) : null}
+                  </div>
+                  <div className="flex flex-wrap gap-2 md:justify-end">
+                    {selectedPurchaseOrder.status === "draft" ? (
+                      <>
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="secondary"
+                          onClick={() => onEditOrder(selectedPurchaseOrder)}
+                        >
+                          Edit
+                        </Button>
+                        <Button
+                          type="button"
+                          size="sm"
+                          disabled={
+                            selectedPurchaseOrder.lines.length === 0 ||
+                            isTransitioning
+                          }
+                          onClick={() =>
+                            onSubmitPurchaseOrder(selectedPurchaseOrder)
+                          }
+                        >
+                          <Send className="size-3.5" aria-hidden="true" />
+                          Submit
+                        </Button>
+                      </>
+                    ) : null}
+                    {selectedPurchaseOrder.status !== "received" &&
+                    selectedPurchaseOrder.status !== "cancelled" ? (
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="secondary"
+                        disabled={isTransitioning}
+                        onClick={() => onCancelPurchaseOrder(selectedPurchaseOrder)}
+                      >
+                        Cancel
+                      </Button>
+                    ) : null}
+                  </div>
+                </div>
+
+                {selectedPurchaseOrder.lines.map((line) => (
+                  <div
+                    key={line.id}
+                    className="grid gap-3 rounded-card border bg-surface/70 p-4 md:grid-cols-[1fr_auto]"
+                  >
+                    <div>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <p className="font-semibold text-foreground">
+                          {line.inventoryItem.name}
+                        </p>
+                        <Badge variant="muted">
+                          {humanizeInventoryValue(line.inventoryItem.unit)}
+                        </Badge>
+                      </div>
+                      <p className="mt-1 text-sm text-muted-foreground">
+                        Ordered {line.quantityOrdered} / Received{" "}
+                        {line.quantityReceived} / Remaining{" "}
+                        {purchaseOrderLineRemaining(line)} / Unit{" "}
+                        {formatMinor(
+                          line.unitCostMinor,
+                          selectedPurchaseOrder.currency
+                        )}
+                      </p>
+                      {line.notes ? (
+                        <p className="mt-2 text-sm text-muted-foreground">
+                          {line.notes}
+                        </p>
+                      ) : null}
+                    </div>
+                    {selectedPurchaseOrder.status === "draft" &&
+                    canManageBranchStock ? (
+                      <div className="flex flex-wrap gap-2 md:justify-end">
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="secondary"
+                          onClick={() => onEditLine(line)}
+                        >
+                          Edit
+                        </Button>
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="secondary"
+                          disabled={isSavingLine}
+                          onClick={() => onRemoveLine(line)}
+                        >
+                          <Trash2 className="size-3.5" aria-hidden="true" />
+                          Remove
+                        </Button>
+                      </div>
+                    ) : null}
+                  </div>
+                ))}
+                {selectedPurchaseOrder.lines.length === 0 ? (
+                  <EmptyState
+                    title="No PO lines"
+                    description="Add at least one stock item before submitting."
+                  />
+                ) : null}
+              </>
+            ) : (
+              <EmptyState
+                title="No purchase orders yet"
+                description="Create a draft purchase order to start supplier purchasing."
+              />
+            )}
+          </CardContent>
+        </Card>
+
+        <Card variant="quiet">
+          <CardHeader>
+            <Badge variant="muted">PO list</Badge>
+            <CardTitle>Purchase orders</CardTitle>
+          </CardHeader>
+          <CardContent className="grid gap-3">
+            {purchaseOrders.map((order) => (
+              <button
+                key={order.id}
+                type="button"
+                onClick={() => onSelectOrder(order)}
+                className={`grid gap-2 rounded-card border p-4 text-left transition hover:border-primary/60 ${
+                  selectedPurchaseOrderId === order.id
+                    ? "border-primary bg-primary/10"
+                    : "bg-surface/70"
+                }`}
+              >
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <span className="font-semibold">{order.orderNumber}</span>
+                  <Badge variant={purchaseOrderStatusVariant(order.status)}>
+                    {humanizeInventoryValue(order.status)}
+                  </Badge>
+                </div>
+                <span className="text-sm text-muted-foreground">
+                  {order.supplier.name} / {order.lines.length} line
+                  {order.lines.length === 1 ? "" : "s"} /{" "}
+                  {formatMinor(purchaseOrderEstimatedValue(order), order.currency)}
+                </span>
+              </button>
+            ))}
+            {purchaseOrders.length === 0 ? (
+              <EmptyState
+                title="No purchase orders"
+                description="Draft a purchase order after creating suppliers and stock items."
+              />
+            ) : null}
+          </CardContent>
+        </Card>
+      </div>
+    </section>
+  );
+}
+
+function ReceivingSection({
+  canManageBranchStock,
+  purchaseOrders,
+  selectedPurchaseOrder,
+  activePurchaseOrderId,
+  receivingForm,
+  receipts,
+  isSaving,
+  onPurchaseOrderChange,
+  onFormChange,
+  onSubmit
+}: {
+  canManageBranchStock: boolean;
+  purchaseOrders: PurchaseOrder[];
+  selectedPurchaseOrder?: PurchaseOrder;
+  activePurchaseOrderId: string;
+  receivingForm: ReceivingFormState;
+  receipts: InventoryReceipt[];
+  isSaving: boolean;
+  onPurchaseOrderChange: (purchaseOrderId: string) => void;
+  onFormChange: (form: ReceivingFormState) => void;
+  onSubmit: (event: FormEvent<HTMLFormElement>) => void;
+}) {
+  const remainingLines =
+    selectedPurchaseOrder?.lines.filter(
+      (line) => purchaseOrderLineRemaining(line) > 0
+    ) ?? [];
+
+  return (
+    <section className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
+      <Card variant="glass">
+        <CardHeader>
+          <Badge variant="warning">Stock-in from PO</Badge>
+          <CardTitle>Receive purchase order</CardTitle>
+          <CardDescription>
+            Receiving creates a receipt, stock-in movements, and updates PO
+            received quantities in one transaction.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          {canManageBranchStock ? (
+            <form onSubmit={onSubmit} className="grid gap-4">
+              <FieldLabel label="Purchase order">
+                <select
+                  value={activePurchaseOrderId}
+                  onChange={(event) => onPurchaseOrderChange(event.target.value)}
+                  className={selectClassName}
+                  required
+                >
+                  <option value="">Choose submitted or partial PO</option>
+                  {purchaseOrders.map((order) => (
+                    <option key={order.id} value={order.id}>
+                      {order.orderNumber} / {order.supplier.name} /{" "}
+                      {humanizeInventoryValue(order.status)}
+                    </option>
+                  ))}
+                </select>
+              </FieldLabel>
+              <div className="grid gap-4 md:grid-cols-[12rem_1fr]">
+                <FieldLabel label="Received date">
+                  <Input
+                    type="date"
+                    value={receivingForm.receivedAt}
+                    onChange={(event) =>
+                      onFormChange({
+                        ...receivingForm,
+                        purchaseOrderId: activePurchaseOrderId,
+                        receivedAt: event.target.value
+                      })
+                    }
+                  />
+                </FieldLabel>
+                <FieldLabel label="Receipt note">
+                  <Input
+                    value={receivingForm.notes}
+                    onChange={(event) =>
+                      onFormChange({
+                        ...receivingForm,
+                        purchaseOrderId: activePurchaseOrderId,
+                        notes: event.target.value
+                      })
+                    }
+                    placeholder="Delivery note or supplier reference"
+                  />
+                </FieldLabel>
+              </div>
+
+              <div className="grid gap-3">
+                {remainingLines.map((line) => (
+                  <div
+                    key={line.id}
+                    className="grid gap-3 rounded-card border bg-surface/70 p-4 md:grid-cols-[1fr_8rem_9rem]"
+                  >
+                    <div>
+                      <p className="font-semibold text-foreground">
+                        {line.inventoryItem.name}
+                      </p>
+                      <p className="mt-1 text-sm text-muted-foreground">
+                        Ordered {line.quantityOrdered} / Received{" "}
+                        {line.quantityReceived} / Remaining{" "}
+                        {purchaseOrderLineRemaining(line)}{" "}
+                        {humanizeInventoryValue(line.inventoryItem.unit)}
+                      </p>
+                    </div>
+                    <FieldLabel label="Receive">
+                      <Input
+                        type="number"
+                        min="0"
+                        max={purchaseOrderLineRemaining(line)}
+                        step="1"
+                        value={receivingForm.quantitiesByLineId[line.id] ?? ""}
+                        onChange={(event) =>
+                          onFormChange({
+                            ...receivingForm,
+                            purchaseOrderId: activePurchaseOrderId,
+                            quantitiesByLineId: {
+                              ...receivingForm.quantitiesByLineId,
+                              [line.id]: event.target.value
+                            }
+                          })
+                        }
+                        placeholder="0"
+                      />
+                    </FieldLabel>
+                    <FieldLabel label="Unit cost EGP">
+                      <Input
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        value={receivingForm.unitCostByLineId[line.id] ?? ""}
+                        onChange={(event) =>
+                          onFormChange({
+                            ...receivingForm,
+                            purchaseOrderId: activePurchaseOrderId,
+                            unitCostByLineId: {
+                              ...receivingForm.unitCostByLineId,
+                              [line.id]: event.target.value
+                            }
+                          })
+                        }
+                        placeholder={minorToMoneyInput(line.unitCostMinor)}
+                      />
+                    </FieldLabel>
+                  </div>
+                ))}
+                {selectedPurchaseOrder && remainingLines.length === 0 ? (
+                  <EmptyState
+                    title="No remaining quantities"
+                    description="This purchase order has no receivable lines left."
+                  />
+                ) : null}
+                {!selectedPurchaseOrder ? (
+                  <EmptyState
+                    title="No receivable purchase order selected"
+                    description="Submit a purchase order before receiving stock."
+                  />
+                ) : null}
+              </div>
+
+              <Button
+                type="submit"
+                disabled={isSaving || !selectedPurchaseOrder || remainingLines.length === 0}
+                className="w-fit"
+              >
+                {isSaving ? (
+                  <Loader2 className="size-4 animate-spin" aria-hidden="true" />
+                ) : (
+                  <ReceiptText className="size-4" aria-hidden="true" />
+                )}
+                Confirm receipt
+              </Button>
+            </form>
+          ) : (
+            <div className="rounded-card border bg-muted/40 p-3 text-sm text-muted-foreground">
+              Receiving purchase orders requires branch-level inventory
+              management.
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      <Card variant="quiet">
+        <CardHeader>
+          <Badge variant="muted">Receipt history</Badge>
+          <CardTitle>Recent receipts</CardTitle>
+          <CardDescription>
+            Receipts show the source PO and the stock items received.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="grid gap-3">
+          {receipts.map((receipt) => (
+            <div
+              key={receipt.id}
+              className="rounded-card border bg-surface/70 p-4"
+            >
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <p className="font-semibold text-foreground">
+                  {receipt.receiptNumber}
+                </p>
+                <Badge variant="success">
+                  {new Date(receipt.receivedAt).toLocaleDateString()}
+                </Badge>
+              </div>
+              <p className="mt-1 text-sm text-muted-foreground">
+                {receipt.supplier?.name ?? "Supplier not recorded"} /{" "}
+                {receipt.lines.length} line{receipt.lines.length === 1 ? "" : "s"}
+              </p>
+              <div className="mt-3 grid gap-2">
+                {receipt.lines.map((line) => (
+                  <p
+                    key={line.id}
+                    className="rounded-button border bg-muted/40 px-3 py-2 text-sm text-muted-foreground"
+                  >
+                    {line.inventoryItem.name}: {line.quantityReceived}{" "}
+                    {humanizeInventoryValue(line.inventoryItem.unit)}
+                    {line.unitCostMinor !== null &&
+                    line.unitCostMinor !== undefined
+                      ? ` / ${formatMinor(line.unitCostMinor)}`
+                      : ""}
+                  </p>
+                ))}
+              </div>
+              {receipt.notes ? (
+                <p className="mt-3 text-sm text-muted-foreground">
+                  {receipt.notes}
+                </p>
+              ) : null}
+            </div>
+          ))}
+          {receipts.length === 0 ? (
+            <EmptyState
+              title="No receipts yet"
+              description="Confirmed receiving will appear here and in recent movements."
+            />
+          ) : null}
+        </CardContent>
+      </Card>
+    </section>
   );
 }
 
