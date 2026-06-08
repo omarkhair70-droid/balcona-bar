@@ -86,6 +86,7 @@ Test-Url -Label "Platform company creation page" -Url "$webBase/platform/compani
 Test-Url -Label "Staff login" -Url "$webBase/staff/login"
 Test-Url -Label "Staff setup" -Url "$webBase/staff/setup"
 Test-Url -Label "Staff menu admin" -Url "$webBase/staff/menu"
+Test-Url -Label "Staff inventory" -Url "$webBase/staff/inventory"
 Test-Url -Label "Staff branch and QR management" -Url "$webBase/staff/branches"
 Test-Url -Label "Staff billing" -Url "$webBase/staff/billing"
 Test-Url -Label "Demo customer table" -Url "$webBase/customer/table/balcona-main-t01"

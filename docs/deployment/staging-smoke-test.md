@@ -72,19 +72,39 @@ tunnel restarts.
     availability, optional price override, and sort order.
 23. Open a customer QR/session for the same branch and confirm menu
     visibility, availability, and displayed price match the branch override.
-24. Log in as a lower-privilege branch role such as cashier, waiter, or kitchen
+24. Open `/staff/inventory` as an owner, `menu_admin`, or branch manager and
+    confirm Overview, Items, Stock levels, Alerts, Adjustments, Requirements,
+    Menu availability, and Recent movements tabs load.
+25. Create an inventory item with name, SKU, unit, low-stock threshold, and par
+    level. Edit the supported fields: name, SKU, status, low-stock threshold,
+    and par level. Unit should remain fixed after creation.
+26. Record an opening balance, then record `stock_in`. Record `stock_out` or
+    `waste` with a note and confirmation.
+27. Confirm low-stock or out-of-stock alerts appear when stock falls below the
+    configured threshold, and confirm restock suggestion uses par level minus
+    quantity on hand.
+28. Add a stock requirement to an existing menu item, confirm the expected stock
+    impact text, then verify menu availability by stock updates.
+29. Confirm the recent movement appears with movement type, quantity delta,
+    quantity after, source, note, timestamp, and staff reference when available.
+30. Open a customer QR/session for the same branch and confirm the menu still
+    loads; inventory-linked items should be blocked when stock is insufficient
+    if staging data is configured that way.
+31. Log in as a lower-privilege branch role such as cashier, waiter, or kitchen
     and confirm category, item, modifier, and branch override edits are not
-    available unless that role has the matching menu permissions.
-25. Open `/staff/branches`, copy a customer QR URL, open it in a new tab, and
+    available unless that role has the matching menu permissions. Also confirm
+    inventory stock adjustments are unavailable unless `inventory.manage` is
+    granted.
+32. Open `/staff/branches`, copy a customer QR URL, open it in a new tab, and
     confirm a visible scannable QR image appears for a table with a token.
-26. Scan the QR with a phone camera and confirm it opens the customer
+33. Scan the QR with a phone camera and confirm it opens the customer
     `/customer/table/<qrToken>` route and starts or resumes a table session.
-27. Regenerate one non-demo table QR token with confirmation. Confirm the token
+34. Regenerate one non-demo table QR token with confirmation. Confirm the token
     changes, the old `/customer/table/<oldToken>` no longer opens, and the new
     QR image scans/opens `/customer/table/<newToken>` correctly.
-28. Log in as a lower-privilege branch staff role such as cashier or waiter and
+35. Log in as a lower-privilege branch staff role such as cashier or waiter and
     confirm QR regeneration is not available.
-29. Open `/staff/billing` and confirm the staff routes load without
+36. Open `/staff/billing` and confirm the staff routes load without
     `[object Object]` errors.
 
 Menu media upload and storage are not part of this smoke. Menu Admin accepts an
@@ -121,6 +141,7 @@ This verifies:
 - staff login: `/staff/login`
 - setup page: `/staff/setup`
 - menu admin: `/staff/menu`
+- inventory: `/staff/inventory`
 - branch/table QR management: `/staff/branches`
 - billing page: `/staff/billing`
 - customer QR route: `/customer/table/balcona-main-t01`
@@ -162,24 +183,43 @@ This verifies:
     optional price override, and sort order.
 20. Open a customer QR/session for the same branch and verify customer menu
     visibility, availability, and price reflect the saved override.
-21. Log in as a cashier, waiter, or kitchen user and confirm menu edit controls
-    are not available unless that user has matching menu permissions.
-22. Open `/staff/branches`, select the active branch, and confirm tables show
+21. Open `/staff/inventory` as an owner, `menu_admin`, or branch manager and
+    confirm the operational tabs load: Overview, Items, Stock levels, Alerts,
+    Adjustments, Requirements, Menu availability, and Recent movements.
+22. Create an inventory item with name, SKU, unit, low-stock threshold, and par
+    level. Edit the supported fields: name, SKU, status, low-stock threshold,
+    and par level. Unit should remain fixed after creation.
+23. Record an opening balance, then record `stock_in`. Record `stock_out` or
+    `waste` with a note and confirmation.
+24. Confirm low-stock or out-of-stock alerts appear when expected, and confirm
+    the restock suggestion uses par level minus quantity on hand.
+25. Add a requirement to an existing menu item and confirm the expected stock
+    impact text appears.
+26. Confirm Menu availability by stock updates, including missing requirements
+    and shortage quantities when stock is insufficient.
+27. Confirm the recent movement appears with movement type, item name, quantity
+    delta, quantity after, source, note, timestamp, and staff reference when
+    available.
+28. Log in as a cashier, waiter, or kitchen user and confirm menu edit controls
+    are not available unless that user has matching menu permissions. Also
+    confirm inventory stock adjustments are unavailable unless
+    `inventory.manage` is granted.
+29. Open `/staff/branches`, select the active branch, and confirm tables show
     floor/area, code, display name, capacity, status, QR token, customer URL,
     and a printable QR card with a visible scannable QR image.
-23. Copy a customer QR URL, open it, then scan the visible QR with a phone
+30. Copy a customer QR URL, open it, then scan the visible QR with a phone
     camera and confirm it opens the matching customer table/session URL.
-24. Regenerate a non-demo table QR token only after the confirmation prompt.
+31. Regenerate a non-demo table QR token only after the confirmation prompt.
     Confirm the old token no longer opens and the new QR image scans/opens the
     new customer table/session URL.
-25. Log in as a lower-privilege branch role such as cashier or waiter and
+32. Log in as a lower-privilege branch role such as cashier or waiter and
     confirm QR regeneration is unavailable.
-26. Open `/staff/billing` and confirm SaaS plan/status appears.
-27. Open `/customer/table/:qrToken` for the first returned QR example and
+33. Open `/staff/billing` and confirm SaaS plan/status appears.
+34. Open `/customer/table/:qrToken` for the first returned QR example and
     confirm a customer session can start.
-28. If seeded menu data is intentionally available in that staging cafe, submit
+35. If seeded menu data is intentionally available in that staging cafe, submit
     a basic customer order and confirm the cashier sees it.
-29. Confirm no visible page renders `[object Object]`.
+36. Confirm no visible page renders `[object Object]`.
 
 The smoke does not require a real payment gateway. Mock online payment should
 remain explicit and staging-only until a real provider is added.
