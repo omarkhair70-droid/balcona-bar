@@ -317,10 +317,13 @@ describe('InventoryService', () => {
         update: jest.fn().mockResolvedValue(level(10)),
       },
       purchaseOrderLine: {
-        update: jest.fn().mockResolvedValue({
-          ...submittedPurchaseOrder.lines[0],
-          quantityReceived: 4,
-        }),
+        updateMany: jest.fn().mockResolvedValue({ count: 1 }),
+        findMany: jest.fn().mockResolvedValue([
+          {
+            quantityOrdered: 10,
+            quantityReceived: 4,
+          },
+        ]),
       },
       inventoryReceiptLine: {
         create: jest.fn().mockResolvedValue(inventoryReceipt(4).lines[0]),
@@ -359,11 +362,22 @@ describe('InventoryService', () => {
         }),
       }),
     );
-    expect(tx.purchaseOrderLine.update).toHaveBeenCalledWith(
+    expect(tx.purchaseOrderLine.updateMany).toHaveBeenCalledWith(
       expect.objectContaining({
+        where: {
+          id: 'po-line-1',
+          quantityReceived: { lte: 6 },
+        },
         data: { quantityReceived: { increment: 4 } },
       }),
     );
+    expect(tx.purchaseOrderLine.findMany).toHaveBeenCalledWith({
+      where: { purchaseOrderId: 'po-1' },
+      select: {
+        quantityOrdered: true,
+        quantityReceived: true,
+      },
+    });
     expect(tx.branchInventoryLevel.update).toHaveBeenCalledWith(
       expect.objectContaining({
         data: { quantityOnHand: 10 },
@@ -385,6 +399,66 @@ describe('InventoryService', () => {
       PurchaseOrderStatus.partially_received,
     );
     expect(result.receipt?.receiptNumber).toBe('GR-0001');
+  });
+
+  it('blocks stale purchase order receiving when the guarded line update fails', async () => {
+    const tx = {
+      $executeRaw: jest.fn(),
+      purchaseOrder: {
+        findUnique: jest.fn().mockResolvedValue(purchaseOrder()),
+        update: jest.fn(),
+      },
+      branch: { findUnique: jest.fn().mockResolvedValue(branch) },
+      inventoryReceipt: {
+        count: jest.fn().mockResolvedValue(0),
+        create: jest.fn().mockResolvedValue({ id: 'receipt-1' }),
+        findUnique: jest.fn(),
+      },
+      purchaseOrderLine: {
+        updateMany: jest.fn().mockResolvedValue({ count: 0 }),
+        findMany: jest.fn(),
+      },
+      branchInventoryLevel: {
+        findUnique: jest.fn(),
+        update: jest.fn(),
+        create: jest.fn(),
+      },
+      inventoryReceiptLine: {
+        create: jest.fn(),
+      },
+      inventoryMovement: {
+        create: jest.fn(),
+      },
+    };
+    const { service } = serviceWithTransaction(tx);
+
+    await expect(
+      service.receivePurchaseOrder(
+        'po-1',
+        {
+          lines: [
+            {
+              purchaseOrderLineId: 'po-line-1',
+              quantityReceived: 4,
+            },
+          ],
+        },
+        'staff-1',
+      ),
+    ).rejects.toThrow('Milk was already received or cannot be over-received');
+    expect(tx.purchaseOrderLine.updateMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: {
+          id: 'po-line-1',
+          quantityReceived: { lte: 6 },
+        },
+        data: { quantityReceived: { increment: 4 } },
+      }),
+    );
+    expect(tx.branchInventoryLevel.findUnique).not.toHaveBeenCalled();
+    expect(tx.inventoryReceiptLine.create).not.toHaveBeenCalled();
+    expect(tx.inventoryMovement.create).not.toHaveBeenCalled();
+    expect(tx.purchaseOrder.update).not.toHaveBeenCalled();
   });
 
   it('blocks over-receiving a purchase order line before changing stock', async () => {

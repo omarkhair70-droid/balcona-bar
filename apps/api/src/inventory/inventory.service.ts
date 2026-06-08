@@ -1099,13 +1099,27 @@ export class InventoryService {
         },
         select: { id: true },
       });
-      const receivedByLineId = new Map<string, number>();
       const movements: InventoryMovementRecord[] = [];
 
       for (const entry of receiptLines) {
         const line = entry.line;
         const quantityReceived = entry.quantityReceived;
         const unitCostMinor = entry.unitCostMinor ?? line.unitCostMinor;
+        const guardedLineUpdate = await tx.purchaseOrderLine.updateMany({
+          where: {
+            id: line.id,
+            quantityReceived: {
+              lte: line.quantityOrdered - quantityReceived,
+            },
+          },
+          data: { quantityReceived: { increment: quantityReceived } },
+        });
+
+        if (guardedLineUpdate.count === 0) {
+          throw new BadRequestException(
+            `${line.inventoryItem.name} was already received or cannot be over-received`,
+          );
+        }
 
         await this.lockInventoryLevel(branch.id, line.inventoryItemId, tx);
 
@@ -1143,10 +1157,6 @@ export class InventoryService {
           });
         }
 
-        await tx.purchaseOrderLine.update({
-          where: { id: line.id },
-          data: { quantityReceived: { increment: quantityReceived } },
-        });
         await tx.inventoryReceiptLine.create({
           data: {
             receiptId: receipt.id,
@@ -1179,19 +1189,16 @@ export class InventoryService {
             select: movementSelect,
           }),
         );
-
-        receivedByLineId.set(
-          line.id,
-          (receivedByLineId.get(line.id) ?? 0) + quantityReceived,
-        );
       }
 
-      const nextLines = purchaseOrder.lines.map((line) => ({
-        ...line,
-        quantityReceived:
-          line.quantityReceived + (receivedByLineId.get(line.id) ?? 0),
-      }));
-      const nextStatus = nextLines.every(
+      const freshLines = await tx.purchaseOrderLine.findMany({
+        where: { purchaseOrderId: purchaseOrder.id },
+        select: {
+          quantityOrdered: true,
+          quantityReceived: true,
+        },
+      });
+      const nextStatus = freshLines.every(
         (line) => line.quantityReceived >= line.quantityOrdered,
       )
         ? PurchaseOrderStatus.received
