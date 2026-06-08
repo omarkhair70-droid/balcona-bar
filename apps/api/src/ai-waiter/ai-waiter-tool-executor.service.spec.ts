@@ -198,6 +198,38 @@ describe("AiWaiterToolExecutorService", () => {
     });
   });
 
+  it("creates a normal waiter call for explicit call_waiter tool requests", async () => {
+    const { service, waiterCallsService } = createService();
+
+    const executed = await service.execute({
+      context,
+      customerMessage: "call a waiter",
+      providerResult: result({
+        metadata: { intent: "call_waiter" },
+        toolCalls: [
+          {
+            toolName: AiWaiterToolName.call_waiter,
+            status: AiWaiterToolCallStatus.pending,
+          },
+        ],
+      }),
+    });
+
+    expect(waiterCallsService.createForTableSession).toHaveBeenCalledWith(
+      "table-session-1",
+      {
+        type: WaiterCallType.call_waiter,
+        priority: 1,
+        message: "call a waiter",
+      },
+    );
+    expect(executed.toolCalls[0]).toMatchObject({
+      toolName: AiWaiterToolName.call_waiter,
+      status: AiWaiterToolCallStatus.succeeded,
+      output: { waiterCallId: "waiter-call-1", priority: 1 },
+    });
+  });
+
   it("skips waiter calls when an active call already exists", async () => {
     const { service, waiterCallsService } = createService();
 
@@ -232,6 +264,57 @@ describe("AiWaiterToolExecutorService", () => {
         reason: "active_waiter_call_exists",
         activeWaiterCallId: "waiter-call-active",
       },
+    });
+  });
+
+  it("skips vague call_waiter tool requests that are not explicit", async () => {
+    const { service, waiterCallsService } = createService();
+
+    const executed = await service.execute({
+      context,
+      customerMessage: "I have a question",
+      providerResult: result({
+        metadata: { intent: "call_waiter" },
+        toolCalls: [
+          {
+            toolName: AiWaiterToolName.call_waiter,
+            status: AiWaiterToolCallStatus.pending,
+          },
+        ],
+      }),
+    });
+
+    expect(waiterCallsService.createForTableSession).not.toHaveBeenCalled();
+    expect(executed.toolCalls[0]).toMatchObject({
+      toolName: AiWaiterToolName.call_waiter,
+      status: AiWaiterToolCallStatus.skipped,
+      output: { reason: "waiter_call_not_explicit" },
+    });
+  });
+
+  it("does not execute waiter calls for allergy or safety fallback", async () => {
+    const { service, waiterCallsService } = createService();
+
+    const executed = await service.execute({
+      context,
+      customerMessage: "I have a nut allergy",
+      providerResult: result({
+        kind: AiWaiterMessageKind.escalation,
+        metadata: { intent: "allergy_or_health" },
+        toolCalls: [
+          {
+            toolName: AiWaiterToolName.fallback_to_human,
+            status: AiWaiterToolCallStatus.succeeded,
+            output: { reason: "no_allergy_guarantee" },
+          },
+        ],
+      }),
+    });
+
+    expect(waiterCallsService.createForTableSession).not.toHaveBeenCalled();
+    expect(executed.toolCalls[0]).toMatchObject({
+      toolName: AiWaiterToolName.fallback_to_human,
+      status: AiWaiterToolCallStatus.succeeded,
     });
   });
 

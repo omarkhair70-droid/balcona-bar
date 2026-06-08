@@ -991,8 +991,8 @@ describe("GroqAiWaiterProviderService", () => {
 
     expect(result.kind).toBe(AiWaiterMessageKind.escalation);
     expect(result.toolCalls[0]).toMatchObject({
-      toolName: AiWaiterToolName.fallback_to_human,
-      status: AiWaiterToolCallStatus.succeeded,
+      toolName: AiWaiterToolName.call_waiter,
+      status: AiWaiterToolCallStatus.pending,
     });
   });
 
