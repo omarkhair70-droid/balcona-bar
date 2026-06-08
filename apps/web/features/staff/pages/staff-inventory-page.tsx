@@ -1620,8 +1620,7 @@ function StaffInventoryContent() {
   }
 
   return (
-    <StaffAuthGate requiredPermissions={["inventory.read"]} branchScoped>
-      <div className="grid gap-5">
+    <div className="grid gap-5">
         <Card variant="quiet">
           <CardHeader className="gap-4 md:flex md:flex-row md:items-start md:justify-between md:space-y-0">
             <div>
@@ -1905,8 +1904,7 @@ function StaffInventoryContent() {
             Refresh inventory
           </Button>
         </div>
-      </div>
-    </StaffAuthGate>
+    </div>
   );
 }
 
@@ -4034,7 +4032,9 @@ export function StaffInventoryPage() {
       title="Inventory"
       description="Branch stock levels, movement history, menu requirements, and computed stock availability for real cafe operations."
     >
-      <StaffInventoryContent />
+      <StaffAuthGate requiredPermissions={["inventory.read"]} branchScoped>
+        <StaffInventoryContent />
+      </StaffAuthGate>
     </StaffPageShell>
   );
 }
