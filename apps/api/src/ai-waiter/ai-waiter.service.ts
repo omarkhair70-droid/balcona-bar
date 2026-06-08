@@ -42,6 +42,7 @@ import { RejectCartProposalDto } from "./dto/reject-cart-proposal.dto";
 import { SendAiWaiterMessageDto } from "./dto/send-ai-waiter-message.dto";
 import { StartAiWaiterDto } from "./dto/start-ai-waiter.dto";
 import { AiWaiterProviderRegistry } from "./providers/ai-waiter-provider-registry.service";
+import { AiWaiterToolExecutorService } from "./ai-waiter-tool-executor.service";
 
 const DEFAULT_LANGUAGE = "ar-EG";
 const DEFAULT_MESSAGE_LIMIT = 50;
@@ -61,6 +62,7 @@ export class AiWaiterService {
     private readonly realtimeEventsService: RealtimeEventsService,
     private readonly tableAttentionService: TableAttentionService,
     private readonly saasService: SaasService,
+    private readonly toolExecutor: AiWaiterToolExecutorService,
   ) {}
 
   async start(sessionId: string, body: StartAiWaiterDto = {}) {
@@ -198,12 +200,17 @@ export class AiWaiterService {
       message: normalizedMessage,
       language,
     });
+    const executedProviderResult = await this.toolExecutor.execute({
+      context,
+      customerMessage: normalizedMessage,
+      providerResult,
+    });
 
     const persisted = await this.persistProviderResult({
       sessionId: session.id,
       context,
       language,
-      providerResult,
+      providerResult: executedProviderResult,
       inputTokens: customerInputTokens,
     });
 
@@ -211,7 +218,7 @@ export class AiWaiterService {
       session: persisted.session,
       customerMessage,
       assistantMessage: persisted.assistantMessage,
-      suggestedActions: providerResult.suggestedActions,
+      suggestedActions: executedProviderResult.suggestedActions,
       cartProposal: persisted.cartProposal,
     };
   }

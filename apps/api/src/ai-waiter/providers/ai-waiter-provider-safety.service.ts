@@ -55,6 +55,28 @@ const ALLERGY_GUARANTEE_WORDS = [
   "آمن تماما",
   "امن تماما",
 ];
+const EXPLICIT_WAITER_REQUEST_WORDS = [
+  "waiter",
+  "call a waiter",
+  "call staff",
+  "call someone",
+  "human",
+  "staff",
+  "server",
+  "speak to someone",
+  "talk to staff",
+  "manager",
+  "ويتر",
+  "جرسون",
+  "ستاف",
+  "نادي",
+  "ناديلي",
+  "ناديل",
+  "اكلم",
+  "أكلم",
+  "كلم",
+  "حد من",
+];
 
 @Injectable()
 export class AiWaiterProviderSafetyService {
@@ -93,7 +115,31 @@ export class AiWaiterProviderSafetyService {
       });
     }
 
-    if (validatedPlan.intent === "call_waiter" || validatedPlan.safety.requiresHumanFallback) {
+    if (
+      validatedPlan.intent === "call_waiter" &&
+      this.isExplicitWaiterRequest(validatedPlan)
+    ) {
+      return this.textResult(validatedPlan, {
+        kind: AiWaiterMessageKind.escalation,
+        suggestedActions: ["escalate_to_waiter"],
+        toolCalls: [
+          {
+            toolName: AiWaiterToolName.call_waiter,
+            status: AiWaiterToolCallStatus.pending,
+            input: {
+              reason:
+                validatedPlan.safety.reason ?? "customer_requested_waiter",
+            },
+          },
+        ],
+        metadata,
+      });
+    }
+
+    if (
+      validatedPlan.intent === "call_waiter" ||
+      validatedPlan.safety.requiresHumanFallback
+    ) {
       return this.textResult(validatedPlan, {
         kind: AiWaiterMessageKind.escalation,
         suggestedActions: ["escalate_to_waiter"],
@@ -101,7 +147,10 @@ export class AiWaiterProviderSafetyService {
           {
             toolName: AiWaiterToolName.fallback_to_human,
             status: AiWaiterToolCallStatus.succeeded,
-            output: { reason: validatedPlan.safety.reason ?? "customer_requested_human" },
+            output: {
+              reason:
+                validatedPlan.safety.reason ?? "customer_requested_human",
+            },
           },
         ],
         metadata,
@@ -510,6 +559,14 @@ export class AiWaiterProviderSafetyService {
     return context.menuItems.find((item) => item.id === menuItemId);
   }
 
+  private isExplicitWaiterRequest(plan: GroqAiWaiterPlan) {
+    const message = plan.customerMessage.toLocaleLowerCase("ar-EG");
+
+    return EXPLICIT_WAITER_REQUEST_WORDS.some((word) =>
+      message.includes(word.toLocaleLowerCase("ar-EG")),
+    );
+  }
+
   private hasUnsafePriceOrPaymentPromise(json: string) {
     return (
       UNSAFE_PRICE_OR_PAYMENT_WORDS.some((word) => json.includes(word)) ||
@@ -578,6 +635,9 @@ export class AiWaiterProviderSafetyService {
       "recommendation",
       "specific_item_request",
       "cart_proposal",
+      "cart_refinement",
+      "place_experience_question",
+      "service_problem",
       "modifier_question",
       "request_bill",
       "call_waiter",

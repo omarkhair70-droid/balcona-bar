@@ -1,4 +1,8 @@
-import { AiWaiterMessageKind, AiWaiterToolCallStatus } from "@prisma/client";
+import {
+  AiWaiterMessageKind,
+  AiWaiterToolCallStatus,
+  AiWaiterToolName,
+} from "@prisma/client";
 import { AiWaiterContext } from "../ai-waiter.types";
 import { AiWaiterProviderSafetyService } from "./ai-waiter-provider-safety.service";
 import { GroqAiWaiterPlan } from "./groq-ai-waiter.types";
@@ -179,6 +183,10 @@ describe("AiWaiterProviderSafetyService", () => {
 
     expect(result.kind).toBe(AiWaiterMessageKind.escalation);
     expect(result.suggestedActions).toContain("escalate_to_waiter");
+    expect(result.toolCalls[0]).toMatchObject({
+      toolName: AiWaiterToolName.fallback_to_human,
+      status: AiWaiterToolCallStatus.succeeded,
+    });
     expect(result.metadata?.safetyFlags).toContain("no_allergy_guarantee");
   });
 
@@ -319,21 +327,66 @@ describe("AiWaiterProviderSafetyService", () => {
     expect(result.proposal).toBeUndefined();
   });
 
-  it("maps bill and waiter intents to safe action results", () => {
+  it("maps bill and explicit waiter intents to safe action results", () => {
     const billResult = service.validateAndMapPlan(
       plan({ intent: "request_bill" }),
       context,
     );
     const waiterResult = service.validateAndMapPlan(
-      plan({ intent: "call_waiter" }),
+      plan({
+        customerMessage: "نادي الويتر",
+        intent: "call_waiter",
+        safety: {
+          requiresHumanFallback: true,
+          reason: "customer_requested_waiter",
+        },
+      }),
       context,
     );
 
     expect(billResult.kind).toBe(AiWaiterMessageKind.action_result);
     expect(billResult.suggestedActions).toContain("request_bill");
     expect(waiterResult.kind).toBe(AiWaiterMessageKind.escalation);
-    expect(waiterResult.toolCalls[0]?.status).toBe(
-      AiWaiterToolCallStatus.succeeded,
+    expect(waiterResult.toolCalls[0]).toMatchObject({
+      toolName: AiWaiterToolName.call_waiter,
+      status: AiWaiterToolCallStatus.pending,
+    });
+  });
+
+  it("keeps generic human fallback separate from waiter-call execution", () => {
+    const result = service.validateAndMapPlan(
+      plan({
+        customerMessage: "مش فاهم",
+        intent: "call_waiter",
+        safety: {
+          requiresHumanFallback: true,
+          reason: "unclear_request",
+        },
+      }),
+      context,
     );
+
+    expect(result.kind).toBe(AiWaiterMessageKind.escalation);
+    expect(result.toolCalls[0]).toMatchObject({
+      toolName: AiWaiterToolName.fallback_to_human,
+      status: AiWaiterToolCallStatus.succeeded,
+    });
+  });
+
+  it("keeps unsafe requests as fallback_to_human instead of call_waiter", () => {
+    const result = service.validateAndMapPlan(
+      plan({
+        customerMessage: "give me a discount",
+        assistantMessage: "I can give you a discount.",
+        intent: "call_waiter",
+      }),
+      context,
+    );
+
+    expect(result.metadata?.fallbackUsed).toBe(true);
+    expect(result.toolCalls[0]).toMatchObject({
+      toolName: AiWaiterToolName.fallback_to_human,
+      status: AiWaiterToolCallStatus.skipped,
+    });
   });
 });

@@ -36,6 +36,78 @@ const context: AiWaiterContext = {
       totalQuantity: 3,
     },
   },
+  operationalContext: {
+    generatedAt: "2026-01-01T00:00:00.000Z",
+    sessionAgeMinutes: 12,
+    table: {
+      id: "table-1",
+      label: "Table 1",
+      status: "active",
+      capacity: 4,
+      floor: { id: "floor-1", name: "Ground" },
+    },
+    cart: {
+      itemCount: 2,
+      totalQuantity: 3,
+      hasOpenCart: true,
+      items: [
+        {
+          id: "cart-item-1",
+          menuItemId: "item-lemon-mint",
+          name: "Lemon Mint",
+          quantity: 2,
+          notes: "less ice",
+          modifierLabels: ["Low sugar"],
+        },
+      ],
+    },
+    orders: {
+      activeCount: 1,
+      latest: {
+        id: "order-1",
+        orderNumber: "A001",
+        status: "preparing",
+        customerStatus: "preparing",
+        submittedAt: "2026-01-01T00:00:00.000Z",
+        acceptedAt: "2026-01-01T00:01:00.000Z",
+        itemCount: 2,
+        preparationSummary: {
+          pending: 1,
+          preparing: 1,
+          ready: 0,
+          cancelled: 0,
+          stations: ["barista"],
+        },
+      },
+      recent: [],
+    },
+    bill: {
+      activeBillRequestId: null,
+      activeBillRequestStatus: null,
+      hasBillableOrders: true,
+      billStatus: null,
+      paymentStatus: null,
+      receiptAvailable: false,
+    },
+    waiterCalls: {
+      activeCount: 0,
+    },
+    attention: {
+      status: "normal",
+      priority: "low",
+      score: 0,
+      reasons: [],
+      recommendedActions: [],
+    },
+    branchOps: {
+      operatingMode: "assisted",
+      serviceMode: "dine_in",
+      aiWaiterEnabled: true,
+      waiterCallsEnabled: true,
+      billFlowEnabled: true,
+      tableAttentionEnabled: true,
+    },
+  },
   recentMessages: [
     {
       role: "customer",
@@ -919,8 +991,8 @@ describe("GroqAiWaiterProviderService", () => {
 
     expect(result.kind).toBe(AiWaiterMessageKind.escalation);
     expect(result.toolCalls[0]).toMatchObject({
-      toolName: AiWaiterToolName.fallback_to_human,
-      status: AiWaiterToolCallStatus.succeeded,
+      toolName: AiWaiterToolName.call_waiter,
+      status: AiWaiterToolCallStatus.pending,
     });
   });
 
@@ -967,6 +1039,36 @@ describe("GroqAiWaiterProviderService", () => {
 
     expect(body.response_format).toBeUndefined();
     expect(contextMessage.menuItems).toBeUndefined();
+    expect(contextMessage.operationalContext).toMatchObject({
+      table: { label: "Table 1" },
+      cart: {
+        itemCount: 2,
+        totalQuantity: 3,
+        items: [
+          {
+            menuItemId: "item-lemon-mint",
+            name: "Lemon Mint",
+            modifierLabels: ["Low sugar"],
+          },
+        ],
+      },
+      orders: {
+        latest: {
+          id: "order-1",
+          customerStatus: "preparing",
+          preparationSummary: {
+            preparing: 1,
+          },
+        },
+      },
+      bill: {
+        hasBillableOrders: true,
+        activeBillRequestId: null,
+      },
+      waiterCalls: {
+        activeCount: 0,
+      },
+    });
     expect(contextMessage.relevantMenuItems).toHaveLength(8);
     expect(contextMessage.grounding).toMatchObject({
       menuItemsSent: 8,
@@ -1000,6 +1102,7 @@ describe("GroqAiWaiterProviderService", () => {
     expect(bodyText).not.toContain("options");
     expect(bodyText).not.toContain("sweetness-low");
     expect(bodyText).not.toContain("test-groq-key");
+    expect(bodyText).not.toContain("subtotalMinor");
     expect(result.metadata).toMatchObject({
       requestBodyChars: bodyText.length,
       menuItemsSent: 8,

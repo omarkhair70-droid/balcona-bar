@@ -32,7 +32,8 @@ import { AiSuggestedPrompts } from "../ai-suggested-prompts";
 import {
   aiLanguageOptions,
   getAiWaiterExperience,
-  getRecord
+  getRecord,
+  shouldRefreshFromAiToolResult
 } from "../ai-waiter-helpers";
 import { AiWaiterStatusPill } from "../ai-waiter-status-pill";
 import { CartSummary } from "../cart-summary";
@@ -64,6 +65,19 @@ function invalidateCustomerState(
   });
   void queryClient.invalidateQueries({
     queryKey: customerQueryKeys.timeline(sessionId)
+  });
+}
+
+function invalidateCustomerOperations(
+  queryClient: ReturnType<typeof useQueryClient>,
+  sessionId: string
+) {
+  invalidateCustomerState(queryClient, sessionId);
+  void queryClient.invalidateQueries({
+    queryKey: customerQueryKeys.waiterCalls(sessionId)
+  });
+  void queryClient.invalidateQueries({
+    queryKey: customerQueryKeys.bill(sessionId)
   });
 }
 
@@ -145,11 +159,14 @@ export function AiWaiterPage({ sessionId }: AiWaiterPageProps) {
   const sendMutation = useMutation({
     mutationFn: (value: string) =>
       sendAiWaiterMessage(sessionId, { message: value, language }, token),
-    onSuccess: () => {
+    onSuccess: (result) => {
       setMessage("");
       setLocalError("");
       setProposalNotice("");
       invalidateAiWaiter(queryClient, sessionId);
+      if (shouldRefreshFromAiToolResult(result)) {
+        invalidateCustomerOperations(queryClient, sessionId);
+      }
       vibrateLight();
     },
     onError: () => vibrateWarning()

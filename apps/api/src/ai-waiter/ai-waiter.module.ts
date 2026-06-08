@@ -1,5 +1,6 @@
 import { Module } from "@nestjs/common";
 import { AutopilotModule } from "../autopilot/autopilot.module";
+import { BillRequestsModule } from "../bill-requests/bill-requests.module";
 import { CartModule } from "../cart/cart.module";
 import { InventoryModule } from "../inventory/inventory.module";
 import { PrismaModule } from "../prisma/prisma.module";
@@ -10,6 +11,7 @@ import { WaiterCallsModule } from "../waiter-calls/waiter-calls.module";
 import { AiWaiterContextService } from "./ai-waiter-context.service";
 import { AiWaiterController } from "./ai-waiter.controller";
 import { AiWaiterService } from "./ai-waiter.service";
+import { AiWaiterToolExecutorService } from "./ai-waiter-tool-executor.service";
 import { AiWaiterItemDetailGroundingService } from "./grounding/ai-waiter-item-detail-grounding.service";
 import { AiWaiterStubProviderService } from "./ai-waiter-stub-provider.service";
 import { AiWaiterMenuGroundingService } from "./grounding/ai-waiter-menu-grounding.service";
@@ -21,6 +23,7 @@ import { GroqAiWaiterProviderService } from "./providers/groq-ai-waiter-provider
   imports: [
     PrismaModule,
     AutopilotModule,
+    BillRequestsModule,
     CartModule,
     InventoryModule,
     RealtimeEventsModule,
@@ -32,6 +35,7 @@ import { GroqAiWaiterProviderService } from "./providers/groq-ai-waiter-provider
   providers: [
     AiWaiterService,
     AiWaiterContextService,
+    AiWaiterToolExecutorService,
     AiWaiterStubProviderService,
     AiWaiterItemDetailGroundingService,
     AiWaiterMenuGroundingService,

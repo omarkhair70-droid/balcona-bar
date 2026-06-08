@@ -14,6 +14,7 @@ import { PrismaService } from "../prisma/prisma.service";
 import { RealtimeEventsService } from "../realtime-events/realtime-events.service";
 import { WaiterCallsService } from "../waiter-calls/waiter-calls.service";
 import { AiWaiterContextService } from "./ai-waiter-context.service";
+import { AiWaiterToolExecutorService } from "./ai-waiter-tool-executor.service";
 import { AiWaiterContext, AiWaiterProviderResult } from "./ai-waiter.types";
 import { AiWaiterProviderRegistry } from "./providers/ai-waiter-provider-registry.service";
 import { AiWaiterService } from "./ai-waiter.service";
@@ -85,6 +86,17 @@ function createService(input: {
   const realtimeEventsService = {
     createRealtimeEvent: jest.fn().mockResolvedValue({}),
   } as unknown as RealtimeEventsService;
+  const toolExecutor = {
+    execute: jest.fn().mockImplementation(({ providerResult }) =>
+      Promise.resolve({
+        ...providerResult,
+        metadata: {
+          ...(providerResult.metadata ?? {}),
+          toolExecution: { refreshCustomerState: false, actions: [] },
+        },
+      }),
+    ),
+  } as unknown as AiWaiterToolExecutorService;
   const saasService = {
     assertCompanyFeatureEnabled: jest.fn().mockResolvedValue(undefined),
     assertWithinLimit: jest.fn().mockResolvedValue(undefined),
@@ -100,11 +112,13 @@ function createService(input: {
       realtimeEventsService,
       {} as unknown as TableAttentionService,
       saasService as never,
+      toolExecutor,
     ),
     prisma,
     contextService,
     providerRegistry,
     realtimeEventsService,
+    toolExecutor,
     saasService,
   };
 }
@@ -173,8 +187,13 @@ describe("AiWaiterService provider integration", () => {
         create: jest.fn().mockResolvedValue({}),
       },
     };
-    const { service, providerRegistry, contextService, realtimeEventsService } =
-      createService({ providerResult, tx });
+    const {
+      service,
+      providerRegistry,
+      contextService,
+      realtimeEventsService,
+      toolExecutor,
+    } = createService({ providerResult, tx });
 
     const result = await service.sendMessage("table-session-1", {
       message: "هات Lemon Mint",
@@ -188,6 +207,11 @@ describe("AiWaiterService provider integration", () => {
     expect(providerRegistry.respond).toHaveBeenCalledWith(context, {
       message: "هات Lemon Mint",
       language: "ar-EG",
+    });
+    expect(toolExecutor.execute).toHaveBeenCalledWith({
+      context,
+      customerMessage: "هات Lemon Mint",
+      providerResult,
     });
     expect(tx.aiWaiterCartProposal.create).toHaveBeenCalledWith(
       expect.objectContaining({

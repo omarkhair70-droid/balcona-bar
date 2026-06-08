@@ -27,6 +27,16 @@ const HUMAN_KEYWORDS = [
   "إنسان",
 ];
 const BILL_KEYWORDS = ["bill", "check", "account", "الحساب", "حساب", "فاتورة"];
+const ORDER_STATUS_KEYWORDS = [
+  "order status",
+  "where is my order",
+  "my order",
+  "status",
+  "طلبي",
+  "فين الطلب",
+  "حالة الطلب",
+  "اتأخر",
+];
 const RECOMMENDATION_KEYWORDS = [
   "recommend",
   "suggest",
@@ -58,6 +68,10 @@ export class AiWaiterStubProviderService implements AiWaiterProvider {
 
     if (this.containsAny(normalizedMessage, BILL_KEYWORDS)) {
       return this.billResult(input.message);
+    }
+
+    if (this.containsAny(normalizedMessage, ORDER_STATUS_KEYWORDS)) {
+      return this.orderStatusResult(input.message);
     }
 
     const matchedItem = this.findExactMenuMatch(
@@ -215,14 +229,14 @@ export class AiWaiterStubProviderService implements AiWaiterProvider {
           output: { suggestedAction: "escalate_to_waiter" },
         },
       ],
-      metadata: { provider: "stub" },
+      metadata: { provider: "stub", intent: "call_waiter" },
     } satisfies AiWaiterProviderResult;
   }
 
   private billResult(message: string) {
     return {
       content:
-        "ينفع تطلب الحساب من مسار الفاتورة. أنا مش هقفل أو أسجل دفع، بس أقدر أنادي حد يساعدك.",
+        "حاضر. لو فيه طلب قابل للحساب هطلبهولك من الفريق، ومن غير ما أسجل أي دفع.",
       kind: AiWaiterMessageKind.action_result,
       suggestedActions: ["request_bill", "escalate_to_waiter"],
       toolCalls: [
@@ -233,7 +247,25 @@ export class AiWaiterStubProviderService implements AiWaiterProvider {
           output: { reason: "bill_flow_is_separate_endpoint" },
         },
       ],
-      metadata: { provider: "stub" },
+      metadata: { provider: "stub", intent: "request_bill" },
+    } satisfies AiWaiterProviderResult;
+  }
+
+  private orderStatusResult(message: string) {
+    return {
+      content:
+        "هراجع حالة الطلب من السيستم. لو مفيش طلب متسجل لسه، الكارت الحالي يفضل مسودة لحد ما تأكده.",
+      kind: AiWaiterMessageKind.action_result,
+      suggestedActions: ["view_order_status", "escalate_to_waiter"],
+      toolCalls: [
+        {
+          toolName: AiWaiterToolName.read_order_status,
+          status: AiWaiterToolCallStatus.skipped,
+          input: { message },
+          output: { reason: "order_status_requires_context" },
+        },
+      ],
+      metadata: { provider: "stub", intent: "order_status" },
     } satisfies AiWaiterProviderResult;
   }
 

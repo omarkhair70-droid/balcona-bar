@@ -11,12 +11,34 @@ import {
   MenuItemStatus,
   ModifierGroupStatus,
   ModifierOptionStatus,
+  OrderStatus,
   TableSessionStatus,
 } from "@prisma/client";
 import { CartService } from "../cart/cart.service";
 import { InventoryService } from "../inventory/inventory.service";
 import { PrismaService } from "../prisma/prisma.service";
 import { AiWaiterContext } from "./ai-waiter.types";
+
+const MAX_OPERATIONAL_CART_ITEMS = 6;
+const MAX_OPERATIONAL_RECENT_ORDERS = 5;
+const MAX_OPERATIONAL_ACTIVE_WAITER_CALLS = 3;
+const MAX_OPERATIONAL_ATTENTION_ITEMS = 5;
+const ACTIVE_ORDER_STATUSES = new Set<string>([
+  OrderStatus.submitted,
+  OrderStatus.cashier_accepted,
+  OrderStatus.preparing,
+  OrderStatus.ready,
+  OrderStatus.served,
+]);
+const BILLABLE_ORDER_STATUSES = [
+  OrderStatus.cashier_accepted,
+  OrderStatus.preparing,
+  OrderStatus.ready,
+  OrderStatus.served,
+  OrderStatus.completed,
+];
+const ACTIVE_BILL_REQUEST_STATUSES = ["open", "acknowledged", "presented"];
+const ACTIVE_WAITER_CALL_STATUSES = ["open", "acknowledged"];
 
 @Injectable()
 export class AiWaiterContextService {
@@ -73,6 +95,10 @@ export class AiWaiterContextService {
         this.cartService.getCart(tableSession.id),
       ]);
     const { branch, ...sessionFields } = tableSession;
+    const operationalContext = await this.getOperationalContext(
+      tableSession,
+      cartSummary,
+    );
 
     return {
       tableSession: sessionFields,
@@ -81,6 +107,7 @@ export class AiWaiterContextService {
       cartSummary,
       recentMessages,
       menuItems,
+      operationalContext,
     };
   }
 
@@ -355,6 +382,480 @@ export class AiWaiterContextService {
     return id && name ? { id, name } : undefined;
   }
 
+  private async getOperationalContext(
+    tableSession: Awaited<
+      ReturnType<AiWaiterContextService["findTableSessionOrThrow"]>
+    >,
+    cartSummary: unknown,
+  ): Promise<AiWaiterContext["operationalContext"]> {
+    const [orders, bill, waiterCalls, attention, branchOps] =
+      await Promise.all([
+        this.getOrderContext(tableSession.id),
+        this.getBillContext(tableSession.id),
+        this.getWaiterCallContext(tableSession.id),
+        this.getAttentionContext(tableSession.id),
+        this.getBranchOpsContext(tableSession.branchId),
+      ]);
+    const startedAt = tableSession.startedAt ?? tableSession.createdAt;
+    const sessionAgeMinutes = startedAt
+      ? Math.max(0, Math.floor((Date.now() - startedAt.getTime()) / 60_000))
+      : undefined;
+
+    return {
+      generatedAt: new Date().toISOString(),
+      sessionAgeMinutes,
+      table: tableSession.table
+        ? {
+            id: tableSession.table.id,
+            label:
+              tableSession.table.displayName ??
+              tableSession.table.code ??
+              tableSession.table.id,
+            status: tableSession.table.status,
+            capacity: tableSession.table.capacity,
+            floor: tableSession.table.floor
+              ? {
+                  id: tableSession.table.floor.id,
+                  name: tableSession.table.floor.name,
+                }
+              : null,
+          }
+        : undefined,
+      cart: this.compactCartContext(cartSummary),
+      orders,
+      bill,
+      waiterCalls,
+      attention,
+      branchOps,
+    };
+  }
+
+  private async getOrderContext(tableSessionId: string) {
+    const prisma = this.prisma as unknown as {
+      order?: {
+        findMany?: (args: unknown) => Promise<any[]>;
+        count?: (args: unknown) => Promise<number>;
+      };
+    };
+
+    if (!prisma.order?.findMany) {
+      return { activeCount: 0, recent: [] };
+    }
+
+    const [orders, activeCount] = await Promise.all([
+      prisma.order.findMany({
+        where: { tableSessionId },
+        orderBy: [{ submittedAt: "desc" }, { createdAt: "desc" }, { id: "desc" }],
+        take: MAX_OPERATIONAL_RECENT_ORDERS,
+        select: {
+          id: true,
+          orderNumber: true,
+          status: true,
+          submittedAt: true,
+          cashierAcceptedAt: true,
+          readyAt: true,
+          servedAt: true,
+          completedAt: true,
+          itemCount: true,
+          preparationTasks: {
+            select: {
+              status: true,
+              station: true,
+            },
+          },
+        },
+      }),
+      prisma.order.count
+        ? prisma.order.count({
+            where: {
+              tableSessionId,
+              status: { in: Array.from(ACTIVE_ORDER_STATUSES) },
+            },
+          })
+        : Promise.resolve(0),
+    ]);
+    const latest = orders[0];
+
+    return {
+      activeCount:
+        activeCount ||
+        orders.filter((order) => ACTIVE_ORDER_STATUSES.has(String(order.status)))
+          .length,
+      latest: latest
+        ? {
+            id: latest.id,
+            orderNumber: latest.orderNumber,
+            status: String(latest.status),
+            customerStatus: this.customerOrderStatus(latest.status),
+            submittedAt: this.isoString(latest.submittedAt),
+            acceptedAt: this.isoString(latest.cashierAcceptedAt),
+            readyAt: this.isoString(latest.readyAt),
+            servedAt: this.isoString(latest.servedAt),
+            completedAt: this.isoString(latest.completedAt),
+            itemCount: this.numberValue(latest.itemCount, 0),
+            preparationSummary: this.preparationSummary(
+              latest.preparationTasks,
+            ),
+          }
+        : undefined,
+      recent: orders.map((order) => ({
+        id: order.id,
+        orderNumber: order.orderNumber,
+        status: String(order.status),
+        customerStatus: this.customerOrderStatus(order.status),
+        itemCount: this.numberValue(order.itemCount, 0),
+        submittedAt: this.isoString(order.submittedAt),
+      })),
+    };
+  }
+
+  private async getBillContext(tableSessionId: string) {
+    const prisma = this.prisma as unknown as {
+      billRequest?: { findFirst?: (args: unknown) => Promise<any> };
+      bill?: { findFirst?: (args: unknown) => Promise<any> };
+      order?: { count?: (args: unknown) => Promise<number> };
+    };
+    const [activeBillRequest, latestBill, billableOrderCount] =
+      await Promise.all([
+        prisma.billRequest?.findFirst
+          ? prisma.billRequest.findFirst({
+              where: {
+                tableSessionId,
+                status: { in: ACTIVE_BILL_REQUEST_STATUSES },
+              },
+              orderBy: [{ requestedAt: "desc" }, { createdAt: "desc" }],
+              select: {
+                id: true,
+                status: true,
+              },
+            })
+          : Promise.resolve(null),
+        prisma.bill?.findFirst
+          ? prisma.bill.findFirst({
+              where: {
+                tableSessionId,
+                status: { not: "cancelled" },
+              },
+              orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+              select: {
+                id: true,
+                status: true,
+                receipt: { select: { id: true } },
+              },
+            })
+          : Promise.resolve(null),
+        prisma.order?.count
+          ? prisma.order.count({
+              where: {
+                tableSessionId,
+                status: { in: BILLABLE_ORDER_STATUSES },
+              },
+            })
+          : Promise.resolve(0),
+      ]);
+
+    return {
+      activeBillRequestId: activeBillRequest?.id ?? null,
+      activeBillRequestStatus: activeBillRequest
+        ? String(activeBillRequest.status)
+        : null,
+      hasBillableOrders: billableOrderCount > 0,
+      billStatus: latestBill ? String(latestBill.status) : null,
+      paymentStatus: this.paymentStatus(latestBill?.status),
+      receiptAvailable: Boolean(latestBill?.receipt),
+    };
+  }
+
+  private async getWaiterCallContext(tableSessionId: string) {
+    const prisma = this.prisma as unknown as {
+      waiterCall?: {
+        findMany?: (args: unknown) => Promise<any[]>;
+        count?: (args: unknown) => Promise<number>;
+      };
+    };
+
+    if (!prisma.waiterCall?.findMany) {
+      return { activeCount: 0 };
+    }
+
+    const [activeCalls, activeCount] = await Promise.all([
+      prisma.waiterCall.findMany({
+        where: {
+          tableSessionId,
+          status: { in: ACTIVE_WAITER_CALL_STATUSES },
+        },
+        orderBy: [{ priority: "desc" }, { createdAt: "desc" }, { id: "desc" }],
+        take: MAX_OPERATIONAL_ACTIVE_WAITER_CALLS,
+        select: {
+          id: true,
+          type: true,
+          status: true,
+          priority: true,
+          createdAt: true,
+          message: true,
+        },
+      }),
+      prisma.waiterCall.count
+        ? prisma.waiterCall.count({
+            where: {
+              tableSessionId,
+              status: { in: ACTIVE_WAITER_CALL_STATUSES },
+            },
+          })
+        : Promise.resolve(0),
+    ]);
+    const latest = activeCalls[0];
+
+    return {
+      activeCount: activeCount || activeCalls.length,
+      latest: latest
+        ? {
+            id: latest.id,
+            type: String(latest.type),
+            status: String(latest.status),
+            priority: this.numberValue(latest.priority, 0),
+            createdAt: this.isoString(latest.createdAt) ?? "",
+            message: latest.message ?? null,
+          }
+        : undefined,
+    };
+  }
+
+  private async getAttentionContext(tableSessionId: string) {
+    const prisma = this.prisma as unknown as {
+      tableAttentionSnapshot?: { findUnique?: (args: unknown) => Promise<any> };
+    };
+
+    if (!prisma.tableAttentionSnapshot?.findUnique) {
+      return undefined;
+    }
+
+    const snapshot = await prisma.tableAttentionSnapshot.findUnique({
+      where: { tableSessionId },
+      select: {
+        status: true,
+        priority: true,
+        score: true,
+        reasons: true,
+        recommendedActions: true,
+      },
+    });
+
+    if (!snapshot) {
+      return undefined;
+    }
+
+    return {
+      status: String(snapshot.status),
+      priority: String(snapshot.priority),
+      score: this.numberValue(snapshot.score, 0),
+      reasons: this.safeStringArray(snapshot.reasons).slice(
+        0,
+        MAX_OPERATIONAL_ATTENTION_ITEMS,
+      ),
+      recommendedActions: this.safeStringArray(
+        snapshot.recommendedActions,
+      ).slice(0, MAX_OPERATIONAL_ATTENTION_ITEMS),
+    };
+  }
+
+  private async getBranchOpsContext(branchId: string) {
+    const prisma = this.prisma as unknown as {
+      branchOperatingSettings?: { findUnique?: (args: unknown) => Promise<any> };
+      branchFeatureFlag?: { findMany?: (args: unknown) => Promise<any[]> };
+    };
+    const [settings, flags] = await Promise.all([
+      prisma.branchOperatingSettings?.findUnique
+        ? prisma.branchOperatingSettings.findUnique({
+            where: { branchId },
+            select: {
+              operatingMode: true,
+              serviceMode: true,
+              aiWaiterEnabled: true,
+              waiterCallsEnabled: true,
+              billFlowEnabled: true,
+              tableAttentionEnabled: true,
+            },
+          })
+        : Promise.resolve(null),
+      prisma.branchFeatureFlag?.findMany
+        ? prisma.branchFeatureFlag.findMany({
+            where: {
+              branchId,
+              key: {
+                in: [
+                  "ai_waiter",
+                  "waiter_calls",
+                  "bill_flow",
+                  "table_attention",
+                ],
+              },
+            },
+            select: { key: true, enabled: true },
+          })
+        : Promise.resolve([]),
+    ]);
+    const flagMap = new Map(
+      flags.map((flag) => [String(flag.key), flag.enabled === true]),
+    );
+
+    return {
+      operatingMode: settings ? String(settings.operatingMode) : undefined,
+      serviceMode: settings ? String(settings.serviceMode) : undefined,
+      aiWaiterEnabled: this.enabledFlag(
+        flagMap,
+        "ai_waiter",
+        settings?.aiWaiterEnabled,
+      ),
+      waiterCallsEnabled: this.enabledFlag(
+        flagMap,
+        "waiter_calls",
+        settings?.waiterCallsEnabled,
+      ),
+      billFlowEnabled: this.enabledFlag(
+        flagMap,
+        "bill_flow",
+        settings?.billFlowEnabled,
+      ),
+      tableAttentionEnabled: this.enabledFlag(
+        flagMap,
+        "table_attention",
+        settings?.tableAttentionEnabled,
+      ),
+    };
+  }
+
+  private compactCartContext(cartSummary: unknown) {
+    const record = this.isRecord(cartSummary) ? cartSummary : {};
+    const totals = this.isRecord(record.totals) ? record.totals : {};
+    const cart = this.isRecord(record.cart) ? record.cart : {};
+    const items = this.recordArray(record.items);
+    const itemCount = this.numberValue(totals.itemCount, items.length);
+    const totalQuantity = this.numberValue(
+      totals.totalQuantity,
+      items.reduce(
+        (sum, item) => sum + this.numberValue(item.quantity, 0),
+        0,
+      ),
+    );
+
+    return {
+      itemCount,
+      totalQuantity,
+      hasOpenCart:
+        totalQuantity > 0 &&
+        (this.stringValue(cart.status) === "draft" ||
+          this.stringValue(cart.status) === ""),
+      items: items.slice(0, MAX_OPERATIONAL_CART_ITEMS).map((item, index) => {
+        const modifierLabels = this.recordArray(item.modifierOptions)
+          .map(
+            (option) =>
+              this.stringValue(option.modifierOptionNameSnapshot) ||
+              this.stringValue(option.name),
+          )
+          .filter((value) => value.length > 0)
+          .slice(0, 8);
+        const menuItemId = this.stringValue(item.menuItemId);
+        const name =
+          this.stringValue(item.itemNameSnapshot) ||
+          this.stringValue(item.name) ||
+          "Menu item";
+
+        return {
+          id: this.stringValue(item.id) || `${menuItemId || "item"}-${index}`,
+          menuItemId,
+          name,
+          quantity: this.numberValue(item.quantity, 1),
+          notes: this.stringValue(item.notes) || null,
+          modifierLabels,
+        };
+      }),
+    };
+  }
+
+  private preparationSummary(tasks: unknown) {
+    const records = this.recordArray(tasks);
+
+    if (records.length === 0) {
+      return undefined;
+    }
+
+    const summary = {
+      pending: 0,
+      preparing: 0,
+      ready: 0,
+      cancelled: 0,
+      stations: [] as string[],
+    };
+    const stations = new Set<string>();
+
+    for (const task of records) {
+      const status = this.stringValue(task.status);
+
+      if (status === "pending") {
+        summary.pending += 1;
+      } else if (status === "preparing") {
+        summary.preparing += 1;
+      } else if (status === "ready") {
+        summary.ready += 1;
+      } else if (status === "cancelled") {
+        summary.cancelled += 1;
+      }
+
+      const station = this.stringValue(task.station);
+
+      if (station) {
+        stations.add(station);
+      }
+    }
+
+    summary.stations = Array.from(stations).slice(0, 5);
+
+    return summary;
+  }
+
+  private customerOrderStatus(status: unknown) {
+    switch (status) {
+      case OrderStatus.submitted:
+        return "submitted";
+      case OrderStatus.cashier_accepted:
+      case OrderStatus.preparing:
+        return "preparing";
+      case OrderStatus.ready:
+        return "ready";
+      case OrderStatus.served:
+        return "served";
+      case OrderStatus.completed:
+        return "completed";
+      case OrderStatus.cashier_rejected:
+        return "rejected";
+      case OrderStatus.cancelled:
+        return "cancelled";
+      default:
+        return undefined;
+    }
+  }
+
+  private paymentStatus(status: unknown) {
+    if (status === "paid") {
+      return "paid";
+    }
+
+    if (status === "payment_pending") {
+      return "payment_pending";
+    }
+
+    return undefined;
+  }
+
+  private enabledFlag(
+    flags: Map<string, boolean>,
+    key: string,
+    settingsValue?: boolean,
+  ) {
+    return flags.get(key) ?? settingsValue ?? true;
+  }
+
   private tableSessionSelect() {
     return {
       id: true,
@@ -364,7 +865,24 @@ export class AiWaiterContextService {
       status: true,
       guestLabel: true,
       partySize: true,
+      startedAt: true,
       expiresAt: true,
+      createdAt: true,
+      table: {
+        select: {
+          id: true,
+          code: true,
+          displayName: true,
+          status: true,
+          capacity: true,
+          floor: {
+            select: {
+              id: true,
+              name: true,
+            },
+          },
+        },
+      },
       branch: {
         select: {
           id: true,
@@ -393,9 +911,37 @@ export class AiWaiterContextService {
     return typeof value === "string" ? value.trim() : "";
   }
 
+  private numberValue(value: unknown, fallback: number) {
+    return typeof value === "number" && Number.isFinite(value)
+      ? value
+      : fallback;
+  }
+
   private stringArray(value: unknown) {
     return Array.isArray(value)
       ? value.filter((item): item is string => typeof item === "string")
       : [];
+  }
+
+  private safeStringArray(value: unknown) {
+    if (!Array.isArray(value)) {
+      return [];
+    }
+
+    return value
+      .map((item) => (typeof item === "string" ? item.trim() : ""))
+      .filter((item) => item.length > 0);
+  }
+
+  private recordArray(value: unknown): Record<string, unknown>[] {
+    return Array.isArray(value)
+      ? value.filter((item): item is Record<string, unknown> =>
+          this.isRecord(item),
+        )
+      : [];
+  }
+
+  private isoString(value: unknown) {
+    return value instanceof Date ? value.toISOString() : null;
   }
 }
