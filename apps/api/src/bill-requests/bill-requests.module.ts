@@ -19,5 +19,6 @@ import { BillRequestsService } from './bill-requests.service';
   ],
   controllers: [BillRequestsController],
   providers: [BillRequestsService],
+  exports: [BillRequestsService],
 })
 export class BillRequestsModule {}

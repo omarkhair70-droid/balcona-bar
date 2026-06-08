@@ -24,6 +24,9 @@ export const aiSuggestedPrompts: Record<AiWaiterLanguage, string[]> = {
     "What goes well with coffee?",
     "Build an order for two",
     "I want something not too sweet",
+    "Where is my order?",
+    "Can I get the bill?",
+    "Call a waiter",
     "Help me choose fast"
   ],
   "ar-EG": [
@@ -32,6 +35,9 @@ export const aiSuggestedPrompts: Record<AiWaiterLanguage, string[]> = {
     "إيه يمشي مع القهوة؟",
     "جهزلي طلب لاتنين",
     "عايز حاجة مش مسكرة قوي",
+    "فين طلبي؟",
+    "ممكن الحساب؟",
+    "ناديلي ويتر",
     "ساعدني أختار بسرعة"
   ]
 };
@@ -106,6 +112,76 @@ export function getPendingModifierQuickReplies(
   }
 
   return Array.from(labels).slice(0, 8);
+}
+
+export function getAiToolExecutionStatus(message: Record<string, unknown>) {
+  const metadata = getNestedRecord(message, "metadata");
+  const toolExecution = getNestedRecord(metadata, "toolExecution");
+  const actions = getRecordArray(toolExecution?.actions);
+  const action = actions.find((item) => {
+    const toolName = getString(item, "toolName");
+
+    return (
+      toolName === "request_bill" ||
+      toolName === "call_waiter" ||
+      toolName === "read_order_status"
+    );
+  });
+
+  if (!action) {
+    return undefined;
+  }
+
+  const toolName = getString(action, "toolName");
+  const status = getString(action, "status", "succeeded");
+  const output = getNestedRecord(action, "output");
+  const reason = getString(output, "reason");
+
+  if (toolName === "request_bill") {
+    if (status === "succeeded") {
+      return "Bill request sent";
+    }
+
+    if (reason === "active_bill_request_exists") {
+      return "Bill already requested";
+    }
+
+    if (reason === "no_billable_orders") {
+      return "Bill available after an accepted order";
+    }
+
+    return "Bill request checked";
+  }
+
+  if (toolName === "call_waiter") {
+    if (status === "succeeded") {
+      return "Waiter notified";
+    }
+
+    if (reason === "active_waiter_call_exists") {
+      return "Waiter call already active";
+    }
+
+    return "Waiter call checked";
+  }
+
+  if (toolName === "read_order_status") {
+    if (status === "succeeded") {
+      return "Order status checked";
+    }
+
+    return "No order placed yet";
+  }
+
+  return undefined;
+}
+
+export function shouldRefreshFromAiToolResult(result?: Record<string, unknown>) {
+  const assistantMessage = getRecord(result?.assistantMessage);
+  const metadata = getNestedRecord(assistantMessage, "metadata");
+  const toolExecution = getNestedRecord(metadata, "toolExecution");
+
+  return toolExecution?.refreshCustomerState === true;
 }
 
 export function getRecordDateLabel(record: Record<string, unknown>) {

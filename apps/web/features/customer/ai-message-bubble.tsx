@@ -1,6 +1,7 @@
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils/cn";
 import {
+  getAiToolExecutionStatus,
   getMessageContent,
   getMessageRole,
   getPendingModifierQuickReplies,
@@ -26,6 +27,9 @@ export function AiMessageBubble({
   const isSystem = role === "system";
   const kind = getString(message, "kind", "text").replaceAll("_", " ");
   const time = getRecordDateLabel(message);
+  const toolStatus = !isCustomer && !isSystem
+    ? getAiToolExecutionStatus(message)
+    : undefined;
   const quickReplies = !isCustomer && !isSystem
     ? getPendingModifierQuickReplies(message)
     : [];
@@ -59,6 +63,11 @@ export function AiMessageBubble({
         <p className="mt-3 whitespace-pre-wrap text-sm leading-6">
           {getMessageContent(message)}
         </p>
+        {toolStatus ? (
+          <Badge variant="success" className="mt-3">
+            {toolStatus}
+          </Badge>
+        ) : null}
         {quickReplies.length > 0 ? (
           <div className="mt-3 flex flex-wrap gap-2">
             {quickReplies.map((reply) => (

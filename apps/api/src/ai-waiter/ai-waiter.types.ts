@@ -45,6 +45,95 @@ export interface AiWaiterRecentMessage {
   metadata?: Record<string, unknown>;
 }
 
+export interface AiWaiterOperationalContext {
+  generatedAt: string;
+  sessionAgeMinutes?: number;
+  table?: {
+    id: string;
+    label?: string | null;
+    status?: string;
+    capacity?: number | null;
+    floor?: { id: string; name: string } | null;
+  };
+  cart?: {
+    itemCount: number;
+    totalQuantity: number;
+    hasOpenCart: boolean;
+    items: Array<{
+      id: string;
+      menuItemId: string;
+      name: string;
+      quantity: number;
+      notes?: string | null;
+      modifierLabels: string[];
+    }>;
+  };
+  orders?: {
+    activeCount: number;
+    latest?: {
+      id: string;
+      orderNumber?: string | null;
+      status: string;
+      customerStatus?: string;
+      submittedAt?: string | null;
+      acceptedAt?: string | null;
+      readyAt?: string | null;
+      servedAt?: string | null;
+      completedAt?: string | null;
+      itemCount: number;
+      preparationSummary?: {
+        pending: number;
+        preparing: number;
+        ready: number;
+        cancelled: number;
+        stations: string[];
+      };
+    };
+    recent: Array<{
+      id: string;
+      orderNumber?: string | null;
+      status: string;
+      customerStatus?: string;
+      itemCount: number;
+      submittedAt?: string | null;
+    }>;
+  };
+  bill?: {
+    activeBillRequestId?: string | null;
+    activeBillRequestStatus?: string | null;
+    hasBillableOrders: boolean;
+    billStatus?: string | null;
+    paymentStatus?: string | null;
+    receiptAvailable?: boolean;
+  };
+  waiterCalls?: {
+    activeCount: number;
+    latest?: {
+      id: string;
+      type: string;
+      status: string;
+      priority: number;
+      createdAt: string;
+      message?: string | null;
+    };
+  };
+  attention?: {
+    status?: string;
+    priority?: string;
+    score?: number;
+    reasons?: string[];
+    recommendedActions?: string[];
+  };
+  branchOps?: {
+    operatingMode?: string;
+    serviceMode?: string;
+    aiWaiterEnabled?: boolean;
+    waiterCallsEnabled?: boolean;
+    billFlowEnabled?: boolean;
+    tableAttentionEnabled?: boolean;
+  };
+}
+
 export interface AiWaiterContext {
   tableSession: {
     id: string;
@@ -54,7 +143,9 @@ export interface AiWaiterContext {
     status: string;
     guestLabel?: string | null;
     partySize?: number | null;
+    startedAt?: Date | null;
     expiresAt?: Date | null;
+    createdAt?: Date | null;
   };
   branch: {
     id: string;
@@ -73,6 +164,7 @@ export interface AiWaiterContext {
   cartSummary: unknown;
   recentMessages: AiWaiterRecentMessage[];
   menuItems: AiWaiterMenuItemSnapshot[];
+  operationalContext?: AiWaiterOperationalContext;
 }
 
 export interface AiWaiterProposalItem {

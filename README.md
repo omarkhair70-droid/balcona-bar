@@ -530,6 +530,29 @@ See
 item detail grounding, modifier matching, pending state, Groq prompt/context
 changes, guardrails, tests, and limitations.
 
+## Product Phase AI-1 status
+
+Product Phase AI-1 makes the AI waiter table-aware without making it
+autonomous:
+
+- AI context now includes compact, customer-safe table, draft cart, order,
+  preparation, bill, waiter-call, attention, and branch-operation state;
+- Groq receives that operational context together with the existing
+  menu-grounded `relevantMenuItems`;
+- safe tool execution is limited to read-only order status, deterministic bill
+  request creation, and deterministic waiter-call creation through existing
+  backend services;
+- bill and waiter actions are skipped when they would duplicate active requests
+  or when the table is not eligible;
+- cart proposals remain proposals only and still require customer confirmation
+  before backend cart validation applies them;
+- customer AI messages can show compact action-result cues and refresh customer
+  status, timeline, bill, and waiter-call state after action-like responses.
+
+See
+`docs/architecture/product-phase-ai1-context-aware-ai-brain-safe-tools.md` for
+context fields, safety boundaries, tests, and smoke flow.
+
 ## Product Phase 4S.0 status
 
 Product Phase 4S.0 enforces staff roles, permissions, and branch access for the
@@ -1726,6 +1749,7 @@ begin.
 - Product Phase 4C branch tables QR management: `docs/product/product-phase-4c-branch-tables-qr-management.md`
 - Product Phase 4E.G2 deep menu grounding and smart tool selection: `docs/architecture/product-phase-4eg2-deep-menu-grounding-smart-tool-selection.md`
 - Product Phase 4E.G3 complete ordering intelligence: `docs/architecture/product-phase-4eg3-complete-ordering-intelligence.md`
+- Product Phase AI-1 context-aware AI brain and safe tools: `docs/architecture/product-phase-ai1-context-aware-ai-brain-safe-tools.md`
 - Product Phase 4S.0 staff roles, permissions, and branch access: `docs/architecture/product-phase-4s0-staff-roles-permissions-branch-access.md`
 - Product Phase 4O.0 order lifecycle hardening: `docs/architecture/product-phase-4o0-order-lifecycle-hardening.md`
 - Product Phase 4K.0 KDS, kitchen tickets, and printer foundation: `docs/architecture/product-phase-4k0-kds-kitchen-tickets-printer-foundation.md`
