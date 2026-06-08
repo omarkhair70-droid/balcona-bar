@@ -7,3 +7,8 @@ overrides:
   postcss: 8.5.10
   file-type: 21.3.2
   "file-type@>=13.0.0 <21.3.2": 21.3.2
+
+packageExtensions:
+  next@16.2.7:
+    dependencies:
+      server-only: 0.0.1

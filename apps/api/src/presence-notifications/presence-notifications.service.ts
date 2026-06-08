@@ -180,7 +180,7 @@ export class PresenceNotificationsService {
 
   async createOrderSubmittedNotification(
     orderId: string,
-    tx: Prisma.TransactionClient,
+    tx: PrismaExecutor = this.prisma,
   ) {
     const order = await this.findOrderNotificationContext(orderId, tx);
 

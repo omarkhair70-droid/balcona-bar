@@ -25,6 +25,7 @@ import {
   updateCartItem,
   validateCart
 } from "@/lib/api/endpoints";
+import { formatErrorMessage } from "@/lib/api/error-message";
 import { customerQueryKeys } from "@/lib/api/query-keys";
 import { useCustomerSessionStore } from "@/lib/customer/customer-session-store";
 import { vibrateSuccess, vibrateWarning } from "@/lib/haptics/haptics";
@@ -106,6 +107,12 @@ export function CustomerCartPage({ sessionId }: CustomerCartPageProps) {
   const cart = cartQuery.data;
   const isCartEmpty = !cart || cart.items.length === 0;
   const isValid = validationQuery.data?.isValid ?? true;
+  const submitErrorMessage = submitMutation.isError
+    ? formatErrorMessage(
+        submitMutation.error,
+        "Please try again."
+      )
+    : null;
   const pendingItemId = useMemo(() => {
     if (updateMutation.variables) {
       return updateMutation.variables.id;
@@ -189,13 +196,13 @@ export function CustomerCartPage({ sessionId }: CustomerCartPageProps) {
                   Cart needs attention before submitting.
                 </div>
               ) : null}
-              {submitMutation.isError ? (
+              {submitErrorMessage ? (
                 <div
                   role="alert"
                   className="rounded-card border border-danger bg-danger/10 p-3 text-sm text-danger"
                 >
                   We could not submit your order yet. Please check the cart and
-                  try again. {submitMutation.error.message}
+                  try again. {submitErrorMessage}
                 </div>
               ) : null}
             </CardContent>

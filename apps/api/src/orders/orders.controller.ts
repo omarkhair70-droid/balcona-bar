@@ -37,11 +37,13 @@ export class OrdersController {
     @Param() params: SessionIdParamDto,
     @Body() body: SubmitCartDto = {},
     @Headers('idempotency-key') idempotencyKey?: string,
+    @Headers('x-request-id') requestId?: string,
   ) {
     return this.ordersService.submitCart(
       params.sessionId,
       body ?? {},
       idempotencyKey,
+      requestId,
     );
   }
 
