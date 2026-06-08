@@ -84,6 +84,7 @@ The staging smoke scripts check:
 - Web `/staff/login`
 - Web `/staff/setup`
 - Web `/staff/menu`
+- Web `/staff/inventory`
 - Web `/staff/branches`
 - Web `/staff/billing`
 - Web `/customer/table/balcona-main-t01`
