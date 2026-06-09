@@ -2,7 +2,7 @@ import {
   BadRequestException,
   Injectable,
   NotFoundException,
-} from '@nestjs/common';
+} from "@nestjs/common";
 import {
   NotificationChannel,
   NotificationDeliveryStatus,
@@ -11,16 +11,16 @@ import {
   PreparationStation,
   PresenceTriggerType,
   Prisma,
-} from '@prisma/client';
-import { PrismaService } from '../prisma/prisma.service';
-import { RealtimeEventsService } from '../realtime-events/realtime-events.service';
-import { BranchNotificationsQueryDto } from './dto/branch-notifications-query.dto';
-import { BranchPresenceEventsQueryDto } from './dto/branch-presence-events-query.dto';
-import { CreatePresenceEventDto } from './dto/create-presence-event.dto';
+} from "@prisma/client";
+import { PrismaService } from "../prisma/prisma.service";
+import { RealtimeEventsService } from "../realtime-events/realtime-events.service";
+import { BranchNotificationsQueryDto } from "./dto/branch-notifications-query.dto";
+import { BranchPresenceEventsQueryDto } from "./dto/branch-presence-events-query.dto";
+import { CreatePresenceEventDto } from "./dto/create-presence-event.dto";
 
-const WELCOME_TITLE = 'أهلاً بيك في Balcona Bar';
+const WELCOME_TITLE = "أهلاً بيك في Balcona Bar";
 const WELCOME_BODY =
-  'أهلاً بيك في Balcona Bar 👋 الويتر الذكي جاهز يخدمك. تقدر تطلب، تسأل، أو تنادي ويتر في أي وقت.';
+  "أهلاً بيك في Balcona Bar 👋 الويتر الذكي جاهز يخدمك. تقدر تطلب، تسأل، أو تنادي ويتر في أي وقت.";
 
 const API_WELCOME_TRIGGER_TYPES: PresenceTriggerType[] = [
   PresenceTriggerType.wifi_portal_entered,
@@ -86,7 +86,7 @@ export class PresenceNotificationsService {
         tableSessionId: session.id,
         customerSessionIdentityId: customerIdentity.id,
         triggerType,
-        metadata: { source: 'table_session_qr_flow' },
+        metadata: { source: "table_session_qr_flow" },
       },
       include: this.presenceEventInclude(),
     });
@@ -171,7 +171,7 @@ export class PresenceNotificationsService {
           : {}),
         ...(!tableSession
           ? {
-              note: 'Presence event recorded without a table session; no notification was created.',
+              note: "Presence event recorded without a table session; no notification was created.",
             }
           : {}),
       };
@@ -195,7 +195,7 @@ export class PresenceNotificationsService {
         ),
         orderId: order.id,
         kind: NotificationKind.order_submitted,
-        title: 'تم إرسال طلبك',
+        title: "تم إرسال طلبك",
         body: `استلمنا طلبك ${order.orderNumber}. الكاشير بيراجعه دلوقتي.`,
         dedupeKey: `order-submitted:${order.id}`,
         metadata: { orderNumber: order.orderNumber },
@@ -221,7 +221,7 @@ export class PresenceNotificationsService {
         ),
         orderId: order.id,
         kind: NotificationKind.order_accepted,
-        title: 'تم قبول طلبك',
+        title: "تم قبول طلبك",
         body: `تم قبول طلبك ${order.orderNumber}. الفريق بدأ يجهزه.`,
         dedupeKey: `order-accepted:${order.id}`,
         metadata: { orderNumber: order.orderNumber },
@@ -236,7 +236,7 @@ export class PresenceNotificationsService {
     tx: PrismaExecutor = this.prisma,
   ) {
     const order = await this.findOrderNotificationContext(orderId, tx);
-    const reasonText = reason ? ` السبب: ${reason}` : '';
+    const reasonText = reason ? ` السبب: ${reason}` : "";
 
     return this.createInAppNotification(
       {
@@ -249,7 +249,7 @@ export class PresenceNotificationsService {
         ),
         orderId: order.id,
         kind: NotificationKind.order_rejected,
-        title: 'تعذر قبول طلبك',
+        title: "تعذر قبول طلبك",
         body: `الكاشير لم يقبل طلبك ${order.orderNumber}.${reasonText}`,
         dedupeKey: `order-rejected:${order.id}`,
         metadata: {
@@ -278,7 +278,7 @@ export class PresenceNotificationsService {
         ),
         orderId: order.id,
         kind: NotificationKind.order_served,
-        title: 'طلبك وصل للترابيزة',
+        title: "طلبك وصل للترابيزة",
         body: `طلبك ${order.orderNumber} وصل للترابيزة.`,
         dedupeKey: `order-served:${order.id}`,
         metadata: { orderNumber: order.orderNumber },
@@ -306,7 +306,7 @@ export class PresenceNotificationsService {
           tx,
         ),
         kind: NotificationKind.bill_requested,
-        title: 'طلب الحساب اتسجل',
+        title: "طلب الحساب اتسجل",
         body: `طلب الحساب اتسجل بإجمالي ${billRequest.subtotalMinor} ${billRequest.currency}.`,
         dedupeKey: `bill-requested:${billRequest.id}`,
         metadata: this.billRequestNotificationMetadata(billRequest),
@@ -334,8 +334,8 @@ export class PresenceNotificationsService {
           tx,
         ),
         kind: NotificationKind.bill_presented,
-        title: 'الحساب في الطريق',
-        body: 'تم تقديم الحساب تشغيلياً للفريق.',
+        title: "الحساب في الطريق",
+        body: "تم تقديم الحساب تشغيلياً للفريق.",
         dedupeKey: `bill-presented:${billRequest.id}`,
         metadata: this.billRequestNotificationMetadata(billRequest),
       },
@@ -362,8 +362,8 @@ export class PresenceNotificationsService {
           tx,
         ),
         kind: NotificationKind.bill_closed,
-        title: 'تم إغلاق الحساب تشغيلياً',
-        body: 'تم إغلاق طلب الحساب تشغيلياً بدون معالجة دفع.',
+        title: "تم إغلاق الحساب تشغيلياً",
+        body: "تم إغلاق طلب الحساب تشغيلياً بدون معالجة دفع.",
         dedupeKey: `bill-closed:${billRequest.id}`,
         metadata: this.billRequestNotificationMetadata(billRequest),
       },
@@ -373,7 +373,7 @@ export class PresenceNotificationsService {
 
   async createPreparationReadyNotification(
     preparationTaskId: string,
-    tx: Prisma.TransactionClient,
+    tx: PrismaExecutor = this.prisma,
   ) {
     const task = await tx.preparationTask.findUnique({
       where: { id: preparationTaskId },
@@ -394,7 +394,7 @@ export class PresenceNotificationsService {
     });
 
     if (!task) {
-      throw new NotFoundException('Preparation task not found');
+      throw new NotFoundException("Preparation task not found");
     }
 
     return this.createInAppNotification(
@@ -409,7 +409,7 @@ export class PresenceNotificationsService {
         orderId: task.orderId,
         preparationTaskId: task.id,
         kind: NotificationKind.preparation_ready,
-        title: 'جزء من طلبك جاهز',
+        title: "جزء من طلبك جاهز",
         body: `${task.itemNameSnapshot} جاهز من ${this.stationLabel(task.station)}.`,
         dedupeKey: `preparation-ready:${task.id}`,
         metadata: {
@@ -423,7 +423,7 @@ export class PresenceNotificationsService {
 
   async createPreparationStartedNotification(
     preparationTaskId: string,
-    tx: Prisma.TransactionClient,
+    tx: PrismaExecutor = this.prisma,
   ) {
     const task = await tx.preparationTask.findUnique({
       where: { id: preparationTaskId },
@@ -444,7 +444,7 @@ export class PresenceNotificationsService {
     });
 
     if (!task) {
-      throw new NotFoundException('Preparation task not found');
+      throw new NotFoundException("Preparation task not found");
     }
 
     return this.createInAppNotification(
@@ -459,7 +459,7 @@ export class PresenceNotificationsService {
         orderId: task.orderId,
         preparationTaskId: task.id,
         kind: NotificationKind.preparation_started,
-        title: 'بدأ تجهيز طلبك',
+        title: "بدأ تجهيز طلبك",
         body: `${task.itemNameSnapshot} بدأ تجهيزه في ${this.stationLabel(task.station)}.`,
         dedupeKey: `preparation-started:${task.id}`,
         metadata: {
@@ -478,8 +478,8 @@ export class PresenceNotificationsService {
     return this.createWaiterCallNotification(
       waiterCallId,
       {
-        title: 'طلبك وصل للويتر',
-        body: 'استلمنا طلبك. الويتر هيجيلك في أقرب وقت.',
+        title: "طلبك وصل للويتر",
+        body: "استلمنا طلبك. الويتر هيجيلك في أقرب وقت.",
         dedupeKey: `waiter-call-created:${waiterCallId}`,
       },
       tx,
@@ -493,8 +493,8 @@ export class PresenceNotificationsService {
     return this.createWaiterCallNotification(
       waiterCallId,
       {
-        title: 'الويتر في الطريق',
-        body: 'تم تأكيد طلبك. الويتر جاي يساعدك.',
+        title: "الويتر في الطريق",
+        body: "تم تأكيد طلبك. الويتر جاي يساعدك.",
         dedupeKey: `waiter-call-acknowledged:${waiterCallId}`,
       },
       tx,
@@ -508,8 +508,8 @@ export class PresenceNotificationsService {
     return this.createWaiterCallNotification(
       waiterCallId,
       {
-        title: 'تم التعامل مع طلبك',
-        body: 'طلب المساعدة اتسجل إنه اتعامل. شكراً ليك.',
+        title: "تم التعامل مع طلبك",
+        body: "طلب المساعدة اتسجل إنه اتعامل. شكراً ليك.",
         dedupeKey: `waiter-call-resolved:${waiterCallId}`,
       },
       tx,
@@ -523,12 +523,12 @@ export class PresenceNotificationsService {
     });
 
     if (!tableSession) {
-      throw new NotFoundException('Table session not found');
+      throw new NotFoundException("Table session not found");
     }
 
     const notifications = await this.prisma.notification.findMany({
       where: { tableSessionId: sessionId },
-      orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+      orderBy: [{ createdAt: "desc" }, { id: "desc" }],
       include: this.notificationInclude(),
     });
 
@@ -584,7 +584,7 @@ export class PresenceNotificationsService {
     });
 
     if (!branch) {
-      throw new NotFoundException('Branch not found');
+      throw new NotFoundException("Branch not found");
     }
 
     const events = await this.prisma.presenceEvent.findMany({
@@ -597,14 +597,14 @@ export class PresenceNotificationsService {
           ? { tableSessionId: query.tableSessionId }
           : {}),
       },
-      orderBy: [{ occurredAt: 'desc' }, { createdAt: 'desc' }],
+      orderBy: [{ occurredAt: "desc" }, { createdAt: "desc" }],
       include: this.presenceEventInclude(),
     });
 
     return {
       branch,
       filters: {
-        triggerType: query.triggerType ?? 'all',
+        triggerType: query.triggerType ?? "all",
         tableSessionId: query.tableSessionId ?? null,
       },
       events,
@@ -621,18 +621,18 @@ export class PresenceNotificationsService {
     });
 
     if (!branch) {
-      throw new NotFoundException('Branch not found');
+      throw new NotFoundException("Branch not found");
     }
 
-    const status = query.status ?? 'all';
-    const kind = query.kind ?? 'all';
+    const status = query.status ?? "all";
+    const kind = query.kind ?? "all";
     const notifications = await this.prisma.notification.findMany({
       where: {
         branchId,
-        ...(status === 'all' ? {} : { status: status as NotificationStatus }),
-        ...(kind === 'all' ? {} : { kind: kind as NotificationKind }),
+        ...(status === "all" ? {} : { status: status as NotificationStatus }),
+        ...(kind === "all" ? {} : { kind: kind as NotificationKind }),
       },
-      orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+      orderBy: [{ createdAt: "desc" }, { id: "desc" }],
       include: this.notificationInclude(),
     });
 
@@ -667,7 +667,7 @@ export class PresenceNotificationsService {
         branchId: session.branchId,
         tableSessionId: session.id,
         displayName: session.guestLabel ?? undefined,
-        locale: 'ar-EG',
+        locale: "ar-EG",
       },
       select: { id: true },
     });
@@ -690,7 +690,7 @@ export class PresenceNotificationsService {
         title: WELCOME_TITLE,
         body: WELCOME_BODY,
         dedupeKey: `welcome:table-session:${session.id}`,
-        metadata: { source: 'presence_trigger' },
+        metadata: { source: "presence_trigger" },
       },
       tx,
     );
@@ -768,7 +768,7 @@ export class PresenceNotificationsService {
     });
 
     if (!waiterCall) {
-      throw new NotFoundException('Waiter call not found');
+      throw new NotFoundException("Waiter call not found");
     }
 
     return this.createInAppNotification(
@@ -802,7 +802,7 @@ export class PresenceNotificationsService {
     });
 
     if (!branch) {
-      throw new NotFoundException('Branch not found');
+      throw new NotFoundException("Branch not found");
     }
 
     return branch;
@@ -828,14 +828,14 @@ export class PresenceNotificationsService {
     });
 
     if (!tableSession) {
-      throw new NotFoundException('Table session not found');
+      throw new NotFoundException("Table session not found");
     }
 
     if (
       tableSession.branchId !== branch.id ||
       tableSession.companyId !== branch.companyId
     ) {
-      throw new BadRequestException('Table session does not belong to branch');
+      throw new BadRequestException("Table session does not belong to branch");
     }
 
     return tableSession;
@@ -856,14 +856,14 @@ export class PresenceNotificationsService {
     });
 
     if (!venueZone) {
-      throw new NotFoundException('Venue zone not found');
+      throw new NotFoundException("Venue zone not found");
     }
 
     if (
       venueZone.branchId !== branch.id ||
       venueZone.companyId !== branch.companyId
     ) {
-      throw new BadRequestException('Venue zone does not belong to branch');
+      throw new BadRequestException("Venue zone does not belong to branch");
     }
   }
 
@@ -888,7 +888,7 @@ export class PresenceNotificationsService {
     });
 
     if (!customerIdentity) {
-      throw new NotFoundException('Customer session identity not found');
+      throw new NotFoundException("Customer session identity not found");
     }
 
     if (
@@ -896,7 +896,7 @@ export class PresenceNotificationsService {
       customerIdentity.companyId !== branch.companyId
     ) {
       throw new BadRequestException(
-        'Customer session identity does not belong to branch',
+        "Customer session identity does not belong to branch",
       );
     }
 
@@ -906,7 +906,7 @@ export class PresenceNotificationsService {
       customerIdentity.tableSessionId !== tableSessionId
     ) {
       throw new BadRequestException(
-        'Customer session identity does not belong to table session',
+        "Customer session identity does not belong to table session",
       );
     }
 
@@ -936,18 +936,18 @@ export class PresenceNotificationsService {
     });
 
     if (!subscription) {
-      throw new NotFoundException('Device subscription not found');
+      throw new NotFoundException("Device subscription not found");
     }
 
     if (subscription.companyId !== branch.companyId) {
       throw new BadRequestException(
-        'Device subscription does not belong to branch company',
+        "Device subscription does not belong to branch company",
       );
     }
 
     if (subscription.branchId && subscription.branchId !== branch.id) {
       throw new BadRequestException(
-        'Device subscription does not belong to branch',
+        "Device subscription does not belong to branch",
       );
     }
 
@@ -957,7 +957,7 @@ export class PresenceNotificationsService {
       subscription.tableSessionId !== tableSessionId
     ) {
       throw new BadRequestException(
-        'Device subscription does not belong to table session',
+        "Device subscription does not belong to table session",
       );
     }
 
@@ -967,7 +967,7 @@ export class PresenceNotificationsService {
       subscription.customerSessionIdentityId !== customerSessionIdentityId
     ) {
       throw new BadRequestException(
-        'Device subscription does not belong to customer session identity',
+        "Device subscription does not belong to customer session identity",
       );
     }
   }
@@ -988,7 +988,7 @@ export class PresenceNotificationsService {
     });
 
     if (!order) {
-      throw new NotFoundException('Order not found');
+      throw new NotFoundException("Order not found");
     }
 
     return order;
@@ -1013,7 +1013,7 @@ export class PresenceNotificationsService {
     });
 
     if (!billRequest) {
-      throw new NotFoundException('Bill request not found');
+      throw new NotFoundException("Bill request not found");
     }
 
     return billRequest;
@@ -1054,7 +1054,7 @@ export class PresenceNotificationsService {
     });
 
     if (!notification) {
-      throw new NotFoundException('Notification not found');
+      throw new NotFoundException("Notification not found");
     }
   }
 
@@ -1095,22 +1095,22 @@ export class PresenceNotificationsService {
   private stationLabel(station: PreparationStation) {
     switch (station) {
       case PreparationStation.barista:
-        return 'البارستا';
+        return "البارستا";
       case PreparationStation.dessert:
-        return 'الديسرت';
+        return "الديسرت";
       case PreparationStation.kitchen:
-        return 'المطبخ';
+        return "المطبخ";
       case PreparationStation.cashier:
-        return 'الكاشير';
+        return "الكاشير";
       default:
-        return 'الفريق';
+        return "الفريق";
     }
   }
 
   private notificationInclude() {
     return {
       deliveries: {
-        orderBy: [{ createdAt: 'asc' as const }],
+        orderBy: [{ createdAt: "asc" as const }],
       },
       tableSession: {
         select: this.tableSessionSelect(),
