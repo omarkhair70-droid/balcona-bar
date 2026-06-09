@@ -48,6 +48,42 @@ export type KitchenTicketRoutingResult = {
   existingTicketCount: number;
 };
 
+export type KitchenTicketOrderSnapshot = {
+  id: string;
+  companyId: string;
+  branchId: string;
+  tableSessionId: string;
+  orderNumber: string;
+  status: OrderStatus;
+  customerNote: string | null;
+  tableSession: {
+    table: {
+      code: string;
+      displayName: string | null;
+      floor: { name: string } | null;
+    };
+  };
+  items: {
+    id: string;
+    menuItemId: string;
+    quantity: number;
+    notes: string | null;
+    itemNameSnapshot: string;
+    itemSlugSnapshot: string;
+    menuItem: { station: PreparationStation };
+    modifierOptions: {
+      modifierGroupId: string;
+      modifierOptionId: string;
+      modifierGroupNameSnapshot: string;
+      modifierGroupSlugSnapshot: string;
+      modifierOptionNameSnapshot: string;
+      modifierOptionSlugSnapshot: string;
+      priceDeltaMinorSnapshot: number;
+    }[];
+    preparationTask?: { id: string } | null;
+  }[];
+};
+
 type CreateTicketsForAcceptedOrderOptions = {
   createPrintJobs?: boolean;
   recordRealtimeEvents?: boolean;
@@ -122,19 +158,70 @@ export class KitchenTicketsService {
       throw new NotFoundException('Order not found');
     }
 
+    const taskIdByOrderItemId = new Map<string, string>();
+    const actionableMissingTaskIds = order.items
+      .filter((item) => {
+        const taskId = item.preparationTask?.id;
+
+        if (taskId) {
+          taskIdByOrderItemId.set(item.id, taskId);
+          return false;
+        }
+
+        return ACTIONABLE_STATIONS.includes(item.menuItem.station);
+      })
+      .map((item) => item.id);
+
+    if (actionableMissingTaskIds.length > 0) {
+      const tasks = await tx.preparationTask.findMany({
+        where: {
+          orderId: order.id,
+          orderItemId: { in: actionableMissingTaskIds },
+        },
+        select: { id: true, orderItemId: true },
+      });
+
+      for (const task of tasks) {
+        taskIdByOrderItemId.set(task.orderItemId, task.id);
+      }
+    }
+
+    return this.createTicketsForAcceptedOrderSnapshot(
+      order,
+      taskIdByOrderItemId,
+      staffUserId,
+      tx,
+      options,
+    );
+  }
+
+  async createTicketsForAcceptedOrderSnapshot(
+    order: KitchenTicketOrderSnapshot,
+    taskIdByOrderItemId: Map<string, string>,
+    staffUserId: string | undefined,
+    tx: Prisma.TransactionClient,
+    options: CreateTicketsForAcceptedOrderOptions = {},
+  ) {
+    const startedAt = Date.now();
+    const timings = {
+      existingTicketLookupMs: 0,
+      ticketCreateMs: 0,
+      criticalSideEffectsMs: 0,
+    };
+
     if (order.status !== OrderStatus.cashier_accepted) {
-      return this.emptyRoutingResult(orderId, order.branchId, order.items.length);
+      return this.emptyRoutingResult(order.id, order.branchId, order.items.length);
     }
 
     const itemsByStation = new Map<PreparationStation, typeof order.items>();
     const skippedItems: KitchenTicketRoutingResult['skippedItems'] = [];
-    const taskIdByOrderItemId = new Map<string, string>();
 
     for (const item of order.items) {
       const station = item.menuItem.station;
+
       const taskId = item.preparationTask?.id;
 
-      if (taskId) {
+      if (taskId && !taskIdByOrderItemId.has(item.id)) {
         taskIdByOrderItemId.set(item.id, taskId);
       }
 
@@ -154,30 +241,13 @@ export class KitchenTicketsService {
     }
 
     const actionableItems = [...itemsByStation.values()].flat();
-    const actionableMissingTaskIds = actionableItems
-      .filter((item) => !taskIdByOrderItemId.has(item.id))
-      .map((item) => item.id);
-
-    if (actionableMissingTaskIds.length > 0) {
-      const tasks = await tx.preparationTask.findMany({
-        where: {
-          orderId: order.id,
-          orderItemId: { in: actionableMissingTaskIds },
-        },
-        select: { id: true, orderItemId: true },
-      });
-
-      for (const task of tasks) {
-        taskIdByOrderItemId.set(task.orderItemId, task.id);
-      }
-    }
-
     const ticketIds: string[] = [];
     let createdTicketCount = 0;
     let existingTicketCount = 0;
 
     for (const [station, stationItems] of itemsByStation.entries()) {
       const type = TICKET_TYPE_BY_STATION[station];
+      let stageStartedAt = Date.now();
       const existingTicket = await tx.kitchenTicket.findUnique({
         where: {
           orderId_station_type: {
@@ -188,6 +258,7 @@ export class KitchenTicketsService {
         },
         select: { id: true },
       });
+      timings.existingTicketLookupMs += Date.now() - stageStartedAt;
 
       if (existingTicket) {
         ticketIds.push(existingTicket.id);
@@ -195,6 +266,7 @@ export class KitchenTicketsService {
         continue;
       }
 
+      stageStartedAt = Date.now();
       const ticket = await this.createTicketWithSequenceRetry({
         order,
         station,
@@ -203,7 +275,9 @@ export class KitchenTicketsService {
         taskIdByOrderItemId,
         tx,
       });
+      timings.ticketCreateMs += Date.now() - stageStartedAt;
 
+      stageStartedAt = Date.now();
       if (options.recordRealtimeEvents ?? true) {
         await this.realtimeEventsService.recordKitchenTicketCreated(
           ticket.id,
@@ -215,6 +289,7 @@ export class KitchenTicketsService {
           requestedByStaffUserId: staffUserId,
         });
       }
+      timings.criticalSideEffectsMs += Date.now() - stageStartedAt;
       ticketIds.push(ticket.id);
       createdTicketCount += 1;
     }
@@ -240,6 +315,8 @@ export class KitchenTicketsService {
       existingTicketCount,
       ticketCount: ticketIds.length,
       skippedItemCount: skippedItems.length,
+      durationMs: Date.now() - startedAt,
+      timings,
       zeroTicketReason:
         result.actionableItemCount > 0 && ticketIds.length === 0
           ? 'actionable_items_without_tickets'

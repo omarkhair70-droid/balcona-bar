@@ -16,6 +16,7 @@ import {
 } from '@prisma/client';
 import { TableAttentionService } from '../autopilot/table-attention.service';
 import {
+  KitchenTicketOrderSnapshot,
   KitchenTicketRoutingResult,
   KitchenTicketsService,
 } from '../kitchen-tickets/kitchen-tickets.service';
@@ -78,6 +79,14 @@ export class PreparationTasksService {
     tx: Prisma.TransactionClient,
     options: CreateTasksForAcceptedOrderOptions = {},
   ) {
+    const startedAt = Date.now();
+    const timings = {
+      orderSnapshotLoadMs: 0,
+      taskLookupMs: 0,
+      taskCreateMs: 0,
+      ticketCreationMs: 0,
+    };
+    let stageStartedAt = Date.now();
     const order = await tx.order.findUnique({
       where: { id: orderId },
       select: {
@@ -86,9 +95,24 @@ export class PreparationTasksService {
         branchId: true,
         status: true,
         tableSessionId: true,
+        orderNumber: true,
+        customerNote: true,
+        tableSession: {
+          select: {
+            table: {
+              select: {
+                code: true,
+                displayName: true,
+                floor: { select: { name: true } },
+              },
+            },
+          },
+        },
         items: {
+          orderBy: [{ createdAt: 'asc' }],
           select: {
             id: true,
+            menuItemId: true,
             quantity: true,
             notes: true,
             itemNameSnapshot: true,
@@ -98,10 +122,23 @@ export class PreparationTasksService {
                 station: true,
               },
             },
+            modifierOptions: {
+              orderBy: [{ createdAt: 'asc' }],
+              select: {
+                modifierGroupId: true,
+                modifierOptionId: true,
+                modifierGroupNameSnapshot: true,
+                modifierGroupSlugSnapshot: true,
+                modifierOptionNameSnapshot: true,
+                modifierOptionSlugSnapshot: true,
+                priceDeltaMinorSnapshot: true,
+              },
+            },
           },
         },
       },
-    });
+    }) as KitchenTicketOrderSnapshot | null;
+    timings.orderSnapshotLoadMs = Date.now() - stageStartedAt;
 
     if (!order) {
       throw new NotFoundException('Order not found');
@@ -120,6 +157,7 @@ export class PreparationTasksService {
     let existingTaskCount = 0;
     const skippedItems: KdsRoutingResult['skippedItems'] = [];
     const actionableStations = new Set<PreparationStation>();
+    const taskIdByOrderItemId = new Map<string, string>();
     let actionableItemCount = 0;
     let routingStage:
       | 'task_lookup'
@@ -143,18 +181,22 @@ export class PreparationTasksService {
         actionableStations.add(item.menuItem.station);
 
         routingStage = 'task_lookup';
+        stageStartedAt = Date.now();
         const existingTask = await tx.preparationTask.findUnique({
           where: { orderItemId: item.id },
           select: { id: true },
         });
+        timings.taskLookupMs += Date.now() - stageStartedAt;
 
         if (existingTask) {
+          taskIdByOrderItemId.set(item.id, existingTask.id);
           activeTaskCount += 1;
           existingTaskCount += 1;
           continue;
         }
 
         routingStage = 'task_create';
+        stageStartedAt = Date.now();
         const task = await tx.preparationTask.create({
           data: {
             companyId: order.companyId,
@@ -180,6 +222,7 @@ export class PreparationTasksService {
           },
           select: { id: true },
         });
+        timings.taskCreateMs += Date.now() - stageStartedAt;
 
         if (options.recordRealtimeEvents ?? true) {
           await this.realtimeEventsService.recordPreparationTaskCreated(
@@ -187,14 +230,17 @@ export class PreparationTasksService {
             tx,
           );
         }
+        taskIdByOrderItemId.set(item.id, task.id);
         activeTaskCount += 1;
         createdTaskCount += 1;
       }
 
       routingStage = 'ticket_creation';
+      stageStartedAt = Date.now();
       ticketRouting =
-        await this.kitchenTicketsService.createTicketsForAcceptedOrder(
-          order.id,
+        await this.kitchenTicketsService.createTicketsForAcceptedOrderSnapshot(
+          order,
+          taskIdByOrderItemId,
           staffUserId,
           tx,
           {
@@ -202,6 +248,7 @@ export class PreparationTasksService {
             recordRealtimeEvents: options.recordRealtimeEvents,
           },
         );
+      timings.ticketCreationMs = Date.now() - stageStartedAt;
 
       const result: KdsRoutingResult = {
         orderId: order.id,
@@ -230,6 +277,8 @@ export class PreparationTasksService {
         existingTicketCount: ticketRouting.existingTicketCount,
         ticketCount: ticketRouting.ticketIds.length,
         skippedItemCount: skippedItems.length,
+        durationMs: Date.now() - startedAt,
+        timings,
         zeroTicketReason:
           actionableItemCount > 0 && ticketRouting.ticketIds.length === 0
             ? 'actionable_items_without_tickets'

@@ -1,6 +1,7 @@
 import {
   BadRequestException,
   Injectable,
+  Logger,
   NotFoundException,
 } from '@nestjs/common';
 import {
@@ -79,6 +80,8 @@ const tableSessionContextSelect = {
 
 @Injectable()
 export class TableSessionsService {
+  private readonly logger = new Logger(TableSessionsService.name);
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly presenceNotificationsService: PresenceNotificationsService,
@@ -87,70 +90,125 @@ export class TableSessionsService {
   ) {}
 
   async start(body: StartTableSessionDto) {
-    const result = await this.prisma.$transaction(async (tx) => {
-      const table = await tx.cafeTable.findUnique({
-        where: { qrToken: body.qrToken },
-        select: {
-          id: true,
-          branchId: true,
-          status: true,
-          branch: {
-            select: {
-              id: true,
-              name: true,
-              slug: true,
-              address: true,
-              status: true,
-              companyId: true,
-              company: {
-                select: {
-                  id: true,
-                  name: true,
-                  slug: true,
-                  status: true,
+    const startedAt = Date.now();
+
+    this.logger.log({
+      message: 'customer.table_session_start_attempt',
+      qrTokenPresent: Boolean(body.qrToken),
+    });
+
+    let result: {
+      session: Prisma.TableSessionGetPayload<{
+        select: typeof tableSessionContextSelect;
+      }>;
+      access: {
+        customerAccessToken: string;
+        customerAccessTokenExpiresAt: Date | null;
+        customerSessionIdentityId: string;
+      };
+      wasResumed: boolean;
+      presenceTriggerType: PresenceTriggerType;
+    };
+
+    try {
+      result = await this.prisma.$transaction(async (tx) => {
+        const table = await tx.cafeTable.findUnique({
+          where: { qrToken: body.qrToken },
+          select: {
+            id: true,
+            branchId: true,
+            status: true,
+            branch: {
+              select: {
+                id: true,
+                name: true,
+                slug: true,
+                address: true,
+                status: true,
+                companyId: true,
+                company: {
+                  select: {
+                    id: true,
+                    name: true,
+                    slug: true,
+                    status: true,
+                  },
                 },
               },
             },
           },
-        },
-      });
+        });
 
-      if (!table) {
-        throw new NotFoundException('Table QR token not found');
-      }
+        if (!table) {
+          throw new NotFoundException('Table QR token not found');
+        }
 
-      if (table.status !== 'active') {
-        throw new BadRequestException(
-          `Table is not available for sessions because it is ${table.status}`,
-        );
-      }
+        if (table.status !== 'active') {
+          throw new BadRequestException(
+            `Table is not available for sessions because it is ${table.status}`,
+          );
+        }
 
-      if (table.branch.status !== 'active') {
-        throw new BadRequestException(
-          `Branch is not available for sessions because it is ${table.branch.status}`,
-        );
-      }
+        if (table.branch.status !== 'active') {
+          throw new BadRequestException(
+            `Branch is not available for sessions because it is ${table.branch.status}`,
+          );
+        }
 
-      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${table.id})::bigint)`;
+        await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${table.id})::bigint)`;
 
-      const existingSession = await tx.tableSession.findFirst({
-        where: {
-          tableId: table.id,
-          status: { in: OPEN_SESSION_STATUSES },
-        },
-        orderBy: { lastSeenAt: 'desc' },
-        select: { id: true },
-      });
+        const existingSession = await tx.tableSession.findFirst({
+          where: {
+            tableId: table.id,
+            status: { in: OPEN_SESSION_STATUSES },
+          },
+          orderBy: { lastSeenAt: 'desc' },
+          select: { id: true },
+        });
 
-      const now = new Date();
+        const now = new Date();
 
-      if (existingSession) {
-        const session = await tx.tableSession.update({
-          where: { id: existingSession.id },
+        if (existingSession) {
+          const session = await tx.tableSession.update({
+            where: { id: existingSession.id },
+            data: {
+              lastSeenAt: now,
+              guestLabel: body.guestLabel,
+              partySize: body.partySize,
+            },
+            select: tableSessionContextSelect,
+          });
+
+          await tx.tableSessionEvent.create({
+            data: {
+              tableSessionId: session.id,
+              type: TableSessionEventType.resumed,
+              metadata: { qrToken: body.qrToken },
+            },
+          });
+
+          const access = await this.tableSessionAccessService.issueAccessToken(
+            session,
+            tx,
+          );
+
+          return {
+            session,
+            access,
+            wasResumed: true,
+            presenceTriggerType: PresenceTriggerType.qr_session_resumed,
+          };
+        }
+
+        const session = await tx.tableSession.create({
           data: {
-            lastSeenAt: now,
+            companyId: table.branch.companyId,
+            branchId: table.branchId,
+            tableId: table.id,
+            source: TableSessionSource.qr,
             guestLabel: body.guestLabel,
             partySize: body.partySize,
+            lastSeenAt: now,
           },
           select: tableSessionContextSelect,
         });
@@ -158,69 +216,123 @@ export class TableSessionsService {
         await tx.tableSessionEvent.create({
           data: {
             tableSessionId: session.id,
-            type: TableSessionEventType.resumed,
+            type: TableSessionEventType.created,
             metadata: { qrToken: body.qrToken },
           },
         });
-
-        await this.presenceNotificationsService.recordQrTableSessionPresence(
-          session,
-          PresenceTriggerType.qr_session_resumed,
-          tx,
-        );
-
-        await this.realtimeEventsService.recordTableSessionResumed(session, tx);
 
         const access = await this.tableSessionAccessService.issueAccessToken(
           session,
           tx,
         );
 
-        return { session, access, wasResumed: true };
-      }
-
-      const session = await tx.tableSession.create({
-        data: {
-          companyId: table.branch.companyId,
-          branchId: table.branchId,
-          tableId: table.id,
-          source: TableSessionSource.qr,
-          guestLabel: body.guestLabel,
-          partySize: body.partySize,
-          lastSeenAt: now,
-        },
-        select: tableSessionContextSelect,
+        return {
+          session,
+          access,
+          wasResumed: false,
+          presenceTriggerType: PresenceTriggerType.qr_session_started,
+        };
+      });
+    } catch (error) {
+      this.logger.warn({
+        message: 'customer.table_session_start_failed',
+        qrTokenPresent: Boolean(body.qrToken),
+        durationMs: Date.now() - startedAt,
+        exception: this.safeExceptionSummary(error),
       });
 
-      await tx.tableSessionEvent.create({
-        data: {
-          tableSessionId: session.id,
-          type: TableSessionEventType.created,
-          metadata: { qrToken: body.qrToken },
-        },
-      });
+      throw error;
+    }
 
-      await this.presenceNotificationsService.recordQrTableSessionPresence(
-        session,
-        PresenceTriggerType.qr_session_started,
-        tx,
-      );
-
-      await this.realtimeEventsService.recordTableSessionStarted(session, tx);
-
-      const access = await this.tableSessionAccessService.issueAccessToken(
-        session,
-        tx,
-      );
-
-      return { session, access, wasResumed: false };
+    this.logger.log({
+      message: 'customer.table_session_start_success',
+      sessionId: result.session.id,
+      branchId: result.session.branchId,
+      wasResumed: result.wasResumed,
+      durationMs: Date.now() - startedAt,
     });
+
+    await this.runStartSideEffects(result);
 
     return this.toContextResponse(
       result.session,
       result.wasResumed,
       result.access,
     );
+  }
+
+  private async runStartSideEffects(result: {
+    session: Prisma.TableSessionGetPayload<{
+      select: typeof tableSessionContextSelect;
+    }>;
+    wasResumed: boolean;
+    presenceTriggerType: PresenceTriggerType;
+  }) {
+    await this.runStartSideEffect('presence', result, () =>
+      this.presenceNotificationsService.recordQrTableSessionPresence(
+        result.session,
+        result.presenceTriggerType,
+      ),
+    );
+
+    await this.runStartSideEffect('realtime', result, () =>
+      result.wasResumed
+        ? this.realtimeEventsService.recordTableSessionResumed(
+            result.session,
+            this.prisma,
+          )
+        : this.realtimeEventsService.recordTableSessionStarted(
+            result.session,
+            this.prisma,
+          ),
+    );
+  }
+
+  private async runStartSideEffect(
+    stage: 'presence' | 'realtime',
+    result: {
+      session: Prisma.TableSessionGetPayload<{
+        select: typeof tableSessionContextSelect;
+      }>;
+      wasResumed: boolean;
+    },
+    run: () => Promise<unknown>,
+  ) {
+    try {
+      await run();
+    } catch (error) {
+      this.logger.warn({
+        message: 'customer.table_session_start_side_effect_failed',
+        stage,
+        sessionId: result.session.id,
+        branchId: result.session.branchId,
+        wasResumed: result.wasResumed,
+        exception: this.safeExceptionSummary(error),
+      });
+    }
+  }
+
+  private safeExceptionSummary(error: unknown) {
+    if (error instanceof Error) {
+      return {
+        name: error.name,
+        message: this.redactSensitiveText(
+          error.message.trim() || error.name || 'Unexpected error',
+        ),
+        code:
+          'code' in error && typeof error.code === 'string'
+            ? error.code
+            : undefined,
+      };
+    }
+
+    return { name: 'UnknownError', message: 'Unexpected error' };
+  }
+
+  private redactSensitiveText(value: string) {
+    return value
+      .replace(/token=([^\s,]+)/gi, 'token=[redacted]')
+      .replace(/Bearer\s+[^\s,]+/gi, 'Bearer [redacted]');
   }
 
   async findOne(sessionId: string) {

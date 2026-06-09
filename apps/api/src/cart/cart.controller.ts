@@ -1,4 +1,13 @@
-import { Body, Controller, Delete, Get, Param, Patch, Post } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Delete,
+  Get,
+  Headers,
+  Param,
+  Patch,
+  Post,
+} from '@nestjs/common';
 import { AddCartItemDto } from './dto/add-cart-item.dto';
 import { CartItemIdParamDto } from './dto/cart-item-id-param.dto';
 import { SessionIdParamDto } from './dto/session-id-param.dto';
@@ -15,8 +24,12 @@ export class CartController {
   }
 
   @Post('table-sessions/:sessionId/cart/items')
-  addItem(@Param() params: SessionIdParamDto, @Body() body: AddCartItemDto) {
-    return this.cartService.addItem(params.sessionId, body);
+  addItem(
+    @Param() params: SessionIdParamDto,
+    @Body() body: AddCartItemDto,
+    @Headers('idempotency-key') idempotencyKey?: string,
+  ) {
+    return this.cartService.addItem(params.sessionId, body, idempotencyKey);
   }
 
   @Patch('cart/items/:cartItemId')

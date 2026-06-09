@@ -398,6 +398,54 @@ describe('KitchenTicketsService', () => {
     });
   });
 
+  it('routes from a prepared order snapshot without reloading the order', async () => {
+    const createdTickets: any[] = [];
+    const order: any = buildOrder();
+    order.items = [order.items[0]];
+    const tx = {
+      order: {
+        findUnique: jest.fn(() => {
+          throw new Error('snapshot routing must not reload the order');
+        }),
+      },
+      kitchenTicket: {
+        aggregate: nextSequenceAggregate(createdTickets),
+        findUnique: jest.fn().mockResolvedValue(null),
+        create: jest.fn().mockImplementation((args) => {
+          const id = `ticket-${createdTickets.length + 1}`;
+
+          createdTickets.push({ id, data: args.data });
+
+          return { id };
+        }),
+      },
+    };
+    const service = new KitchenTicketsService(
+      {} as never,
+      { createForKitchenTicket: jest.fn().mockResolvedValue({}) } as never,
+      { recordKitchenTicketCreated: jest.fn().mockResolvedValue({}) } as never,
+    );
+
+    const result = await service.createTicketsForAcceptedOrderSnapshot(
+      order,
+      new Map([['item-1', 'task-1']]),
+      'staff-1',
+      tx as never,
+      { createPrintJobs: false, recordRealtimeEvents: false },
+    );
+
+    expect(tx.order.findUnique).not.toHaveBeenCalled();
+    expect(result).toMatchObject({
+      ticketIds: ['ticket-1'],
+      createdTicketCount: 1,
+      existingTicketCount: 0,
+      actionableItemCount: 1,
+    });
+    expect(createdTickets[0].data.items.create[0].preparationTaskId).toBe(
+      'task-1',
+    );
+  });
+
   it('does not hydrate existing tickets inside critical routing', async () => {
     const order: any = buildOrder();
     order.items = [order.items[0]];
@@ -448,6 +496,48 @@ describe('KitchenTicketsService', () => {
     expect(findOneSpy).not.toHaveBeenCalled();
     expect(tx.kitchenTicket.create).not.toHaveBeenCalled();
     expect(tx.kitchenTicket.aggregate).not.toHaveBeenCalled();
+  });
+
+  it('returns existing snapshot tickets without order reload or full hydration', async () => {
+    const order: any = buildOrder();
+    order.items = [order.items[0]];
+    const tx = {
+      order: {
+        findUnique: jest.fn(() => {
+          throw new Error('snapshot routing must not reload the order');
+        }),
+      },
+      kitchenTicket: {
+        aggregate: jest.fn(),
+        findUnique: jest.fn().mockResolvedValue({ id: 'ticket-existing' }),
+        create: jest.fn(),
+      },
+    };
+    const service = new KitchenTicketsService(
+      {} as never,
+      { createForKitchenTicket: jest.fn().mockResolvedValue({}) } as never,
+      { recordKitchenTicketCreated: jest.fn().mockResolvedValue({}) } as never,
+    );
+    const findOneSpy = jest.spyOn(service, 'findOne');
+
+    const result = await service.createTicketsForAcceptedOrderSnapshot(
+      order,
+      new Map([['item-1', 'task-1']]),
+      'staff-1',
+      tx as never,
+      { createPrintJobs: false, recordRealtimeEvents: false },
+    );
+
+    expect(tx.order.findUnique).not.toHaveBeenCalled();
+    expect(findOneSpy).not.toHaveBeenCalled();
+    expect(tx.kitchenTicket.create).not.toHaveBeenCalled();
+    expect(tx.kitchenTicket.aggregate).not.toHaveBeenCalled();
+    expect(result).toMatchObject({
+      ticketIds: ['ticket-existing'],
+      createdTicketCount: 0,
+      existingTicketCount: 1,
+      actionableItemCount: 1,
+    });
   });
 
   it('retries ticket display code collisions without raw SQL advisory locks', async () => {

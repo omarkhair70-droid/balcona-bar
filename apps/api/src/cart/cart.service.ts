@@ -10,6 +10,7 @@ const ACTIVE_STATUS = 'active';
 const CLOSED_SESSION_STATUS = 'closed';
 const DEFAULT_CART_CURRENCY = 'EGP';
 const EXPIRED_SESSION_STATUS = 'expired';
+const IDEMPOTENCY_KEY_MAX_LENGTH = 128;
 
 type PrismaExecutor = PrismaService | Prisma.TransactionClient;
 
@@ -27,9 +28,18 @@ export class CartService {
     return cart ? this.toCartResponse(cart) : this.emptyCartResponse(session);
   }
 
-  async addItem(sessionId: string, body: AddCartItemDto) {
+  async addItem(
+    sessionId: string,
+    body: AddCartItemDto,
+    rawIdempotencyKey?: string,
+  ) {
     return this.prisma.$transaction(async (tx) => {
-      return this.addItemWithTransaction(sessionId, body, tx);
+      return this.addItemWithTransaction(
+        sessionId,
+        body,
+        tx,
+        rawIdempotencyKey,
+      );
     });
   }
 
@@ -37,38 +47,63 @@ export class CartService {
     sessionId: string,
     body: AddCartItemDto,
     tx: Prisma.TransactionClient,
+    rawIdempotencyKey?: string,
   ) {
+    const idempotencyKey = this.normalizeIdempotencyKey(rawIdempotencyKey);
     const session = await this.resolveActiveTableSession(sessionId, tx);
     const preparedItem = await this.prepareCartItem(session, body, tx);
     const cart = await this.findOrCreateDraftCart(session, preparedItem.currency, tx);
 
-    await tx.cartItem.create({
-      data: {
-        cartId: cart.id,
-        menuItemId: preparedItem.menuItem.id,
-        quantity: body.quantity,
-        notes: preparedItem.notes,
-        itemNameSnapshot: preparedItem.menuItem.name,
-        itemSlugSnapshot: preparedItem.menuItem.slug,
-        basePriceMinorSnapshot: preparedItem.menuItem.basePriceMinor,
-        effectiveBasePriceMinorSnapshot: preparedItem.effectiveBasePriceMinor,
-        modifiersTotalMinorSnapshot: preparedItem.modifiersTotalMinor,
-        unitPriceMinorSnapshot: preparedItem.unitPriceMinor,
-        lineTotalMinorSnapshot: preparedItem.unitPriceMinor * body.quantity,
-        currency: preparedItem.currency,
-        modifierOptions: {
-          create: preparedItem.modifierOptions.map(({ group, option }) => ({
-            modifierGroupId: group.id,
-            modifierOptionId: option.id,
-            modifierGroupNameSnapshot: group.name,
-            modifierGroupSlugSnapshot: group.slug,
-            modifierOptionNameSnapshot: option.name,
-            modifierOptionSlugSnapshot: option.slug,
-            priceDeltaMinorSnapshot: option.priceDeltaMinor,
-          })),
+    if (idempotencyKey) {
+      const existingCartItem = await tx.cartItem.findFirst({
+        where: { cartId: cart.id, idempotencyKey },
+        select: { id: true },
+      });
+
+      if (existingCartItem) {
+        return this.toCartResponse(await this.getCartById(cart.id, tx));
+      }
+    }
+
+    try {
+      await tx.cartItem.create({
+        data: {
+          cartId: cart.id,
+          menuItemId: preparedItem.menuItem.id,
+          idempotencyKey,
+          quantity: body.quantity,
+          notes: preparedItem.notes,
+          itemNameSnapshot: preparedItem.menuItem.name,
+          itemSlugSnapshot: preparedItem.menuItem.slug,
+          basePriceMinorSnapshot: preparedItem.menuItem.basePriceMinor,
+          effectiveBasePriceMinorSnapshot: preparedItem.effectiveBasePriceMinor,
+          modifiersTotalMinorSnapshot: preparedItem.modifiersTotalMinor,
+          unitPriceMinorSnapshot: preparedItem.unitPriceMinor,
+          lineTotalMinorSnapshot: preparedItem.unitPriceMinor * body.quantity,
+          currency: preparedItem.currency,
+          modifierOptions: {
+            create: preparedItem.modifierOptions.map(({ group, option }) => ({
+              modifierGroupId: group.id,
+              modifierOptionId: option.id,
+              modifierGroupNameSnapshot: group.name,
+              modifierGroupSlugSnapshot: group.slug,
+              modifierOptionNameSnapshot: option.name,
+              modifierOptionSlugSnapshot: option.slug,
+              priceDeltaMinorSnapshot: option.priceDeltaMinor,
+            })),
+          },
         },
-      },
-    });
+      });
+    } catch (error) {
+      if (
+        idempotencyKey &&
+        this.isIdempotencyUniqueConstraintError(error)
+      ) {
+        return this.toCartResponse(await this.getCartById(cart.id, tx));
+      }
+
+      throw error;
+    }
 
     return this.toCartResponse(await this.getCartById(cart.id, tx));
   }
@@ -256,6 +291,39 @@ export class CartService {
     }
 
     this.assertSessionActive(cart.tableSession);
+  }
+
+  private normalizeIdempotencyKey(idempotencyKey?: string) {
+    if (!idempotencyKey) {
+      return undefined;
+    }
+
+    const normalizedKey = idempotencyKey.trim();
+
+    if (!normalizedKey) {
+      return undefined;
+    }
+
+    if (normalizedKey.length > IDEMPOTENCY_KEY_MAX_LENGTH) {
+      throw new BadRequestException(
+        `Idempotency-Key must be ${IDEMPOTENCY_KEY_MAX_LENGTH} characters or fewer`,
+      );
+    }
+
+    return normalizedKey;
+  }
+
+  private isIdempotencyUniqueConstraintError(error: unknown) {
+    if (
+      !(error instanceof Prisma.PrismaClientKnownRequestError) ||
+      error.code !== 'P2002'
+    ) {
+      return false;
+    }
+
+    const target = error.meta?.target;
+
+    return Array.isArray(target) && target.includes('idempotencyKey');
   }
 
   private assertSessionActive(session: any) {

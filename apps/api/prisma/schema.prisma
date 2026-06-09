@@ -1817,6 +1817,7 @@ model CartItem {
   id                              String   @id @default(uuid())
   cartId                          String
   menuItemId                      String
+  idempotencyKey                  String?
   quantity                        Int
   notes                           String?
   itemNameSnapshot                String
@@ -1836,6 +1837,7 @@ model CartItem {
 
   @@index([cartId])
   @@index([menuItemId])
+  @@unique([cartId, idempotencyKey])
 }
 
 model CartItemModifierOption {

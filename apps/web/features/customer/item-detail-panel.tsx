@@ -26,6 +26,8 @@ import { QuantityStepper } from "./quantity-stepper";
 type ItemDetailPanelProps = {
   item: MenuItemSummary;
   isAdding?: boolean;
+  isAddDisabled?: boolean;
+  disabledMessage?: string;
   errorMessage?: string;
   onClose: () => void;
   onAdd: (payload: AddCartItemPayload) => Promise<void> | void;
@@ -48,6 +50,8 @@ function getMissingRequiredGroups(
 export function ItemDetailPanel({
   item,
   isAdding,
+  isAddDisabled,
+  disabledMessage,
   errorMessage,
   onClose,
   onAdd
@@ -152,6 +156,11 @@ export function ItemDetailPanel({
             This item is not available for ordering right now.
           </div>
         ) : null}
+        {isAddDisabled && disabledMessage ? (
+          <div className="rounded-card border border-warning bg-warning/10 p-3 text-sm text-warning">
+            {disabledMessage}
+          </div>
+        ) : null}
         {errorMessage ? (
           <div
             role="alert"
@@ -162,7 +171,10 @@ export function ItemDetailPanel({
         ) : null}
       </CardContent>
       <CardFooter>
-        <Button onClick={handleAdd} disabled={isAdding || !canOrder}>
+        <Button
+          onClick={handleAdd}
+          disabled={isAdding || isAddDisabled || !canOrder}
+        >
           <ShoppingBag className="size-4" aria-hidden="true" />
           {isAdding ? "Adding..." : canOrder ? "Add to cart" : "Unavailable"}
         </Button>
