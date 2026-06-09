@@ -14,6 +14,8 @@ import {
 import { ApiError } from "@/lib/api/client";
 import { formatErrorMessage } from "@/lib/api/error-message";
 import { startTableSession } from "@/lib/api/endpoints";
+import { withCustomerTransientRetry } from "@/lib/customer/customer-api-reliability";
+import { assertCustomerSessionReady } from "@/lib/customer/customer-session-readiness";
 import { useCustomerSessionStore } from "@/lib/customer/customer-session-store";
 import { CustomerShell } from "@/features/customer/customer-shell";
 
@@ -45,16 +47,6 @@ function tableStartErrorMessage(error: unknown, qrToken: string) {
   );
 }
 
-function isRetriableTableStartError(error: unknown) {
-  return (
-    error instanceof ApiError &&
-    (error.status === 0 ||
-      error.status === 408 ||
-      error.status === 429 ||
-      error.status >= 500)
-  );
-}
-
 export function CustomerTableStartPage({
   qrToken
 }: CustomerTableStartPageProps) {
@@ -63,17 +55,29 @@ export function CustomerTableStartPage({
     (state) => state.setFromStartResult
   );
   const startMutation = useMutation({
-    mutationFn: () =>
-      startTableSession(
-        { qrToken },
-        { timeoutMs: TABLE_SESSION_START_TIMEOUT_MS },
-      ),
-    retry: (failureCount, error) =>
-      failureCount < TABLE_SESSION_START_MAX_FAILURES - 1 &&
-      isRetriableTableStartError(error),
-    retryDelay: (failureCount) => Math.min(1_000 * failureCount, 2_500),
-    onSuccess: (result) => {
+    mutationFn: async () => {
+      const result = await withCustomerTransientRetry(
+        () =>
+          startTableSession(
+            { qrToken },
+            { timeoutMs: TABLE_SESSION_START_TIMEOUT_MS },
+          ),
+        {
+          flow: "table_session_start",
+          maxAttempts: TABLE_SESSION_START_MAX_FAILURES
+        }
+      );
+
       setFromStartResult(qrToken, result);
+      assertCustomerSessionReady(
+        useCustomerSessionStore.getState(),
+        result.session.id
+      );
+
+      return result;
+    },
+    retry: false,
+    onSuccess: (result) => {
       router.replace(`/customer/session/${result.session.id}`);
     }
   });
@@ -91,7 +95,7 @@ export function CustomerTableStartPage({
     startMutation.isPending && startMutation.failureCount > 0;
   const loadingDescription = isRetrying
     ? `Retrying the table session connection (${startMutation.failureCount + 1} of ${TABLE_SESSION_START_MAX_FAILURES}).`
-    : "Connecting to the table session...";
+    : "Opening your table...";
   const errorDescription = startMutation.isError
     ? tableStartErrorMessage(startMutation.error, qrToken)
     : "";

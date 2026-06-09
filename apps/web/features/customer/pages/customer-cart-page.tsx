@@ -27,6 +27,12 @@ import {
 } from "@/lib/api/endpoints";
 import { formatErrorMessage } from "@/lib/api/error-message";
 import { customerQueryKeys } from "@/lib/api/query-keys";
+import type { SubmitCartPayload } from "@/lib/api/types";
+import { withCustomerTransientRetry } from "@/lib/customer/customer-api-reliability";
+import {
+  assertCustomerSessionReady,
+  getCustomerSessionReadiness
+} from "@/lib/customer/customer-session-readiness";
 import { useCustomerSessionStore } from "@/lib/customer/customer-session-store";
 import { vibrateSuccess, vibrateWarning } from "@/lib/haptics/haptics";
 import { CartItemRow } from "../cart-item-row";
@@ -36,6 +42,8 @@ import { formatMoney } from "../customer-format";
 type CustomerCartPageProps = {
   sessionId: string;
 };
+
+const CUSTOMER_MUTATION_TIMEOUT_MS = 15_000;
 
 function createIdempotencyKey(sessionId: string) {
   if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
@@ -48,48 +56,120 @@ function createIdempotencyKey(sessionId: string) {
 export function CustomerCartPage({ sessionId }: CustomerCartPageProps) {
   const router = useRouter();
   const queryClient = useQueryClient();
+  const hasHydrated = useCustomerSessionStore((state) => state.hasHydrated);
+  const storedSessionId = useCustomerSessionStore((state) => state.sessionId);
   const token = useCustomerSessionStore((state) => state.customerAccessToken);
+  const branchId = useCustomerSessionStore((state) => state.branchId);
+  const expiresAt = useCustomerSessionStore(
+    (state) => state.customerAccessTokenExpiresAt
+  );
+  const readiness = getCustomerSessionReadiness(
+    {
+      hasHydrated,
+      sessionId: storedSessionId,
+      branchId,
+      customerAccessToken: token,
+      customerAccessTokenExpiresAt: expiresAt
+    },
+    sessionId
+  );
   const [customerNote, setCustomerNote] = useState("");
   const cartQuery = useQuery({
     queryKey: customerQueryKeys.cart(sessionId),
-    queryFn: () => getCart(sessionId, token),
+    queryFn: () => {
+      const ready = assertCustomerSessionReady(
+        useCustomerSessionStore.getState(),
+        sessionId
+      );
+
+      return getCart(ready.sessionId, ready.customerAccessToken);
+    },
+    enabled: readiness.isReady,
     staleTime: 10_000
   });
   const validationQuery = useQuery({
     queryKey: customerQueryKeys.cartValidation(sessionId),
-    queryFn: () => validateCart(sessionId, token),
-    enabled: Boolean(cartQuery.data && cartQuery.data.items.length > 0),
+    queryFn: () => {
+      const ready = assertCustomerSessionReady(
+        useCustomerSessionStore.getState(),
+        sessionId
+      );
+
+      return validateCart(ready.sessionId, ready.customerAccessToken);
+    },
+    enabled:
+      readiness.isReady && Boolean(cartQuery.data && cartQuery.data.items.length > 0),
     staleTime: 10_000
   });
   const refreshCart = () =>
     queryClient.invalidateQueries({ queryKey: customerQueryKeys.cart(sessionId) });
   const updateMutation = useMutation({
-    mutationFn: ({ id, quantity }: { id: string; quantity: number }) =>
-      updateCartItem(id, { quantity }, token),
+    mutationFn: ({ id, quantity }: { id: string; quantity: number }) => {
+      const ready = assertCustomerSessionReady(
+        useCustomerSessionStore.getState(),
+        sessionId
+      );
+
+      return updateCartItem(id, { quantity }, ready.customerAccessToken);
+    },
     onSuccess: () => {
       void refreshCart();
     }
   });
   const removeMutation = useMutation({
-    mutationFn: (cartItemId: string) => removeCartItem(cartItemId, token),
+    mutationFn: (cartItemId: string) => {
+      const ready = assertCustomerSessionReady(
+        useCustomerSessionStore.getState(),
+        sessionId
+      );
+
+      return removeCartItem(cartItemId, ready.customerAccessToken);
+    },
     onSuccess: () => {
       void refreshCart();
     }
   });
   const clearMutation = useMutation({
-    mutationFn: () => clearCart(sessionId, token),
+    mutationFn: () => {
+      const ready = assertCustomerSessionReady(
+        useCustomerSessionStore.getState(),
+        sessionId
+      );
+
+      return clearCart(ready.sessionId, ready.customerAccessToken);
+    },
     onSuccess: () => {
       void refreshCart();
     }
   });
   const submitMutation = useMutation({
-    mutationFn: ({ idempotencyKey }: { idempotencyKey: string }) =>
-      submitCart(
-        sessionId,
-        { customerNote: customerNote.trim() || null },
-        idempotencyKey,
-        token
-      ),
+    mutationFn: ({
+      idempotencyKey,
+      payload
+    }: {
+      idempotencyKey: string;
+      payload: SubmitCartPayload;
+    }) => {
+      const ready = assertCustomerSessionReady(
+        useCustomerSessionStore.getState(),
+        sessionId
+      );
+
+      return withCustomerTransientRetry(
+        () =>
+          submitCart(
+            ready.sessionId,
+            payload,
+            idempotencyKey,
+            ready.customerAccessToken,
+            { timeoutMs: CUSTOMER_MUTATION_TIMEOUT_MS }
+          ),
+        {
+          flow: "submit_cart",
+          maxAttempts: 3
+        }
+      );
+    },
     onSuccess: () => {
       vibrateSuccess();
       void queryClient.invalidateQueries({
@@ -113,6 +193,13 @@ export function CustomerCartPage({ sessionId }: CustomerCartPageProps) {
   const cart = cartQuery.data;
   const isCartEmpty = !cart || cart.items.length === 0;
   const isValid = validationQuery.data?.isValid ?? true;
+  const canSubmit =
+    readiness.isReady &&
+    cartQuery.isSuccess &&
+    !isCartEmpty &&
+    !validationQuery.isPending &&
+    isValid &&
+    !submitMutation.isPending;
   const submitErrorMessage = submitMutation.isError
     ? formatErrorMessage(
         submitMutation.error,
@@ -120,16 +207,21 @@ export function CustomerCartPage({ sessionId }: CustomerCartPageProps) {
       )
     : null;
   const pendingItemId = useMemo(() => {
-    if (updateMutation.variables) {
+    if (updateMutation.isPending && updateMutation.variables) {
       return updateMutation.variables.id;
     }
 
-    if (removeMutation.variables) {
+    if (removeMutation.isPending && removeMutation.variables) {
       return removeMutation.variables;
     }
 
     return undefined;
-  }, [removeMutation.variables, updateMutation.variables]);
+  }, [
+    removeMutation.isPending,
+    removeMutation.variables,
+    updateMutation.isPending,
+    updateMutation.variables
+  ]);
 
   return (
     <CustomerSessionScreen
@@ -140,6 +232,11 @@ export function CustomerCartPage({ sessionId }: CustomerCartPageProps) {
       description="The backend owns pricing and validation. This screen shows returned cart totals and submits with an idempotency key."
     >
       {cartQuery.isPending ? <LoadingState label="Loading cart" /> : null}
+      {!readiness.isReady ? (
+        <div className="mb-4 rounded-card border border-warning bg-warning/10 p-3 text-sm text-warning">
+          {readiness.message}
+        </div>
+      ) : null}
       {cartQuery.isError ? (
         <EmptyState
           title="Cart could not load"
@@ -216,10 +313,11 @@ export function CustomerCartPage({ sessionId }: CustomerCartPageProps) {
               <Button
                 onClick={() =>
                   submitMutation.mutate({
-                    idempotencyKey: createIdempotencyKey(sessionId)
+                    idempotencyKey: createIdempotencyKey(sessionId),
+                    payload: { customerNote: customerNote.trim() || null }
                   })
                 }
-                disabled={!isValid || submitMutation.isPending}
+                disabled={!canSubmit}
               >
                 <Send className="size-4" aria-hidden="true" />
                 {submitMutation.isPending ? "Sending..." : "Submit order"}

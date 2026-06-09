@@ -7,9 +7,15 @@ import { AlertTriangle, Sparkles } from "lucide-react";
 import { buttonVariants } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { LoadingState } from "@/components/ui/loading-state";
+import { formatErrorMessage } from "@/lib/api/error-message";
 import { addCartItem, getBranchMenu, getCart } from "@/lib/api/endpoints";
 import { customerQueryKeys } from "@/lib/api/query-keys";
 import type { AddCartItemPayload, MenuItemSummary } from "@/lib/api/types";
+import { withCustomerTransientRetry } from "@/lib/customer/customer-api-reliability";
+import {
+  assertCustomerSessionReady,
+  getCustomerSessionReadiness
+} from "@/lib/customer/customer-session-readiness";
 import { useCustomerSessionStore } from "@/lib/customer/customer-session-store";
 import { CustomerSessionScreen } from "../customer-session-screen";
 import { CartSummary } from "../cart-summary";
@@ -21,21 +27,61 @@ type CustomerMenuPageProps = {
   sessionId: string;
 };
 
+const CUSTOMER_MUTATION_TIMEOUT_MS = 12_000;
+
+function createAddCartIdempotencyKey(sessionId: string, menuItemId: string) {
+  if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
+    return `cart-add-${sessionId}-${menuItemId}-${crypto.randomUUID()}`;
+  }
+
+  return `cart-add-${sessionId}-${menuItemId}-${Date.now()}`;
+}
+
 export function CustomerMenuPage({ sessionId }: CustomerMenuPageProps) {
   const queryClient = useQueryClient();
+  const hasHydrated = useCustomerSessionStore((state) => state.hasHydrated);
+  const storedSessionId = useCustomerSessionStore((state) => state.sessionId);
   const token = useCustomerSessionStore((state) => state.customerAccessToken);
   const branchId = useCustomerSessionStore((state) => state.branchId);
+  const expiresAt = useCustomerSessionStore(
+    (state) => state.customerAccessTokenExpiresAt
+  );
+  const readiness = getCustomerSessionReadiness(
+    {
+      hasHydrated,
+      sessionId: storedSessionId,
+      branchId,
+      customerAccessToken: token,
+      customerAccessTokenExpiresAt: expiresAt
+    },
+    sessionId
+  );
   const [activeCategoryId, setActiveCategoryId] = useState<string>();
   const [selectedItem, setSelectedItem] = useState<MenuItemSummary | null>(null);
   const menuQuery = useQuery({
     queryKey: customerQueryKeys.menu(branchId),
-    queryFn: () => getBranchMenu(branchId ?? "", token),
-    enabled: Boolean(branchId),
+    queryFn: () => {
+      const ready = assertCustomerSessionReady(
+        useCustomerSessionStore.getState(),
+        sessionId
+      );
+
+      return getBranchMenu(ready.branchId, ready.customerAccessToken);
+    },
+    enabled: readiness.isReady,
     staleTime: 30_000
   });
   const cartQuery = useQuery({
     queryKey: customerQueryKeys.cart(sessionId),
-    queryFn: () => getCart(sessionId, token),
+    queryFn: () => {
+      const ready = assertCustomerSessionReady(
+        useCustomerSessionStore.getState(),
+        sessionId
+      );
+
+      return getCart(ready.sessionId, ready.customerAccessToken);
+    },
+    enabled: readiness.isReady,
     staleTime: 10_000
   });
   const categories = useMemo(
@@ -52,12 +98,40 @@ export function CustomerMenuPage({ sessionId }: CustomerMenuPageProps) {
     .flatMap((category) => category.items)
     .filter((item) => item.isFeatured);
   const addMutation = useMutation({
-    mutationFn: (payload: AddCartItemPayload) =>
-      addCartItem(sessionId, payload, token),
+    mutationFn: (payload: AddCartItemPayload) => {
+      const ready = assertCustomerSessionReady(
+        useCustomerSessionStore.getState(),
+        sessionId
+      );
+      const idempotencyKey = createAddCartIdempotencyKey(
+        ready.sessionId,
+        payload.menuItemId
+      );
+
+      return withCustomerTransientRetry(
+        () =>
+          addCartItem(
+            ready.sessionId,
+            payload,
+            ready.customerAccessToken,
+            {
+              idempotencyKey,
+              timeoutMs: CUSTOMER_MUTATION_TIMEOUT_MS
+            }
+          ),
+        {
+          flow: "add_cart_item",
+          maxAttempts: 3
+        }
+      );
+    },
     onSuccess: () => {
       setSelectedItem(null);
       void queryClient.invalidateQueries({
         queryKey: customerQueryKeys.cart(sessionId)
+      });
+      void queryClient.invalidateQueries({
+        queryKey: customerQueryKeys.status(sessionId)
       });
     }
   });
@@ -96,10 +170,10 @@ export function CustomerMenuPage({ sessionId }: CustomerMenuPageProps) {
           </Link>
         </div>
       </div>
-      {!branchId ? (
+      {!readiness.isReady ? (
         <EmptyState
-          title="Table branch is not loaded"
-          description="Open the table QR route again so the PWA can load the branch menu."
+          title="Table access is still loading"
+          description={readiness.message}
         />
       ) : null}
       {menuQuery.isPending ? <LoadingState label="Loading menu" /> : null}
@@ -165,9 +239,15 @@ export function CustomerMenuPage({ sessionId }: CustomerMenuPageProps) {
               <ItemDetailPanel
                 item={selectedItem}
                 isAdding={addMutation.isPending}
+                isAddDisabled={!readiness.isReady}
+                disabledMessage={
+                  readiness.isReady ? undefined : readiness.message
+                }
                 errorMessage={
                   addMutation.isError
-                    ? `We could not add this item to your cart. ${addMutation.error.message}`
+                    ? `We could not add this item to your cart. ${formatErrorMessage(
+                        addMutation.error
+                      )}`
                     : undefined
                 }
                 onClose={() => setSelectedItem(null)}

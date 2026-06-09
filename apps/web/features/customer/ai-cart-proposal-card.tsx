@@ -28,6 +28,8 @@ type AiCartProposalCardProps = {
   isRejecting?: boolean;
   actionError?: string;
   actionSuccess?: string;
+  isSessionReady?: boolean;
+  disabledMessage?: string;
   onApply: (proposalId: string) => void;
   onReject: (proposalId: string) => void;
 };
@@ -40,6 +42,8 @@ export function AiCartProposalCard({
   isRejecting,
   actionError,
   actionSuccess,
+  isSessionReady = true,
+  disabledMessage,
   onApply,
   onReject
 }: AiCartProposalCardProps) {
@@ -58,7 +62,7 @@ export function AiCartProposalCard({
   const status = getProposalStatus(proposal);
   const items = getProposalItems(proposal);
   const isActionable =
-    Boolean(proposalId) && status === "proposed" && !actionSuccess;
+    Boolean(proposalId) && status === "proposed" && !actionSuccess && isSessionReady;
 
   return (
     <Card variant="accent" padding="lg">
@@ -124,6 +128,11 @@ export function AiCartProposalCard({
             className="rounded-card border border-danger bg-danger/10 p-3 text-sm text-danger"
           >
             {actionError}
+          </div>
+        ) : null}
+        {!isSessionReady && disabledMessage ? (
+          <div className="rounded-card border border-warning bg-warning/10 p-3 text-sm text-warning">
+            {disabledMessage}
           </div>
         ) : null}
         {actionSuccess ? (

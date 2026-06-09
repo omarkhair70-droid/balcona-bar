@@ -7,6 +7,10 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { getCart } from "@/lib/api/endpoints";
 import { customerQueryKeys } from "@/lib/api/query-keys";
+import {
+  assertCustomerSessionReady,
+  getCustomerSessionReadiness
+} from "@/lib/customer/customer-session-readiness";
 import { useCustomerSessionStore } from "@/lib/customer/customer-session-store";
 import { CustomerBottomNav } from "./customer-bottom-nav";
 import { CustomerSessionGate } from "./customer-session-gate";
@@ -32,14 +36,36 @@ export function CustomerSessionScreen({
   children,
   eyebrow
 }: CustomerSessionScreenProps) {
+  const hasHydrated = useCustomerSessionStore((state) => state.hasHydrated);
+  const storedSessionId = useCustomerSessionStore((state) => state.sessionId);
   const branchId = useCustomerSessionStore((state) => state.branchId);
   const token = useCustomerSessionStore((state) => state.customerAccessToken);
+  const expiresAt = useCustomerSessionStore(
+    (state) => state.customerAccessTokenExpiresAt
+  );
   const qrToken = useCustomerSessionStore((state) => state.qrToken);
+  const readiness = getCustomerSessionReadiness(
+    {
+      hasHydrated,
+      sessionId: storedSessionId,
+      branchId,
+      customerAccessToken: token,
+      customerAccessTokenExpiresAt: expiresAt
+    },
+    sessionId
+  );
   const realtimeState = useCustomerRealtime(sessionId, token);
   const cartQuery = useQuery({
     queryKey: customerQueryKeys.cart(sessionId),
-    queryFn: () => getCart(sessionId, token),
-    enabled: Boolean(sessionId),
+    queryFn: () => {
+      const ready = assertCustomerSessionReady(
+        useCustomerSessionStore.getState(),
+        sessionId
+      );
+
+      return getCart(ready.sessionId, ready.customerAccessToken);
+    },
+    enabled: readiness.isReady,
     staleTime: 10_000,
     retry: 1
   });

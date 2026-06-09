@@ -204,6 +204,10 @@ type TableSessionStartOptions = {
   timeoutMs?: number;
 };
 
+type CustomerMutationOptions = {
+  timeoutMs?: number;
+};
+
 export function getCompanies() {
   return apiRequest<CompanySummary[]>("/companies");
 }
@@ -1299,13 +1303,18 @@ export function addCartItem(
   sessionId: string,
   payload: AddCartItemPayload,
   token?: string,
+  options: CustomerMutationOptions & { idempotencyKey?: string } = {},
 ) {
   return apiRequest<CartResponse, AddCartItemPayload>(
     `/table-sessions/${sessionId}/cart/items`,
     {
       method: "POST",
       body: payload,
+      headers: options.idempotencyKey
+        ? { "Idempotency-Key": options.idempotencyKey }
+        : undefined,
       token,
+      timeoutMs: options.timeoutMs,
     },
   );
 }
@@ -1354,6 +1363,7 @@ export function submitCart(
   payload: SubmitCartPayload,
   idempotencyKey: string,
   token?: string,
+  options: CustomerMutationOptions = {},
 ) {
   return apiRequest<SubmitCartResult, SubmitCartPayload>(
     `/table-sessions/${sessionId}/cart/submit`,
@@ -1362,6 +1372,7 @@ export function submitCart(
       body: payload,
       headers: { "Idempotency-Key": idempotencyKey },
       token,
+      timeoutMs: options.timeoutMs,
     },
   );
 }
@@ -1567,12 +1578,17 @@ export function sendAiWaiterMessage(
   );
 }
 
-export function applyAiCartProposal(proposalId: string, token?: string) {
+export function applyAiCartProposal(
+  proposalId: string,
+  token?: string,
+  options: CustomerMutationOptions = {},
+) {
   return apiRequest<AiCartProposalActionResult>(
     `/ai-waiter/cart-proposals/${proposalId}/apply`,
     {
       method: "POST",
       token,
+      timeoutMs: options.timeoutMs,
     },
   );
 }

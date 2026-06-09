@@ -5,6 +5,7 @@ import { createJSONStorage, persist } from "zustand/middleware";
 import type { StartTableSessionResult } from "@/lib/api/types";
 
 export type CustomerSessionState = {
+  hasHydrated: boolean;
   sessionId?: string;
   branchId?: string;
   tableId?: string;
@@ -18,13 +19,16 @@ export type CustomerSessionState = {
     result: StartTableSessionResult
   ) => void;
   clearSession: () => void;
+  setHasHydrated: (hasHydrated: boolean) => void;
 };
 
 export const useCustomerSessionStore = create<CustomerSessionState>()(
   persist(
     (set) => ({
+      hasHydrated: false,
       setFromStartResult: (qrToken, result) =>
         set({
+          hasHydrated: true,
           sessionId: result.session.id,
           branchId: result.branch.id,
           tableId: result.table.id,
@@ -38,6 +42,7 @@ export const useCustomerSessionStore = create<CustomerSessionState>()(
         }),
       clearSession: () =>
         set({
+          hasHydrated: true,
           sessionId: undefined,
           branchId: undefined,
           tableId: undefined,
@@ -46,11 +51,15 @@ export const useCustomerSessionStore = create<CustomerSessionState>()(
           customerAccessTokenExpiresAt: undefined,
           customerSessionIdentityId: undefined,
           lastLoadedAt: undefined
-        })
+        }),
+      setHasHydrated: (hasHydrated) => set({ hasHydrated })
     }),
     {
       name: "balcona_customer_session",
-      storage: createJSONStorage(() => localStorage)
+      storage: createJSONStorage(() => localStorage),
+      onRehydrateStorage: () => (state) => {
+        state?.setHasHydrated(true);
+      }
     }
   )
 );

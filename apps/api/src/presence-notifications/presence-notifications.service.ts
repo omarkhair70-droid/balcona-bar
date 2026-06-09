@@ -75,7 +75,7 @@ export class PresenceNotificationsService {
   async recordQrTableSessionPresence(
     session: TableSessionForNotification,
     triggerType: PresenceTriggerType,
-    tx: Prisma.TransactionClient,
+    tx: PrismaExecutor = this.prisma,
   ) {
     const customerIdentity =
       await this.ensureCustomerSessionIdentityForTableSession(session, tx);

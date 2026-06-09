@@ -333,6 +333,13 @@ export class OrdersService {
     };
     let stage: OrderActionFailureStage = 'validation';
     let transactionResult: OrderActionTransactionResult;
+    const timings = {
+      statusUpdateMs: 0,
+      stockConsumptionMs: 0,
+      preparationTasksMs: 0,
+      orderEventMs: 0,
+    };
+    const startedAt = Date.now();
 
     try {
       transactionResult = await this.prisma.$transaction(async (tx) => {
@@ -364,6 +371,7 @@ export class OrdersService {
         const now = new Date();
 
         stage = 'status_update';
+        let stageStartedAt = Date.now();
         const updatedOrder = await tx.order.updateMany({
           where: { id: order.id, status: order.status },
           data: {
@@ -371,17 +379,21 @@ export class OrdersService {
             cashierAcceptedAt: now,
           },
         });
+        timings.statusUpdateMs += Date.now() - stageStartedAt;
 
         this.assertFreshTransition(updatedOrder.count);
 
         stage = 'inventory_consumption';
+        stageStartedAt = Date.now();
         await this.inventoryService.consumeStockForAcceptedOrder(
           order.id,
           actorStaffUserId,
           tx,
         );
+        timings.stockConsumptionMs += Date.now() - stageStartedAt;
 
         stage = 'preparation_tasks';
+        stageStartedAt = Date.now();
         const kdsRouting =
           await this.preparationTasksService.createTasksForAcceptedOrder(
             order.id,
@@ -389,6 +401,7 @@ export class OrdersService {
             tx,
             { createPrintJobs: false, recordRealtimeEvents: false },
           );
+        timings.preparationTasksMs += Date.now() - stageStartedAt;
         this.logger.log({
           message: 'accept.preparation_tasks',
           requestId,
@@ -403,9 +416,11 @@ export class OrdersService {
           existingTicketCount: kdsRouting.ticketRouting.existingTicketCount,
           ticketCount: kdsRouting.ticketRouting.ticketIds.length,
           skippedItemCount: kdsRouting.skippedItems.length,
+          durationMs: timings.preparationTasksMs,
         });
 
         stage = 'status_update';
+        stageStartedAt = Date.now();
         await tx.orderEvent.create({
           data: {
             orderId: order.id,
@@ -419,6 +434,16 @@ export class OrdersService {
               'cashier',
             ),
           },
+        });
+        timings.orderEventMs += Date.now() - stageStartedAt;
+
+        this.logger.log({
+          message: 'accept.critical_transaction',
+          requestId,
+          orderId: order.id,
+          branchId: order.branchId,
+          durationMs: Date.now() - startedAt,
+          timings,
         });
 
         return {

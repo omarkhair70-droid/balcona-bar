@@ -201,6 +201,7 @@ function buildService(input: {
   };
   const kitchenTicketsService = {
     createTicketsForAcceptedOrder: jest.fn().mockResolvedValue([]),
+    createTicketsForAcceptedOrderSnapshot: jest.fn().mockResolvedValue([]),
     syncTicketsForTaskStarted: jest.fn().mockResolvedValue(undefined),
     syncTicketsForTaskReady: jest.fn().mockResolvedValue(undefined),
     syncTicketsForTaskCancelled: jest.fn().mockResolvedValue(undefined),
@@ -229,14 +230,25 @@ function acceptedOrderForCreate(
     branchId: 'branch-1',
     status: OrderStatus.cashier_accepted,
     tableSessionId: 'session-1',
+    orderNumber: 'B0001',
+    customerNote: null,
+    tableSession: {
+      table: {
+        code: 'T01',
+        displayName: 'Table 1',
+        floor: { name: 'Main' },
+      },
+    },
     items: [
       {
         id: 'order-item-1',
+        menuItemId: 'menu-item-1',
         quantity: 1,
         notes: null,
         itemNameSnapshot,
         itemSlugSnapshot: itemNameSnapshot.toLowerCase().replace(/\s+/g, '-'),
         menuItem: { station },
+        modifierOptions: [],
       },
     ],
   };
@@ -296,11 +308,12 @@ function buildCreateTasksService(input: {
     input.ticketIds,
   );
   const kitchenTicketsService = {
-    createTicketsForAcceptedOrder: input.ticketRejects
+    createTicketsForAcceptedOrderSnapshot: input.ticketRejects
       ? jest
           .fn()
           .mockRejectedValue(new Error('database token=secret failed'))
       : jest.fn().mockResolvedValue(ticketRouting),
+    createTicketsForAcceptedOrder: jest.fn().mockResolvedValue(ticketRouting),
     syncTicketsForTaskStarted: jest.fn().mockResolvedValue(undefined),
     syncTicketsForTaskReady: jest.fn().mockResolvedValue(undefined),
     syncTicketsForTaskCancelled: jest.fn().mockResolvedValue(undefined),
@@ -316,7 +329,7 @@ function buildCreateTasksService(input: {
     kitchenTicketsService as never,
   );
 
-  return { service, tx, realtimeEventsService, kitchenTicketsService };
+  return { service, tx, order, realtimeEventsService, kitchenTicketsService };
 }
 
 describe('PreparationTasksService accepted-order KDS routing', () => {
@@ -326,7 +339,7 @@ describe('PreparationTasksService accepted-order KDS routing', () => {
     ['Avocado Toast', PreparationStation.kitchen],
     ['Chocolate Cake', PreparationStation.dessert],
   ])('routes accepted %s items to %s KDS tasks and tickets', async (name, station) => {
-    const { service, tx, realtimeEventsService, kitchenTicketsService } =
+    const { service, tx, order, realtimeEventsService, kitchenTicketsService } =
       buildCreateTasksService({
         station,
         itemNameSnapshot: name,
@@ -350,11 +363,17 @@ describe('PreparationTasksService accepted-order KDS routing', () => {
       realtimeEventsService.recordPreparationTaskCreated,
     ).toHaveBeenCalledWith('task-1', tx);
     expect(
-      kitchenTicketsService.createTicketsForAcceptedOrder,
-    ).toHaveBeenCalledWith('order-1', 'staff-1', tx, {
+      kitchenTicketsService.createTicketsForAcceptedOrderSnapshot,
+    ).toHaveBeenCalledWith(order, expect.any(Map), 'staff-1', tx, {
       createPrintJobs: undefined,
       recordRealtimeEvents: undefined,
     });
+    const taskIdMap =
+      kitchenTicketsService.createTicketsForAcceptedOrderSnapshot.mock
+        .calls[0][1] as Map<string, string>;
+
+    expect(taskIdMap.get('order-item-1')).toBe('task-1');
+    expect(tx.order.findUnique).toHaveBeenCalledTimes(1);
     expect(result).toMatchObject({
       actionableItemCount: 1,
       stationsDetected: [station],

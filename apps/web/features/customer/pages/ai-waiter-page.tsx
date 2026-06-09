@@ -7,6 +7,7 @@ import { AlertTriangle, CheckCircle2, Power, ShoppingBag } from "lucide-react";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { LoadingState } from "@/components/ui/loading-state";
+import { formatErrorMessage } from "@/lib/api/error-message";
 import {
   applyAiCartProposal,
   closeAiWaiter,
@@ -21,6 +22,11 @@ import {
 } from "@/lib/api/endpoints";
 import { customerQueryKeys } from "@/lib/api/query-keys";
 import type { AiWaiterLanguage, MenuItemSummary } from "@/lib/api/types";
+import { withCustomerTransientRetry } from "@/lib/customer/customer-api-reliability";
+import {
+  assertCustomerSessionReady,
+  getCustomerSessionReadiness
+} from "@/lib/customer/customer-session-readiness";
 import { useCustomerSessionStore } from "@/lib/customer/customer-session-store";
 import { vibrateLight, vibrateSuccess, vibrateWarning } from "@/lib/haptics/haptics";
 import { AiCartProposalCard } from "../ai-cart-proposal-card";
@@ -42,6 +48,8 @@ import { CustomerSessionScreen } from "../customer-session-screen";
 type AiWaiterPageProps = {
   sessionId: string;
 };
+
+const CUSTOMER_MUTATION_TIMEOUT_MS = 15_000;
 
 function invalidateAiWaiter(queryClient: ReturnType<typeof useQueryClient>, sessionId: string) {
   void queryClient.invalidateQueries({
@@ -90,8 +98,23 @@ function getLatestProposal(
 
 export function AiWaiterPage({ sessionId }: AiWaiterPageProps) {
   const queryClient = useQueryClient();
+  const hasHydrated = useCustomerSessionStore((state) => state.hasHydrated);
+  const storedSessionId = useCustomerSessionStore((state) => state.sessionId);
   const token = useCustomerSessionStore((state) => state.customerAccessToken);
   const branchId = useCustomerSessionStore((state) => state.branchId);
+  const expiresAt = useCustomerSessionStore(
+    (state) => state.customerAccessTokenExpiresAt
+  );
+  const readiness = getCustomerSessionReadiness(
+    {
+      hasHydrated,
+      sessionId: storedSessionId,
+      branchId,
+      customerAccessToken: token,
+      customerAccessTokenExpiresAt: expiresAt
+    },
+    sessionId
+  );
   const [language, setLanguage] = useState<AiWaiterLanguage>("en");
   const [message, setMessage] = useState("");
   const [localError, setLocalError] = useState("");
@@ -102,21 +125,47 @@ export function AiWaiterPage({ sessionId }: AiWaiterPageProps) {
     aiLanguageOptions[0];
   const aiWaiterQuery = useQuery({
     queryKey: customerQueryKeys.aiWaiter(sessionId),
-    queryFn: () => getCurrentAiWaiterSession(sessionId, token),
+    queryFn: () => {
+      const ready = assertCustomerSessionReady(
+        useCustomerSessionStore.getState(),
+        sessionId
+      );
+
+      return getCurrentAiWaiterSession(ready.sessionId, ready.customerAccessToken);
+    },
+    enabled: readiness.isReady,
     staleTime: 10_000,
     retry: 1
   });
   const aiMessagesQuery = useQuery({
     queryKey: customerQueryKeys.aiWaiterMessages(sessionId),
-    queryFn: () => listAiWaiterMessages(sessionId, { limit: 50 }, token),
-    enabled: Boolean(aiWaiterQuery.data?.session),
+    queryFn: () => {
+      const ready = assertCustomerSessionReady(
+        useCustomerSessionStore.getState(),
+        sessionId
+      );
+
+      return listAiWaiterMessages(
+        ready.sessionId,
+        { limit: 50 },
+        ready.customerAccessToken
+      );
+    },
+    enabled: readiness.isReady && Boolean(aiWaiterQuery.data?.session),
     staleTime: 10_000,
     retry: 1
   });
   const menuQuery = useQuery({
     queryKey: customerQueryKeys.menu(branchId),
-    queryFn: () => getBranchMenu(branchId ?? "", token),
-    enabled: Boolean(branchId),
+    queryFn: () => {
+      const ready = assertCustomerSessionReady(
+        useCustomerSessionStore.getState(),
+        sessionId
+      );
+
+      return getBranchMenu(ready.branchId, ready.customerAccessToken);
+    },
+    enabled: readiness.isReady,
     staleTime: 30_000
   });
   const experienceQuery = useQuery({
@@ -148,7 +197,18 @@ export function AiWaiterPage({ sessionId }: AiWaiterPageProps) {
   const cartSummary = aiWaiterQuery.data?.cartSummary;
 
   const startMutation = useMutation({
-    mutationFn: () => startAiWaiter(sessionId, { language }, token),
+    mutationFn: () => {
+      const ready = assertCustomerSessionReady(
+        useCustomerSessionStore.getState(),
+        sessionId
+      );
+
+      return startAiWaiter(
+        ready.sessionId,
+        { language },
+        ready.customerAccessToken
+      );
+    },
     onSuccess: () => {
       setLocalError("");
       invalidateAiWaiter(queryClient, sessionId);
@@ -157,8 +217,18 @@ export function AiWaiterPage({ sessionId }: AiWaiterPageProps) {
     onError: () => vibrateWarning()
   });
   const sendMutation = useMutation({
-    mutationFn: (value: string) =>
-      sendAiWaiterMessage(sessionId, { message: value, language }, token),
+    mutationFn: (value: string) => {
+      const ready = assertCustomerSessionReady(
+        useCustomerSessionStore.getState(),
+        sessionId
+      );
+
+      return sendAiWaiterMessage(
+        ready.sessionId,
+        { message: value, language },
+        ready.customerAccessToken
+      );
+    },
     onSuccess: (result) => {
       setMessage("");
       setLocalError("");
@@ -172,7 +242,23 @@ export function AiWaiterPage({ sessionId }: AiWaiterPageProps) {
     onError: () => vibrateWarning()
   });
   const applyMutation = useMutation({
-    mutationFn: (proposalId: string) => applyAiCartProposal(proposalId, token),
+    mutationFn: (proposalId: string) => {
+      const ready = assertCustomerSessionReady(
+        useCustomerSessionStore.getState(),
+        sessionId
+      );
+
+      return withCustomerTransientRetry(
+        () =>
+          applyAiCartProposal(proposalId, ready.customerAccessToken, {
+            timeoutMs: CUSTOMER_MUTATION_TIMEOUT_MS
+          }),
+        {
+          flow: "ai_proposal_apply",
+          maxAttempts: 3
+        }
+      );
+    },
     onSuccess: () => {
       setProposalNotice(
         "Proposal applied to your cart. Please review the cart before submitting the order."
@@ -184,8 +270,18 @@ export function AiWaiterPage({ sessionId }: AiWaiterPageProps) {
     onError: () => vibrateWarning()
   });
   const rejectMutation = useMutation({
-    mutationFn: (proposalId: string) =>
-      rejectAiCartProposal(proposalId, { reason: "customer_declined" }, token),
+    mutationFn: (proposalId: string) => {
+      const ready = assertCustomerSessionReady(
+        useCustomerSessionStore.getState(),
+        sessionId
+      );
+
+      return rejectAiCartProposal(
+        proposalId,
+        { reason: "customer_declined" },
+        ready.customerAccessToken
+      );
+    },
     onSuccess: () => {
       setProposalNotice("Proposal rejected. You can ask for a different suggestion.");
       invalidateAiWaiter(queryClient, sessionId);
@@ -194,15 +290,21 @@ export function AiWaiterPage({ sessionId }: AiWaiterPageProps) {
     onError: () => vibrateWarning()
   });
   const escalationMutation = useMutation({
-    mutationFn: () =>
-      escalateAiWaiter(
-        sessionId,
+    mutationFn: () => {
+      const ready = assertCustomerSessionReady(
+        useCustomerSessionStore.getState(),
+        sessionId
+      );
+
+      return escalateAiWaiter(
+        ready.sessionId,
         {
           reason: "customer_requested_human",
           message: "Customer asked for a human waiter from the AI waiter UI."
         },
-        token
-      ),
+        ready.customerAccessToken
+      );
+    },
     onSuccess: () => {
       setEscalationNotice("A human waiter has been notified for your table.");
       invalidateAiWaiter(queryClient, sessionId);
@@ -214,7 +316,14 @@ export function AiWaiterPage({ sessionId }: AiWaiterPageProps) {
     onError: () => vibrateWarning()
   });
   const closeMutation = useMutation({
-    mutationFn: () => closeAiWaiter(sessionId, token),
+    mutationFn: () => {
+      const ready = assertCustomerSessionReady(
+        useCustomerSessionStore.getState(),
+        sessionId
+      );
+
+      return closeAiWaiter(ready.sessionId, ready.customerAccessToken);
+    },
     onSuccess: () => {
       invalidateAiWaiter(queryClient, sessionId);
       vibrateLight();
@@ -228,12 +337,22 @@ export function AiWaiterPage({ sessionId }: AiWaiterPageProps) {
   );
   const proposalActionError =
     applyMutation.isError
-      ? `We could not apply this proposal. ${applyMutation.error.message}`
+      ? `We could not apply this proposal. ${formatErrorMessage(
+          applyMutation.error
+        )} You can try applying it again.`
       : rejectMutation.isError
-        ? `We could not reject this proposal. ${rejectMutation.error.message}`
+        ? `We could not reject this proposal. ${formatErrorMessage(
+            rejectMutation.error
+          )}`
         : undefined;
 
   function handleSubmit() {
+    if (!readiness.isReady) {
+      setLocalError(readiness.message);
+      vibrateWarning();
+      return;
+    }
+
     const normalized = message.trim();
 
     if (!normalized) {
@@ -252,6 +371,12 @@ export function AiWaiterPage({ sessionId }: AiWaiterPageProps) {
   }
 
   function handleQuickReply(reply: string) {
+    if (!readiness.isReady) {
+      setLocalError(readiness.message);
+      vibrateWarning();
+      return;
+    }
+
     setLocalError("");
     sendMutation.mutate(reply);
   }
@@ -286,15 +411,19 @@ export function AiWaiterPage({ sessionId }: AiWaiterPageProps) {
               isRejecting={rejectMutation.isPending}
               actionError={proposalActionError}
               actionSuccess={proposalNotice}
+              isSessionReady={readiness.isReady}
+              disabledMessage={readiness.isReady ? undefined : readiness.message}
               onApply={(proposalId) => applyMutation.mutate(proposalId)}
               onReject={(proposalId) => rejectMutation.mutate(proposalId)}
             />
             <AiEscalationCard
               isPending={escalationMutation.isPending}
               successMessage={escalationNotice}
-              errorMessage={
-                escalationMutation.isError
-                  ? `We could not notify the team yet. ${escalationMutation.error.message}`
+                errorMessage={
+                  escalationMutation.isError
+                  ? `We could not notify the team yet. ${formatErrorMessage(
+                      escalationMutation.error
+                    )}`
                   : undefined
               }
               onEscalate={() => escalationMutation.mutate()}
@@ -313,7 +442,7 @@ export function AiWaiterPage({ sessionId }: AiWaiterPageProps) {
           {aiWaiterQuery.isError ? (
             <EmptyState
               title="AI waiter could not load"
-              description={aiWaiterQuery.error.message}
+              description={formatErrorMessage(aiWaiterQuery.error)}
               action={<AlertTriangle className="size-5 text-warning" aria-hidden="true" />}
             />
           ) : null}
@@ -329,7 +458,7 @@ export function AiWaiterPage({ sessionId }: AiWaiterPageProps) {
               <div className="mt-4 flex flex-wrap gap-3">
                 <Button
                   onClick={() => startMutation.mutate()}
-                  disabled={startMutation.isPending}
+                  disabled={startMutation.isPending || !readiness.isReady}
                 >
                   {startMutation.isPending ? "Starting..." : "Start AI waiter"}
                 </Button>
@@ -345,7 +474,7 @@ export function AiWaiterPage({ sessionId }: AiWaiterPageProps) {
                   role="alert"
                   className="mt-4 rounded-card border border-danger bg-danger/10 p-3 text-sm text-danger"
                 >
-                  AI waiter could not start. {startMutation.error.message}
+                  AI waiter could not start. {formatErrorMessage(startMutation.error)}
                 </div>
               ) : null}
             </div>
@@ -354,7 +483,7 @@ export function AiWaiterPage({ sessionId }: AiWaiterPageProps) {
           <AiSuggestedPrompts
             language={language}
             onSelect={handlePrompt}
-            disabled={sendMutation.isPending}
+            disabled={sendMutation.isPending || !readiness.isReady}
           />
 
           <ol className="grid min-h-80 content-end gap-3 rounded-card border bg-surface/55 p-3">
@@ -371,7 +500,7 @@ export function AiWaiterPage({ sessionId }: AiWaiterPageProps) {
                 key={`${getStringKey(item)}-${index}`}
                 message={item}
                 dir={activeLanguage.dir}
-                isReplyDisabled={sendMutation.isPending}
+                isReplyDisabled={sendMutation.isPending || !readiness.isReady}
                 onQuickReply={handleQuickReply}
               />
             ))}
@@ -402,7 +531,11 @@ export function AiWaiterPage({ sessionId }: AiWaiterPageProps) {
             errorMessage={
               localError ||
               (sendMutation.isError
-                ? `AI waiter could not respond. ${sendMutation.error.message}`
+                ? `AI waiter could not respond. ${formatErrorMessage(
+                    sendMutation.error
+                  )}`
+                : !readiness.isReady
+                  ? readiness.message
                 : "")
             }
           />
@@ -419,7 +552,7 @@ export function AiWaiterPage({ sessionId }: AiWaiterPageProps) {
               <Button
                 variant="ghost"
                 onClick={() => closeMutation.mutate()}
-                disabled={closeMutation.isPending}
+                disabled={closeMutation.isPending || !readiness.isReady}
               >
                 <Power className="size-4" aria-hidden="true" />
                 {closeMutation.isPending ? "Closing..." : "Close AI waiter"}
@@ -431,7 +564,7 @@ export function AiWaiterPage({ sessionId }: AiWaiterPageProps) {
               role="alert"
               className="rounded-card border border-danger bg-danger/10 p-3 text-sm text-danger"
             >
-              AI waiter could not close. {closeMutation.error.message}
+              AI waiter could not close. {formatErrorMessage(closeMutation.error)}
             </div>
           ) : null}
         </div>
