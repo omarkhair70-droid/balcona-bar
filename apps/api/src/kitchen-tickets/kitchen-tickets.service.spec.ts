@@ -3,6 +3,7 @@ import {
   KitchenTicketType,
   OrderStatus,
   PreparationStation,
+  Prisma,
 } from '@prisma/client';
 import { KitchenTicketsService } from './kitchen-tickets.service';
 
@@ -112,16 +113,26 @@ function ticketResponse(id: string, data: any) {
   };
 }
 
+function nextSequenceAggregate(createdTickets: any[]) {
+  return jest.fn().mockImplementation(() => {
+    const maxSequence = createdTickets.reduce(
+      (max, entry) => Math.max(max, entry.data.sequence),
+      0,
+    );
+
+    return { _max: { sequence: maxSequence === 0 ? null : maxSequence } };
+  });
+}
+
 describe('KitchenTicketsService', () => {
   it('creates one idempotent ticket per actionable station', async () => {
     const createdTickets: any[] = [];
     const tx = {
-      $executeRaw: jest.fn().mockResolvedValue(undefined),
       order: {
         findUnique: jest.fn().mockResolvedValue(buildOrder()),
       },
       kitchenTicket: {
-        count: jest.fn().mockImplementation(() => createdTickets.length),
+        aggregate: nextSequenceAggregate(createdTickets),
         findUnique: jest.fn().mockImplementation((args) => {
           if (args.where.id) {
             const ticket = createdTickets.find((entry) => entry.id === args.where.id);
@@ -197,7 +208,6 @@ describe('KitchenTicketsService', () => {
       },
     ];
     const tx = {
-      $executeRaw: jest.fn().mockResolvedValue(undefined),
       order: {
         findUnique: jest.fn().mockResolvedValue(order),
       },
@@ -207,7 +217,7 @@ describe('KitchenTicketsService', () => {
           .mockResolvedValue([{ id: 'task-refetched', orderItemId: 'item-1' }]),
       },
       kitchenTicket: {
-        count: jest.fn().mockImplementation(() => createdTickets.length),
+        aggregate: nextSequenceAggregate(createdTickets),
         findUnique: jest.fn().mockImplementation((args) => {
           if (args.where.id) {
             const ticket = createdTickets.find((entry) => entry.id === args.where.id);
@@ -251,12 +261,11 @@ describe('KitchenTicketsService', () => {
     const order: any = buildOrder();
     order.items = [order.items[0]];
     const tx = {
-      $executeRaw: jest.fn().mockResolvedValue(undefined),
       order: {
         findUnique: jest.fn().mockResolvedValue(order),
       },
       kitchenTicket: {
-        count: jest.fn().mockImplementation(() => createdTickets.length),
+        aggregate: nextSequenceAggregate(createdTickets),
         findUnique: jest.fn().mockImplementation((args) => {
           if (args.where.id) {
             const ticket = createdTickets.find((entry) => entry.id === args.where.id);
@@ -298,6 +307,83 @@ describe('KitchenTicketsService', () => {
     expect(tx.kitchenTicket.create).toHaveBeenCalledTimes(1);
     expect(printJobsService.createForKitchenTicket).not.toHaveBeenCalled();
     expect(realtimeEventsService.recordKitchenTicketCreated).not.toHaveBeenCalled();
+  });
+
+  it('retries ticket display code collisions without raw SQL advisory locks', async () => {
+    const createdTickets: any[] = [];
+    const order: any = buildOrder();
+    order.items = [order.items[0]];
+    const collision = new Prisma.PrismaClientKnownRequestError(
+      'Unique constraint failed on displayCode',
+      {
+        code: 'P2002',
+        clientVersion: 'test',
+        meta: { target: ['branchId', 'displayCode'] },
+      },
+    );
+    const tx = {
+      order: {
+        findUnique: jest.fn().mockResolvedValue(order),
+      },
+      kitchenTicket: {
+        aggregate: jest.fn().mockResolvedValue({ _max: { sequence: 7 } }),
+        findUnique: jest.fn().mockImplementation((args) => {
+          if (args.where.id) {
+            const ticket = createdTickets.find((entry) => entry.id === args.where.id);
+
+            return ticket ? ticketResponse(ticket.id, ticket.data) : null;
+          }
+
+          return null;
+        }),
+        create: jest
+          .fn()
+          .mockRejectedValueOnce(collision)
+          .mockImplementationOnce((args) => {
+            const id = `ticket-${createdTickets.length + 1}`;
+
+            createdTickets.push({ id, data: args.data });
+
+            return { id };
+          }),
+      },
+    };
+    const service = new KitchenTicketsService(
+      {} as never,
+      { createForKitchenTicket: jest.fn().mockResolvedValue({}) } as never,
+      { recordKitchenTicketCreated: jest.fn().mockResolvedValue({}) } as never,
+    );
+
+    const result = await service.createTicketsForAcceptedOrder(
+      'order-1',
+      'staff-1',
+      tx as never,
+      { createPrintJobs: false, recordRealtimeEvents: false },
+    );
+
+    expect(result.ticketIds).toEqual(['ticket-1']);
+    expect(tx.kitchenTicket.create).toHaveBeenCalledTimes(2);
+    expect(tx.kitchenTicket.create).toHaveBeenNthCalledWith(
+      1,
+      expect.objectContaining({
+        data: expect.objectContaining({
+          sequence: 8,
+          displayCode: 'B0008',
+        }),
+      }),
+    );
+    expect(tx.kitchenTicket.create).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({
+        data: expect.objectContaining({
+          sequence: 9,
+          displayCode: 'B0009',
+        }),
+      }),
+    );
+    expect(createdTickets[0].data.items.create[0].preparationTaskId).toBe(
+      'task-1',
+    );
   });
 
   it('marks a ticket ready when all ticket items are ready', async () => {

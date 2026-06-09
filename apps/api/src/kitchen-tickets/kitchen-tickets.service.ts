@@ -198,49 +198,13 @@ export class KitchenTicketsService {
         continue;
       }
 
-      const sequence = await this.generateTicketSequence(order.branchId, tx);
-      const displayCode = this.formatDisplayCode(station, sequence);
-      const ticket = await tx.kitchenTicket.create({
-        data: {
-          companyId: order.companyId,
-          branchId: order.branchId,
-          orderId: order.id,
-          tableSessionId: order.tableSessionId,
-          station,
-          type,
-          status: KitchenTicketStatus.queued,
-          displayCode,
-          sequence,
-          orderNumberSnapshot: order.orderNumber,
-          tableCodeSnapshot:
-            order.tableSession.table.displayName ??
-            order.tableSession.table.code,
-          floorNameSnapshot: order.tableSession.table.floor?.name,
-          customerNoteSnapshot: order.customerNote,
-          items: {
-            create: stationItems.map((item) => ({
-              orderItemId: item.id,
-              preparationTaskId: taskIdByOrderItemId.get(item.id),
-              menuItemId: item.menuItemId,
-              itemNameSnapshot: item.itemNameSnapshot,
-              itemSlugSnapshot: item.itemSlugSnapshot,
-              quantity: item.quantity,
-              notes: item.notes,
-              modifiersSnapshot: item.modifierOptions.map((modifier) => ({
-                groupId: modifier.modifierGroupId,
-                optionId: modifier.modifierOptionId,
-                groupName: modifier.modifierGroupNameSnapshot,
-                groupSlug: modifier.modifierGroupSlugSnapshot,
-                optionName: modifier.modifierOptionNameSnapshot,
-                optionSlug: modifier.modifierOptionSlugSnapshot,
-                priceDeltaMinor: modifier.priceDeltaMinorSnapshot,
-              })),
-              station,
-              status: KitchenTicketStatus.queued,
-            })),
-          },
-        },
-        select: { id: true },
+      const ticket = await this.createTicketWithSequenceRetry({
+        order,
+        station,
+        type,
+        stationItems,
+        taskIdByOrderItemId,
+        tx,
       });
 
       if (options.recordRealtimeEvents ?? true) {
@@ -698,13 +662,116 @@ export class KitchenTicketsService {
     });
   }
 
-  private async generateTicketSequence(
+  private async createTicketWithSequenceRetry({
+    order,
+    station,
+    type,
+    stationItems,
+    taskIdByOrderItemId,
+    tx,
+  }: {
+    order: any;
+    station: PreparationStation;
+    type: KitchenTicketType;
+    stationItems: any[];
+    taskIdByOrderItemId: Map<string, string>;
+    tx: Prisma.TransactionClient;
+  }) {
+    const baseSequence = await this.nextTicketSequence(order.branchId, tx);
+
+    for (let attempt = 0; attempt < 5; attempt += 1) {
+      const sequence = baseSequence + attempt;
+      const displayCode = this.formatDisplayCode(station, sequence);
+
+      try {
+        return await tx.kitchenTicket.create({
+          data: {
+            companyId: order.companyId,
+            branchId: order.branchId,
+            orderId: order.id,
+            tableSessionId: order.tableSessionId,
+            station,
+            type,
+            status: KitchenTicketStatus.queued,
+            displayCode,
+            sequence,
+            orderNumberSnapshot: order.orderNumber,
+            tableCodeSnapshot:
+              order.tableSession.table.displayName ??
+              order.tableSession.table.code,
+            floorNameSnapshot: order.tableSession.table.floor?.name,
+            customerNoteSnapshot: order.customerNote,
+            items: {
+              create: stationItems.map((item) => ({
+                orderItemId: item.id,
+                preparationTaskId: taskIdByOrderItemId.get(item.id),
+                menuItemId: item.menuItemId,
+                itemNameSnapshot: item.itemNameSnapshot,
+                itemSlugSnapshot: item.itemSlugSnapshot,
+                quantity: item.quantity,
+                notes: item.notes,
+                modifiersSnapshot: item.modifierOptions.map((modifier) => ({
+                  groupId: modifier.modifierGroupId,
+                  optionId: modifier.modifierOptionId,
+                  groupName: modifier.modifierGroupNameSnapshot,
+                  groupSlug: modifier.modifierGroupSlugSnapshot,
+                  optionName: modifier.modifierOptionNameSnapshot,
+                  optionSlug: modifier.modifierOptionSlugSnapshot,
+                  priceDeltaMinor: modifier.priceDeltaMinorSnapshot,
+                })),
+                station,
+                status: KitchenTicketStatus.queued,
+              })),
+            },
+          },
+          select: { id: true },
+        });
+      } catch (error) {
+        if (!this.isUniqueDisplayCodeCollision(error) || attempt === 4) {
+          throw error;
+        }
+      }
+    }
+
+    throw new BadRequestException({
+      message: 'Kitchen routing failed for accepted order',
+      code: 'kds_routing_failed',
+      details: {
+        reason: 'ticket_sequence_collision',
+        orderId: order.id,
+        branchId: order.branchId,
+        station,
+        type,
+      },
+    });
+  }
+
+  private async nextTicketSequence(
     branchId: string,
     tx: Prisma.TransactionClient,
   ) {
-    await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`kitchen-ticket:${branchId}`})::bigint)`;
+    const aggregate = await tx.kitchenTicket.aggregate({
+      where: { branchId },
+      _max: { sequence: true },
+    });
 
-    return (await tx.kitchenTicket.count({ where: { branchId } })) + 1;
+    return (aggregate._max.sequence ?? 0) + 1;
+  }
+
+  private isUniqueDisplayCodeCollision(error: unknown) {
+    if (!(error instanceof Prisma.PrismaClientKnownRequestError)) {
+      return false;
+    }
+
+    if (error.code !== 'P2002') {
+      return false;
+    }
+
+    const target = error.meta?.target;
+
+    return Array.isArray(target)
+      ? target.includes('branchId') && target.includes('displayCode')
+      : String(target ?? '').includes('displayCode');
   }
 
   private formatDisplayCode(station: PreparationStation, sequence: number) {
