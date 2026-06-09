@@ -23,7 +23,10 @@ import {
   AddCartItemDto,
   SelectedModifierDto,
 } from "../cart/dto/add-cart-item.dto";
-import { CartService } from "../cart/cart.service";
+import {
+  type AddCartItemMutationResult,
+  CartService,
+} from "../cart/cart.service";
 import { PrismaService } from "../prisma/prisma.service";
 import { RealtimeEventsService } from "../realtime-events/realtime-events.service";
 import { SaasService } from "../saas/saas.service";
@@ -247,7 +250,7 @@ export class AiWaiterService {
     }
 
     try {
-      return await this.prisma.$transaction(async (tx) => {
+      const applyResult = await this.prisma.$transaction(async (tx) => {
         const lockedProposal = await tx.aiWaiterCartProposal.findUnique({
           where: { id: proposalId },
         });
@@ -263,26 +266,27 @@ export class AiWaiterService {
         }
 
         const items = this.parseProposalItems(lockedProposal.items);
-        let updatedCart: any = null;
+        let updatedCartMutation: AddCartItemMutationResult | null = null;
 
         for (const item of items) {
-          updatedCart = await this.cartService.addItemWithTransaction(
+          updatedCartMutation = await this.cartService.addItemWithTransaction(
             lockedProposal.tableSessionId,
             await this.toAddCartItemDto(item, tx),
             tx,
           );
         }
 
-        if (!updatedCart?.cart?.id) {
+        if (!updatedCartMutation?.cartId) {
           throw new BadRequestException("Cart proposal did not add any items");
         }
 
+        const cartId = updatedCartMutation.cartId;
         const updatedProposal = await tx.aiWaiterCartProposal.update({
           where: { id: lockedProposal.id },
           data: {
             status: AiWaiterCartProposalStatus.applied,
             appliedAt: new Date(),
-            appliedCartId: updatedCart.cart.id,
+            appliedCartId: cartId,
             validationSnapshot: this.toJsonValue({
               appliedItemCount: items.length,
               appliedAt: new Date().toISOString(),
@@ -302,7 +306,7 @@ export class AiWaiterService {
             toolName: AiWaiterToolName.apply_cart_proposal,
             status: AiWaiterToolCallStatus.succeeded,
             input: { proposalId: lockedProposal.id },
-            output: { cartId: updatedCart.cart.id, itemCount: items.length },
+            output: { cartId, itemCount: items.length },
           },
           tx,
         );
@@ -315,15 +319,20 @@ export class AiWaiterService {
             proposalId: lockedProposal.id,
           },
           RealtimeEventType.ai_waiter_cart_proposal_applied,
-          { cartId: updatedCart.cart.id, itemCount: items.length },
+          { cartId, itemCount: items.length },
           tx,
         );
 
         return {
           proposal: updatedProposal,
-          cart: updatedCart,
+          cartId,
         };
       });
+
+      return {
+        proposal: applyResult.proposal,
+        cart: await this.cartService.getCartResponseById(applyResult.cartId),
+      };
     } catch (error) {
       await this.captureProposalApplyError(proposalId, error);
       throw error;

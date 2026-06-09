@@ -180,4 +180,20 @@ describe("smoke core", () => {
       await new Promise((resolve) => server.close(resolve));
     }
   });
+
+  it("uses a valid waiter call status filter in the staging runner", async () => {
+    const source = await readFile(
+      new URL("./staging-smoke.mjs", import.meta.url),
+      "utf8"
+    );
+    const waiterCallListBlock = source.match(
+      /action: "waiter_call_list"[\s\S]{0,160}?query: \{ status: "([^"]+)" \}/
+    );
+
+    assert.equal(waiterCallListBlock?.[1], "all");
+    assert.doesNotMatch(
+      waiterCallListBlock?.[0] ?? "",
+      /status: "active"/
+    );
+  });
 });

@@ -246,3 +246,126 @@ describe("AiWaiterService provider integration", () => {
     });
   });
 });
+
+describe("AiWaiterService applyProposal", () => {
+  it("applies proposal items with compact cart mutations and hydrates cart after commit", async () => {
+    const proposal = {
+      id: "proposal-apply-1",
+      companyId: "company-1",
+      branchId: "branch-1",
+      tableSessionId: "table-session-1",
+      aiWaiterSessionId: "ai-session-1",
+      status: AiWaiterCartProposalStatus.proposed,
+      expiresAt: new Date("2027-01-02T00:00:00.000Z"),
+      items: [
+        {
+          menuItemId: "item-lemon-mint",
+          quantity: 1,
+          modifierOptionIds: [],
+        },
+      ],
+    };
+    const updatedProposal = {
+      ...proposal,
+      status: AiWaiterCartProposalStatus.applied,
+      appliedCartId: "cart-1",
+    };
+    const tx = {
+      aiWaiterCartProposal: {
+        findUnique: jest.fn().mockResolvedValue(proposal),
+        update: jest.fn().mockResolvedValue(updatedProposal),
+      },
+      aiWaiterToolCall: {
+        create: jest.fn().mockResolvedValue({ id: "tool-call-1" }),
+      },
+    };
+    let insideTransaction = false;
+    const prisma = {
+      aiWaiterCartProposal: {
+        findUnique: jest.fn().mockResolvedValue(proposal),
+        update: jest.fn().mockResolvedValue(updatedProposal),
+      },
+      $transaction: jest.fn(async (callback: (txClient: typeof tx) => Promise<unknown>) => {
+        insideTransaction = true;
+        try {
+          return await callback(tx);
+        } finally {
+          insideTransaction = false;
+        }
+      }),
+    } as unknown as PrismaService;
+    const cartService = {
+      addItemWithTransaction: jest.fn().mockImplementation(async () => {
+        expect(insideTransaction).toBe(true);
+
+        return {
+          cartId: "cart-1",
+          cartItemId: "cart-item-1",
+          idempotencyReplay: false,
+        };
+      }),
+      getCartResponseById: jest.fn().mockImplementation(async (cartId: string) => {
+        expect(insideTransaction).toBe(false);
+
+        return {
+          cart: { id: cartId },
+          items: [],
+          totals: {
+            itemCount: 1,
+            totalQuantity: 1,
+            subtotalMinor: 1000,
+            currency: "EGP",
+          },
+        };
+      }),
+    } as unknown as CartService;
+    const realtimeEventsService = {
+      createRealtimeEvent: jest.fn().mockResolvedValue({}),
+    } as unknown as RealtimeEventsService;
+    const service = new AiWaiterService(
+      prisma,
+      {} as unknown as AiWaiterContextService,
+      {} as unknown as AiWaiterProviderRegistry,
+      cartService,
+      {} as unknown as WaiterCallsService,
+      realtimeEventsService,
+      {} as unknown as TableAttentionService,
+      {} as never,
+      {} as unknown as AiWaiterToolExecutorService,
+    );
+
+    const result = await service.applyProposal(proposal.id);
+
+    expect(result).toEqual({
+      proposal: updatedProposal,
+      cart: expect.objectContaining({
+        cart: { id: "cart-1" },
+      }),
+    });
+    expect(cartService.addItemWithTransaction).toHaveBeenCalledWith(
+      proposal.tableSessionId,
+      {
+        menuItemId: "item-lemon-mint",
+        quantity: 1,
+        notes: undefined,
+        selectedModifiers: [],
+      },
+      tx,
+    );
+    expect(cartService.getCartResponseById).toHaveBeenCalledWith("cart-1");
+    expect(tx.aiWaiterCartProposal.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          appliedCartId: "cart-1",
+          status: AiWaiterCartProposalStatus.applied,
+        }),
+      }),
+    );
+    expect(realtimeEventsService.createRealtimeEvent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: RealtimeEventType.ai_waiter_cart_proposal_applied,
+      }),
+      tx,
+    );
+  });
+});

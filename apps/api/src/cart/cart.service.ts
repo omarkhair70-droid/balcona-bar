@@ -1,4 +1,9 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  Logger,
+  NotFoundException,
+} from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { InventoryService } from '../inventory/inventory.service';
 import { PrismaService } from '../prisma/prisma.service';
@@ -14,8 +19,29 @@ const IDEMPOTENCY_KEY_MAX_LENGTH = 128;
 
 type PrismaExecutor = PrismaService | Prisma.TransactionClient;
 
+export type AddCartItemTimings = {
+  sessionLookupMs: number;
+  accessValidationMs: number;
+  menuItemValidationMs: number;
+  inventoryValidationMs: number;
+  modifierValidationMs: number;
+  cartLookupOrCreateMs: number;
+  idempotencyLookupMs: number;
+  cartItemWriteMs: number;
+  responseHydrationMs: number;
+  postCommitSideEffectsMs: number;
+};
+
+export type AddCartItemMutationResult = {
+  cartId: string;
+  cartItemId: string | null;
+  idempotencyReplay: boolean;
+};
+
 @Injectable()
 export class CartService {
+  private readonly logger = new Logger(CartService.name);
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly inventoryService: InventoryService,
@@ -33,14 +59,32 @@ export class CartService {
     body: AddCartItemDto,
     rawIdempotencyKey?: string,
   ) {
-    return this.prisma.$transaction(async (tx) => {
-      return this.addItemWithTransaction(
+    const startedAt = Date.now();
+    const timings = this.emptyAddItemTimings();
+    const mutationResult = await this.prisma.$transaction(async (tx) =>
+      this.addItemWithTransaction(
         sessionId,
         body,
         tx,
         rawIdempotencyKey,
-      );
+        timings,
+      ),
+    );
+    const hydrationStartedAt = Date.now();
+    const response = await this.getCartResponseById(mutationResult.cartId);
+    timings.responseHydrationMs += Date.now() - hydrationStartedAt;
+
+    this.logger.log({
+      message: 'cart_add_item_completed',
+      sessionId,
+      cartId: mutationResult.cartId,
+      cartItemId: mutationResult.cartItemId,
+      idempotencyReplay: mutationResult.idempotencyReplay,
+      durationMs: Date.now() - startedAt,
+      timings,
     });
+
+    return response;
   }
 
   async addItemWithTransaction(
@@ -48,25 +92,59 @@ export class CartService {
     body: AddCartItemDto,
     tx: Prisma.TransactionClient,
     rawIdempotencyKey?: string,
-  ) {
+    timings: AddCartItemTimings = this.emptyAddItemTimings(),
+  ): Promise<AddCartItemMutationResult> {
+    return this.addItemMutationWithTransaction(
+      sessionId,
+      body,
+      tx,
+      rawIdempotencyKey,
+      timings,
+    );
+  }
+
+  async getCartResponseById(cartId: string) {
+    return this.toCartResponse(await this.getCartById(cartId, this.prisma));
+  }
+
+  private async addItemMutationWithTransaction(
+    sessionId: string,
+    body: AddCartItemDto,
+    tx: Prisma.TransactionClient,
+    rawIdempotencyKey: string | undefined,
+    timings: AddCartItemTimings,
+  ): Promise<AddCartItemMutationResult> {
     const idempotencyKey = this.normalizeIdempotencyKey(rawIdempotencyKey);
+    const sessionLookupStartedAt = Date.now();
     const session = await this.resolveActiveTableSession(sessionId, tx);
-    const preparedItem = await this.prepareCartItem(session, body, tx);
+    timings.sessionLookupMs += Date.now() - sessionLookupStartedAt;
+
+    const preparedItem = await this.prepareCartItem(session, body, tx, timings);
+    const cartLookupStartedAt = Date.now();
     const cart = await this.findOrCreateDraftCart(session, preparedItem.currency, tx);
+    timings.cartLookupOrCreateMs += Date.now() - cartLookupStartedAt;
 
     if (idempotencyKey) {
+      const idempotencyLookupStartedAt = Date.now();
       const existingCartItem = await tx.cartItem.findFirst({
         where: { cartId: cart.id, idempotencyKey },
         select: { id: true },
       });
+      timings.idempotencyLookupMs += Date.now() - idempotencyLookupStartedAt;
 
       if (existingCartItem) {
-        return this.toCartResponse(await this.getCartById(cart.id, tx));
+        return {
+          cartId: cart.id,
+          cartItemId: existingCartItem.id,
+          idempotencyReplay: true,
+        };
       }
     }
 
+    const cartItemWriteStartedAt = Date.now();
+
     try {
-      await tx.cartItem.create({
+      const cartItem = await tx.cartItem.create({
         data: {
           cartId: cart.id,
           menuItemId: preparedItem.menuItem.id,
@@ -93,19 +171,41 @@ export class CartService {
             })),
           },
         },
+        select: { id: true },
       });
+
+      timings.cartItemWriteMs += Date.now() - cartItemWriteStartedAt;
+
+      return {
+        cartId: cart.id,
+        cartItemId: cartItem.id,
+        idempotencyReplay: false,
+      };
     } catch (error) {
+      timings.cartItemWriteMs += Date.now() - cartItemWriteStartedAt;
+
       if (
         idempotencyKey &&
         this.isIdempotencyUniqueConstraintError(error)
       ) {
-        return this.toCartResponse(await this.getCartById(cart.id, tx));
+        const idempotencyLookupStartedAt = Date.now();
+        const existingCartItem = await tx.cartItem.findFirst({
+          where: { cartId: cart.id, idempotencyKey },
+          select: { id: true },
+        });
+        timings.idempotencyLookupMs += Date.now() - idempotencyLookupStartedAt;
+
+        if (existingCartItem) {
+          return {
+            cartId: cart.id,
+            cartItemId: existingCartItem.id,
+            idempotencyReplay: true,
+          };
+        }
       }
 
       throw error;
     }
-
-    return this.toCartResponse(await this.getCartById(cart.id, tx));
   }
 
   async updateItem(cartItemId: string, body: UpdateCartItemDto) {
@@ -340,7 +440,28 @@ export class CartService {
     }
   }
 
-  private async prepareCartItem(session: any, body: AddCartItemDto, tx: Prisma.TransactionClient) {
+  private emptyAddItemTimings(): AddCartItemTimings {
+    return {
+      sessionLookupMs: 0,
+      accessValidationMs: 0,
+      menuItemValidationMs: 0,
+      inventoryValidationMs: 0,
+      modifierValidationMs: 0,
+      cartLookupOrCreateMs: 0,
+      idempotencyLookupMs: 0,
+      cartItemWriteMs: 0,
+      responseHydrationMs: 0,
+      postCommitSideEffectsMs: 0,
+    };
+  }
+
+  private async prepareCartItem(
+    session: any,
+    body: AddCartItemDto,
+    tx: Prisma.TransactionClient,
+    timings?: AddCartItemTimings,
+  ) {
+    const menuItemValidationStartedAt = Date.now();
     const menuItem = await tx.menuItem.findUnique({
       where: { id: body.menuItemId },
       select: this.menuItemForCartSelect(session.branchId),
@@ -351,13 +472,22 @@ export class CartService {
     }
 
     this.assertMenuItemCanBeAdded(menuItem, session);
+    if (timings) {
+      timings.menuItemValidationMs += Date.now() - menuItemValidationStartedAt;
+    }
+
+    const inventoryValidationStartedAt = Date.now();
     await this.inventoryService.assertMenuItemsCanOrder(
       session.companyId,
       session.branchId,
       [{ menuItemId: menuItem.id, quantity: body.quantity }],
       tx,
     );
+    if (timings) {
+      timings.inventoryValidationMs += Date.now() - inventoryValidationStartedAt;
+    }
 
+    const modifierValidationStartedAt = Date.now();
     const branchOverride = menuItem.branchOverrides[0];
     const effectiveBasePriceMinor = branchOverride.priceOverrideMinor ?? menuItem.basePriceMinor;
     const modifierOptions = this.validateSelectedModifiers(menuItem, body.selectedModifiers ?? []);
@@ -365,6 +495,9 @@ export class CartService {
       (sum, { option }) => sum + option.priceDeltaMinor,
       0,
     );
+    if (timings) {
+      timings.modifierValidationMs += Date.now() - modifierValidationStartedAt;
+    }
 
     return {
       menuItem,
