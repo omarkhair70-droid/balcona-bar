@@ -473,7 +473,7 @@ export class PresenceNotificationsService {
 
   async createWaiterCallCreatedNotification(
     waiterCallId: string,
-    tx: Prisma.TransactionClient,
+    tx: PrismaExecutor = this.prisma,
   ) {
     return this.createWaiterCallNotification(
       waiterCallId,

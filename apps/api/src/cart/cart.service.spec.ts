@@ -21,8 +21,8 @@ const payload = {
   selectedModifiers: [],
 };
 
-function createService() {
-  const service = new CartService({} as never, {} as never) as any;
+function createService(prisma: Record<string, unknown> = {}) {
+  const service = new CartService(prisma as never, {} as never) as any;
 
   service.resolveActiveTableSession = jest.fn().mockResolvedValue(session);
   service.prepareCartItem = jest.fn().mockResolvedValue({
@@ -77,6 +77,7 @@ describe('CartService add item idempotency', () => {
         menuItemId: payload.menuItemId,
         idempotencyKey: 'add-key-1',
       }),
+      select: { id: true },
     });
   });
 
@@ -112,7 +113,9 @@ describe('CartService add item idempotency', () => {
     );
     const tx = {
       cartItem: {
-        findFirst: jest.fn().mockResolvedValue(null),
+        findFirst: jest.fn()
+          .mockResolvedValueOnce(null)
+          .mockResolvedValueOnce({ id: 'cart-item-existing' }),
         create: jest.fn().mockRejectedValue(uniqueError),
       },
     };
@@ -125,6 +128,104 @@ describe('CartService add item idempotency', () => {
     );
 
     expect((service as any).getCartById).toHaveBeenCalledWith(cart.id, tx);
+  });
+
+  it('accepts a smoke-style item with required size and temperature modifiers', () => {
+    const service = createService();
+    const menuItem = {
+      modifierGroups: [
+        {
+          modifierGroup: {
+            id: 'size-group',
+            name: 'Size',
+            status: 'active',
+            isRequired: true,
+            minSelections: 1,
+            maxSelections: 1,
+            selectionType: 'single',
+            options: [
+              {
+                id: 'small-option',
+                name: 'Small',
+                status: 'active',
+                priceDeltaMinor: 0,
+              },
+            ],
+          },
+        },
+        {
+          modifierGroup: {
+            id: 'temperature-group',
+            name: 'Temperature',
+            status: 'active',
+            isRequired: true,
+            minSelections: 1,
+            maxSelections: 1,
+            selectionType: 'single',
+            options: [
+              {
+                id: 'iced-option',
+                name: 'Iced',
+                status: 'active',
+                priceDeltaMinor: 0,
+              },
+            ],
+          },
+        },
+      ],
+    };
+
+    expect(
+      (service as any).validateSelectedModifiers(menuItem, [
+        { modifierGroupId: 'size-group', optionIds: ['small-option'] },
+        { modifierGroupId: 'temperature-group', optionIds: ['iced-option'] },
+      ]),
+    ).toEqual([
+      {
+        group: menuItem.modifierGroups[0].modifierGroup,
+        option: menuItem.modifierGroups[0].modifierGroup.options[0],
+      },
+      {
+        group: menuItem.modifierGroups[1].modifierGroup,
+        option: menuItem.modifierGroups[1].modifierGroup.options[0],
+      },
+    ]);
+  });
+
+  it('hydrates the add item response after the critical transaction commits', async () => {
+    let insideTransaction = false;
+    const tx = {
+      cartItem: {
+        findFirst: jest.fn().mockResolvedValue(null),
+        create: jest.fn().mockResolvedValue({ id: 'cart-item-1' }),
+      },
+    };
+    const prisma = {
+      $transaction: jest.fn(async (callback: (txClient: typeof tx) => Promise<unknown>) => {
+        insideTransaction = true;
+        try {
+          return await callback(tx);
+        } finally {
+          insideTransaction = false;
+        }
+      }),
+    };
+    const service = createService(prisma);
+
+    (service as any).getCartById.mockImplementation(async (
+      cartId: string,
+      executor: unknown,
+    ) => {
+      expect(insideTransaction).toBe(false);
+      expect(executor).toBe(prisma);
+
+      return { id: cartId, items: [] };
+    });
+
+    await service.addItem(session.id, payload, 'add-key-1');
+
+    expect(tx.cartItem.create).toHaveBeenCalledTimes(1);
+    expect((service as any).getCartById).toHaveBeenCalledWith(cart.id, prisma);
   });
 
   it('rejects idempotency keys that exceed the bounded header length', async () => {

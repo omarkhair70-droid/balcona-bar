@@ -1134,7 +1134,7 @@ async function runWaiterSmoke(run) {
         role: "waiter",
         token,
         action: "waiter_call_list",
-        query: { status: "active" }
+        query: { status: "all" }
       })
     })
   );
