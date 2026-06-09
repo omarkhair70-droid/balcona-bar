@@ -1,8 +1,12 @@
-import { BadRequestException, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Logger, NotFoundException } from '@nestjs/common';
 import { OrderEventActorType, OrderEventType, OrderSource, OrderStatus, PreparationTaskStatus } from '@prisma/client';
 import { OrdersService } from './orders.service';
 
 const now = new Date('2026-01-01T00:00:00.000Z');
+
+afterEach(() => {
+  jest.restoreAllMocks();
+});
 
 function orderResponse(status: OrderStatus) {
   return {
@@ -105,6 +109,7 @@ function buildService(input: {
   responseStatus?: OrderStatus;
   updateCount?: number;
   inventoryRejects?: boolean;
+  preparationRejects?: boolean;
 }) {
   const tx = {
     staffUser: {
@@ -135,9 +140,16 @@ function buildService(input: {
     $transaction: jest.fn((callback: (txArg: typeof tx) => unknown) =>
       callback(tx),
     ),
+    order: {
+      findUnique: jest.fn().mockResolvedValue(
+        orderResponse(input.responseStatus ?? input.transitionOrder?.status ?? OrderStatus.submitted),
+      ),
+    },
   };
   const preparationTasksService = {
-    createTasksForAcceptedOrder: jest.fn().mockResolvedValue(undefined),
+    createTasksForAcceptedOrder: input.preparationRejects
+      ? jest.fn().mockRejectedValue(new Error('Ticket printer token=secret failed'))
+      : jest.fn().mockResolvedValue(undefined),
     cancelActiveTasksForOrderCancellation: jest.fn().mockResolvedValue(['task-1']),
   };
   const presenceNotificationsService = {
@@ -158,7 +170,17 @@ function buildService(input: {
   };
   const inventoryService = {
     consumeStockForAcceptedOrder: input.inventoryRejects
-      ? jest.fn().mockRejectedValue(new Error('Item is out of stock'))
+      ? jest.fn().mockRejectedValue(
+          new BadRequestException({
+            message: 'Item is out of stock',
+            details: {
+              menuItemNames: ['Spanish Latte'],
+              inventoryItemName: 'Milk',
+              requiredQuantity: 150,
+              availableQuantity: 0,
+            },
+          }),
+        )
       : jest.fn().mockResolvedValue({ consumed: true, movements: [] }),
   };
   const service = new OrdersService(
@@ -501,11 +523,56 @@ describe('OrdersService lifecycle hardening', () => {
       inventoryRejects: true,
     });
 
-    await expect(service.accept('order-1', {}, 'staff-1')).rejects.toThrow(
-      'Item is out of stock',
-    );
+    try {
+      await service.accept('order-1', {}, 'staff-1');
+      throw new Error('Expected accept to reject');
+    } catch (error) {
+      expect((error as BadRequestException).getStatus()).toBe(400);
+      expect((error as BadRequestException).getResponse()).toMatchObject({
+        message: 'Item is out of stock',
+        details: expect.objectContaining({
+          menuItemNames: ['Spanish Latte'],
+          inventoryItemName: 'Milk',
+          requiredQuantity: 150,
+          availableQuantity: 0,
+        }),
+      });
+    }
+
     expect(inventoryService.consumeStockForAcceptedOrder).toHaveBeenCalled();
     expect(preparationTasksService.createTasksForAcceptedOrder).not.toHaveBeenCalled();
+  });
+
+  it('keeps the accepted order when post-accept automation fails', async () => {
+    const loggerSpy = jest
+      .spyOn(Logger.prototype, 'warn')
+      .mockImplementation();
+    const { service, tx, preparationTasksService, inventoryService } =
+      buildService({
+        transitionOrder: { status: OrderStatus.submitted },
+        responseStatus: OrderStatus.cashier_accepted,
+        preparationRejects: true,
+      });
+
+    const result = await service.accept('order-1', {}, 'staff-1', 'req-accept');
+
+    expect(tx.order.updateMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          status: OrderStatus.cashier_accepted,
+        }),
+      }),
+    );
+    expect(inventoryService.consumeStockForAcceptedOrder).toHaveBeenCalled();
+    expect(preparationTasksService.createTasksForAcceptedOrder).toHaveBeenCalled();
+    expect(result.order.status).toBe(OrderStatus.cashier_accepted);
+
+    const loggedPayload = JSON.stringify(loggerSpy.mock.calls[0][0]);
+
+    expect(loggedPayload).toContain('preparation_tasks');
+    expect(loggedPayload).toContain('req-accept');
+    expect(loggedPayload).toContain('token=[redacted]');
+    expect(loggedPayload).not.toContain('token=secret');
   });
 
   it('denies completion before the order is served', async () => {
@@ -631,7 +698,6 @@ describe('OrdersService lifecycle hardening', () => {
     );
     expect(realtimeEventsService.recordOrderCancelled).toHaveBeenCalledWith(
       'order-1',
-      tx,
     );
   });
 });

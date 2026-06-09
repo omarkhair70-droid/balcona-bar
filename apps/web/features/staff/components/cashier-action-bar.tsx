@@ -14,6 +14,7 @@ type CashierActionBarProps = {
   rejectPending?: boolean;
   cancelPending?: boolean;
   completePending?: boolean;
+  actionPending?: boolean;
   disabledReason?: string;
   onRejectReasonChange: (value: string) => void;
   onCancelReasonChange: (value: string) => void;
@@ -34,6 +35,7 @@ export function CashierActionBar({
   rejectPending,
   cancelPending,
   completePending,
+  actionPending,
   disabledReason,
   onRejectReasonChange,
   onCancelReasonChange,
@@ -42,17 +44,21 @@ export function CashierActionBar({
   onCancel,
   onComplete
 }: CashierActionBarProps) {
+  const anyActionPending =
+    actionPending ||
+    Boolean(acceptPending || rejectPending || cancelPending || completePending);
+
   return (
     <div className="rounded-card border bg-surface/75 p-4">
       <div className="flex flex-wrap items-center gap-3">
-        <Button onClick={onAccept} disabled={!canAccept || acceptPending}>
+        <Button onClick={onAccept} disabled={!canAccept || anyActionPending}>
           <Check className="size-4" aria-hidden="true" />
           {acceptPending ? "Accepting..." : "Accept"}
         </Button>
         <Button
           variant="danger"
           onClick={onReject}
-          disabled={!canReject || rejectPending}
+          disabled={!canReject || anyActionPending}
         >
           <X className="size-4" aria-hidden="true" />
           {rejectPending ? "Rejecting..." : "Reject"}
@@ -60,7 +66,7 @@ export function CashierActionBar({
         <Button
           variant="secondary"
           onClick={onComplete}
-          disabled={!canComplete || completePending}
+          disabled={!canComplete || anyActionPending}
         >
           <CheckCircle2 className="size-4" aria-hidden="true" />
           {completePending ? "Completing..." : "Complete"}
@@ -68,7 +74,7 @@ export function CashierActionBar({
         <Button
           variant="danger"
           onClick={onCancel}
-          disabled={!canCancel || cancelPending || cancelReason.trim().length === 0}
+          disabled={!canCancel || anyActionPending || cancelReason.trim().length === 0}
         >
           <Ban className="size-4" aria-hidden="true" />
           {cancelPending ? "Cancelling..." : "Cancel"}
@@ -76,6 +82,11 @@ export function CashierActionBar({
         {!canAccept && !canReject && !canCancel && !canComplete ? (
           <span className="text-xs text-muted-foreground">
             {disabledReason}
+          </span>
+        ) : null}
+        {anyActionPending ? (
+          <span className="text-xs font-medium text-muted-foreground">
+            Updating order...
           </span>
         ) : null}
       </div>
@@ -88,7 +99,7 @@ export function CashierActionBar({
             rows={3}
             placeholder="Optional reason for the team and audit trail"
             className="w-full resize-none rounded-button border bg-surface px-3 py-2 text-sm text-foreground outline-none transition placeholder:text-muted-foreground focus:border-primary focus:ring-2 focus:ring-primary/35 disabled:cursor-not-allowed disabled:opacity-60"
-            disabled={!canReject || rejectPending}
+            disabled={!canReject || anyActionPending}
           />
         </label>
         <label className="grid gap-2 text-sm font-medium text-foreground">
@@ -99,7 +110,7 @@ export function CashierActionBar({
             rows={3}
             placeholder="Required before cancelling an active order"
             className="w-full resize-none rounded-button border bg-surface px-3 py-2 text-sm text-foreground outline-none transition placeholder:text-muted-foreground focus:border-primary focus:ring-2 focus:ring-primary/35 disabled:cursor-not-allowed disabled:opacity-60"
-            disabled={!canCancel || cancelPending}
+            disabled={!canCancel || anyActionPending}
           />
         </label>
       </div>

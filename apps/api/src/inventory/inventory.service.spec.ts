@@ -765,4 +765,72 @@ describe('InventoryService', () => {
     ).rejects.toThrow('Item is out of stock');
     expect(tx.inventoryMovement.create).not.toHaveBeenCalled();
   });
+
+  it('returns safe stock details when accepted order consumption is insufficient', async () => {
+    const tx = {
+      $executeRaw: jest.fn().mockResolvedValue(1),
+      order: {
+        findUnique: jest.fn().mockResolvedValue({
+          id: 'order-1',
+          companyId: company.id,
+          branchId: branch.id,
+          items: [
+            {
+              id: 'order-item-1',
+              menuItemId: 'latte',
+              quantity: 2,
+              itemNameSnapshot: 'Spanish Latte',
+            },
+          ],
+        }),
+      },
+      menuItemInventoryRequirement: {
+        findMany: jest.fn().mockResolvedValue([
+          {
+            menuItemId: 'latte',
+            inventoryItemId: inventoryItem.id,
+            quantityRequired: 150,
+            unit: inventoryItem.unit,
+            inventoryItem,
+          },
+        ]),
+      },
+      branchInventoryLevel: {
+        findUnique: jest.fn().mockResolvedValue({
+          id: 'level-1',
+          quantityOnHand: 100,
+        }),
+        updateMany: jest.fn(),
+      },
+      inventoryMovement: {
+        create: jest.fn(),
+      },
+    };
+    const service = new InventoryService(
+      {} as never,
+      createSaasService() as never,
+    );
+
+    try {
+      await service.consumeStockForAcceptedOrder('order-1', 'staff-1', tx as never);
+      throw new Error('Expected stock consumption to reject');
+    } catch (error) {
+      const response = (error as { getResponse: () => unknown }).getResponse();
+
+      expect(response).toMatchObject({
+        message: 'Item is out of stock',
+        details: {
+          reason: 'insufficient_stock',
+          menuItemNames: ['Spanish Latte'],
+          inventoryItemName: 'Milk',
+          requiredQuantity: 300,
+          availableQuantity: 100,
+          unit: InventoryUnit.milliliter,
+        },
+      });
+    }
+
+    expect(tx.branchInventoryLevel.updateMany).not.toHaveBeenCalled();
+    expect(tx.inventoryMovement.create).not.toHaveBeenCalled();
+  });
 });

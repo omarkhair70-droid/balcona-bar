@@ -74,6 +74,34 @@ type SubmitCartTransactionResult =
       idempotency: IdempotencyReplay;
     };
 
+type OrderActionFailureStage =
+  | 'validation'
+  | 'status_update'
+  | 'inventory_consumption'
+  | 'preparation_tasks'
+  | 'notification'
+  | 'realtime'
+  | 'response_mapping'
+  | 'table_attention_recalculate';
+
+type OrderActionLogContext = {
+  requestId?: string;
+  action: OrderLifecycleAction;
+  orderId: string;
+  sessionId?: string;
+  previousStatus?: OrderStatus;
+  targetStatus?: OrderStatus;
+  failureStage?: OrderActionFailureStage;
+};
+
+type OrderActionTransactionResult = {
+  orderId: string;
+  sessionId: string;
+  actorStaffUserId: string;
+  previousStatus: OrderStatus;
+  targetStatus: OrderStatus;
+};
+
 @Injectable()
 export class OrdersService {
   private readonly logger = new Logger(OrdersService.name);
@@ -291,147 +319,273 @@ export class OrdersService {
     orderId: string,
     body: CashierAcceptOrderDto = {},
     authenticatedStaffUserId?: string,
+    requestId?: string,
   ) {
-    return this.prisma.$transaction(async (tx) => {
-      const actorStaffUserId = await this.resolveStaffActor(
-        authenticatedStaffUserId,
-        body.staffUserId,
-        tx,
-      );
+    const logContext: OrderActionLogContext = {
+      requestId,
+      action: 'accept',
+      orderId,
+      targetStatus: OrderStatus.cashier_accepted,
+    };
+    let stage: OrderActionFailureStage = 'validation';
+    let transactionResult: OrderActionTransactionResult;
 
-      const order = await tx.order.findUnique({
-        where: { id: orderId },
-        select: { id: true, tableSessionId: true, status: true },
-      });
+    try {
+      transactionResult = await this.prisma.$transaction(async (tx) => {
+        stage = 'validation';
+        const actorStaffUserId = await this.resolveStaffActor(
+          authenticatedStaffUserId,
+          body.staffUserId,
+          tx,
+        );
 
-      if (!order) {
-        throw new NotFoundException('Order not found');
-      }
+        const order = await tx.order.findUnique({
+          where: { id: orderId },
+          select: { id: true, tableSessionId: true, status: true },
+        });
 
-      this.assertLifecycleTransition(order, 'accept');
+        if (!order) {
+          throw new NotFoundException('Order not found');
+        }
 
-      const now = new Date();
+        logContext.sessionId = order.tableSessionId;
+        logContext.previousStatus = order.status;
+        this.assertLifecycleTransition(order, 'accept');
 
-      const updatedOrder = await tx.order.updateMany({
-        where: { id: order.id, status: order.status },
-        data: {
-          status: OrderStatus.cashier_accepted,
-          cashierAcceptedAt: now,
-        },
-      });
+        const now = new Date();
 
-      this.assertFreshTransition(updatedOrder.count);
-      await this.inventoryService.consumeStockForAcceptedOrder(
-        order.id,
-        actorStaffUserId,
-        tx,
-      );
+        stage = 'status_update';
+        const updatedOrder = await tx.order.updateMany({
+          where: { id: order.id, status: order.status },
+          data: {
+            status: OrderStatus.cashier_accepted,
+            cashierAcceptedAt: now,
+          },
+        });
 
-      await tx.orderEvent.create({
-        data: {
-          orderId: order.id,
-          type: OrderEventType.cashier_accepted,
-          actorType: OrderEventActorType.staff,
+        this.assertFreshTransition(updatedOrder.count);
+
+        stage = 'inventory_consumption';
+        await this.inventoryService.consumeStockForAcceptedOrder(
+          order.id,
           actorStaffUserId,
-          metadata: this.transitionMetadata(
-            order.status,
-            OrderStatus.cashier_accepted,
-            'accept',
-            'cashier',
-          ),
-        },
+          tx,
+        );
+
+        stage = 'status_update';
+        await tx.orderEvent.create({
+          data: {
+            orderId: order.id,
+            type: OrderEventType.cashier_accepted,
+            actorType: OrderEventActorType.staff,
+            actorStaffUserId,
+            metadata: this.transitionMetadata(
+              order.status,
+              OrderStatus.cashier_accepted,
+              'accept',
+              'cashier',
+            ),
+          },
+        });
+
+        return {
+          orderId: order.id,
+          sessionId: order.tableSessionId,
+          actorStaffUserId,
+          previousStatus: order.status,
+          targetStatus: OrderStatus.cashier_accepted,
+        };
       });
+    } catch (error) {
+      throw this.toOrderActionError(error, {
+        ...logContext,
+        failureStage: stage,
+      });
+    }
 
-      await this.preparationTasksService.createTasksForAcceptedOrder(
-        order.id,
-        actorStaffUserId,
-        tx,
-      );
+    await this.runPostOrderActionAutomation({
+      ...logContext,
+      sessionId: transactionResult.sessionId,
+      previousStatus: transactionResult.previousStatus,
+      targetStatus: transactionResult.targetStatus,
+    }, [
+      {
+        stage: 'preparation_tasks',
+        run: () =>
+          this.prisma.$transaction((tx) =>
+            this.preparationTasksService.createTasksForAcceptedOrder(
+              transactionResult.orderId,
+              transactionResult.actorStaffUserId,
+              tx,
+            ),
+          ),
+      },
+      {
+        stage: 'notification',
+        run: () =>
+          this.presenceNotificationsService.createOrderAcceptedNotification(
+            transactionResult.orderId,
+          ),
+      },
+      {
+        stage: 'realtime',
+        run: () =>
+          this.realtimeEventsService.recordOrderAccepted(
+            transactionResult.orderId,
+          ),
+      },
+      {
+        stage: 'table_attention_recalculate',
+        run: () =>
+          this.recalculateAttention(
+            transactionResult.sessionId,
+            this.prisma,
+            'order_accepted',
+            { orderId: transactionResult.orderId },
+          ),
+      },
+    ]);
 
-      await this.presenceNotificationsService.createOrderAcceptedNotification(
-        order.id,
-        tx,
-      );
-      await this.realtimeEventsService.recordOrderAccepted(order.id, tx);
-      await this.recalculateAttention(
-        order.tableSessionId,
-        tx,
-        'order_accepted',
-        { orderId: order.id },
-      );
-
-      return this.getOrderResponse(order.id, tx);
-    });
+    try {
+      return await this.getOrderResponse(transactionResult.orderId, this.prisma);
+    } catch (error) {
+      throw this.toOrderActionError(error, {
+        ...logContext,
+        sessionId: transactionResult.sessionId,
+        previousStatus: transactionResult.previousStatus,
+        targetStatus: transactionResult.targetStatus,
+        failureStage: 'response_mapping',
+      });
+    }
   }
 
   async reject(
     orderId: string,
     body: CashierRejectOrderDto = {},
     authenticatedStaffUserId?: string,
+    requestId?: string,
   ) {
-    return this.prisma.$transaction(async (tx) => {
-      const actorStaffUserId = await this.resolveStaffActor(
-        authenticatedStaffUserId,
-        body.staffUserId,
-        tx,
-      );
+    const rejectionReason = this.normalizeOptionalText(body.reason);
+    const logContext: OrderActionLogContext = {
+      requestId,
+      action: 'reject',
+      orderId,
+      targetStatus: OrderStatus.cashier_rejected,
+    };
+    let stage: OrderActionFailureStage = 'validation';
+    let transactionResult: OrderActionTransactionResult;
 
-      const order = await tx.order.findUnique({
-        where: { id: orderId },
-        select: { id: true, tableSessionId: true, status: true },
-      });
+    try {
+      transactionResult = await this.prisma.$transaction(async (tx) => {
+        stage = 'validation';
+        const actorStaffUserId = await this.resolveStaffActor(
+          authenticatedStaffUserId,
+          body.staffUserId,
+          tx,
+        );
 
-      if (!order) {
-        throw new NotFoundException('Order not found');
-      }
+        const order = await tx.order.findUnique({
+          where: { id: orderId },
+          select: { id: true, tableSessionId: true, status: true },
+        });
 
-      this.assertLifecycleTransition(order, 'reject');
+        if (!order) {
+          throw new NotFoundException('Order not found');
+        }
 
-      const rejectionReason = this.normalizeOptionalText(body.reason);
-      const now = new Date();
+        logContext.sessionId = order.tableSessionId;
+        logContext.previousStatus = order.status;
+        this.assertLifecycleTransition(order, 'reject');
 
-      const updatedOrder = await tx.order.updateMany({
-        where: { id: order.id, status: order.status },
-        data: {
-          status: OrderStatus.cashier_rejected,
-          cashierRejectedAt: now,
-          rejectionReason,
-        },
-      });
+        const now = new Date();
 
-      this.assertFreshTransition(updatedOrder.count);
+        stage = 'status_update';
+        const updatedOrder = await tx.order.updateMany({
+          where: { id: order.id, status: order.status },
+          data: {
+            status: OrderStatus.cashier_rejected,
+            cashierRejectedAt: now,
+            rejectionReason,
+          },
+        });
 
-      await tx.orderEvent.create({
-        data: {
+        this.assertFreshTransition(updatedOrder.count);
+
+        await tx.orderEvent.create({
+          data: {
+            orderId: order.id,
+            type: OrderEventType.cashier_rejected,
+            actorType: OrderEventActorType.staff,
+            actorStaffUserId,
+            metadata: this.transitionMetadata(
+              order.status,
+              OrderStatus.cashier_rejected,
+              'reject',
+              'cashier',
+              rejectionReason ? { reason: rejectionReason } : undefined,
+            ),
+          },
+        });
+
+        return {
           orderId: order.id,
-          type: OrderEventType.cashier_rejected,
-          actorType: OrderEventActorType.staff,
+          sessionId: order.tableSessionId,
           actorStaffUserId,
-          metadata: this.transitionMetadata(
-            order.status,
-            OrderStatus.cashier_rejected,
-            'reject',
-            'cashier',
-            rejectionReason ? { reason: rejectionReason } : undefined,
-          ),
-        },
+          previousStatus: order.status,
+          targetStatus: OrderStatus.cashier_rejected,
+        };
       });
+    } catch (error) {
+      throw this.toOrderActionError(error, {
+        ...logContext,
+        failureStage: stage,
+      });
+    }
 
-      await this.presenceNotificationsService.createOrderRejectedNotification(
-        order.id,
-        rejectionReason,
-        tx,
-      );
-      await this.realtimeEventsService.recordOrderRejected(order.id, tx);
-      await this.recalculateAttention(
-        order.tableSessionId,
-        tx,
-        'order_rejected',
-        { orderId: order.id },
-      );
+    await this.runPostOrderActionAutomation({
+      ...logContext,
+      sessionId: transactionResult.sessionId,
+      previousStatus: transactionResult.previousStatus,
+      targetStatus: transactionResult.targetStatus,
+    }, [
+      {
+        stage: 'notification',
+        run: () =>
+          this.presenceNotificationsService.createOrderRejectedNotification(
+            transactionResult.orderId,
+            rejectionReason,
+          ),
+      },
+      {
+        stage: 'realtime',
+        run: () =>
+          this.realtimeEventsService.recordOrderRejected(
+            transactionResult.orderId,
+          ),
+      },
+      {
+        stage: 'table_attention_recalculate',
+        run: () =>
+          this.recalculateAttention(
+            transactionResult.sessionId,
+            this.prisma,
+            'order_rejected',
+            { orderId: transactionResult.orderId },
+          ),
+      },
+    ]);
 
-      return this.getOrderResponse(order.id, tx);
-    });
+    try {
+      return await this.getOrderResponse(transactionResult.orderId, this.prisma);
+    } catch (error) {
+      throw this.toOrderActionError(error, {
+        ...logContext,
+        sessionId: transactionResult.sessionId,
+        previousStatus: transactionResult.previousStatus,
+        targetStatus: transactionResult.targetStatus,
+        failureStage: 'response_mapping',
+      });
+    }
   }
 
   async serve(
@@ -513,154 +667,268 @@ export class OrdersService {
     orderId: string,
     body: OrderLifecycleActionDto = {},
     authenticatedStaffUserId?: string,
+    requestId?: string,
   ) {
-    return this.prisma.$transaction(async (tx) => {
-      const actorStaffUserId = await this.resolveStaffActor(
-        authenticatedStaffUserId,
-        body.staffUserId,
-        tx,
-      );
+    const note = this.normalizeOptionalText(body.note);
+    const logContext: OrderActionLogContext = {
+      requestId,
+      action: 'complete',
+      orderId,
+      targetStatus: OrderStatus.completed,
+    };
+    let stage: OrderActionFailureStage = 'validation';
+    let transactionResult: OrderActionTransactionResult;
 
-      const order = await tx.order.findUnique({
-        where: { id: orderId },
-        select: { id: true, tableSessionId: true, status: true },
-      });
+    try {
+      transactionResult = await this.prisma.$transaction(async (tx) => {
+        stage = 'validation';
+        const actorStaffUserId = await this.resolveStaffActor(
+          authenticatedStaffUserId,
+          body.staffUserId,
+          tx,
+        );
 
-      if (!order) {
-        throw new NotFoundException('Order not found');
-      }
+        const order = await tx.order.findUnique({
+          where: { id: orderId },
+          select: { id: true, tableSessionId: true, status: true },
+        });
 
-      this.assertLifecycleTransition(order, 'complete');
+        if (!order) {
+          throw new NotFoundException('Order not found');
+        }
 
-      const note = this.normalizeOptionalText(body.note);
-      const now = new Date();
+        logContext.sessionId = order.tableSessionId;
+        logContext.previousStatus = order.status;
+        this.assertLifecycleTransition(order, 'complete');
 
-      const updatedOrder = await tx.order.updateMany({
-        where: { id: order.id, status: order.status },
-        data: {
-          status: OrderStatus.completed,
-          completedAt: now,
-          completedByStaffUserId: actorStaffUserId,
-          completionNote: note,
-        },
-      });
+        const now = new Date();
 
-      this.assertFreshTransition(updatedOrder.count);
+        stage = 'status_update';
+        const updatedOrder = await tx.order.updateMany({
+          where: { id: order.id, status: order.status },
+          data: {
+            status: OrderStatus.completed,
+            completedAt: now,
+            completedByStaffUserId: actorStaffUserId,
+            completionNote: note,
+          },
+        });
 
-      await tx.orderEvent.create({
-        data: {
+        this.assertFreshTransition(updatedOrder.count);
+
+        await tx.orderEvent.create({
+          data: {
+            orderId: order.id,
+            type: OrderEventType.completed,
+            actorType: OrderEventActorType.staff,
+            actorStaffUserId,
+            metadata: this.transitionMetadata(
+              order.status,
+              OrderStatus.completed,
+              'complete',
+              'cashier',
+              note ? { note } : undefined,
+            ),
+          },
+        });
+
+        return {
           orderId: order.id,
-          type: OrderEventType.completed,
-          actorType: OrderEventActorType.staff,
+          sessionId: order.tableSessionId,
           actorStaffUserId,
-          metadata: this.transitionMetadata(
-            order.status,
-            OrderStatus.completed,
-            'complete',
-            'cashier',
-            note ? { note } : undefined,
-          ),
-        },
+          previousStatus: order.status,
+          targetStatus: OrderStatus.completed,
+        };
       });
+    } catch (error) {
+      throw this.toOrderActionError(error, {
+        ...logContext,
+        failureStage: stage,
+      });
+    }
 
-      await this.realtimeEventsService.recordOrderCompleted(order.id, tx);
-      await this.recalculateAttention(
-        order.tableSessionId,
-        tx,
-        'order_completed',
-        { orderId: order.id },
-      );
+    await this.runPostOrderActionAutomation({
+      ...logContext,
+      sessionId: transactionResult.sessionId,
+      previousStatus: transactionResult.previousStatus,
+      targetStatus: transactionResult.targetStatus,
+    }, [
+      {
+        stage: 'realtime',
+        run: () =>
+          this.realtimeEventsService.recordOrderCompleted(
+            transactionResult.orderId,
+          ),
+      },
+      {
+        stage: 'table_attention_recalculate',
+        run: () =>
+          this.recalculateAttention(
+            transactionResult.sessionId,
+            this.prisma,
+            'order_completed',
+            { orderId: transactionResult.orderId },
+          ),
+      },
+    ]);
 
-      return this.getOrderResponse(order.id, tx);
-    });
+    try {
+      return await this.getOrderResponse(transactionResult.orderId, this.prisma);
+    } catch (error) {
+      throw this.toOrderActionError(error, {
+        ...logContext,
+        sessionId: transactionResult.sessionId,
+        previousStatus: transactionResult.previousStatus,
+        targetStatus: transactionResult.targetStatus,
+        failureStage: 'response_mapping',
+      });
+    }
   }
 
   async cancel(
     orderId: string,
     body: CancelOrderDto = {},
     authenticatedStaffUserId?: string,
+    requestId?: string,
   ) {
-    return this.prisma.$transaction(async (tx) => {
-      const actorStaffUserId = await this.resolveStaffActor(
-        authenticatedStaffUserId,
-        body.staffUserId,
-        tx,
-      );
-      const reason = this.normalizeOptionalText(body.reason);
+    const reason = this.normalizeOptionalText(body.reason);
+    const logContext: OrderActionLogContext = {
+      requestId,
+      action: 'cancel',
+      orderId,
+      targetStatus: OrderStatus.cancelled,
+    };
+    let stage: OrderActionFailureStage = 'validation';
+    let transactionResult: OrderActionTransactionResult;
 
-      if (!reason) {
-        throw this.lifecycleBadRequest(
-          'cancellation_requires_reason',
-          'Cancellation requires a reason',
+    try {
+      transactionResult = await this.prisma.$transaction(async (tx) => {
+        stage = 'validation';
+        const actorStaffUserId = await this.resolveStaffActor(
+          authenticatedStaffUserId,
+          body.staffUserId,
+          tx,
         );
-      }
 
-      const order = await tx.order.findUnique({
-        where: { id: orderId },
-        select: {
-          id: true,
-          tableSessionId: true,
-          status: true,
-          preparationTasks: {
-            where: { status: { not: PreparationTaskStatus.cancelled } },
-            select: { id: true, status: true },
+        if (!reason) {
+          throw this.lifecycleBadRequest(
+            'cancellation_requires_reason',
+            'Cancellation requires a reason',
+          );
+        }
+
+        const order = await tx.order.findUnique({
+          where: { id: orderId },
+          select: {
+            id: true,
+            tableSessionId: true,
+            status: true,
+            preparationTasks: {
+              where: { status: { not: PreparationTaskStatus.cancelled } },
+              select: { id: true, status: true },
+            },
           },
-        },
-      });
+        });
 
-      if (!order) {
-        throw new NotFoundException('Order not found');
-      }
+        if (!order) {
+          throw new NotFoundException('Order not found');
+        }
 
-      this.assertLifecycleTransition(order, 'cancel');
+        logContext.sessionId = order.tableSessionId;
+        logContext.previousStatus = order.status;
+        this.assertLifecycleTransition(order, 'cancel');
 
-      const updatedOrder = await tx.order.updateMany({
-        where: { id: order.id, status: order.status },
-        data: {
-          status: OrderStatus.cancelled,
-        },
-      });
+        stage = 'status_update';
+        const updatedOrder = await tx.order.updateMany({
+          where: { id: order.id, status: order.status },
+          data: {
+            status: OrderStatus.cancelled,
+          },
+        });
 
-      this.assertFreshTransition(updatedOrder.count);
+        this.assertFreshTransition(updatedOrder.count);
 
-      await tx.orderEvent.create({
-        data: {
-          orderId: order.id,
-          type: OrderEventType.cancelled,
-          actorType: OrderEventActorType.staff,
+        await tx.orderEvent.create({
+          data: {
+            orderId: order.id,
+            type: OrderEventType.cancelled,
+            actorType: OrderEventActorType.staff,
+            actorStaffUserId,
+            metadata: this.transitionMetadata(
+              order.status,
+              OrderStatus.cancelled,
+              'cancel',
+              'cashier',
+              { reason },
+            ),
+          },
+        });
+
+        stage = 'preparation_tasks';
+        await this.preparationTasksService.cancelActiveTasksForOrderCancellation(
+          order.id,
           actorStaffUserId,
-          metadata: this.transitionMetadata(
-            order.status,
-            OrderStatus.cancelled,
-            'cancel',
-            'cashier',
-            { reason },
-          ),
-        },
+          reason,
+          tx,
+        );
+        await this.kitchenTicketsService.syncTicketsForOrderCancelled(
+          order.id,
+          actorStaffUserId,
+          reason,
+          tx,
+        );
+
+        return {
+          orderId: order.id,
+          sessionId: order.tableSessionId,
+          actorStaffUserId,
+          previousStatus: order.status,
+          targetStatus: OrderStatus.cancelled,
+        };
       });
+    } catch (error) {
+      throw this.toOrderActionError(error, {
+        ...logContext,
+        failureStage: stage,
+      });
+    }
 
-      await this.preparationTasksService.cancelActiveTasksForOrderCancellation(
-        order.id,
-        actorStaffUserId,
-        reason,
-        tx,
-      );
-      await this.kitchenTicketsService.syncTicketsForOrderCancelled(
-        order.id,
-        actorStaffUserId,
-        reason,
-        tx,
-      );
-      await this.realtimeEventsService.recordOrderCancelled(order.id, tx);
-      await this.recalculateAttention(
-        order.tableSessionId,
-        tx,
-        'order_cancelled',
-        { orderId: order.id, reason },
-      );
+    await this.runPostOrderActionAutomation({
+      ...logContext,
+      sessionId: transactionResult.sessionId,
+      previousStatus: transactionResult.previousStatus,
+      targetStatus: transactionResult.targetStatus,
+    }, [
+      {
+        stage: 'realtime',
+        run: () =>
+          this.realtimeEventsService.recordOrderCancelled(
+            transactionResult.orderId,
+          ),
+      },
+      {
+        stage: 'table_attention_recalculate',
+        run: () =>
+          this.recalculateAttention(
+            transactionResult.sessionId,
+            this.prisma,
+            'order_cancelled',
+            { orderId: transactionResult.orderId, reason },
+          ),
+      },
+    ]);
 
-      return this.getOrderResponse(order.id, tx);
-    });
+    try {
+      return await this.getOrderResponse(transactionResult.orderId, this.prisma);
+    } catch (error) {
+      throw this.toOrderActionError(error, {
+        ...logContext,
+        sessionId: transactionResult.sessionId,
+        previousStatus: transactionResult.previousStatus,
+        targetStatus: transactionResult.targetStatus,
+        failureStage: 'response_mapping',
+      });
+    }
   }
 
   async findForTableSession(sessionId: string) {
@@ -939,6 +1207,28 @@ export class OrdersService {
     }
   }
 
+  private async runPostOrderActionAutomation(
+    context: OrderActionLogContext,
+    steps: Array<{
+      stage: OrderActionFailureStage;
+      run: () => Promise<unknown>;
+    }>,
+  ) {
+    for (const step of steps) {
+      try {
+        await step.run();
+      } catch (error) {
+        this.logger.warn({
+          message:
+            'Post-order action automation failed; committed order status remains source of truth',
+          ...context,
+          failureStage: step.stage,
+          exception: this.safeExceptionSummary(error),
+        });
+      }
+    }
+  }
+
   private toSubmitCartError(error: unknown, context: SubmitCartLogContext) {
     if (error instanceof NotFoundException) {
       this.logger.warn({
@@ -961,20 +1251,74 @@ export class OrdersService {
     return error;
   }
 
+  private toOrderActionError(
+    error: unknown,
+    context: OrderActionLogContext,
+  ) {
+    const statusCode =
+      error instanceof HttpException ? error.getStatus() : undefined;
+    const payload = {
+      message: 'Order action failed',
+      ...context,
+      statusCode,
+      exception: this.safeExceptionSummary(error),
+    };
+
+    if (error instanceof HttpException && statusCode && statusCode < 500) {
+      this.logger.warn(payload);
+    } else {
+      this.logger.error(payload);
+    }
+
+    return error;
+  }
+
   private safeExceptionSummary(error: unknown) {
     if (error instanceof Error) {
+      const message = error.message.trim() || error.name || 'Unexpected error';
+
       return {
         name: error.name,
-        message: this.redactSensitiveText(error.message),
+        message: this.redactSensitiveText(message),
         code: this.stringProperty(error, 'code'),
+        stackFirstLine: this.stackFirstLine(error.stack),
       };
     }
 
     if (typeof error === 'string') {
-      return { message: this.redactSensitiveText(error) };
+      return {
+        message: this.redactSensitiveText(
+          error.trim() || 'Non-error exception',
+        ),
+      };
     }
 
-    return { type: typeof error };
+    if (error && typeof error === 'object') {
+      const record = error as Record<string, unknown>;
+      const message =
+        this.stringProperty(record, 'message') ??
+        this.stringProperty(record, 'error') ??
+        'Non-error exception';
+
+      return {
+        type: record.constructor?.name ?? 'object',
+        message,
+        code: this.stringProperty(record, 'code'),
+      };
+    }
+
+    return {
+      type: typeof error,
+      message: 'Non-error exception',
+    };
+  }
+
+  private stackFirstLine(stack: string | undefined) {
+    if (!stack) {
+      return undefined;
+    }
+
+    return this.redactSensitiveText(stack.split('\n')[0]?.trim() ?? '');
   }
 
   private stringProperty(value: object, key: string) {

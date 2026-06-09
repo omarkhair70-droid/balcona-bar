@@ -131,18 +131,47 @@ export class GlobalExceptionFilter implements ExceptionFilter {
 
   private safeExceptionSummary(exception: unknown) {
     if (exception instanceof Error) {
+      const message =
+        exception.message.trim() || exception.name || 'Unexpected exception';
+
       return {
         name: exception.name,
-        message: this.redactSensitiveText(exception.message),
+        message: this.redactSensitiveText(message),
         code: this.stringProperty(exception, 'code'),
+        stackFirstLine: this.stackFirstLine(exception.stack),
       };
     }
 
     if (typeof exception === 'string') {
-      return { message: this.redactSensitiveText(exception) };
+      return {
+        message: this.redactSensitiveText(
+          exception.trim() || 'Non-error exception',
+        ),
+      };
     }
 
-    return { type: typeof exception };
+    if (exception && typeof exception === 'object') {
+      const message =
+        this.messageFromValue(exception) ??
+        this.stringProperty(exception, 'name') ??
+        'Non-error exception';
+
+      return {
+        type: exception.constructor?.name ?? 'object',
+        message: this.redactSensitiveText(message),
+        code: this.stringProperty(exception, 'code'),
+      };
+    }
+
+    return { type: typeof exception, message: 'Non-error exception' };
+  }
+
+  private stackFirstLine(stack: string | undefined) {
+    if (!stack) {
+      return undefined;
+    }
+
+    return this.redactSensitiveText(stack.split('\n')[0]?.trim() ?? '');
   }
 
   private stringProperty(value: object, key: string) {

@@ -381,15 +381,15 @@ export class RealtimeEventsService {
     );
   }
 
-  async recordOrderAccepted(orderId: string, tx: PrismaExecutor) {
+  async recordOrderAccepted(orderId: string, tx: PrismaExecutor = this.prisma) {
     return this.recordOrderEvent(orderId, RealtimeEventType.order_accepted, tx);
   }
 
-  async recordOrderRejected(orderId: string, tx: PrismaExecutor) {
+  async recordOrderRejected(orderId: string, tx: PrismaExecutor = this.prisma) {
     return this.recordOrderEvent(orderId, RealtimeEventType.order_rejected, tx);
   }
 
-  async recordOrderCancelled(orderId: string, tx: PrismaExecutor) {
+  async recordOrderCancelled(orderId: string, tx: PrismaExecutor = this.prisma) {
     return this.recordOrderEvent(
       orderId,
       RealtimeEventType.order_cancelled,
@@ -417,7 +417,7 @@ export class RealtimeEventsService {
     return this.recordOrderEvent(orderId, RealtimeEventType.order_served, tx);
   }
 
-  async recordOrderCompleted(orderId: string, tx: PrismaExecutor) {
+  async recordOrderCompleted(orderId: string, tx: PrismaExecutor = this.prisma) {
     return this.recordOrderEvent(
       orderId,
       RealtimeEventType.order_completed,

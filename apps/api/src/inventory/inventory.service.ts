@@ -1404,6 +1404,9 @@ export class InventoryService {
     const quantityByMenuItemId = new Map(
       quantities.map((item) => [item.menuItemId, item.quantity]),
     );
+    const itemNameByMenuItemId = new Map(
+      quantities.map((item) => [item.menuItemId, item.itemNameSnapshot]),
+    );
     const requirementByInventoryItemId = new Map<
       string,
       {
@@ -1411,21 +1414,29 @@ export class InventoryService {
         totalQuantity: number;
         unit: (typeof requirements)[number]['unit'];
         inventoryItem: (typeof requirements)[number]['inventoryItem'];
+        menuItemNames: string[];
       }
     >();
 
     for (const requirement of requirements) {
       const orderQuantity = quantityByMenuItemId.get(requirement.menuItemId) ?? 0;
       const totalQuantity = requirement.quantityRequired * orderQuantity;
+      const menuItemName = itemNameByMenuItemId.get(requirement.menuItemId);
       const existing = requirementByInventoryItemId.get(
         requirement.inventoryItemId,
       );
+      const existingNames = existing?.menuItemNames ?? [];
+      const menuItemNames =
+        menuItemName && !existingNames.includes(menuItemName)
+          ? [...existingNames, menuItemName]
+          : existingNames;
 
       requirementByInventoryItemId.set(requirement.inventoryItemId, {
         inventoryItemId: requirement.inventoryItemId,
         totalQuantity: (existing?.totalQuantity ?? 0) + totalQuantity,
         unit: requirement.unit,
         inventoryItem: requirement.inventoryItem,
+        menuItemNames,
       });
     }
 
@@ -1437,7 +1448,11 @@ export class InventoryService {
       }
 
       if (requirement.inventoryItem.status !== InventoryItemStatus.active) {
-        throw new BadRequestException('Item is out of stock');
+        throw this.stockUnavailableException(
+          'inventory_item_inactive',
+          requirement,
+          0,
+        );
       }
 
       await this.lockInventoryLevel(
@@ -1456,7 +1471,11 @@ export class InventoryService {
       });
 
       if (!level || level.quantityOnHand < requirement.totalQuantity) {
-        throw new BadRequestException('Item is out of stock');
+        throw this.stockUnavailableException(
+          'insufficient_stock',
+          requirement,
+          level?.quantityOnHand ?? 0,
+        );
       }
 
       const quantityAfter = level.quantityOnHand - requirement.totalQuantity;
@@ -1469,7 +1488,11 @@ export class InventoryService {
       });
 
       if (updatedLevel.count === 0) {
-        throw new BadRequestException('Item is out of stock');
+        throw this.stockUnavailableException(
+          'stale_stock_level',
+          requirement,
+          level.quantityOnHand,
+        );
       }
 
       movements.push(
@@ -1492,6 +1515,30 @@ export class InventoryService {
     }
 
     return { consumed: movements.length > 0, movements };
+  }
+
+  private stockUnavailableException(
+    reason: string,
+    requirement: {
+      totalQuantity: number;
+      unit: InventoryUnit;
+      inventoryItem: { id: string; name: string };
+      menuItemNames: string[];
+    },
+    availableQuantity: number,
+  ) {
+    return new BadRequestException({
+      message: 'Item is out of stock',
+      details: {
+        reason,
+        menuItemNames: requirement.menuItemNames,
+        inventoryItemId: requirement.inventoryItem.id,
+        inventoryItemName: requirement.inventoryItem.name,
+        requiredQuantity: requirement.totalQuantity,
+        availableQuantity,
+        unit: requirement.unit,
+      },
+    });
   }
 
   private async getMenuItemInventoryRequirementsWithTx(

@@ -54,11 +54,33 @@ function messageFromValue(value: unknown, depth = 0): string {
   return messageFromValue(value.response, depth + 1);
 }
 
+function requestIdFromValue(value: unknown, depth = 0): string {
+  if (depth > 4 || !isRecord(value)) {
+    return "";
+  }
+
+  const directRequestId = normalizeText(value.requestId);
+
+  if (directRequestId) {
+    return directRequestId;
+  }
+
+  return (
+    requestIdFromValue(value.error, depth + 1) ||
+    requestIdFromValue(value.details, depth + 1) ||
+    requestIdFromValue(value.response, depth + 1)
+  );
+}
+
 export function formatErrorMessage(
   error: unknown,
   fallback = "Something went wrong. Please try again."
 ) {
   const message = messageFromValue(error);
+  const requestId = requestIdFromValue(error);
+  const readableMessage = message || fallback;
 
-  return message || fallback;
+  return requestId && !readableMessage.includes(requestId)
+    ? `${readableMessage} (Request ID: ${requestId})`
+    : readableMessage;
 }
