@@ -5,6 +5,10 @@ coverage/
 .env
 .env.*
 !.env.example
+!.env.smoke.example
+.env.smoke.local
+smoke-results/
+.smoke-tmp/
 npm-debug.log*
 .DS_Store
 .prisma/
