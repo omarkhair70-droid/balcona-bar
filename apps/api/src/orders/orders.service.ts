@@ -79,6 +79,9 @@ type OrderActionFailureStage =
   | 'status_update'
   | 'inventory_consumption'
   | 'preparation_tasks'
+  | 'preparation_realtime'
+  | 'kds_realtime'
+  | 'print_jobs'
   | 'notification'
   | 'realtime'
   | 'response_mapping'
@@ -100,6 +103,7 @@ type OrderActionTransactionResult = {
   actorStaffUserId: string;
   previousStatus: OrderStatus;
   targetStatus: OrderStatus;
+  kdsTicketIds?: string[];
 };
 
 @Injectable()
@@ -383,6 +387,7 @@ export class OrdersService {
             order.id,
             actorStaffUserId,
             tx,
+            { createPrintJobs: false, recordRealtimeEvents: false },
           );
         this.logger.log({
           message: 'accept.preparation_tasks',
@@ -422,6 +427,7 @@ export class OrdersService {
           actorStaffUserId,
           previousStatus: order.status,
           targetStatus: OrderStatus.cashier_accepted,
+          kdsTicketIds: kdsRouting.ticketRouting.ticketIds,
         };
       });
     } catch (error) {
@@ -437,6 +443,28 @@ export class OrdersService {
       previousStatus: transactionResult.previousStatus,
       targetStatus: transactionResult.targetStatus,
     }, [
+      {
+        stage: 'preparation_realtime',
+        run: () =>
+          this.preparationTasksService.recordCreatedRealtimeEventsForOrder(
+            transactionResult.orderId,
+          ),
+      },
+      {
+        stage: 'kds_realtime',
+        run: () =>
+          this.kitchenTicketsService.recordCreatedRealtimeEventsForTickets(
+            transactionResult.kdsTicketIds ?? [],
+          ),
+      },
+      {
+        stage: 'print_jobs',
+        run: () =>
+          this.kitchenTicketsService.createPrintJobsForTickets(
+            transactionResult.kdsTicketIds ?? [],
+            transactionResult.actorStaffUserId,
+          ),
+      },
       {
         stage: 'notification',
         run: () =>
@@ -1295,6 +1323,7 @@ export class OrdersService {
         message: 'Kitchen routing failed for accepted order',
         code: 'kds_routing_failed',
         details: {
+          reason: 'routing_exception',
           orderId: context.orderId,
           sessionId: context.sessionId,
           action: context.action,

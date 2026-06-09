@@ -56,6 +56,7 @@ export type KdsRoutingResult = {
 
 type CreateTasksForAcceptedOrderOptions = {
   createPrintJobs?: boolean;
+  recordRealtimeEvents?: boolean;
 };
 
 @Injectable()
@@ -170,10 +171,12 @@ export class PreparationTasksService {
         select: { id: true },
       });
 
-      await this.realtimeEventsService.recordPreparationTaskCreated(
-        task.id,
-        tx,
-      );
+      if (options.recordRealtimeEvents ?? true) {
+        await this.realtimeEventsService.recordPreparationTaskCreated(
+          task.id,
+          tx,
+        );
+      }
       activeTaskCount += 1;
       createdTaskCount += 1;
     }
@@ -183,8 +186,11 @@ export class PreparationTasksService {
         order.id,
         staffUserId,
         tx,
-        { createPrintJobs: options.createPrintJobs },
-      );
+      {
+        createPrintJobs: options.createPrintJobs,
+        recordRealtimeEvents: options.recordRealtimeEvents,
+      },
+    );
 
     const result: KdsRoutingResult = {
       orderId: order.id,
@@ -224,6 +230,13 @@ export class PreparationTasksService {
         reason: 'actionable_items_without_tasks',
         actionableItemCount,
         stationsDetected: [...actionableStations],
+        createdTaskCount,
+        existingTaskCount,
+        activeTaskCount,
+        createdTicketCount: ticketRouting.createdTicketCount,
+        existingTicketCount: ticketRouting.existingTicketCount,
+        ticketCount: ticketRouting.ticketIds.length,
+        skippedItems: this.skippedItemsSummary(skippedItems),
       });
     }
 
@@ -232,6 +245,13 @@ export class PreparationTasksService {
         reason: 'actionable_items_without_tickets',
         actionableItemCount,
         stationsDetected: [...actionableStations],
+        createdTaskCount,
+        existingTaskCount,
+        activeTaskCount,
+        createdTicketCount: ticketRouting.createdTicketCount,
+        existingTicketCount: ticketRouting.existingTicketCount,
+        ticketCount: ticketRouting.ticketIds.length,
+        skippedItems: this.skippedItemsSummary(skippedItems),
       });
     }
 
@@ -767,6 +787,26 @@ export class PreparationTasksService {
     });
   }
 
+  async recordCreatedRealtimeEventsForOrder(
+    orderId: string,
+    tx: PrismaExecutor = this.prisma,
+  ) {
+    const tasks = await tx.preparationTask.findMany({
+      where: { orderId },
+      orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
+      select: { id: true },
+    });
+
+    for (const task of tasks) {
+      await this.realtimeEventsService.recordPreparationTaskCreated(
+        task.id,
+        tx,
+      );
+    }
+
+    return tasks.length;
+  }
+
   private kdsRoutingBadRequest(
     orderId: string,
     branchId: string,
@@ -788,6 +828,17 @@ export class PreparationTasksService {
         ...details,
       },
     });
+  }
+
+  private skippedItemsSummary(skippedItems: KdsRoutingResult['skippedItems']) {
+    const reasons = [
+      ...new Set(skippedItems.map((item) => item.reason)),
+    ];
+
+    return {
+      count: skippedItems.length,
+      reasons,
+    };
   }
 
   private async recalculateAttention(
