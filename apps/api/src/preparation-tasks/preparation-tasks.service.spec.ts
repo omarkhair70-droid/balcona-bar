@@ -247,7 +247,6 @@ function ticketRoutingForCreate(
   ticketIds = ['ticket-1'],
 ) {
   return {
-    tickets: ticketIds.map((id) => ({ ticket: { id } })),
     ticketIds,
     itemCount: 1,
     actionableItemCount: ticketIds.length > 0 ? 1 : 0,
