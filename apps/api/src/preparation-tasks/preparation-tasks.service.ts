@@ -64,7 +64,7 @@ type CreateTasksForAcceptedOrderOptions = {
 
 type PreparationTaskActionName = "start" | "ready" | "cancel";
 
-type PreparationTaskActionResult = {
+export type PreparationTaskActionResult = {
   action: PreparationTaskActionName;
   taskId: string;
   orderId: string;
@@ -773,7 +773,15 @@ export class PreparationTasksService {
           in: [PreparationTaskStatus.pending, PreparationTaskStatus.preparing],
         },
       },
-      select: { id: true },
+      select: {
+        id: true,
+        order: {
+          select: {
+            branchId: true,
+            tableSessionId: true,
+          },
+        },
+      },
     });
 
     if (tasks.length === 0) {
@@ -781,9 +789,15 @@ export class PreparationTasksService {
     }
 
     const now = new Date();
-    const cancelledTaskIds: string[] = [];
+    const cancelledTasks: PreparationTaskActionResult[] = [];
 
     for (const task of tasks) {
+      const timings = {
+        taskUpdateMs: 0,
+        taskEventMs: 0,
+        ticketSyncMs: 0,
+      };
+      let stageStartedAt = Date.now();
       const updatedTask = await tx.preparationTask.updateMany({
         where: {
           id: task.id,
@@ -799,11 +813,13 @@ export class PreparationTasksService {
           cancelledAt: now,
         },
       });
+      timings.taskUpdateMs += Date.now() - stageStartedAt;
 
       if (updatedTask.count === 0) {
         continue;
       }
 
+      stageStartedAt = Date.now();
       await tx.preparationTaskEvent.create({
         data: {
           preparationTaskId: task.id,
@@ -816,20 +832,41 @@ export class PreparationTasksService {
           },
         },
       });
-      await this.realtimeEventsService.recordPreparationTaskCancelled(
-        task.id,
-        tx,
-      );
-      await this.kitchenTicketsService.syncTicketsForTaskCancelled(
-        task.id,
-        reason,
+      timings.taskEventMs += Date.now() - stageStartedAt;
+
+      stageStartedAt = Date.now();
+      const ticketSync =
+        await this.kitchenTicketsService.syncTicketsForTaskCancelled(
+          task.id,
+          reason,
+          staffUserId,
+          tx,
+          { createPrintJobs: false, recordRealtimeEvents: false },
+        );
+      timings.ticketSyncMs += Date.now() - stageStartedAt;
+
+      cancelledTasks.push({
+        action: "cancel",
+        taskId: task.id,
+        orderId,
+        branchId: task.order.branchId,
+        tableSessionId: task.order.tableSessionId,
         staffUserId,
-        tx,
-      );
-      cancelledTaskIds.push(task.id);
+        reason,
+        ticketSync,
+        timings,
+      });
     }
 
-    return cancelledTaskIds;
+    return cancelledTasks;
+  }
+
+  scheduleOrderCancellationTaskPostCommit(
+    cancelledTasks: PreparationTaskActionResult[],
+  ) {
+    for (const cancelledTask of cancelledTasks) {
+      this.schedulePreparationTaskPostCommit(cancelledTask);
+    }
   }
 
   private async findTaskStatus(taskId: string, tx: PrismaExecutor) {

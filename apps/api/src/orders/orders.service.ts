@@ -19,7 +19,10 @@ import { CartService } from "../cart/cart.service";
 import { InventoryService } from "../inventory/inventory.service";
 import { KitchenTicketsService } from "../kitchen-tickets/kitchen-tickets.service";
 import { PresenceNotificationsService } from "../presence-notifications/presence-notifications.service";
-import { PreparationTasksService } from "../preparation-tasks/preparation-tasks.service";
+import {
+  PreparationTaskActionResult,
+  PreparationTasksService,
+} from "../preparation-tasks/preparation-tasks.service";
 import { PrismaService } from "../prisma/prisma.service";
 import { RealtimeEventsService } from "../realtime-events/realtime-events.service";
 import { SmartCashierService } from "../smart-cashier/smart-cashier.service";
@@ -104,6 +107,7 @@ type OrderActionTransactionResult = {
   previousStatus: OrderStatus;
   targetStatus: OrderStatus;
   kdsTicketIds?: string[];
+  cancelledPreparationTasks?: PreparationTaskActionResult[];
 };
 
 @Injectable()
@@ -1007,12 +1011,13 @@ export class OrdersService {
         });
 
         stage = "preparation_tasks";
-        await this.preparationTasksService.cancelActiveTasksForOrderCancellation(
-          order.id,
-          actorStaffUserId,
-          reason,
-          tx,
-        );
+        const cancelledPreparationTasks =
+          await this.preparationTasksService.cancelActiveTasksForOrderCancellation(
+            order.id,
+            actorStaffUserId,
+            reason,
+            tx,
+          );
         await this.kitchenTicketsService.syncTicketsForOrderCancelled(
           order.id,
           actorStaffUserId,
@@ -1026,6 +1031,7 @@ export class OrdersService {
           actorStaffUserId,
           previousStatus: order.status,
           targetStatus: OrderStatus.cancelled,
+          cancelledPreparationTasks,
         };
       });
     } catch (error) {
@@ -1034,6 +1040,10 @@ export class OrdersService {
         failureStage: stage,
       });
     }
+
+    this.preparationTasksService.scheduleOrderCancellationTaskPostCommit(
+      transactionResult.cancelledPreparationTasks ?? [],
+    );
 
     await this.runPostOrderActionAutomation(
       {

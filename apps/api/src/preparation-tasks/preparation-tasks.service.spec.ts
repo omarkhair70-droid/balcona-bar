@@ -162,7 +162,10 @@ function buildService(input: {
   taskStatusRecord?: ReturnType<typeof taskStatus>;
   taskEnvelopeRecord?: ReturnType<typeof taskEnvelope>;
   orderForReadySync?: Record<string, unknown> | null;
-  tasksForOrderCancellation?: { id: string }[];
+  tasksForOrderCancellation?: {
+    id: string;
+    order?: { branchId: string; tableSessionId: string };
+  }[];
   notificationRejects?: boolean;
   preparationRealtimeRejects?: boolean;
   orderRealtimeRejects?: boolean;
@@ -748,11 +751,27 @@ describe("PreparationTasksService lifecycle hardening", () => {
   });
 
   it("order cancellation cancels only pending and preparing tasks", async () => {
-    const { service, tx, realtimeEventsService } = buildService({
-      tasksForOrderCancellation: [{ id: "task-1" }, { id: "task-2" }],
+    const {
+      service,
+      tx,
+      prisma,
+      realtimeEventsService,
+      kitchenTicketsService,
+      tableAttentionService,
+    } = buildService({
+      tasksForOrderCancellation: [
+        {
+          id: "task-1",
+          order: { branchId: "branch-1", tableSessionId: "session-1" },
+        },
+        {
+          id: "task-2",
+          order: { branchId: "branch-1", tableSessionId: "session-1" },
+        },
+      ],
     });
 
-    await service.cancelActiveTasksForOrderCancellation(
+    const cancelledTasks = await service.cancelActiveTasksForOrderCancellation(
       "order-1",
       "staff-1",
       "Customer left",
@@ -773,6 +792,23 @@ describe("PreparationTasksService lifecycle hardening", () => {
     });
     expect(
       realtimeEventsService.recordPreparationTaskCancelled,
-    ).toHaveBeenCalledWith("task-1", tx);
+    ).not.toHaveBeenCalled();
+    expect(
+      kitchenTicketsService.syncTicketsForTaskCancelled,
+    ).toHaveBeenCalledWith("task-1", "Customer left", "staff-1", tx, {
+      createPrintJobs: false,
+      recordRealtimeEvents: false,
+    });
+
+    service.scheduleOrderCancellationTaskPostCommit(cancelledTasks);
+    await flushAsyncWork();
+
+    expect(
+      realtimeEventsService.recordPreparationTaskCancelled,
+    ).toHaveBeenCalledWith("task-1", prisma);
+    expect(
+      kitchenTicketsService.createVoidPrintJobForTicket,
+    ).toHaveBeenCalledWith("ticket-1", "staff-1", "Customer left");
+    expect(tableAttentionService.recalculateForTableSession).toHaveBeenCalled();
   });
 });

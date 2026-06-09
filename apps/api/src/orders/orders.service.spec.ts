@@ -304,6 +304,7 @@ function buildService(input: {
     cancelActiveTasksForOrderCancellation: jest
       .fn()
       .mockResolvedValue(["task-1"]),
+    scheduleOrderCancellationTaskPostCommit: jest.fn(),
   };
   const presenceNotificationsService = {
     createOrderAcceptedNotification: jest.fn().mockResolvedValue({}),
@@ -871,6 +872,7 @@ function buildSubmitService(
   const preparationTasksService = {
     createTasksForAcceptedOrder: jest.fn().mockResolvedValue(undefined),
     cancelActiveTasksForOrderCancellation: jest.fn().mockResolvedValue([]),
+    scheduleOrderCancellationTaskPostCommit: jest.fn(),
   };
   const presenceNotificationsService = {
     createOrderSubmittedNotification: input.submittedNotificationNeverResolves
@@ -1441,6 +1443,9 @@ describe("OrdersService lifecycle hardening", () => {
     expect(
       preparationTasksService.cancelActiveTasksForOrderCancellation,
     ).toHaveBeenCalledWith("order-1", "staff-1", "Customer changed plans", tx);
+    expect(
+      preparationTasksService.scheduleOrderCancellationTaskPostCommit,
+    ).toHaveBeenCalledWith(["task-1"]);
     expect(realtimeEventsService.recordOrderCancelled).toHaveBeenCalledWith(
       "order-1",
     );
