@@ -10,8 +10,10 @@ import { Request, Response } from 'express';
 
 interface ErrorPayload {
   error?: string;
+  code?: string;
   message?: string;
   statusCode?: number;
+  details?: unknown;
 }
 
 @Catch()
@@ -48,13 +50,14 @@ export class GlobalExceptionFilter implements ExceptionFilter {
     response.status(status).json({
       success: false,
       error: {
-        code: payload.error ?? HttpStatus[status] ?? 'Error',
+        code: payload.code ?? payload.error ?? HttpStatus[status] ?? 'Error',
         message: payload.message ?? 'Internal server error',
         statusCode: status,
         path: requestPath,
         method: request.method,
         requestId,
         timestamp: new Date().toISOString(),
+        ...(payload.details ? { details: payload.details } : {}),
       },
     });
   }
@@ -66,18 +69,94 @@ export class GlobalExceptionFilter implements ExceptionFilter {
 
     if (exceptionResponse && typeof exceptionResponse === 'object') {
       const payload = exceptionResponse as Record<string, unknown>;
+      const code = this.messageFromValue(payload.code);
+      const message = this.messageFromValue(payload.message);
 
       return {
         error: this.messageFromValue(payload.error),
-        message: this.messageFromValue(payload.message),
+        code,
+        message,
         statusCode:
           typeof payload.statusCode === 'number'
             ? payload.statusCode
             : undefined,
+        details: this.safeBusinessDetails(payload.details, code, message),
       };
     }
 
     return {};
+  }
+
+  private safeBusinessDetails(
+    details: unknown,
+    code: string | undefined,
+    message: string | undefined,
+  ) {
+    if (!details || !this.canExposeDetails(code, message)) {
+      return undefined;
+    }
+
+    return this.sanitizeJson(details);
+  }
+
+  private canExposeDetails(
+    code: string | undefined,
+    message: string | undefined,
+  ) {
+    return (
+      code === 'kds_routing_failed' ||
+      code === 'item_out_of_stock' ||
+      message === 'Item is out of stock'
+    );
+  }
+
+  private sanitizeJson(value: unknown, depth = 0): unknown {
+    if (depth > 4) {
+      return undefined;
+    }
+
+    if (value === null || typeof value === 'number' || typeof value === 'boolean') {
+      return value;
+    }
+
+    if (typeof value === 'string') {
+      const normalized = value.trim();
+
+      return normalized ? this.redactSensitiveText(normalized) : undefined;
+    }
+
+    if (Array.isArray(value)) {
+      return value
+        .slice(0, 25)
+        .map((item) => this.sanitizeJson(item, depth + 1))
+        .filter((item) => item !== undefined);
+    }
+
+    if (!value || typeof value !== 'object') {
+      return undefined;
+    }
+
+    const sanitized: Record<string, unknown> = {};
+
+    for (const [key, entryValue] of Object.entries(value).slice(0, 30)) {
+      if (this.isSensitiveKey(key)) {
+        continue;
+      }
+
+      const sanitizedValue = this.sanitizeJson(entryValue, depth + 1);
+
+      if (sanitizedValue !== undefined) {
+        sanitized[key] = sanitizedValue;
+      }
+    }
+
+    return Object.keys(sanitized).length > 0 ? sanitized : undefined;
+  }
+
+  private isSensitiveKey(key: string) {
+    return /password|passwd|pwd|secret|token|api[_-]?key|authorization|cookie|env|connection|string|url/i.test(
+      key,
+    );
   }
 
   private messageFromValue(value: unknown, depth = 0): string | undefined {

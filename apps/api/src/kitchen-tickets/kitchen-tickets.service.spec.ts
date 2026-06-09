@@ -246,6 +246,60 @@ describe('KitchenTicketsService', () => {
     );
   });
 
+  it('creates visible KDS tickets without critical print or realtime side effects', async () => {
+    const createdTickets: any[] = [];
+    const order: any = buildOrder();
+    order.items = [order.items[0]];
+    const tx = {
+      $executeRaw: jest.fn().mockResolvedValue(undefined),
+      order: {
+        findUnique: jest.fn().mockResolvedValue(order),
+      },
+      kitchenTicket: {
+        count: jest.fn().mockImplementation(() => createdTickets.length),
+        findUnique: jest.fn().mockImplementation((args) => {
+          if (args.where.id) {
+            const ticket = createdTickets.find((entry) => entry.id === args.where.id);
+
+            return ticket ? ticketResponse(ticket.id, ticket.data) : null;
+          }
+
+          return null;
+        }),
+        create: jest.fn().mockImplementation((args) => {
+          const id = `ticket-${createdTickets.length + 1}`;
+
+          createdTickets.push({ id, data: args.data });
+
+          return { id };
+        }),
+      },
+    };
+    const printJobsService = {
+      createForKitchenTicket: jest.fn().mockRejectedValue(new Error('offline')),
+    };
+    const realtimeEventsService = {
+      recordKitchenTicketCreated: jest.fn().mockRejectedValue(new Error('offline')),
+    };
+    const service = new KitchenTicketsService(
+      {} as never,
+      printJobsService as never,
+      realtimeEventsService as never,
+    );
+
+    const result = await service.createTicketsForAcceptedOrder(
+      'order-1',
+      'staff-1',
+      tx as never,
+      { createPrintJobs: false, recordRealtimeEvents: false },
+    );
+
+    expect(result.ticketIds).toEqual(['ticket-1']);
+    expect(tx.kitchenTicket.create).toHaveBeenCalledTimes(1);
+    expect(printJobsService.createForKitchenTicket).not.toHaveBeenCalled();
+    expect(realtimeEventsService.recordKitchenTicketCreated).not.toHaveBeenCalled();
+  });
+
   it('marks a ticket ready when all ticket items are ready', async () => {
     const tx = {
       kitchenTicketItem: {
