@@ -1161,7 +1161,7 @@ async function runWaiterSmoke(run) {
         role: "waiter",
         token,
         action: "waiter_call_acknowledge",
-        body: { note: `Smoke ${run.config.runId}` }
+        body: {}
       })
     })
   );

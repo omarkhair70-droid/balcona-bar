@@ -118,14 +118,14 @@ function ticketResponse(id: string, data: any) {
   };
 }
 
-function nextSequenceAggregate(createdTickets: any[]) {
+function nextSequenceLookup(createdTickets: any[]) {
   return jest.fn().mockImplementation(() => {
     const maxSequence = createdTickets.reduce(
       (max, entry) => Math.max(max, entry.data.sequence),
       0,
     );
 
-    return { _max: { sequence: maxSequence === 0 ? null : maxSequence } };
+    return maxSequence === 0 ? null : { sequence: maxSequence };
   });
 }
 
@@ -137,7 +137,7 @@ describe("KitchenTicketsService", () => {
         findUnique: jest.fn().mockResolvedValue(buildOrder()),
       },
       kitchenTicket: {
-        aggregate: nextSequenceAggregate(createdTickets),
+        findFirst: nextSequenceLookup(createdTickets),
         findUnique: jest.fn().mockImplementation((args) => {
           if (args.where.id) {
             const ticket = createdTickets.find(
@@ -206,6 +206,11 @@ describe("KitchenTicketsService", () => {
       existingTicketCount: 3,
       actionableItemCount: 3,
     });
+    expect(tx.kitchenTicket.findFirst).toHaveBeenCalledWith({
+      where: { branchId: "branch-1" },
+      orderBy: { sequence: "desc" },
+      select: { sequence: true },
+    });
     expect(createdTickets.map((entry) => entry.data.station).sort()).toEqual([
       PreparationStation.barista,
       PreparationStation.dessert,
@@ -246,7 +251,7 @@ describe("KitchenTicketsService", () => {
           .mockResolvedValue([{ id: "task-refetched", orderItemId: "item-1" }]),
       },
       kitchenTicket: {
-        aggregate: nextSequenceAggregate(createdTickets),
+        findFirst: nextSequenceLookup(createdTickets),
         findUnique: jest.fn().mockImplementation((args) => {
           if (args.where.id) {
             const ticket = createdTickets.find(
@@ -300,7 +305,7 @@ describe("KitchenTicketsService", () => {
         findUnique: jest.fn().mockResolvedValue(order),
       },
       kitchenTicket: {
-        aggregate: nextSequenceAggregate(createdTickets),
+        findFirst: nextSequenceLookup(createdTickets),
         findUnique: jest.fn().mockImplementation((args) => {
           if (args.where.id) {
             const ticket = createdTickets.find(
@@ -366,7 +371,7 @@ describe("KitchenTicketsService", () => {
         findUnique: jest.fn().mockResolvedValue(order),
       },
       kitchenTicket: {
-        aggregate: nextSequenceAggregate(createdTickets),
+        findFirst: nextSequenceLookup(createdTickets),
         findUnique: jest.fn().mockImplementation((args) => {
           if (args.where.id) {
             throw hydrationError;
@@ -428,7 +433,7 @@ describe("KitchenTicketsService", () => {
         }),
       },
       kitchenTicket: {
-        aggregate: nextSequenceAggregate(createdTickets),
+        findFirst: nextSequenceLookup(createdTickets),
         findUnique: jest.fn().mockResolvedValue(null),
         create: jest.fn().mockImplementation((args) => {
           const id = `ticket-${createdTickets.length + 1}`;
@@ -480,7 +485,7 @@ describe("KitchenTicketsService", () => {
         findUnique: jest.fn().mockResolvedValue(order),
       },
       kitchenTicket: {
-        aggregate: jest.fn(),
+        findFirst: jest.fn(),
         findUnique: jest.fn().mockImplementation((args) => {
           if (args.where.id) {
             throw hydrationError;
@@ -514,7 +519,7 @@ describe("KitchenTicketsService", () => {
     });
     expect(findOneSpy).not.toHaveBeenCalled();
     expect(tx.kitchenTicket.create).not.toHaveBeenCalled();
-    expect(tx.kitchenTicket.aggregate).not.toHaveBeenCalled();
+    expect(tx.kitchenTicket.findFirst).not.toHaveBeenCalled();
   });
 
   it("returns existing snapshot tickets without order reload or full hydration", async () => {
@@ -527,7 +532,7 @@ describe("KitchenTicketsService", () => {
         }),
       },
       kitchenTicket: {
-        aggregate: jest.fn(),
+        findFirst: jest.fn(),
         findUnique: jest.fn().mockResolvedValue({ id: "ticket-existing" }),
         create: jest.fn(),
       },
@@ -550,7 +555,7 @@ describe("KitchenTicketsService", () => {
     expect(tx.order.findUnique).not.toHaveBeenCalled();
     expect(findOneSpy).not.toHaveBeenCalled();
     expect(tx.kitchenTicket.create).not.toHaveBeenCalled();
-    expect(tx.kitchenTicket.aggregate).not.toHaveBeenCalled();
+    expect(tx.kitchenTicket.findFirst).not.toHaveBeenCalled();
     expect(result).toMatchObject({
       ticketIds: ["ticket-existing"],
       createdTicketCount: 0,
@@ -576,7 +581,7 @@ describe("KitchenTicketsService", () => {
         findUnique: jest.fn().mockResolvedValue(order),
       },
       kitchenTicket: {
-        aggregate: jest.fn().mockResolvedValue({ _max: { sequence: 7 } }),
+        findFirst: jest.fn().mockResolvedValue({ sequence: 7 }),
         findUnique: jest.fn().mockImplementation((args) => {
           if (args.where.id) {
             const ticket = createdTickets.find(

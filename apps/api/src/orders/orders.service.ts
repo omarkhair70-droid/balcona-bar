@@ -41,6 +41,7 @@ import { SubmitCartDto } from "./dto/submit-cart.dto";
 
 const IDEMPOTENCY_KEY_MAX_LENGTH = 128;
 const ORDER_NUMBER_PREFIX = "B";
+const CASHIER_ACCEPT_TRANSACTION_TIMEOUT_MS = 15_000;
 const SUBMITTED_SESSION_ORDER_STATUSES: OrderStatus[] = [
   OrderStatus.submitted,
   OrderStatus.cashier_accepted,
@@ -94,6 +95,7 @@ type OrderActionLogContext = {
   requestId?: string;
   action: OrderLifecycleAction;
   orderId: string;
+  branchId?: string;
   sessionId?: string;
   previousStatus?: OrderStatus;
   targetStatus?: OrderStatus;
@@ -102,6 +104,7 @@ type OrderActionLogContext = {
 
 type OrderActionTransactionResult = {
   orderId: string;
+  branchId?: string;
   sessionId: string;
   actorStaffUserId: string;
   previousStatus: OrderStatus;
@@ -395,119 +398,124 @@ export class OrdersService {
     const startedAt = Date.now();
 
     try {
-      transactionResult = await this.prisma.$transaction(async (tx) => {
-        stage = "validation";
-        const actorStaffUserId = await this.resolveStaffActor(
-          authenticatedStaffUserId,
-          body.staffUserId,
-          tx,
-        );
+      transactionResult = await this.prisma.$transaction(
+        async (tx) => {
+          stage = "validation";
+          const actorStaffUserId = await this.resolveStaffActor(
+            authenticatedStaffUserId,
+            body.staffUserId,
+            tx,
+          );
 
-        const order = await tx.order.findUnique({
-          where: { id: orderId },
-          select: {
-            id: true,
-            branchId: true,
-            tableSessionId: true,
-            status: true,
-          },
-        });
+          const order = await tx.order.findUnique({
+            where: { id: orderId },
+            select: {
+              id: true,
+              branchId: true,
+              tableSessionId: true,
+              status: true,
+            },
+          });
 
-        if (!order) {
-          throw new NotFoundException("Order not found");
-        }
+          if (!order) {
+            throw new NotFoundException("Order not found");
+          }
 
-        logContext.sessionId = order.tableSessionId;
-        logContext.previousStatus = order.status;
-        this.assertLifecycleTransition(order, "accept");
+          logContext.sessionId = order.tableSessionId;
+          logContext.branchId = order.branchId;
+          logContext.previousStatus = order.status;
+          this.assertLifecycleTransition(order, "accept");
 
-        const now = new Date();
+          const now = new Date();
 
-        stage = "status_update";
-        let stageStartedAt = Date.now();
-        const updatedOrder = await tx.order.updateMany({
-          where: { id: order.id, status: order.status },
-          data: {
-            status: OrderStatus.cashier_accepted,
-            cashierAcceptedAt: now,
-          },
-        });
-        timings.statusUpdateMs += Date.now() - stageStartedAt;
+          stage = "status_update";
+          let stageStartedAt = Date.now();
+          const updatedOrder = await tx.order.updateMany({
+            where: { id: order.id, status: order.status },
+            data: {
+              status: OrderStatus.cashier_accepted,
+              cashierAcceptedAt: now,
+            },
+          });
+          timings.statusUpdateMs += Date.now() - stageStartedAt;
 
-        this.assertFreshTransition(updatedOrder.count);
+          this.assertFreshTransition(updatedOrder.count);
 
-        stage = "inventory_consumption";
-        stageStartedAt = Date.now();
-        await this.inventoryService.consumeStockForAcceptedOrder(
-          order.id,
-          actorStaffUserId,
-          tx,
-        );
-        timings.stockConsumptionMs += Date.now() - stageStartedAt;
-
-        stage = "preparation_tasks";
-        stageStartedAt = Date.now();
-        const kdsRouting =
-          await this.preparationTasksService.createTasksForAcceptedOrder(
+          stage = "inventory_consumption";
+          stageStartedAt = Date.now();
+          await this.inventoryService.consumeStockForAcceptedOrder(
             order.id,
             actorStaffUserId,
             tx,
-            { createPrintJobs: false, recordRealtimeEvents: false },
           );
-        timings.preparationTasksMs += Date.now() - stageStartedAt;
-        this.logger.log({
-          message: "accept.preparation_tasks",
-          requestId,
-          orderId: order.id,
-          branchId: order.branchId,
-          itemCount: kdsRouting.itemCount,
-          actionableItemCount: kdsRouting.actionableItemCount,
-          stationsDetected: kdsRouting.stationsDetected,
-          createdTaskCount: kdsRouting.createdTaskCount,
-          existingTaskCount: kdsRouting.existingTaskCount,
-          createdTicketCount: kdsRouting.ticketRouting.createdTicketCount,
-          existingTicketCount: kdsRouting.ticketRouting.existingTicketCount,
-          ticketCount: kdsRouting.ticketRouting.ticketIds.length,
-          skippedItemCount: kdsRouting.skippedItems.length,
-          durationMs: timings.preparationTasksMs,
-        });
+          timings.stockConsumptionMs += Date.now() - stageStartedAt;
 
-        stage = "status_update";
-        stageStartedAt = Date.now();
-        await tx.orderEvent.create({
-          data: {
+          stage = "preparation_tasks";
+          stageStartedAt = Date.now();
+          const kdsRouting =
+            await this.preparationTasksService.createTasksForAcceptedOrder(
+              order.id,
+              actorStaffUserId,
+              tx,
+              { createPrintJobs: false, recordRealtimeEvents: false },
+            );
+          timings.preparationTasksMs += Date.now() - stageStartedAt;
+          this.logger.log({
+            message: "accept.preparation_tasks",
+            requestId,
             orderId: order.id,
-            type: OrderEventType.cashier_accepted,
-            actorType: OrderEventActorType.staff,
+            branchId: order.branchId,
+            itemCount: kdsRouting.itemCount,
+            actionableItemCount: kdsRouting.actionableItemCount,
+            stationsDetected: kdsRouting.stationsDetected,
+            createdTaskCount: kdsRouting.createdTaskCount,
+            existingTaskCount: kdsRouting.existingTaskCount,
+            createdTicketCount: kdsRouting.ticketRouting.createdTicketCount,
+            existingTicketCount: kdsRouting.ticketRouting.existingTicketCount,
+            ticketCount: kdsRouting.ticketRouting.ticketIds.length,
+            skippedItemCount: kdsRouting.skippedItems.length,
+            durationMs: timings.preparationTasksMs,
+          });
+
+          stage = "status_update";
+          stageStartedAt = Date.now();
+          await tx.orderEvent.create({
+            data: {
+              orderId: order.id,
+              type: OrderEventType.cashier_accepted,
+              actorType: OrderEventActorType.staff,
+              actorStaffUserId,
+              metadata: this.transitionMetadata(
+                order.status,
+                OrderStatus.cashier_accepted,
+                "accept",
+                "cashier",
+              ),
+            },
+          });
+          timings.orderEventMs += Date.now() - stageStartedAt;
+
+          this.logger.log({
+            message: "accept.critical_transaction",
+            requestId,
+            orderId: order.id,
+            branchId: order.branchId,
+            durationMs: Date.now() - startedAt,
+            timings,
+          });
+
+          return {
+            orderId: order.id,
+            branchId: order.branchId,
+            sessionId: order.tableSessionId,
             actorStaffUserId,
-            metadata: this.transitionMetadata(
-              order.status,
-              OrderStatus.cashier_accepted,
-              "accept",
-              "cashier",
-            ),
-          },
-        });
-        timings.orderEventMs += Date.now() - stageStartedAt;
-
-        this.logger.log({
-          message: "accept.critical_transaction",
-          requestId,
-          orderId: order.id,
-          branchId: order.branchId,
-          durationMs: Date.now() - startedAt,
-          timings,
-        });
-
-        return {
-          orderId: order.id,
-          sessionId: order.tableSessionId,
-          actorStaffUserId,
-          previousStatus: order.status,
-          targetStatus: OrderStatus.cashier_accepted,
-          kdsTicketIds: kdsRouting.ticketRouting.ticketIds,
-        };
-      });
+            previousStatus: order.status,
+            targetStatus: OrderStatus.cashier_accepted,
+            kdsTicketIds: kdsRouting.ticketRouting.ticketIds,
+          };
+        },
+        { timeout: CASHIER_ACCEPT_TRANSACTION_TIMEOUT_MS },
+      );
     } catch (error) {
       throw this.toOrderActionError(error, {
         ...logContext,
@@ -1466,9 +1474,15 @@ export class OrdersService {
         details: {
           reason: "routing_exception",
           orderId: context.orderId,
+          branchId: context.branchId,
           sessionId: context.sessionId,
           action: context.action,
           failureStage: context.failureStage,
+          stationsDetected: [],
+          createdTaskCount: 0,
+          createdTicketCount: 0,
+          skippedItems: { count: 0, reasons: [] },
+          exception: this.safeExceptionSummary(error),
         },
       });
     }

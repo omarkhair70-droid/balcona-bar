@@ -304,6 +304,8 @@ export class PreparationTasksService {
       if (actionableItemCount > 0 && activeTaskCount === 0) {
         throw this.kdsRoutingBadRequest(order.id, order.branchId, {
           reason: "actionable_items_without_tasks",
+          failureStage: "preparation_tasks",
+          substage: "task_create",
           actionableItemCount,
           stationsDetected: [...actionableStations],
           createdTaskCount,
@@ -319,6 +321,8 @@ export class PreparationTasksService {
       if (actionableItemCount > 0 && ticketRouting.ticketIds.length === 0) {
         throw this.kdsRoutingBadRequest(order.id, order.branchId, {
           reason: "actionable_items_without_tickets",
+          failureStage: "preparation_tasks",
+          substage: "ticket_creation",
           actionableItemCount,
           stationsDetected: [...actionableStations],
           createdTaskCount,
@@ -349,6 +353,8 @@ export class PreparationTasksService {
 
       throw this.kdsRoutingBadRequest(order.id, order.branchId, {
         reason: `${routingStage}_exception`,
+        failureStage: "preparation_tasks",
+        substage: routingStage,
         actionableItemCount,
         stationsDetected: [...actionableStations],
         createdTaskCount,

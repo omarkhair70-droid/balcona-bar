@@ -196,4 +196,17 @@ describe("smoke core", () => {
       /status: "active"/
     );
   });
+
+  it("uses a valid waiter call acknowledge payload in the staging runner", async () => {
+    const source = await readFile(
+      new URL("./staging-smoke.mjs", import.meta.url),
+      "utf8"
+    );
+    const waiterAcknowledgeBlock = source.match(
+      /action: "waiter_call_acknowledge"[\s\S]{0,120}?body: \{\s*\}/
+    );
+
+    assert.ok(waiterAcknowledgeBlock);
+    assert.doesNotMatch(waiterAcknowledgeBlock[0], /\bnote\b/);
+  });
 });
