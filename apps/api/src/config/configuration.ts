@@ -94,4 +94,8 @@ export default () => ({
     checkoutBaseUrl:
       process.env.ONLINE_PAYMENT_CHECKOUT_BASE_URL ?? "http://localhost:3001",
   },
+  smokeBootstrap: {
+    enabled: process.env.SMOKE_BOOTSTRAP_ENABLED === "true",
+    token: process.env.SMOKE_BOOTSTRAP_TOKEN || process.env.SMOKE_RESET_TOKEN,
+  },
 });

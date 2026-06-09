@@ -25,6 +25,7 @@
     "deploy:staging:smoke:sh": "bash scripts/deploy/staging-smoke.sh",
     "docker:build:api": "docker build -f apps/api/Dockerfile -t balcona-api:local .",
     "docker:build:web": "docker build -f apps/web/Dockerfile -t balcona-web:local --build-arg NEXT_PUBLIC_API_BASE_URL=http://localhost:3000/api/v1 .",
+    "smoke:bootstrap:staging": "node scripts/smoke/smoke-bootstrap.mjs",
     "smoke:staging": "node scripts/smoke/staging-smoke.mjs --mode full",
     "smoke:staging:api": "node scripts/smoke/staging-smoke.mjs --mode full --api-only",
     "smoke:staging:web": "node scripts/smoke/staging-smoke.mjs --mode safe --web-only",
