@@ -1,5 +1,12 @@
 import { BadRequestException, Logger, NotFoundException } from '@nestjs/common';
-import { OrderEventActorType, OrderEventType, OrderSource, OrderStatus, PreparationTaskStatus } from '@prisma/client';
+import {
+  OrderEventActorType,
+  OrderEventType,
+  OrderSource,
+  OrderStatus,
+  PreparationStation,
+  PreparationTaskStatus,
+} from '@prisma/client';
 import { OrdersService } from './orders.service';
 
 const now = new Date('2026-01-01T00:00:00.000Z');
@@ -78,6 +85,97 @@ function orderResponse(status: OrderStatus) {
   };
 }
 
+function spanishLatteAcceptedOrderResponse() {
+  return {
+    ...orderResponse(OrderStatus.cashier_accepted),
+    items: [
+      {
+        id: 'order-item-1',
+        orderId: 'order-1',
+        menuItemId: 'spanish-latte',
+        quantity: 1,
+        notes: null,
+        itemNameSnapshot: 'Spanish Latte',
+        itemSlugSnapshot: 'spanish-latte',
+        basePriceMinorSnapshot: 11500,
+        effectiveBasePriceMinorSnapshot: 11500,
+        modifiersTotalMinorSnapshot: 0,
+        unitPriceMinorSnapshot: 11500,
+        lineTotalMinorSnapshot: 11500,
+        currency: 'EGP',
+        createdAt: now,
+        updatedAt: now,
+        menuItem: { station: PreparationStation.barista },
+        modifierOptions: [],
+      },
+    ],
+    preparationTasks: [
+      {
+        id: 'task-1',
+        companyId: 'company-1',
+        branchId: 'branch-1',
+        orderId: 'order-1',
+        orderItemId: 'order-item-1',
+        station: PreparationStation.barista,
+        status: PreparationTaskStatus.pending,
+        quantity: 1,
+        itemNameSnapshot: 'Spanish Latte',
+        itemSlugSnapshot: 'spanish-latte',
+        notes: null,
+        startedAt: null,
+        readyAt: null,
+        cancelledAt: null,
+        createdAt: now,
+        updatedAt: now,
+        events: [],
+      },
+    ],
+    kitchenTickets: [
+      {
+        id: 'ticket-1',
+        companyId: 'company-1',
+        branchId: 'branch-1',
+        orderId: 'order-1',
+        tableSessionId: 'session-1',
+        station: PreparationStation.barista,
+        type: 'barista_order',
+        status: 'queued',
+        displayCode: 'B0001',
+        sequence: 1,
+        orderNumberSnapshot: 'B0001',
+        tableCodeSnapshot: 'T01',
+        floorNameSnapshot: 'Main',
+        customerNoteSnapshot: null,
+        printedAt: null,
+        readyAt: null,
+        cancelledAt: null,
+        servedAt: null,
+        createdAt: now,
+        updatedAt: now,
+        items: [
+          {
+            id: 'ticket-item-1',
+            ticketId: 'ticket-1',
+            orderItemId: 'order-item-1',
+            preparationTaskId: 'task-1',
+            menuItemId: 'spanish-latte',
+            itemNameSnapshot: 'Spanish Latte',
+            itemSlugSnapshot: 'spanish-latte',
+            quantity: 1,
+            notes: null,
+            modifiersSnapshot: [],
+            station: PreparationStation.barista,
+            status: 'queued',
+            createdAt: now,
+            updatedAt: now,
+          },
+        ],
+        printJobs: [],
+      },
+    ],
+  };
+}
+
 const kdsRoutingResult = {
   orderId: 'order-1',
   branchId: 'branch-1',
@@ -129,6 +227,7 @@ function buildService(input: {
     preparationTasks?: { id: string; status: PreparationTaskStatus }[];
   } | null;
   responseStatus?: OrderStatus;
+  responseOrder?: any;
   updateCount?: number;
   inventoryRejects?: boolean;
   preparationRejects?: boolean;
@@ -165,7 +264,8 @@ function buildService(input: {
     ),
     order: {
       findUnique: jest.fn().mockResolvedValue(
-        orderResponse(input.responseStatus ?? input.transitionOrder?.status ?? OrderStatus.submitted),
+        input.responseOrder ??
+          orderResponse(input.responseStatus ?? input.transitionOrder?.status ?? OrderStatus.submitted),
       ),
     },
   };
@@ -173,6 +273,7 @@ function buildService(input: {
     createTasksForAcceptedOrder: input.preparationRejects
       ? jest.fn().mockRejectedValue(new Error('Ticket printer token=secret failed'))
       : jest.fn().mockResolvedValue(kdsRoutingResult),
+    recordCreatedRealtimeEventsForOrder: jest.fn().mockResolvedValue(1),
     cancelActiveTasksForOrderCancellation: jest.fn().mockResolvedValue(['task-1']),
   };
   const presenceNotificationsService = {
@@ -188,6 +289,8 @@ function buildService(input: {
     recordOrderCancelled: jest.fn().mockResolvedValue({}),
   };
   const kitchenTicketsService = {
+    createPrintJobsForTickets: jest.fn().mockResolvedValue(1),
+    recordCreatedRealtimeEventsForTickets: jest.fn().mockResolvedValue(1),
     syncTicketsForOrderServed: jest.fn().mockResolvedValue(1),
     syncTicketsForOrderCancelled: jest.fn().mockResolvedValue(1),
   };
@@ -524,7 +627,83 @@ describe('OrdersService lifecycle hardening', () => {
       'order-1',
       'staff-1',
       tx,
+      { createPrintJobs: false, recordRealtimeEvents: false },
     );
+  });
+
+  it('accepts a Spanish Latte barista order with task and ticket linkage', async () => {
+    const {
+      service,
+      preparationTasksService,
+      kitchenTicketsService,
+    } = buildService({
+      transitionOrder: { status: OrderStatus.submitted },
+      responseOrder: spanishLatteAcceptedOrderResponse(),
+    });
+
+    const result = await service.accept('order-1', {}, 'staff-1');
+
+    expect(result.order.status).toBe(OrderStatus.cashier_accepted);
+    expect(result.items).toEqual([
+      expect.objectContaining({
+        itemNameSnapshot: 'Spanish Latte',
+        station: PreparationStation.barista,
+      }),
+    ]);
+    expect(result.preparationTasks).toEqual([
+      expect.objectContaining({
+        id: 'task-1',
+        orderItemId: 'order-item-1',
+        station: PreparationStation.barista,
+      }),
+    ]);
+    expect(result.kitchenTickets).toEqual([
+      expect.objectContaining({
+        id: 'ticket-1',
+        station: PreparationStation.barista,
+        items: [
+          expect.objectContaining({
+            orderItemId: 'order-item-1',
+            preparationTaskId: 'task-1',
+          }),
+        ],
+      }),
+    ]);
+    expect(
+      preparationTasksService.createTasksForAcceptedOrder,
+    ).toHaveBeenCalledWith('order-1', 'staff-1', expect.anything(), {
+      createPrintJobs: false,
+      recordRealtimeEvents: false,
+    });
+    expect(kitchenTicketsService.createPrintJobsForTickets).toHaveBeenCalledWith(
+      ['ticket-1'],
+      'staff-1',
+    );
+  });
+
+  it('keeps accept successful when post-commit KDS print jobs fail', async () => {
+    const loggerSpy = jest
+      .spyOn(Logger.prototype, 'warn')
+      .mockImplementation();
+    const { service, kitchenTicketsService } = buildService({
+      transitionOrder: { status: OrderStatus.submitted },
+      responseOrder: spanishLatteAcceptedOrderResponse(),
+    });
+    kitchenTicketsService.createPrintJobsForTickets.mockRejectedValueOnce(
+      new Error('Printer token=secret failed'),
+    );
+
+    const result = await service.accept('order-1', {}, 'staff-1', 'req-print');
+
+    expect(result.order.status).toBe(OrderStatus.cashier_accepted);
+    expect(result.kitchenTickets).toHaveLength(1);
+
+    const loggedPayload = JSON.stringify(loggerSpy.mock.calls[0][0]);
+
+    expect(loggedPayload).toContain('print_jobs');
+    expect(loggedPayload).toContain('req-print');
+    expect(loggedPayload).toContain('token=[redacted]');
+    expect(loggedPayload).not.toContain('token=secret');
   });
 
   it('does not consume stock when a duplicate accept sees stale order state', async () => {

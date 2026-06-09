@@ -51,6 +51,7 @@ export type KitchenTicketRoutingResult = {
 
 type CreateTicketsForAcceptedOrderOptions = {
   createPrintJobs?: boolean;
+  recordRealtimeEvents?: boolean;
 };
 
 @Injectable()
@@ -242,10 +243,12 @@ export class KitchenTicketsService {
         select: { id: true },
       });
 
-      await this.realtimeEventsService.recordKitchenTicketCreated(
-        ticket.id,
-        tx,
-      );
+      if (options.recordRealtimeEvents ?? true) {
+        await this.realtimeEventsService.recordKitchenTicketCreated(
+          ticket.id,
+          tx,
+        );
+      }
       if (options.createPrintJobs ?? true) {
         await this.printJobsService.createForKitchenTicket(ticket.id, tx, {
           requestedByStaffUserId: staffUserId,
@@ -293,7 +296,15 @@ export class KitchenTicketsService {
           branchId: order.branchId,
           actionableItemCount: result.actionableItemCount,
           stationsDetected: result.stationsDetected,
+          createdTicketCount,
+          existingTicketCount,
           ticketCount: ticketIds.length,
+          skippedItems: {
+            count: skippedItems.length,
+            reasons: [
+              ...new Set(skippedItems.map((item) => item.reason)),
+            ],
+          },
         },
       });
     }
@@ -324,6 +335,35 @@ export class KitchenTicketsService {
       createdTicketCount: 0,
       existingTicketCount: 0,
     };
+  }
+
+  async createPrintJobsForTickets(
+    ticketIds: string[],
+    staffUserId: string | undefined,
+  ) {
+    let createdCount = 0;
+
+    for (const ticketId of ticketIds) {
+      await this.prisma.$transaction(async (tx) => {
+        await this.printJobsService.createForKitchenTicket(ticketId, tx, {
+          requestedByStaffUserId: staffUserId,
+        });
+      });
+      createdCount += 1;
+    }
+
+    return createdCount;
+  }
+
+  async recordCreatedRealtimeEventsForTickets(
+    ticketIds: string[],
+    tx: PrismaExecutor = this.prisma,
+  ) {
+    for (const ticketId of ticketIds) {
+      await this.realtimeEventsService.recordKitchenTicketCreated(ticketId, tx);
+    }
+
+    return ticketIds.length;
   }
 
   async findForBranch(

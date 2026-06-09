@@ -349,6 +349,7 @@ describe('PreparationTasksService accepted-order KDS routing', () => {
       kitchenTicketsService.createTicketsForAcceptedOrder,
     ).toHaveBeenCalledWith('order-1', 'staff-1', tx, {
       createPrintJobs: undefined,
+      recordRealtimeEvents: undefined,
     });
     expect(result).toMatchObject({
       actionableItemCount: 1,

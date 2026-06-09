@@ -71,6 +71,95 @@ describe('GlobalExceptionFilter', () => {
     );
   });
 
+  it('preserves sanitized KDS routing details for safe business errors', () => {
+    const filter = new GlobalExceptionFilter();
+    const { host, response } = createHttpHost({
+      path: '/orders/order-1/cashier/accept',
+      url: '/orders/order-1/cashier/accept',
+    });
+
+    filter.catch(
+      new BadRequestException({
+        message: 'Kitchen routing failed for accepted order',
+        code: 'kds_routing_failed',
+        details: {
+          reason: 'actionable_items_without_tickets',
+          orderId: 'order-1',
+          branchId: 'branch-1',
+          actionableItemCount: 1,
+          stationsDetected: ['barista'],
+          createdTaskCount: 1,
+          existingTaskCount: 0,
+          activeTaskCount: 1,
+          createdTicketCount: 0,
+          existingTicketCount: 0,
+          ticketCount: 0,
+          skippedItems: { count: 0, reasons: [] },
+          token: 'secret-token',
+        },
+      }),
+      host,
+    );
+
+    expect(response.status).toHaveBeenCalledWith(400);
+    expect(response.json).toHaveBeenCalledWith(
+      expect.objectContaining({
+        error: expect.objectContaining({
+          code: 'kds_routing_failed',
+          message: 'Kitchen routing failed for accepted order',
+          details: expect.objectContaining({
+            reason: 'actionable_items_without_tickets',
+            orderId: 'order-1',
+            branchId: 'branch-1',
+            stationsDetected: ['barista'],
+            createdTaskCount: 1,
+            ticketCount: 0,
+            skippedItems: { count: 0, reasons: [] },
+          }),
+        }),
+      }),
+    );
+    expect(JSON.stringify(response.json.mock.calls[0][0])).not.toContain(
+      'secret-token',
+    );
+  });
+
+  it('preserves sanitized inventory details for out-of-stock errors', () => {
+    const filter = new GlobalExceptionFilter();
+    const { host, response } = createHttpHost({
+      path: '/orders/order-1/cashier/accept',
+      url: '/orders/order-1/cashier/accept',
+    });
+
+    filter.catch(
+      new BadRequestException({
+        message: 'Item is out of stock',
+        details: {
+          reason: 'insufficient_stock',
+          menuItemNames: ['Spanish Latte'],
+          inventoryItemName: 'Milk',
+          requiredQuantity: 150,
+          availableQuantity: 0,
+          unit: 'ml',
+        },
+      }),
+      host,
+    );
+
+    expect(response.json).toHaveBeenCalledWith(
+      expect.objectContaining({
+        error: expect.objectContaining({
+          message: 'Item is out of stock',
+          details: expect.objectContaining({
+            reason: 'insufficient_stock',
+            menuItemNames: ['Spanish Latte'],
+            inventoryItemName: 'Milk',
+          }),
+        }),
+      }),
+    );
+  });
+
   it('logs unexpected errors with sanitized diagnostics and safe responses', () => {
     const loggerSpy = jest
       .spyOn(Logger.prototype, 'error')
