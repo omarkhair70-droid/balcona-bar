@@ -1041,7 +1041,7 @@ async function runKitchenSmoke(run) {
         token,
         action: "preparation_task_start",
         flowId: `${run.config.runId}:kds:${taskId}`,
-        body: { note: `Smoke ${run.config.runId}` }
+        body: {}
       })
     })
   );
@@ -1068,7 +1068,7 @@ async function runKitchenSmoke(run) {
         token,
         action: "preparation_task_ready",
         flowId: `${run.config.runId}:kds:${taskId}`,
-        body: { note: `Smoke ${run.config.runId}` }
+        body: {}
       })
     })
   );
