@@ -48,6 +48,8 @@ SMOKE_WAITER_PASSWORD=
 Optional controls:
 
 ```text
+SMOKE_BOOTSTRAP_TOKEN=
+SMOKE_BOOTSTRAP_OVERWRITE=false
 SMOKE_RUN_ID=
 SMOKE_TIMEOUT_MS=30000
 SMOKE_RETRY_TRANSIENT=true
@@ -57,6 +59,73 @@ SMOKE_COMPANY_ID=
 ```
 
 Never commit `.env.smoke.local`, tokens, cookies, storage state, screenshots containing private data, Railway keys, Vercel keys, Neon URLs, or production secrets.
+
+## Staging Bootstrap
+
+SMOKE-BOOTSTRAP-1 adds a staging-only bootstrap helper so a full smoke run does not require manually gathering staff, owner, or platform credentials.
+
+The API runtime must have a strong secret configured:
+
+```text
+APP_ENV=staging
+SMOKE_BOOTSTRAP_ENABLED=true
+SMOKE_BOOTSTRAP_TOKEN=<strong staging-only token>
+```
+
+The endpoint is `POST /api/v1/smoke/bootstrap`. It is disabled for `APP_ENV=production`, requires the bootstrap token, and only upserts smoke-prefixed records. It does not delete data and does not modify non-smoke tenants.
+
+The local `.env.smoke.local` file must include the staging base URLs and the same token:
+
+```text
+SMOKE_WEB_BASE_URL=https://balcona-bar-staging-web.vercel.app
+SMOKE_API_BASE_URL=https://balcona-bar-staging-api.example.com/api/v1
+SMOKE_BOOTSTRAP_TOKEN=<strong staging-only token>
+```
+
+Run:
+
+```powershell
+pnpm smoke:bootstrap:staging
+pnpm smoke:staging:full
+```
+
+The bootstrap command creates or updates:
+
+- `Balcona Smoke Company` with slug `balcona-smoke`.
+- `Balcona Smoke Branch` with slug `balcona-smoke`.
+- smoke tables `SMOKE-T01` and `SMOKE-T02`.
+- QR tokens `balcona-smoke-t01` and `balcona-smoke-t02`.
+- a minimal smoke menu with `Spanish Latte` and required Size/Temperature modifiers.
+- smoke owner, cashier, kitchen, barista, and waiter staff users.
+- a smoke platform admin user when the platform schema is present.
+- mock printer stations and manual-only smart cashier settings for deterministic KDS smoke.
+
+The command writes or updates these local keys:
+
+```text
+SMOKE_DEMO_BRANCH_SLUG=
+SMOKE_DEMO_TABLE_QR_TOKEN=
+SMOKE_DEMO_TABLE_2_QR_TOKEN=
+SMOKE_BRANCH_ID=
+SMOKE_COMPANY_ID=
+SMOKE_MENU_ITEM_NAME=Spanish Latte
+SMOKE_OWNER_EMAIL=
+SMOKE_OWNER_PASSWORD=
+SMOKE_CASHIER_EMAIL=
+SMOKE_CASHIER_PASSWORD=
+SMOKE_KITCHEN_EMAIL=
+SMOKE_KITCHEN_PASSWORD=
+SMOKE_BARISTA_EMAIL=
+SMOKE_BARISTA_PASSWORD=
+SMOKE_WAITER_EMAIL=
+SMOKE_WAITER_PASSWORD=
+SMOKE_PLATFORM_EMAIL=
+SMOKE_PLATFORM_PASSWORD=
+```
+
+It preserves existing non-empty values by default, including base URLs. Set `SMOKE_BOOTSTRAP_OVERWRITE=true` only when you intentionally want to retarget the smoke env or rotate smoke passwords. Password values are generated locally, sent to the guarded API for hashing, and written only to `.env.smoke.local`; they are never printed in console output, smoke artifacts, or failure bundles.
+
+If the helper detects a production target, it fails with `SMOKE_BOOTSTRAP_DISABLED_IN_PRODUCTION`. If the token is missing, it fails with `SMOKE_BOOTSTRAP_CONFIG_MISSING` locally or `SMOKE_BOOTSTRAP_TOKEN_MISSING` from the API.
 
 ## Commands
 
@@ -69,6 +138,7 @@ pnpm install
 Run full staging smoke:
 
 ```powershell
+pnpm smoke:bootstrap:staging
 pnpm smoke:staging
 pnpm smoke:staging:full
 ```

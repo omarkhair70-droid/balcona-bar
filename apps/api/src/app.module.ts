@@ -37,6 +37,7 @@ import { RealtimeEventsModule } from "./realtime-events/realtime-events.module";
 import { SaasModule } from "./saas/saas.module";
 import { RedisModule } from "./redis/redis.module";
 import { SmartCashierModule } from "./smart-cashier/smart-cashier.module";
+import { SmokeModule } from "./smoke/smoke.module";
 import { StaffAuthModule } from "./staff-auth/staff-auth.module";
 import { StaffInvitesModule } from "./staff-invites/staff-invites.module";
 import { StaffModule } from "./staff/staff.module";
@@ -91,6 +92,7 @@ import { WaiterCallsModule } from "./waiter-calls/waiter-calls.module";
     RealtimeEventsModule,
     SaasModule,
     SmartCashierModule,
+    SmokeModule,
     TablesModule,
     StaffModule,
     MenuAdminModule,

@@ -219,6 +219,18 @@ class EnvironmentVariables {
   @IsString()
   @IsOptional()
   ONLINE_PAYMENT_CHECKOUT_BASE_URL?: string;
+
+  @IsBooleanString()
+  @IsOptional()
+  SMOKE_BOOTSTRAP_ENABLED?: string;
+
+  @IsString()
+  @IsOptional()
+  SMOKE_BOOTSTRAP_TOKEN?: string;
+
+  @IsString()
+  @IsOptional()
+  SMOKE_RESET_TOKEN?: string;
 }
 
 export function validateEnvironment(config: Record<string, unknown>) {
