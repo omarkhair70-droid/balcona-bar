@@ -372,6 +372,21 @@ async function runCustomerSmoke(run) {
 
       run.tokens.customer = httpResult.body?.customerAccess?.customerAccessToken;
 
+      if (!run.tokens.customer) {
+        throw new SmokeHttpError(
+          "Table session start did not return customer access token",
+          {
+            code: "SMOKE_CUSTOMER_TOKEN_MISSING",
+            requestId: httpResult.requestId,
+            flowId: httpResult.flowId,
+            clientTraceId: httpResult.clientTraceId,
+            endpoint: "/table-sessions/start",
+            method: "POST",
+            role: "customer"
+          }
+        );
+      }
+
       return { http: httpResult };
     }
   );
@@ -450,6 +465,8 @@ async function runCustomerSmoke(run) {
 async function runCustomerCartAndOrderSmoke(run) {
   const sessionId = run.entityIds.sessionId;
   const itemId = run.entityIds.menuItemId;
+  const customerToken = run.tokens.customer;
+  const missingCustomerToken = getMissingCustomerTokenReason(run);
 
   await run.step(
     {
@@ -464,7 +481,8 @@ async function runCustomerCartAndOrderSmoke(run) {
       critical: true,
       retryable: false,
       skipReason:
-        sessionId && itemId ? null : "Missing sessionId or selected menu item",
+        missingCustomerToken ??
+        (sessionId && itemId ? null : "Missing sessionId or selected menu item"),
       coverage: { category: "Customer", name: "add cart" }
     },
     async ({ http }) => {
@@ -473,6 +491,7 @@ async function runCustomerCartAndOrderSmoke(run) {
         path: `/table-sessions/${sessionId}/cart/items`,
         method: "POST",
         role: "customer",
+        token: customerToken,
         action: "cart_add_item",
         flowId: `${run.config.runId}:customer:${sessionId}`,
         body: {
@@ -498,13 +517,14 @@ async function runCustomerCartAndOrderSmoke(run) {
       group: "customer",
       thresholdMs: THRESHOLDS.pageLoad,
       critical: true,
-      skipReason: sessionId ? null : "Missing sessionId",
+      skipReason: missingCustomerToken ?? (sessionId ? null : "Missing sessionId"),
       coverage: { category: "Customer", name: "cart load" }
     },
     async ({ http }) => ({
       http: await http.request({
         path: `/table-sessions/${sessionId}/cart`,
         role: "customer",
+        token: customerToken,
         action: "cart_get",
         flowId: `${run.config.runId}:customer:${sessionId}`
       })
@@ -522,7 +542,7 @@ async function runCustomerCartAndOrderSmoke(run) {
       group: "customer",
       thresholdMs: THRESHOLDS.pageLoad,
       critical: true,
-      skipReason: sessionId ? null : "Missing sessionId",
+      skipReason: missingCustomerToken ?? (sessionId ? null : "Missing sessionId"),
       coverage: { category: "Customer", name: "cart validate" }
     },
     async ({ http }) => ({
@@ -530,6 +550,7 @@ async function runCustomerCartAndOrderSmoke(run) {
         path: `/table-sessions/${sessionId}/cart/validate`,
         method: "POST",
         role: "customer",
+        token: customerToken,
         action: "cart_validate",
         flowId: `${run.config.runId}:customer:${sessionId}`
       })
@@ -548,7 +569,7 @@ async function runCustomerCartAndOrderSmoke(run) {
       thresholdMs: THRESHOLDS.submitCart,
       critical: true,
       retryable: true,
-      skipReason: sessionId ? null : "Missing sessionId",
+      skipReason: missingCustomerToken ?? (sessionId ? null : "Missing sessionId"),
       coverage: { category: "Customer", name: "submit cart" }
     },
     async ({ http }) => {
@@ -556,6 +577,7 @@ async function runCustomerCartAndOrderSmoke(run) {
         path: `/table-sessions/${sessionId}/cart/submit`,
         method: "POST",
         role: "customer",
+        token: customerToken,
         action: "cart_submit",
         flowId: `${run.config.runId}:customer:${sessionId}`,
         idempotencyKey: `${run.config.runId}:submit-cart`,
@@ -591,13 +613,14 @@ async function runCustomerCartAndOrderSmoke(run) {
       group: "customer",
       thresholdMs: THRESHOLDS.pageLoad,
       critical: true,
-      skipReason: sessionId ? null : "Missing sessionId",
+      skipReason: missingCustomerToken ?? (sessionId ? null : "Missing sessionId"),
       coverage: { category: "Customer", name: "order status" }
     },
     async ({ http }) => ({
       http: await http.request({
         path: `/table-sessions/${sessionId}/orders`,
         role: "customer",
+        token: customerToken,
         action: "order_status",
         flowId: `${run.config.runId}:customer:${sessionId}`
       })
@@ -607,6 +630,8 @@ async function runCustomerCartAndOrderSmoke(run) {
 
 async function runAiWaiterSmoke(run, { phase }) {
   const sessionId = run.entityIds.sessionId;
+  const customerToken = run.tokens.customer;
+  const missingCustomerToken = getMissingCustomerTokenReason(run);
 
   if (!sessionId) {
     markAiSkipped(run, "No customer table session");
@@ -627,6 +652,7 @@ async function runAiWaiterSmoke(run, { phase }) {
       group: "customer",
       thresholdMs: THRESHOLDS.aiSessionStart,
       critical: false,
+      skipReason: missingCustomerToken,
       coverage: { category: "AI Waiter", name: "session start" }
     },
     async ({ http }) => ({
@@ -634,6 +660,7 @@ async function runAiWaiterSmoke(run, { phase }) {
         path: `/table-sessions/${sessionId}/ai-waiter/start`,
         method: "POST",
         role: "customer",
+        token: customerToken,
         action: "ai_waiter_start",
         flowId: `${run.config.runId}:ai:${sessionId}`,
         body: { language: "en" }
@@ -689,7 +716,9 @@ async function runAiWaiterSmoke(run, { phase }) {
       group: "customer",
       thresholdMs: THRESHOLDS.aiProposalApply,
       critical: false,
-      skipReason: proposalId ? null : "AI did not return an actionable proposal",
+      skipReason:
+        missingCustomerToken ??
+        (proposalId ? null : "AI did not return an actionable proposal"),
       coverage: { category: "AI Waiter", name: "proposal applied" }
     },
     async ({ http }) => {
@@ -697,6 +726,7 @@ async function runAiWaiterSmoke(run, { phase }) {
         path: `/ai-waiter/cart-proposals/${proposalId}/apply`,
         method: "POST",
         role: "customer",
+        token: customerToken,
         action: "ai_proposal_apply",
         flowId: `${run.config.runId}:ai:${sessionId}`
       });
@@ -758,6 +788,8 @@ async function runAiWaiterSmoke(run, { phase }) {
 
 async function sendAiMessage(run, options) {
   const sessionId = run.entityIds.sessionId;
+  const customerToken = run.tokens.customer;
+  const missingCustomerToken = getMissingCustomerTokenReason(run);
 
   return run.step(
     {
@@ -768,6 +800,7 @@ async function sendAiMessage(run, options) {
       group: "customer",
       thresholdMs: options.thresholdMs ?? THRESHOLDS.aiMessage,
       critical: false,
+      skipReason: missingCustomerToken ?? (sessionId ? null : "Missing sessionId"),
       coverage: { category: "AI Waiter", name: options.coverageName }
     },
     async ({ http }) => {
@@ -775,6 +808,7 @@ async function sendAiMessage(run, options) {
         path: `/table-sessions/${sessionId}/ai-waiter/messages`,
         method: "POST",
         role: "customer",
+        token: customerToken,
         action: "ai_waiter_message",
         flowId: `${run.config.runId}:ai:${sessionId}`,
         body: {
@@ -1045,6 +1079,8 @@ async function runWaiterSmoke(run) {
   const branchId = getBranchId(run);
   const orderId = run.entityIds.orderId;
   const token = run.tokens.waiter;
+  const customerToken = run.tokens.customer;
+  const missingCustomerToken = getMissingCustomerTokenReason(run);
 
   await run.step(
     {
@@ -1057,7 +1093,7 @@ async function runWaiterSmoke(run) {
       group: "waiter",
       thresholdMs: THRESHOLDS.pageLoad,
       critical: false,
-      skipReason: sessionId ? null : "Missing sessionId",
+      skipReason: missingCustomerToken ?? (sessionId ? null : "Missing sessionId"),
       coverage: { category: "Customer", name: "call waiter" }
     },
     async ({ http }) => ({
@@ -1065,6 +1101,7 @@ async function runWaiterSmoke(run) {
         path: `/table-sessions/${sessionId}/waiter-calls`,
         method: "POST",
         role: "customer",
+        token: customerToken,
         action: "waiter_call_create",
         flowId: `${run.config.runId}:waiter:${sessionId}`,
         body: {
@@ -1183,6 +1220,8 @@ async function runBillSmoke(run) {
   const sessionId = run.entityIds.sessionId;
   const branchId = getBranchId(run);
   const token = run.tokens.cashier ?? run.tokens.owner;
+  const customerToken = run.tokens.customer;
+  const missingCustomerToken = getMissingCustomerTokenReason(run);
 
   await run.step(
     {
@@ -1195,7 +1234,7 @@ async function runBillSmoke(run) {
       group: "bill",
       thresholdMs: THRESHOLDS.pageLoad,
       critical: false,
-      skipReason: sessionId ? null : "Missing sessionId",
+      skipReason: missingCustomerToken ?? (sessionId ? null : "Missing sessionId"),
       coverage: { category: "Customer", name: "request bill" }
     },
     async ({ http }) => ({
@@ -1203,6 +1242,7 @@ async function runBillSmoke(run) {
         path: `/table-sessions/${sessionId}/bill/request`,
         method: "POST",
         role: "customer",
+        token: customerToken,
         action: "bill_request_create",
         flowId: `${run.config.runId}:bill:${sessionId}`,
         body: { note: `Smoke bill request ${run.config.runId}` }
@@ -1417,6 +1457,12 @@ function getBranchId(run) {
     getStaffBranchId(run, "cashier") ??
     getStaffBranchId(run, "owner")
   );
+}
+
+function getMissingCustomerTokenReason(run) {
+  return run.tokens.customer
+    ? null
+    : "SMOKE_CUSTOMER_TOKEN_MISSING: table session start did not return customer access token";
 }
 
 function getStaffBranchId(run, role) {

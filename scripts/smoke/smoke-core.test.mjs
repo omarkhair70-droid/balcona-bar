@@ -131,4 +131,53 @@ describe("smoke core", () => {
       await new Promise((resolve) => server.close(resolve));
     }
   });
+
+  it("sends bearer tokens without exposing them in request errors", async () => {
+    let authorizationHeader = "";
+    const server = createServer((request, response) => {
+      authorizationHeader = request.headers.authorization ?? "";
+      response.statusCode = 500;
+      response.setHeader("Content-Type", "application/json");
+      response.setHeader("X-Request-Id", "req-error");
+      response.end(
+        JSON.stringify({
+          error: {
+            code: "TEST_FAILURE",
+            message: "failed safely"
+          }
+        })
+      );
+    });
+    await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
+    const address = server.address();
+    const token = "customer-secret-token";
+
+    try {
+      const client = new SmokeHttpClient({
+        apiBaseUrl: `http://127.0.0.1:${address.port}/api/v1`,
+        timeoutMs: 5_000,
+        runId: "run-test",
+        clientTraceId: "client-test"
+      });
+      let error;
+
+      try {
+        await client.request({
+          path: "/table-sessions/session-1/cart",
+          role: "customer",
+          action: "cart_get",
+          token
+        });
+      } catch (caught) {
+        error = caught;
+      }
+
+      assert.equal(authorizationHeader, `Bearer ${token}`);
+      assert.equal(error?.requestId, "req-error");
+      assert.doesNotMatch(JSON.stringify(error), /customer-secret-token/);
+      assert.doesNotMatch(JSON.stringify(error), /Bearer/);
+    } finally {
+      await new Promise((resolve) => server.close(resolve));
+    }
+  });
 });
