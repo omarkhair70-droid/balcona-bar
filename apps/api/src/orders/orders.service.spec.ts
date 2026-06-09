@@ -191,7 +191,6 @@ const kdsRoutingResult = {
   existingTaskCount: 0,
   activeTaskCount: 1,
   ticketRouting: {
-    tickets: [{ ticket: { id: 'ticket-1' } }],
     ticketIds: ['ticket-1'],
     itemCount: 1,
     actionableItemCount: 1,

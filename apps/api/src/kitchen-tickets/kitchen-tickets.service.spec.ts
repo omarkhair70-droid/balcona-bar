@@ -171,12 +171,34 @@ describe('KitchenTicketsService', () => {
       printJobsService as never,
       realtimeEventsService as never,
     );
+    const findOneSpy = jest.spyOn(service, 'findOne');
 
-    await service.createTicketsForAcceptedOrder('order-1', 'staff-1', tx as never);
-    await service.createTicketsForAcceptedOrder('order-1', 'staff-1', tx as never);
+    const firstResult = await service.createTicketsForAcceptedOrder(
+      'order-1',
+      'staff-1',
+      tx as never,
+    );
+    const secondResult = await service.createTicketsForAcceptedOrder(
+      'order-1',
+      'staff-1',
+      tx as never,
+    );
 
     expect(tx.kitchenTicket.create).toHaveBeenCalledTimes(3);
     expect(printJobsService.createForKitchenTicket).toHaveBeenCalledTimes(3);
+    expect(findOneSpy).not.toHaveBeenCalled();
+    expect(firstResult).toMatchObject({
+      ticketIds: ['ticket-1', 'ticket-2', 'ticket-3'],
+      createdTicketCount: 3,
+      existingTicketCount: 0,
+      actionableItemCount: 3,
+    });
+    expect(secondResult).toMatchObject({
+      ticketIds: ['ticket-1', 'ticket-2', 'ticket-3'],
+      createdTicketCount: 0,
+      existingTicketCount: 3,
+      actionableItemCount: 3,
+    });
     expect(createdTickets.map((entry) => entry.data.station).sort()).toEqual([
       PreparationStation.barista,
       PreparationStation.dessert,
@@ -307,6 +329,125 @@ describe('KitchenTicketsService', () => {
     expect(tx.kitchenTicket.create).toHaveBeenCalledTimes(1);
     expect(printJobsService.createForKitchenTicket).not.toHaveBeenCalled();
     expect(realtimeEventsService.recordKitchenTicketCreated).not.toHaveBeenCalled();
+  });
+
+  it('does not hydrate newly created tickets inside critical routing', async () => {
+    const createdTickets: any[] = [];
+    const order: any = buildOrder();
+    order.items = [order.items[0]];
+    const hydrationError = new Prisma.PrismaClientKnownRequestError(
+      'Transaction already closed. Timeout 5000ms, 5149ms passed.',
+      {
+        code: 'P2028',
+        clientVersion: 'test',
+      },
+    );
+    const tx = {
+      order: {
+        findUnique: jest.fn().mockResolvedValue(order),
+      },
+      kitchenTicket: {
+        aggregate: nextSequenceAggregate(createdTickets),
+        findUnique: jest.fn().mockImplementation((args) => {
+          if (args.where.id) {
+            throw hydrationError;
+          }
+
+          return null;
+        }),
+        create: jest.fn().mockImplementation((args) => {
+          const id = `ticket-${createdTickets.length + 1}`;
+
+          createdTickets.push({ id, data: args.data });
+
+          return { id };
+        }),
+      },
+    };
+    const service = new KitchenTicketsService(
+      {} as never,
+      { createForKitchenTicket: jest.fn().mockResolvedValue({}) } as never,
+      { recordKitchenTicketCreated: jest.fn().mockResolvedValue({}) } as never,
+    );
+    const findOneSpy = jest.spyOn(service, 'findOne');
+
+    const result = await service.createTicketsForAcceptedOrder(
+      'order-1',
+      'staff-1',
+      tx as never,
+      { createPrintJobs: false, recordRealtimeEvents: false },
+    );
+
+    expect(result).toMatchObject({
+      ticketIds: ['ticket-1'],
+      createdTicketCount: 1,
+      existingTicketCount: 0,
+      actionableItemCount: 1,
+      stationsDetected: [PreparationStation.barista],
+    });
+    expect(findOneSpy).not.toHaveBeenCalled();
+    expect(tx.kitchenTicket.findUnique).toHaveBeenCalledWith({
+      where: {
+        orderId_station_type: {
+          orderId: 'order-1',
+          station: PreparationStation.barista,
+          type: KitchenTicketType.barista_order,
+        },
+      },
+      select: { id: true },
+    });
+  });
+
+  it('does not hydrate existing tickets inside critical routing', async () => {
+    const order: any = buildOrder();
+    order.items = [order.items[0]];
+    const hydrationError = new Prisma.PrismaClientKnownRequestError(
+      'Transaction already closed. Timeout 5000ms, 5149ms passed.',
+      {
+        code: 'P2028',
+        clientVersion: 'test',
+      },
+    );
+    const tx = {
+      order: {
+        findUnique: jest.fn().mockResolvedValue(order),
+      },
+      kitchenTicket: {
+        aggregate: jest.fn(),
+        findUnique: jest.fn().mockImplementation((args) => {
+          if (args.where.id) {
+            throw hydrationError;
+          }
+
+          return { id: 'ticket-existing' };
+        }),
+        create: jest.fn(),
+      },
+    };
+    const service = new KitchenTicketsService(
+      {} as never,
+      { createForKitchenTicket: jest.fn().mockResolvedValue({}) } as never,
+      { recordKitchenTicketCreated: jest.fn().mockResolvedValue({}) } as never,
+    );
+    const findOneSpy = jest.spyOn(service, 'findOne');
+
+    const result = await service.createTicketsForAcceptedOrder(
+      'order-1',
+      'staff-1',
+      tx as never,
+      { createPrintJobs: false, recordRealtimeEvents: false },
+    );
+
+    expect(result).toMatchObject({
+      ticketIds: ['ticket-existing'],
+      createdTicketCount: 0,
+      existingTicketCount: 1,
+      actionableItemCount: 1,
+      stationsDetected: [PreparationStation.barista],
+    });
+    expect(findOneSpy).not.toHaveBeenCalled();
+    expect(tx.kitchenTicket.create).not.toHaveBeenCalled();
+    expect(tx.kitchenTicket.aggregate).not.toHaveBeenCalled();
   });
 
   it('retries ticket display code collisions without raw SQL advisory locks', async () => {

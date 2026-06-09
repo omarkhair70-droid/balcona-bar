@@ -35,7 +35,6 @@ const DISPLAY_PREFIX_BY_STATION: Record<PreparationStation, string> = {
 };
 
 export type KitchenTicketRoutingResult = {
-  tickets: any[];
   ticketIds: string[];
   itemCount: number;
   actionableItemCount: number;
@@ -173,7 +172,6 @@ export class KitchenTicketsService {
       }
     }
 
-    const tickets: any[] = [];
     const ticketIds: string[] = [];
     let createdTicketCount = 0;
     let existingTicketCount = 0;
@@ -194,7 +192,6 @@ export class KitchenTicketsService {
       if (existingTicket) {
         ticketIds.push(existingTicket.id);
         existingTicketCount += 1;
-        tickets.push(await this.findOne(existingTicket.id, tx));
         continue;
       }
 
@@ -220,11 +217,9 @@ export class KitchenTicketsService {
       }
       ticketIds.push(ticket.id);
       createdTicketCount += 1;
-      tickets.push(await this.findOne(ticket.id, tx));
     }
 
     const result: KitchenTicketRoutingResult = {
-      tickets,
       ticketIds,
       itemCount: order.items.length,
       actionableItemCount: actionableItems.length,
@@ -290,7 +285,6 @@ export class KitchenTicketsService {
     });
 
     return {
-      tickets: [],
       ticketIds: [],
       itemCount,
       actionableItemCount: 0,
