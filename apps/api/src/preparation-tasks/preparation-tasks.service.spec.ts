@@ -4,48 +4,53 @@ import {
   PreparationStation,
   PreparationTaskEventType,
   PreparationTaskStatus,
-} from '@prisma/client';
-import { PreparationTasksService } from './preparation-tasks.service';
+} from "@prisma/client";
+import { PreparationTasksService } from "./preparation-tasks.service";
 
-const now = new Date('2026-01-01T00:00:00.000Z');
+const now = new Date("2026-01-01T00:00:00.000Z");
 
 function taskEnvelope(status: PreparationTaskStatus, orderStatus: OrderStatus) {
   return {
-    id: 'task-1',
-    companyId: 'company-1',
-    branchId: 'branch-1',
-    orderId: 'order-1',
-    orderItemId: 'order-item-1',
+    id: "task-1",
+    companyId: "company-1",
+    branchId: "branch-1",
+    orderId: "order-1",
+    orderItemId: "order-item-1",
     station: PreparationStation.kitchen,
     status,
     quantity: 1,
-    itemNameSnapshot: 'Latte',
-    itemSlugSnapshot: 'latte',
+    itemNameSnapshot: "Latte",
+    itemSlugSnapshot: "latte",
     notes: null,
     startedAt: null,
     readyAt: null,
     cancelledAt: null,
     createdAt: now,
     updatedAt: now,
-    company: { id: 'company-1', name: 'Balkona', slug: 'balkona', status: 'active' },
+    company: {
+      id: "company-1",
+      name: "Balkona",
+      slug: "balkona",
+      status: "active",
+    },
     branch: {
-      id: 'branch-1',
-      companyId: 'company-1',
-      name: 'Main',
-      slug: 'main',
+      id: "branch-1",
+      companyId: "company-1",
+      name: "Main",
+      slug: "main",
       address: null,
-      status: 'active',
+      status: "active",
     },
     order: {
-      id: 'order-1',
-      companyId: 'company-1',
-      branchId: 'branch-1',
-      tableSessionId: 'session-1',
-      cartId: 'cart-1',
-      orderNumber: 'B0001',
+      id: "order-1",
+      companyId: "company-1",
+      branchId: "branch-1",
+      tableSessionId: "session-1",
+      cartId: "cart-1",
+      orderNumber: "B0001",
       status: orderStatus,
-      source: 'customer_qr',
-      currency: 'EGP',
+      source: "customer_qr",
+      currency: "EGP",
       subtotalMinor: 1000,
       totalQuantity: 1,
       itemCount: 1,
@@ -65,12 +70,12 @@ function taskEnvelope(status: PreparationTaskStatus, orderStatus: OrderStatus) {
       createdAt: now,
       updatedAt: now,
       tableSession: {
-        id: 'session-1',
-        companyId: 'company-1',
-        branchId: 'branch-1',
-        tableId: 'table-1',
-        status: 'active',
-        source: 'qr',
+        id: "session-1",
+        companyId: "company-1",
+        branchId: "branch-1",
+        tableId: "table-1",
+        status: "active",
+        source: "qr",
         guestLabel: null,
         partySize: null,
         startedAt: now,
@@ -81,30 +86,30 @@ function taskEnvelope(status: PreparationTaskStatus, orderStatus: OrderStatus) {
         createdAt: now,
         updatedAt: now,
         table: {
-          id: 'table-1',
-          code: 'T01',
-          displayName: 'T01',
+          id: "table-1",
+          code: "T01",
+          displayName: "T01",
           capacity: 2,
-          qrToken: 'balcona-main-t01',
-          status: 'active',
-          floor: { id: 'floor-1', name: 'Main', sortOrder: 1 },
+          qrToken: "balcona-main-t01",
+          status: "active",
+          floor: { id: "floor-1", name: "Main", sortOrder: 1 },
         },
       },
     },
     orderItem: {
-      id: 'order-item-1',
-      orderId: 'order-1',
-      menuItemId: 'item-1',
+      id: "order-item-1",
+      orderId: "order-1",
+      menuItemId: "item-1",
       quantity: 1,
       notes: null,
-      itemNameSnapshot: 'Latte',
-      itemSlugSnapshot: 'latte',
+      itemNameSnapshot: "Latte",
+      itemSlugSnapshot: "latte",
       basePriceMinorSnapshot: 1000,
       effectiveBasePriceMinorSnapshot: 1000,
       modifiersTotalMinorSnapshot: 0,
       unitPriceMinorSnapshot: 1000,
       lineTotalMinorSnapshot: 1000,
-      currency: 'EGP',
+      currency: "EGP",
       createdAt: now,
       updatedAt: now,
       modifierOptions: [],
@@ -113,24 +118,26 @@ function taskEnvelope(status: PreparationTaskStatus, orderStatus: OrderStatus) {
   };
 }
 
-function taskStatus(
-  status: PreparationTaskStatus,
-  orderStatus: OrderStatus,
-) {
+function taskStatus(status: PreparationTaskStatus, orderStatus: OrderStatus) {
   return {
-    id: 'task-1',
-    orderId: 'order-1',
+    id: "task-1",
+    orderId: "order-1",
     status,
     order: {
-      tableSessionId: 'session-1',
+      branchId: "branch-1",
+      tableSessionId: "session-1",
       status: orderStatus,
     },
   };
 }
 
+function flushAsyncWork() {
+  return new Promise((resolve) => setImmediate(resolve));
+}
+
 function preparationErrorCode(error: unknown) {
   const response =
-    typeof (error as { getResponse?: () => unknown }).getResponse === 'function'
+    typeof (error as { getResponse?: () => unknown }).getResponse === "function"
       ? (error as { getResponse: () => unknown }).getResponse()
       : undefined;
 
@@ -156,19 +163,21 @@ function buildService(input: {
   taskEnvelopeRecord?: ReturnType<typeof taskEnvelope>;
   orderForReadySync?: Record<string, unknown> | null;
   tasksForOrderCancellation?: { id: string }[];
+  notificationRejects?: boolean;
+  preparationRealtimeRejects?: boolean;
+  orderRealtimeRejects?: boolean;
+  attentionRejects?: boolean;
 }) {
+  const taskEnvelopeRecord =
+    input.taskEnvelopeRecord ??
+    taskEnvelope(PreparationTaskStatus.preparing, OrderStatus.preparing);
   const tx = {
     staffUser: {
-      findUnique: jest.fn().mockResolvedValue({ id: 'staff-1' }),
+      findUnique: jest.fn().mockResolvedValue({ id: "staff-1" }),
     },
     preparationTask: {
       findUnique: jest.fn(({ include }: { include?: unknown }) =>
-        Promise.resolve(
-          include
-            ? input.taskEnvelopeRecord ??
-                taskEnvelope(PreparationTaskStatus.preparing, OrderStatus.preparing)
-            : input.taskStatusRecord,
-        ),
+        Promise.resolve(include ? taskEnvelopeRecord : input.taskStatusRecord),
       ),
       findMany: jest
         .fn()
@@ -177,76 +186,124 @@ function buildService(input: {
       updateMany: jest.fn().mockResolvedValue({ count: 1 }),
     },
     preparationTaskEvent: {
-      create: jest.fn().mockResolvedValue({ id: 'task-event-1' }),
+      create: jest.fn().mockResolvedValue({ id: "task-event-1" }),
     },
     order: {
       updateMany: jest.fn().mockResolvedValue({ count: 1 }),
       findUnique: jest.fn().mockResolvedValue(input.orderForReadySync ?? null),
     },
     orderEvent: {
-      create: jest.fn().mockResolvedValue({ id: 'order-event-1' }),
+      create: jest.fn().mockResolvedValue({ id: "order-event-1" }),
     },
   };
   const prisma = {
     $transaction: jest.fn((callback: (txArg: typeof tx) => unknown) =>
       callback(tx),
     ),
+    preparationTask: {
+      findUnique: jest.fn().mockResolvedValue(taskEnvelopeRecord),
+    },
   };
   const realtimeEventsService = {
-    recordPreparationTaskStarted: jest.fn().mockResolvedValue({}),
-    recordPreparationTaskReady: jest.fn().mockResolvedValue({}),
-    recordPreparationTaskCancelled: jest.fn().mockResolvedValue({}),
-    recordOrderPreparationStarted: jest.fn().mockResolvedValue({}),
-    recordOrderPreparationReady: jest.fn().mockResolvedValue({}),
+    recordPreparationTaskStarted: input.preparationRealtimeRejects
+      ? jest.fn().mockRejectedValue(new Error("realtime failed"))
+      : jest.fn().mockResolvedValue({}),
+    recordPreparationTaskReady: input.preparationRealtimeRejects
+      ? jest.fn().mockRejectedValue(new Error("realtime failed"))
+      : jest.fn().mockResolvedValue({}),
+    recordPreparationTaskCancelled: input.preparationRealtimeRejects
+      ? jest.fn().mockRejectedValue(new Error("realtime failed"))
+      : jest.fn().mockResolvedValue({}),
+    recordOrderPreparationStarted: input.orderRealtimeRejects
+      ? jest.fn().mockRejectedValue(new Error("order realtime failed"))
+      : jest.fn().mockResolvedValue({}),
+    recordOrderPreparationReady: input.orderRealtimeRejects
+      ? jest.fn().mockRejectedValue(new Error("order realtime failed"))
+      : jest.fn().mockResolvedValue({}),
+    recordKitchenTicketUpdated: jest.fn().mockResolvedValue({}),
+    recordKitchenTicketReady: jest.fn().mockResolvedValue({}),
+    recordKitchenTicketCancelled: jest.fn().mockResolvedValue({}),
   };
   const kitchenTicketsService = {
     createTicketsForAcceptedOrder: jest.fn().mockResolvedValue([]),
     createTicketsForAcceptedOrderSnapshot: jest.fn().mockResolvedValue([]),
-    syncTicketsForTaskStarted: jest.fn().mockResolvedValue(undefined),
-    syncTicketsForTaskReady: jest.fn().mockResolvedValue(undefined),
-    syncTicketsForTaskCancelled: jest.fn().mockResolvedValue(undefined),
+    syncTicketsForTaskStarted: jest.fn().mockResolvedValue({
+      ticketId: "ticket-1",
+      realtimeEvent: "updated",
+      status: "in_progress",
+    }),
+    syncTicketsForTaskReady: jest.fn().mockResolvedValue({
+      ticketId: "ticket-1",
+      realtimeEvent: "ready",
+      status: "ready",
+    }),
+    syncTicketsForTaskCancelled: jest.fn().mockResolvedValue({
+      ticketId: "ticket-1",
+      realtimeEvent: "cancelled",
+      status: "cancelled",
+      voidTicket: true,
+    }),
+    createVoidPrintJobForTicket: jest.fn().mockResolvedValue({}),
+  };
+  const presenceNotificationsService = {
+    createPreparationStartedNotification: input.notificationRejects
+      ? jest.fn().mockRejectedValue(new Error("notification failed"))
+      : jest.fn().mockResolvedValue({}),
+    createPreparationReadyNotification: input.notificationRejects
+      ? jest.fn().mockRejectedValue(new Error("notification failed"))
+      : jest.fn().mockResolvedValue({}),
+  };
+  const tableAttentionService = {
+    recalculateForTableSession: input.attentionRejects
+      ? jest.fn().mockRejectedValue(new Error("attention failed"))
+      : jest.fn().mockResolvedValue({}),
   };
   const service = new PreparationTasksService(
     prisma as never,
-    {
-      createPreparationStartedNotification: jest.fn().mockResolvedValue({}),
-      createPreparationReadyNotification: jest.fn().mockResolvedValue({}),
-    } as never,
+    presenceNotificationsService as never,
     realtimeEventsService as never,
-    { recalculateForTableSession: jest.fn().mockResolvedValue({}) } as never,
+    tableAttentionService as never,
     kitchenTicketsService as never,
   );
 
-  return { service, tx, realtimeEventsService, kitchenTicketsService };
+  return {
+    service,
+    tx,
+    prisma,
+    realtimeEventsService,
+    kitchenTicketsService,
+    presenceNotificationsService,
+    tableAttentionService,
+  };
 }
 
 function acceptedOrderForCreate(
   station: PreparationStation,
-  itemNameSnapshot = 'Espresso',
+  itemNameSnapshot = "Espresso",
 ) {
   return {
-    id: 'order-1',
-    companyId: 'company-1',
-    branchId: 'branch-1',
+    id: "order-1",
+    companyId: "company-1",
+    branchId: "branch-1",
     status: OrderStatus.cashier_accepted,
-    tableSessionId: 'session-1',
-    orderNumber: 'B0001',
+    tableSessionId: "session-1",
+    orderNumber: "B0001",
     customerNote: null,
     tableSession: {
       table: {
-        code: 'T01',
-        displayName: 'Table 1',
-        floor: { name: 'Main' },
+        code: "T01",
+        displayName: "Table 1",
+        floor: { name: "Main" },
       },
     },
     items: [
       {
-        id: 'order-item-1',
-        menuItemId: 'menu-item-1',
+        id: "order-item-1",
+        menuItemId: "menu-item-1",
         quantity: 1,
         notes: null,
         itemNameSnapshot,
-        itemSlugSnapshot: itemNameSnapshot.toLowerCase().replace(/\s+/g, '-'),
+        itemSlugSnapshot: itemNameSnapshot.toLowerCase().replace(/\s+/g, "-"),
         menuItem: { station },
         modifierOptions: [],
       },
@@ -256,7 +313,7 @@ function acceptedOrderForCreate(
 
 function ticketRoutingForCreate(
   station: PreparationStation,
-  ticketIds = ['ticket-1'],
+  ticketIds = ["ticket-1"],
 ) {
   return {
     ticketIds,
@@ -276,10 +333,7 @@ function buildCreateTasksService(input: {
   ticketIds?: string[];
   ticketRejects?: boolean;
 }) {
-  const order = acceptedOrderForCreate(
-    input.station,
-    input.itemNameSnapshot,
-  );
+  const order = acceptedOrderForCreate(input.station, input.itemNameSnapshot);
   const tx = {
     order: {
       findUnique: jest.fn().mockResolvedValue(order),
@@ -288,11 +342,11 @@ function buildCreateTasksService(input: {
     preparationTask: {
       findUnique: jest
         .fn()
-        .mockResolvedValue(input.existingTask ? { id: 'task-existing' } : null),
-      create: jest.fn().mockResolvedValue({ id: 'task-1' }),
+        .mockResolvedValue(input.existingTask ? { id: "task-existing" } : null),
+      create: jest.fn().mockResolvedValue({ id: "task-1" }),
     },
     orderEvent: {
-      create: jest.fn().mockResolvedValue({ id: 'order-event-1' }),
+      create: jest.fn().mockResolvedValue({ id: "order-event-1" }),
     },
   };
   const realtimeEventsService = {
@@ -303,15 +357,10 @@ function buildCreateTasksService(input: {
     recordOrderPreparationStarted: jest.fn().mockResolvedValue({}),
     recordOrderPreparationReady: jest.fn().mockResolvedValue({}),
   };
-  const ticketRouting = ticketRoutingForCreate(
-    input.station,
-    input.ticketIds,
-  );
+  const ticketRouting = ticketRoutingForCreate(input.station, input.ticketIds);
   const kitchenTicketsService = {
     createTicketsForAcceptedOrderSnapshot: input.ticketRejects
-      ? jest
-          .fn()
-          .mockRejectedValue(new Error('database token=secret failed'))
+      ? jest.fn().mockRejectedValue(new Error("database token=secret failed"))
       : jest.fn().mockResolvedValue(ticketRouting),
     createTicketsForAcceptedOrder: jest.fn().mockResolvedValue(ticketRouting),
     syncTicketsForTaskStarted: jest.fn().mockResolvedValue(undefined),
@@ -332,69 +381,79 @@ function buildCreateTasksService(input: {
   return { service, tx, order, realtimeEventsService, kitchenTicketsService };
 }
 
-describe('PreparationTasksService accepted-order KDS routing', () => {
+describe("PreparationTasksService accepted-order KDS routing", () => {
   it.each([
-    ['Espresso', PreparationStation.barista],
-    ['Spanish Latte', PreparationStation.barista],
-    ['Avocado Toast', PreparationStation.kitchen],
-    ['Chocolate Cake', PreparationStation.dessert],
-  ])('routes accepted %s items to %s KDS tasks and tickets', async (name, station) => {
-    const { service, tx, order, realtimeEventsService, kitchenTicketsService } =
-      buildCreateTasksService({
+    ["Espresso", PreparationStation.barista],
+    ["Spanish Latte", PreparationStation.barista],
+    ["Avocado Toast", PreparationStation.kitchen],
+    ["Chocolate Cake", PreparationStation.dessert],
+  ])(
+    "routes accepted %s items to %s KDS tasks and tickets",
+    async (name, station) => {
+      const {
+        service,
+        tx,
+        order,
+        realtimeEventsService,
+        kitchenTicketsService,
+      } = buildCreateTasksService({
         station,
         itemNameSnapshot: name,
       });
 
-    const result = await service.createTasksForAcceptedOrder(
-      'order-1',
-      'staff-1',
-      tx as never,
-    );
+      const result = await service.createTasksForAcceptedOrder(
+        "order-1",
+        "staff-1",
+        tx as never,
+      );
 
-    expect(tx.preparationTask.create).toHaveBeenCalledWith({
-      data: expect.objectContaining({
-        orderItemId: 'order-item-1',
-        station,
-        itemNameSnapshot: name,
-      }),
-      select: { id: true },
-    });
-    expect(
-      realtimeEventsService.recordPreparationTaskCreated,
-    ).toHaveBeenCalledWith('task-1', tx);
-    expect(
-      kitchenTicketsService.createTicketsForAcceptedOrderSnapshot,
-    ).toHaveBeenCalledWith(order, expect.any(Map), 'staff-1', tx, {
-      createPrintJobs: undefined,
-      recordRealtimeEvents: undefined,
-    });
-    const taskIdMap =
-      kitchenTicketsService.createTicketsForAcceptedOrderSnapshot.mock
-        .calls[0][1] as Map<string, string>;
+      expect(tx.preparationTask.create).toHaveBeenCalledWith({
+        data: expect.objectContaining({
+          orderItemId: "order-item-1",
+          station,
+          itemNameSnapshot: name,
+        }),
+        select: { id: true },
+      });
+      expect(
+        realtimeEventsService.recordPreparationTaskCreated,
+      ).toHaveBeenCalledWith("task-1", tx);
+      expect(
+        kitchenTicketsService.createTicketsForAcceptedOrderSnapshot,
+      ).toHaveBeenCalledWith(order, expect.any(Map), "staff-1", tx, {
+        createPrintJobs: undefined,
+        recordRealtimeEvents: undefined,
+      });
+      const taskIdMap = kitchenTicketsService
+        .createTicketsForAcceptedOrderSnapshot.mock.calls[0][1] as Map<
+        string,
+        string
+      >;
 
-    expect(taskIdMap.get('order-item-1')).toBe('task-1');
-    expect(tx.order.findUnique).toHaveBeenCalledTimes(1);
-    expect(result).toMatchObject({
-      actionableItemCount: 1,
-      stationsDetected: [station],
-      createdTaskCount: 1,
-      activeTaskCount: 1,
-      ticketRouting: expect.objectContaining({
-        ticketIds: ['ticket-1'],
-        createdTicketCount: 1,
-      }),
-    });
-  });
+      expect(taskIdMap.get("order-item-1")).toBe("task-1");
+      expect(tx.order.findUnique).toHaveBeenCalledTimes(1);
+      expect(result).toMatchObject({
+        actionableItemCount: 1,
+        stationsDetected: [station],
+        createdTaskCount: 1,
+        activeTaskCount: 1,
+        ticketRouting: expect.objectContaining({
+          ticketIds: ["ticket-1"],
+          createdTicketCount: 1,
+        }),
+      });
+    },
+  );
 
-  it('does not duplicate preparation tasks when repairing an accepted order', async () => {
+  it("does not duplicate preparation tasks when repairing an accepted order", async () => {
     const { service, tx } = buildCreateTasksService({
       station: PreparationStation.barista,
       existingTask: true,
     });
 
     const result = await service.createTasksForAcceptedOrder(
-      'order-1',
-      'staff-1',
+      "order-1",
+      "staff-1",
       tx as never,
     );
 
@@ -405,42 +464,42 @@ describe('PreparationTasksService accepted-order KDS routing', () => {
     });
   });
 
-  it('rejects accepted actionable orders that would create zero KDS tickets', async () => {
+  it("rejects accepted actionable orders that would create zero KDS tickets", async () => {
     const { service, tx } = buildCreateTasksService({
       station: PreparationStation.barista,
       ticketIds: [],
     });
 
     await expect(
-      service.createTasksForAcceptedOrder('order-1', 'staff-1', tx as never),
+      service.createTasksForAcceptedOrder("order-1", "staff-1", tx as never),
     ).rejects.toMatchObject({
       response: expect.objectContaining({
-        message: 'Kitchen routing failed for accepted order',
-        code: 'kds_routing_failed',
+        message: "Kitchen routing failed for accepted order",
+        code: "kds_routing_failed",
       }),
     });
   });
 
-  it('returns safe stage details when ticket creation throws unexpectedly', async () => {
+  it("returns safe stage details when ticket creation throws unexpectedly", async () => {
     const { service, tx } = buildCreateTasksService({
       station: PreparationStation.barista,
       ticketRejects: true,
     });
 
     await expect(
-      service.createTasksForAcceptedOrder('order-1', 'staff-1', tx as never),
+      service.createTasksForAcceptedOrder("order-1", "staff-1", tx as never),
     ).rejects.toMatchObject({
       response: expect.objectContaining({
-        message: 'Kitchen routing failed for accepted order',
-        code: 'kds_routing_failed',
+        message: "Kitchen routing failed for accepted order",
+        code: "kds_routing_failed",
         details: expect.objectContaining({
-          reason: 'ticket_creation_exception',
+          reason: "ticket_creation_exception",
           actionableItemCount: 1,
           createdTaskCount: 1,
           activeTaskCount: 1,
           ticketCount: 0,
           exception: expect.objectContaining({
-            message: 'database token=[redacted] failed',
+            message: "database token=[redacted] failed",
           }),
         }),
       }),
@@ -448,8 +507,8 @@ describe('PreparationTasksService accepted-order KDS routing', () => {
   });
 });
 
-describe('PreparationTasksService lifecycle hardening', () => {
-  it('cannot start a task when the parent order is cancelled', async () => {
+describe("PreparationTasksService lifecycle hardening", () => {
+  it("cannot start a task when the parent order is cancelled", async () => {
     const { service } = buildService({
       taskStatusRecord: taskStatus(
         PreparationTaskStatus.pending,
@@ -458,13 +517,19 @@ describe('PreparationTasksService lifecycle hardening', () => {
     });
 
     await expectPreparationCode(
-      service.start('task-1', { staffUserId: 'staff-1' }),
-      'order_cancelled',
+      service.start("task-1", { staffUserId: "staff-1" }),
+      "order_cancelled",
     );
   });
 
-  it('starting the first task syncs an accepted order to preparing', async () => {
-    const { service, tx, realtimeEventsService } = buildService({
+  it("starting the first task syncs an accepted order to preparing", async () => {
+    const {
+      service,
+      tx,
+      prisma,
+      realtimeEventsService,
+      kitchenTicketsService,
+    } = buildService({
       taskStatusRecord: taskStatus(
         PreparationTaskStatus.pending,
         OrderStatus.cashier_accepted,
@@ -475,10 +540,11 @@ describe('PreparationTasksService lifecycle hardening', () => {
       ),
     });
 
-    await service.start('task-1', { staffUserId: 'staff-1' });
+    await service.start("task-1", { staffUserId: "staff-1" });
+    await flushAsyncWork();
 
     expect(tx.order.updateMany).toHaveBeenCalledWith({
-      where: { id: 'order-1', status: OrderStatus.cashier_accepted },
+      where: { id: "order-1", status: OrderStatus.cashier_accepted },
       data: expect.objectContaining({ status: OrderStatus.preparing }),
     });
     expect(tx.orderEvent.create).toHaveBeenCalledWith({
@@ -487,17 +553,32 @@ describe('PreparationTasksService lifecycle hardening', () => {
         metadata: expect.objectContaining({
           previousStatus: OrderStatus.cashier_accepted,
           nextStatus: OrderStatus.preparing,
-          action: 'start_preparation',
+          action: "start_preparation",
         }),
       }),
     });
     expect(
       realtimeEventsService.recordOrderPreparationStarted,
-    ).toHaveBeenCalledWith('order-1', tx);
+    ).toHaveBeenCalledWith("order-1", prisma);
+    expect(
+      kitchenTicketsService.syncTicketsForTaskStarted,
+    ).toHaveBeenCalledWith("task-1", tx, { recordRealtimeEvents: false });
+    expect(tx.preparationTask.findUnique).not.toHaveBeenCalledWith(
+      expect.objectContaining({ include: expect.anything() }),
+    );
+    expect(prisma.preparationTask.findUnique).toHaveBeenCalledWith(
+      expect.objectContaining({ include: expect.anything() }),
+    );
   });
 
-  it('marking the last active task ready syncs the order to ready', async () => {
-    const { service, tx, realtimeEventsService } = buildService({
+  it("marking the last active task ready syncs the order to ready", async () => {
+    const {
+      service,
+      tx,
+      prisma,
+      realtimeEventsService,
+      kitchenTicketsService,
+    } = buildService({
       taskStatusRecord: taskStatus(
         PreparationTaskStatus.preparing,
         OrderStatus.preparing,
@@ -507,17 +588,20 @@ describe('PreparationTasksService lifecycle hardening', () => {
         OrderStatus.ready,
       ),
       orderForReadySync: {
-        id: 'order-1',
+        id: "order-1",
         status: OrderStatus.preparing,
-        preparationTasks: [{ id: 'task-1', status: PreparationTaskStatus.ready }],
+        preparationTasks: [
+          { id: "task-1", status: PreparationTaskStatus.ready },
+        ],
       },
     });
 
-    await service.markReady('task-1', { staffUserId: 'staff-1' });
+    await service.markReady("task-1", { staffUserId: "staff-1" });
+    await flushAsyncWork();
 
     expect(tx.order.updateMany).toHaveBeenCalledWith({
       where: {
-        id: 'order-1',
+        id: "order-1",
         status: { in: [OrderStatus.cashier_accepted, OrderStatus.preparing] },
       },
       data: expect.objectContaining({ status: OrderStatus.ready }),
@@ -528,42 +612,167 @@ describe('PreparationTasksService lifecycle hardening', () => {
         metadata: expect.objectContaining({
           previousStatus: OrderStatus.preparing,
           nextStatus: OrderStatus.ready,
-          action: 'system_preparation_ready',
+          action: "system_preparation_ready",
         }),
       }),
     });
-    expect(realtimeEventsService.recordOrderPreparationReady).toHaveBeenCalledWith(
-      'order-1',
+    expect(
+      realtimeEventsService.recordOrderPreparationReady,
+    ).toHaveBeenCalledWith("order-1", prisma);
+    expect(kitchenTicketsService.syncTicketsForTaskReady).toHaveBeenCalledWith(
+      "task-1",
       tx,
+      { recordRealtimeEvents: false },
+    );
+    expect(tx.preparationTask.findUnique).not.toHaveBeenCalledWith(
+      expect.objectContaining({ include: expect.anything() }),
+    );
+    expect(prisma.preparationTask.findUnique).toHaveBeenCalledWith(
+      expect.objectContaining({ include: expect.anything() }),
     );
   });
 
-  it('order cancellation cancels only pending and preparing tasks', async () => {
+  it.each([
+    ["notification", { notificationRejects: true }],
+    ["task realtime", { preparationRealtimeRejects: true }],
+    ["order realtime", { orderRealtimeRejects: true }],
+    ["attention recalculation", { attentionRejects: true }],
+  ])("start succeeds when %s fails post-commit", async (_name, overrides) => {
+    const { service, tx, kitchenTicketsService } = buildService({
+      ...overrides,
+      taskStatusRecord: taskStatus(
+        PreparationTaskStatus.pending,
+        OrderStatus.cashier_accepted,
+      ),
+      taskEnvelopeRecord: taskEnvelope(
+        PreparationTaskStatus.preparing,
+        OrderStatus.preparing,
+      ),
+    });
+
+    const result = await service.start("task-1", { staffUserId: "staff-1" });
+    await flushAsyncWork();
+
+    expect(result.task.status).toBe(PreparationTaskStatus.preparing);
+    expect(tx.preparationTask.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          status: PreparationTaskStatus.preparing,
+        }),
+      }),
+    );
+    expect(
+      kitchenTicketsService.syncTicketsForTaskStarted,
+    ).toHaveBeenCalledWith("task-1", tx, { recordRealtimeEvents: false });
+  });
+
+  it.each([
+    ["notification", { notificationRejects: true }],
+    ["task realtime", { preparationRealtimeRejects: true }],
+    ["order realtime", { orderRealtimeRejects: true }],
+    ["attention recalculation", { attentionRejects: true }],
+  ])("ready succeeds when %s fails post-commit", async (_name, overrides) => {
+    const { service, tx, kitchenTicketsService } = buildService({
+      ...overrides,
+      taskStatusRecord: taskStatus(
+        PreparationTaskStatus.preparing,
+        OrderStatus.preparing,
+      ),
+      taskEnvelopeRecord: taskEnvelope(
+        PreparationTaskStatus.ready,
+        OrderStatus.ready,
+      ),
+      orderForReadySync: {
+        id: "order-1",
+        status: OrderStatus.preparing,
+        preparationTasks: [
+          { id: "task-1", status: PreparationTaskStatus.ready },
+        ],
+      },
+    });
+
+    const result = await service.markReady("task-1", {
+      staffUserId: "staff-1",
+    });
+    await flushAsyncWork();
+
+    expect(result.task.status).toBe(PreparationTaskStatus.ready);
+    expect(tx.preparationTask.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ status: PreparationTaskStatus.ready }),
+      }),
+    );
+    expect(kitchenTicketsService.syncTicketsForTaskReady).toHaveBeenCalledWith(
+      "task-1",
+      tx,
+      { recordRealtimeEvents: false },
+    );
+  });
+
+  it("cancel succeeds with post-commit side effects outside the transaction", async () => {
+    const { service, tx, prisma, kitchenTicketsService } = buildService({
+      preparationRealtimeRejects: true,
+      attentionRejects: true,
+      taskStatusRecord: taskStatus(
+        PreparationTaskStatus.preparing,
+        OrderStatus.preparing,
+      ),
+      taskEnvelopeRecord: taskEnvelope(
+        PreparationTaskStatus.cancelled,
+        OrderStatus.preparing,
+      ),
+    });
+
+    const result = await service.cancel("task-1", {
+      staffUserId: "staff-1",
+      reason: "Customer changed order",
+    });
+    await flushAsyncWork();
+
+    expect(result.task.status).toBe(PreparationTaskStatus.cancelled);
+    expect(
+      kitchenTicketsService.syncTicketsForTaskCancelled,
+    ).toHaveBeenCalledWith("task-1", "Customer changed order", "staff-1", tx, {
+      createPrintJobs: false,
+      recordRealtimeEvents: false,
+    });
+    expect(
+      kitchenTicketsService.createVoidPrintJobForTicket,
+    ).toHaveBeenCalledWith("ticket-1", "staff-1", "Customer changed order");
+    expect(tx.preparationTask.findUnique).not.toHaveBeenCalledWith(
+      expect.objectContaining({ include: expect.anything() }),
+    );
+    expect(prisma.preparationTask.findUnique).toHaveBeenCalledWith(
+      expect.objectContaining({ include: expect.anything() }),
+    );
+  });
+
+  it("order cancellation cancels only pending and preparing tasks", async () => {
     const { service, tx, realtimeEventsService } = buildService({
-      tasksForOrderCancellation: [{ id: 'task-1' }, { id: 'task-2' }],
+      tasksForOrderCancellation: [{ id: "task-1" }, { id: "task-2" }],
     });
 
     await service.cancelActiveTasksForOrderCancellation(
-      'order-1',
-      'staff-1',
-      'Customer left',
+      "order-1",
+      "staff-1",
+      "Customer left",
       tx as never,
     );
 
     expect(tx.preparationTask.updateMany).toHaveBeenCalledTimes(2);
     expect(tx.preparationTaskEvent.create).toHaveBeenCalledWith({
       data: expect.objectContaining({
-        preparationTaskId: 'task-1',
+        preparationTaskId: "task-1",
         type: PreparationTaskEventType.cancelled,
-        actorStaffUserId: 'staff-1',
+        actorStaffUserId: "staff-1",
         metadata: expect.objectContaining({
-          source: 'order_cancellation',
-          reason: 'Customer left',
+          source: "order_cancellation",
+          reason: "Customer left",
         }),
       }),
     });
     expect(
       realtimeEventsService.recordPreparationTaskCancelled,
-    ).toHaveBeenCalledWith('task-1', tx);
+    ).toHaveBeenCalledWith("task-1", tx);
   });
 });

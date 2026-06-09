@@ -4,7 +4,7 @@ import {
   Injectable,
   Logger,
   NotFoundException,
-} from '@nestjs/common';
+} from "@nestjs/common";
 import {
   OrderEventActorType,
   OrderEventType,
@@ -13,23 +13,24 @@ import {
   PreparationTaskEventType,
   PreparationTaskStatus,
   Prisma,
-} from '@prisma/client';
-import { TableAttentionService } from '../autopilot/table-attention.service';
+} from "@prisma/client";
+import { TableAttentionService } from "../autopilot/table-attention.service";
 import {
   KitchenTicketOrderSnapshot,
   KitchenTicketRoutingResult,
+  KitchenTicketTaskSyncResult,
   KitchenTicketsService,
-} from '../kitchen-tickets/kitchen-tickets.service';
-import { PresenceNotificationsService } from '../presence-notifications/presence-notifications.service';
-import { PrismaService } from '../prisma/prisma.service';
-import { RealtimeEventsService } from '../realtime-events/realtime-events.service';
+} from "../kitchen-tickets/kitchen-tickets.service";
+import { PresenceNotificationsService } from "../presence-notifications/presence-notifications.service";
+import { PrismaService } from "../prisma/prisma.service";
+import { RealtimeEventsService } from "../realtime-events/realtime-events.service";
 import {
   explainDeniedTransition,
   isTerminalOrderStatus,
-} from '../orders/order-lifecycle.policy';
-import { BranchPreparationTasksQueryDto } from './dto/branch-preparation-tasks-query.dto';
-import { CancelPreparationTaskDto } from './dto/cancel-preparation-task.dto';
-import { PreparationTaskActionDto } from './dto/preparation-task-action.dto';
+} from "../orders/order-lifecycle.policy";
+import { BranchPreparationTasksQueryDto } from "./dto/branch-preparation-tasks-query.dto";
+import { CancelPreparationTaskDto } from "./dto/cancel-preparation-task.dto";
+import { PreparationTaskActionDto } from "./dto/preparation-task-action.dto";
 
 const ACTIONABLE_STATIONS: PreparationStation[] = [
   PreparationStation.barista,
@@ -48,7 +49,7 @@ export type KdsRoutingResult = {
   skippedItems: {
     orderItemId: string;
     station: PreparationStation;
-    reason: 'non_actionable_station';
+    reason: "non_actionable_station";
   }[];
   createdTaskCount: number;
   existingTaskCount: number;
@@ -59,6 +60,21 @@ export type KdsRoutingResult = {
 type CreateTasksForAcceptedOrderOptions = {
   createPrintJobs?: boolean;
   recordRealtimeEvents?: boolean;
+};
+
+type PreparationTaskActionName = "start" | "ready" | "cancel";
+
+type PreparationTaskActionResult = {
+  action: PreparationTaskActionName;
+  taskId: string;
+  orderId: string;
+  branchId: string;
+  tableSessionId: string;
+  staffUserId?: string;
+  reason?: string | null;
+  orderRealtimeEvent?: "preparation_started" | "preparation_ready";
+  ticketSync?: KitchenTicketTaskSyncResult;
+  timings: Record<string, number>;
 };
 
 @Injectable()
@@ -87,7 +103,7 @@ export class PreparationTasksService {
       ticketCreationMs: 0,
     };
     let stageStartedAt = Date.now();
-    const order = await tx.order.findUnique({
+    const order = (await tx.order.findUnique({
       where: { id: orderId },
       select: {
         id: true,
@@ -109,7 +125,7 @@ export class PreparationTasksService {
           },
         },
         items: {
-          orderBy: [{ createdAt: 'asc' }],
+          orderBy: [{ createdAt: "asc" }],
           select: {
             id: true,
             menuItemId: true,
@@ -123,7 +139,7 @@ export class PreparationTasksService {
               },
             },
             modifierOptions: {
-              orderBy: [{ createdAt: 'asc' }],
+              orderBy: [{ createdAt: "asc" }],
               select: {
                 modifierGroupId: true,
                 modifierOptionId: true,
@@ -137,33 +153,33 @@ export class PreparationTasksService {
           },
         },
       },
-    }) as KitchenTicketOrderSnapshot | null;
+    })) as KitchenTicketOrderSnapshot | null;
     timings.orderSnapshotLoadMs = Date.now() - stageStartedAt;
 
     if (!order) {
-      throw new NotFoundException('Order not found');
+      throw new NotFoundException("Order not found");
     }
 
     if (isTerminalOrderStatus(order.status)) {
-      throw this.preparationBadRequest('parent_order_terminal');
+      throw this.preparationBadRequest("parent_order_terminal");
     }
 
     if (order.status !== OrderStatus.cashier_accepted) {
-      throw this.preparationBadRequest('parent_order_not_accepted');
+      throw this.preparationBadRequest("parent_order_not_accepted");
     }
 
     let activeTaskCount = 0;
     let createdTaskCount = 0;
     let existingTaskCount = 0;
-    const skippedItems: KdsRoutingResult['skippedItems'] = [];
+    const skippedItems: KdsRoutingResult["skippedItems"] = [];
     const actionableStations = new Set<PreparationStation>();
     const taskIdByOrderItemId = new Map<string, string>();
     let actionableItemCount = 0;
     let routingStage:
-      | 'task_lookup'
-      | 'task_create'
-      | 'ticket_creation'
-      | 'ready_sync' = 'task_lookup';
+      | "task_lookup"
+      | "task_create"
+      | "ticket_creation"
+      | "ready_sync" = "task_lookup";
     let ticketRouting: KitchenTicketRoutingResult | undefined;
 
     try {
@@ -172,7 +188,7 @@ export class PreparationTasksService {
           skippedItems.push({
             orderItemId: item.id,
             station: item.menuItem.station,
-            reason: 'non_actionable_station',
+            reason: "non_actionable_station",
           });
           continue;
         }
@@ -180,7 +196,7 @@ export class PreparationTasksService {
         actionableItemCount += 1;
         actionableStations.add(item.menuItem.station);
 
-        routingStage = 'task_lookup';
+        routingStage = "task_lookup";
         stageStartedAt = Date.now();
         const existingTask = await tx.preparationTask.findUnique({
           where: { orderItemId: item.id },
@@ -195,7 +211,7 @@ export class PreparationTasksService {
           continue;
         }
 
-        routingStage = 'task_create';
+        routingStage = "task_create";
         stageStartedAt = Date.now();
         const task = await tx.preparationTask.create({
           data: {
@@ -235,7 +251,7 @@ export class PreparationTasksService {
         createdTaskCount += 1;
       }
 
-      routingStage = 'ticket_creation';
+      routingStage = "ticket_creation";
       stageStartedAt = Date.now();
       ticketRouting =
         await this.kitchenTicketsService.createTicketsForAcceptedOrderSnapshot(
@@ -264,7 +280,7 @@ export class PreparationTasksService {
       };
 
       this.logger.log({
-        message: 'kds.create_tasks_for_order',
+        message: "kds.create_tasks_for_order",
         orderId: order.id,
         branchId: order.branchId,
         itemCount: result.itemCount,
@@ -281,13 +297,13 @@ export class PreparationTasksService {
         timings,
         zeroTicketReason:
           actionableItemCount > 0 && ticketRouting.ticketIds.length === 0
-            ? 'actionable_items_without_tickets'
+            ? "actionable_items_without_tickets"
             : undefined,
       });
 
       if (actionableItemCount > 0 && activeTaskCount === 0) {
         throw this.kdsRoutingBadRequest(order.id, order.branchId, {
-          reason: 'actionable_items_without_tasks',
+          reason: "actionable_items_without_tasks",
           actionableItemCount,
           stationsDetected: [...actionableStations],
           createdTaskCount,
@@ -302,7 +318,7 @@ export class PreparationTasksService {
 
       if (actionableItemCount > 0 && ticketRouting.ticketIds.length === 0) {
         throw this.kdsRoutingBadRequest(order.id, order.branchId, {
-          reason: 'actionable_items_without_tickets',
+          reason: "actionable_items_without_tickets",
           actionableItemCount,
           stationsDetected: [...actionableStations],
           createdTaskCount,
@@ -316,12 +332,12 @@ export class PreparationTasksService {
       }
 
       if (activeTaskCount === 0) {
-        routingStage = 'ready_sync';
+        routingStage = "ready_sync";
         await this.syncOrderPreparationReady(
           order.id,
           staffUserId,
           tx,
-          'no_active_preparation_tasks',
+          "no_active_preparation_tasks",
         );
       }
 
@@ -357,22 +373,22 @@ export class PreparationTasksService {
     });
 
     if (!branch) {
-      throw new NotFoundException('Branch not found');
+      throw new NotFoundException("Branch not found");
     }
 
-    const station = query.station ?? 'all';
+    const station = query.station ?? "all";
     const status = query.status ?? PreparationTaskStatus.pending;
     const stationFilter =
-      station === 'all' ? undefined : (station as PreparationStation);
+      station === "all" ? undefined : (station as PreparationStation);
     const statusFilter =
-      status === 'all' ? undefined : (status as PreparationTaskStatus);
+      status === "all" ? undefined : (status as PreparationTaskStatus);
     const tasks = await this.prisma.preparationTask.findMany({
       where: {
         branchId,
         ...(stationFilter ? { station: stationFilter } : {}),
         ...(statusFilter ? { status: statusFilter } : {}),
       },
-      orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
+      orderBy: [{ createdAt: "asc" }, { id: "asc" }],
       include: this.taskInclude(),
     });
 
@@ -391,12 +407,12 @@ export class PreparationTasksService {
     });
 
     if (!order) {
-      throw new NotFoundException('Order not found');
+      throw new NotFoundException("Order not found");
     }
 
     const tasks = await this.prisma.preparationTask.findMany({
       where: { orderId },
-      orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
+      orderBy: [{ createdAt: "asc" }, { id: "asc" }],
       include: this.taskInclude(),
     });
 
@@ -411,17 +427,35 @@ export class PreparationTasksService {
   }
 
   async start(taskId: string, body: PreparationTaskActionDto = {}) {
-    return this.prisma.$transaction(async (tx) => {
+    const startedAt = Date.now();
+    const timings = {
+      staffAssertMs: 0,
+      taskLookupMs: 0,
+      taskUpdateMs: 0,
+      taskEventMs: 0,
+      orderSyncMs: 0,
+      ticketSyncMs: 0,
+      transactionMs: 0,
+      responseHydrationMs: 0,
+    };
+
+    const transactionStartedAt = Date.now();
+    const transactionResult = await this.prisma.$transaction(async (tx) => {
+      let stageStartedAt = Date.now();
       await this.assertStaffUserExists(body.staffUserId, tx);
+      timings.staffAssertMs += Date.now() - stageStartedAt;
 
+      stageStartedAt = Date.now();
       const task = await this.findTaskStatus(taskId, tx);
+      timings.taskLookupMs += Date.now() - stageStartedAt;
 
-      this.assertParentOrderActionable(task.order.status, 'start');
+      this.assertParentOrderActionable(task.order.status, "start");
 
       if (task.status !== PreparationTaskStatus.pending) {
-        throw this.preparationBadRequest('task_not_actionable');
+        throw this.preparationBadRequest("task_not_actionable");
       }
 
+      stageStartedAt = Date.now();
       await tx.preparationTask.update({
         where: { id: task.id },
         data: {
@@ -429,7 +463,9 @@ export class PreparationTasksService {
           startedAt: new Date(),
         },
       });
+      timings.taskUpdateMs += Date.now() - stageStartedAt;
 
+      stageStartedAt = Date.now();
       await tx.preparationTaskEvent.create({
         data: {
           preparationTaskId: task.id,
@@ -437,39 +473,91 @@ export class PreparationTasksService {
           actorStaffUserId: body.staffUserId,
         },
       });
+      timings.taskEventMs += Date.now() - stageStartedAt;
 
-      await this.presenceNotificationsService.createPreparationStartedNotification(
-        task.id,
-        tx,
-      );
-      await this.realtimeEventsService.recordPreparationTaskStarted(
-        task.id,
-        tx,
-      );
-      await this.syncOrderPreparationStarted(
+      stageStartedAt = Date.now();
+      const orderRealtimeEvent = await this.syncOrderPreparationStarted(
         task.orderId,
         body.staffUserId,
         tx,
       );
-      await this.kitchenTicketsService.syncTicketsForTaskStarted(task.id, tx);
-      await this.recalculateAttention(
-        task.order.tableSessionId,
-        tx,
-        'preparation_task_started',
-        { preparationTaskId: task.id, orderId: task.orderId },
-      );
+      timings.orderSyncMs += Date.now() - stageStartedAt;
 
-      return this.getTaskResponse(task.id, tx);
+      stageStartedAt = Date.now();
+      const ticketSync =
+        await this.kitchenTicketsService.syncTicketsForTaskStarted(
+          task.id,
+          tx,
+          { recordRealtimeEvents: false },
+        );
+      timings.ticketSyncMs += Date.now() - stageStartedAt;
+      timings.transactionMs = Date.now() - transactionStartedAt;
+
+      return {
+        action: "start" as const,
+        taskId: task.id,
+        orderId: task.orderId,
+        branchId: task.order.branchId,
+        tableSessionId: task.order.tableSessionId,
+        staffUserId: body.staffUserId,
+        orderRealtimeEvent,
+        ticketSync,
+        timings: { ...timings },
+      };
     });
+
+    this.logger.log({
+      message: "preparation_task.start.critical_transaction",
+      taskId: transactionResult.taskId,
+      orderId: transactionResult.orderId,
+      branchId: transactionResult.branchId,
+      tableSessionId: transactionResult.tableSessionId,
+      durationMs: transactionResult.timings.transactionMs,
+      timings: transactionResult.timings,
+    });
+
+    this.schedulePreparationTaskPostCommit(transactionResult);
+
+    const responseStartedAt = Date.now();
+    const response = await this.getTaskResponse(taskId, this.prisma);
+    timings.responseHydrationMs = Date.now() - responseStartedAt;
+    this.logger.log({
+      message: "preparation_task.start.response_ready",
+      taskId: transactionResult.taskId,
+      orderId: transactionResult.orderId,
+      branchId: transactionResult.branchId,
+      tableSessionId: transactionResult.tableSessionId,
+      durationMs: Date.now() - startedAt,
+      timings,
+    });
+
+    return response;
   }
 
   async markReady(taskId: string, body: PreparationTaskActionDto = {}) {
-    return this.prisma.$transaction(async (tx) => {
+    const startedAt = Date.now();
+    const timings = {
+      staffAssertMs: 0,
+      taskLookupMs: 0,
+      taskUpdateMs: 0,
+      taskEventMs: 0,
+      orderSyncMs: 0,
+      ticketSyncMs: 0,
+      transactionMs: 0,
+      responseHydrationMs: 0,
+    };
+
+    const transactionStartedAt = Date.now();
+    const transactionResult = await this.prisma.$transaction(async (tx) => {
+      let stageStartedAt = Date.now();
       await this.assertStaffUserExists(body.staffUserId, tx);
+      timings.staffAssertMs += Date.now() - stageStartedAt;
 
+      stageStartedAt = Date.now();
       const task = await this.findTaskStatus(taskId, tx);
+      timings.taskLookupMs += Date.now() - stageStartedAt;
 
-      this.assertParentOrderActionable(task.order.status, 'ready');
+      this.assertParentOrderActionable(task.order.status, "ready");
 
       if (
         task.status !== PreparationTaskStatus.pending &&
@@ -477,13 +565,14 @@ export class PreparationTasksService {
       ) {
         throw this.preparationBadRequest(
           task.status === PreparationTaskStatus.ready
-            ? 'task_already_ready'
+            ? "task_already_ready"
             : task.status === PreparationTaskStatus.cancelled
-              ? 'task_already_cancelled'
-              : 'task_not_actionable',
+              ? "task_already_cancelled"
+              : "task_not_actionable",
         );
       }
 
+      stageStartedAt = Date.now();
       await tx.preparationTask.update({
         where: { id: task.id },
         data: {
@@ -491,7 +580,9 @@ export class PreparationTasksService {
           readyAt: new Date(),
         },
       });
+      timings.taskUpdateMs += Date.now() - stageStartedAt;
 
+      stageStartedAt = Date.now();
       await tx.preparationTaskEvent.create({
         data: {
           preparationTaskId: task.id,
@@ -499,32 +590,88 @@ export class PreparationTasksService {
           actorStaffUserId: body.staffUserId,
         },
       });
+      timings.taskEventMs += Date.now() - stageStartedAt;
 
-      await this.presenceNotificationsService.createPreparationReadyNotification(
-        task.id,
+      stageStartedAt = Date.now();
+      const orderRealtimeEvent = await this.syncOrderPreparationReady(
+        task.orderId,
+        body.staffUserId,
         tx,
       );
-      await this.realtimeEventsService.recordPreparationTaskReady(task.id, tx);
-      await this.syncOrderPreparationReady(task.orderId, body.staffUserId, tx);
-      await this.kitchenTicketsService.syncTicketsForTaskReady(task.id, tx);
-      await this.recalculateAttention(
-        task.order.tableSessionId,
-        tx,
-        'preparation_task_ready',
-        { preparationTaskId: task.id, orderId: task.orderId },
-      );
+      timings.orderSyncMs += Date.now() - stageStartedAt;
 
-      return this.getTaskResponse(task.id, tx);
+      stageStartedAt = Date.now();
+      const ticketSync =
+        await this.kitchenTicketsService.syncTicketsForTaskReady(task.id, tx, {
+          recordRealtimeEvents: false,
+        });
+      timings.ticketSyncMs += Date.now() - stageStartedAt;
+      timings.transactionMs = Date.now() - transactionStartedAt;
+
+      return {
+        action: "ready" as const,
+        taskId: task.id,
+        orderId: task.orderId,
+        branchId: task.order.branchId,
+        tableSessionId: task.order.tableSessionId,
+        staffUserId: body.staffUserId,
+        orderRealtimeEvent,
+        ticketSync,
+        timings: { ...timings },
+      };
     });
+
+    this.logger.log({
+      message: "preparation_task.ready.critical_transaction",
+      taskId: transactionResult.taskId,
+      orderId: transactionResult.orderId,
+      branchId: transactionResult.branchId,
+      tableSessionId: transactionResult.tableSessionId,
+      durationMs: transactionResult.timings.transactionMs,
+      timings: transactionResult.timings,
+    });
+
+    this.schedulePreparationTaskPostCommit(transactionResult);
+
+    const responseStartedAt = Date.now();
+    const response = await this.getTaskResponse(taskId, this.prisma);
+    timings.responseHydrationMs = Date.now() - responseStartedAt;
+    this.logger.log({
+      message: "preparation_task.ready.response_ready",
+      taskId: transactionResult.taskId,
+      orderId: transactionResult.orderId,
+      branchId: transactionResult.branchId,
+      tableSessionId: transactionResult.tableSessionId,
+      durationMs: Date.now() - startedAt,
+      timings,
+    });
+
+    return response;
   }
 
   async cancel(taskId: string, body: CancelPreparationTaskDto = {}) {
-    return this.prisma.$transaction(async (tx) => {
+    const startedAt = Date.now();
+    const timings = {
+      staffAssertMs: 0,
+      taskLookupMs: 0,
+      taskUpdateMs: 0,
+      taskEventMs: 0,
+      ticketSyncMs: 0,
+      transactionMs: 0,
+      responseHydrationMs: 0,
+    };
+
+    const transactionStartedAt = Date.now();
+    const transactionResult = await this.prisma.$transaction(async (tx) => {
+      let stageStartedAt = Date.now();
       await this.assertStaffUserExists(body.staffUserId, tx);
+      timings.staffAssertMs += Date.now() - stageStartedAt;
 
+      stageStartedAt = Date.now();
       const task = await this.findTaskStatus(taskId, tx);
+      timings.taskLookupMs += Date.now() - stageStartedAt;
 
-      this.assertParentOrderActionable(task.order.status, 'cancel');
+      this.assertParentOrderActionable(task.order.status, "cancel");
 
       if (
         task.status === PreparationTaskStatus.ready ||
@@ -532,13 +679,14 @@ export class PreparationTasksService {
       ) {
         throw this.preparationBadRequest(
           task.status === PreparationTaskStatus.cancelled
-            ? 'task_already_cancelled'
-            : 'task_not_actionable',
+            ? "task_already_cancelled"
+            : "task_not_actionable",
         );
       }
 
       const reason = this.normalizeOptionalText(body.reason);
 
+      stageStartedAt = Date.now();
       await tx.preparationTask.update({
         where: { id: task.id },
         data: {
@@ -546,7 +694,9 @@ export class PreparationTasksService {
           cancelledAt: new Date(),
         },
       });
+      timings.taskUpdateMs += Date.now() - stageStartedAt;
 
+      stageStartedAt = Date.now();
       await tx.preparationTaskEvent.create({
         data: {
           preparationTaskId: task.id,
@@ -555,26 +705,59 @@ export class PreparationTasksService {
           metadata: reason ? { reason } : undefined,
         },
       });
+      timings.taskEventMs += Date.now() - stageStartedAt;
 
-      await this.realtimeEventsService.recordPreparationTaskCancelled(
-        task.id,
-        tx,
-      );
-      await this.kitchenTicketsService.syncTicketsForTaskCancelled(
-        task.id,
+      stageStartedAt = Date.now();
+      const ticketSync =
+        await this.kitchenTicketsService.syncTicketsForTaskCancelled(
+          task.id,
+          reason,
+          body.staffUserId,
+          tx,
+          { createPrintJobs: false, recordRealtimeEvents: false },
+        );
+      timings.ticketSyncMs += Date.now() - stageStartedAt;
+      timings.transactionMs = Date.now() - transactionStartedAt;
+
+      return {
+        action: "cancel" as const,
+        taskId: task.id,
+        orderId: task.orderId,
+        branchId: task.order.branchId,
+        tableSessionId: task.order.tableSessionId,
+        staffUserId: body.staffUserId,
         reason,
-        body.staffUserId,
-        tx,
-      );
-      await this.recalculateAttention(
-        task.order.tableSessionId,
-        tx,
-        'preparation_task_cancelled',
-        { preparationTaskId: task.id, orderId: task.orderId },
-      );
-
-      return this.getTaskResponse(task.id, tx);
+        ticketSync,
+        timings: { ...timings },
+      };
     });
+
+    this.logger.log({
+      message: "preparation_task.cancel.critical_transaction",
+      taskId: transactionResult.taskId,
+      orderId: transactionResult.orderId,
+      branchId: transactionResult.branchId,
+      tableSessionId: transactionResult.tableSessionId,
+      durationMs: transactionResult.timings.transactionMs,
+      timings: transactionResult.timings,
+    });
+
+    this.schedulePreparationTaskPostCommit(transactionResult);
+
+    const responseStartedAt = Date.now();
+    const response = await this.getTaskResponse(taskId, this.prisma);
+    timings.responseHydrationMs = Date.now() - responseStartedAt;
+    this.logger.log({
+      message: "preparation_task.cancel.response_ready",
+      taskId: transactionResult.taskId,
+      orderId: transactionResult.orderId,
+      branchId: transactionResult.branchId,
+      tableSessionId: transactionResult.tableSessionId,
+      durationMs: Date.now() - startedAt,
+      timings,
+    });
+
+    return response;
   }
 
   async cancelActiveTasksForOrderCancellation(
@@ -628,7 +811,7 @@ export class PreparationTasksService {
           actorStaffUserId: staffUserId,
           metadata: {
             reason,
-            source: 'order_cancellation',
+            source: "order_cancellation",
             orderId,
           },
         },
@@ -658,6 +841,7 @@ export class PreparationTasksService {
         status: true,
         order: {
           select: {
+            branchId: true,
             tableSessionId: true,
             status: true,
           },
@@ -666,7 +850,7 @@ export class PreparationTasksService {
     });
 
     if (!task) {
-      throw new NotFoundException('Preparation task not found');
+      throw new NotFoundException("Preparation task not found");
     }
 
     return task;
@@ -690,7 +874,7 @@ export class PreparationTasksService {
     });
 
     if (updatedOrder.count === 0) {
-      return;
+      return undefined;
     }
 
     await tx.orderEvent.create({
@@ -704,12 +888,13 @@ export class PreparationTasksService {
         metadata: {
           previousStatus: OrderStatus.cashier_accepted,
           nextStatus: OrderStatus.preparing,
-          action: 'start_preparation',
-          source: staffUserId ? 'kitchen' : 'system',
+          action: "start_preparation",
+          source: staffUserId ? "kitchen" : "system",
         },
       },
     });
-    await this.realtimeEventsService.recordOrderPreparationStarted(orderId, tx);
+
+    return "preparation_started" as const;
   }
 
   private async syncOrderPreparationReady(
@@ -736,7 +921,7 @@ export class PreparationTasksService {
 
     if (!reason) {
       if (order.preparationTasks.length === 0) {
-        return;
+        return undefined;
       }
 
       if (
@@ -744,7 +929,7 @@ export class PreparationTasksService {
           (task) => task.status === PreparationTaskStatus.ready,
         )
       ) {
-        return;
+        return undefined;
       }
     }
 
@@ -755,11 +940,11 @@ export class PreparationTasksService {
           ? []
           : order.preparationTasks.map((task) => ({ status: task.status })),
       },
-      'system_preparation_ready',
+      "system_preparation_ready",
     );
 
     if (deniedReason) {
-      return;
+      return undefined;
     }
 
     const now = new Date();
@@ -777,7 +962,7 @@ export class PreparationTasksService {
     });
 
     if (updatedOrder.count === 0) {
-      return;
+      return undefined;
     }
 
     await tx.orderEvent.create({
@@ -791,13 +976,14 @@ export class PreparationTasksService {
         metadata: {
           previousStatus: order.status,
           nextStatus: OrderStatus.ready,
-          action: 'system_preparation_ready',
-          source: 'system',
+          action: "system_preparation_ready",
+          source: "system",
           ...(reason ? { reason } : {}),
         },
       },
     });
-    await this.realtimeEventsService.recordOrderPreparationReady(orderId, tx);
+
+    return "preparation_ready" as const;
   }
 
   private async getTaskResponse(taskId: string, tx: PrismaExecutor) {
@@ -807,7 +993,7 @@ export class PreparationTasksService {
     });
 
     if (!task) {
-      throw new NotFoundException('Preparation task not found');
+      throw new NotFoundException("Preparation task not found");
     }
 
     return this.toTaskResponse(task);
@@ -827,16 +1013,16 @@ export class PreparationTasksService {
     });
 
     if (!staffUser) {
-      throw new NotFoundException('Staff user not found');
+      throw new NotFoundException("Staff user not found");
     }
   }
 
   private assertParentOrderActionable(
     orderStatus: OrderStatus,
-    action: 'start' | 'ready' | 'cancel',
+    action: "start" | "ready" | "cancel",
   ) {
     if (orderStatus === OrderStatus.cancelled) {
-      throw this.preparationBadRequest('order_cancelled');
+      throw this.preparationBadRequest("order_cancelled");
     }
 
     if (
@@ -845,10 +1031,10 @@ export class PreparationTasksService {
       orderStatus === OrderStatus.served ||
       isTerminalOrderStatus(orderStatus)
     ) {
-      throw this.preparationBadRequest('parent_order_terminal');
+      throw this.preparationBadRequest("parent_order_terminal");
     }
 
-    if (action === 'cancel') {
+    if (action === "cancel") {
       return;
     }
 
@@ -856,7 +1042,7 @@ export class PreparationTasksService {
       orderStatus !== OrderStatus.cashier_accepted &&
       orderStatus !== OrderStatus.preparing
     ) {
-      throw this.preparationBadRequest('parent_order_not_accepted');
+      throw this.preparationBadRequest("parent_order_not_accepted");
     }
   }
 
@@ -873,7 +1059,7 @@ export class PreparationTasksService {
   ) {
     const tasks = await tx.preparationTask.findMany({
       where: { orderId },
-      orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
+      orderBy: [{ createdAt: "asc" }, { id: "asc" }],
       select: { id: true },
     });
 
@@ -887,21 +1073,200 @@ export class PreparationTasksService {
     return tasks.length;
   }
 
+  private schedulePreparationTaskPostCommit(
+    result: PreparationTaskActionResult,
+  ) {
+    void this.runPreparationTaskPostCommit(result).catch((error) => {
+      this.logger.warn({
+        message:
+          "Preparation task post-commit side effects failed after committed task action",
+        action: result.action,
+        taskId: result.taskId,
+        orderId: result.orderId,
+        branchId: result.branchId,
+        tableSessionId: result.tableSessionId,
+        exception: this.safeRoutingExceptionSummary(error),
+      });
+    });
+  }
+
+  private async runPreparationTaskPostCommit(
+    result: PreparationTaskActionResult,
+  ) {
+    const steps: {
+      stage: string;
+      run: () => Promise<unknown>;
+    }[] = [];
+
+    if (result.action === "start") {
+      steps.push({
+        stage: "notification",
+        run: () =>
+          this.presenceNotificationsService.createPreparationStartedNotification(
+            result.taskId,
+          ),
+      });
+      steps.push({
+        stage: "task_realtime",
+        run: () =>
+          this.realtimeEventsService.recordPreparationTaskStarted(
+            result.taskId,
+            this.prisma,
+          ),
+      });
+    }
+
+    if (result.action === "ready") {
+      steps.push({
+        stage: "notification",
+        run: () =>
+          this.presenceNotificationsService.createPreparationReadyNotification(
+            result.taskId,
+          ),
+      });
+      steps.push({
+        stage: "task_realtime",
+        run: () =>
+          this.realtimeEventsService.recordPreparationTaskReady(
+            result.taskId,
+            this.prisma,
+          ),
+      });
+    }
+
+    if (result.action === "cancel") {
+      steps.push({
+        stage: "task_realtime",
+        run: () =>
+          this.realtimeEventsService.recordPreparationTaskCancelled(
+            result.taskId,
+            this.prisma,
+          ),
+      });
+    }
+
+    if (result.orderRealtimeEvent === "preparation_started") {
+      steps.push({
+        stage: "order_realtime",
+        run: () =>
+          this.realtimeEventsService.recordOrderPreparationStarted(
+            result.orderId,
+            this.prisma,
+          ),
+      });
+    }
+
+    if (result.orderRealtimeEvent === "preparation_ready") {
+      steps.push({
+        stage: "order_realtime",
+        run: () =>
+          this.realtimeEventsService.recordOrderPreparationReady(
+            result.orderId,
+            this.prisma,
+          ),
+      });
+    }
+
+    if (result.ticketSync) {
+      steps.push({
+        stage: "kds_ticket_realtime",
+        run: () => this.recordTicketSyncRealtime(result.ticketSync!),
+      });
+
+      if (result.ticketSync.voidTicket) {
+        steps.push({
+          stage: "kds_void_print_job",
+          run: () =>
+            this.kitchenTicketsService.createVoidPrintJobForTicket(
+              result.ticketSync!.ticketId,
+              result.staffUserId,
+              result.reason,
+            ),
+        });
+      }
+    }
+
+    steps.push({
+      stage: "table_attention_recalculate",
+      run: () =>
+        this.recalculateAttention(
+          result.tableSessionId,
+          this.prisma,
+          `preparation_task_${result.action}`,
+          { preparationTaskId: result.taskId, orderId: result.orderId },
+        ),
+    });
+
+    for (const step of steps) {
+      const startedAt = Date.now();
+
+      try {
+        await step.run();
+        this.logger.log({
+          message: "preparation_task.post_commit_side_effect",
+          action: result.action,
+          stage: step.stage,
+          taskId: result.taskId,
+          orderId: result.orderId,
+          branchId: result.branchId,
+          tableSessionId: result.tableSessionId,
+          durationMs: Date.now() - startedAt,
+        });
+      } catch (error) {
+        this.logger.warn({
+          message:
+            "Preparation task post-commit side effect failed; committed task status remains source of truth",
+          action: result.action,
+          stage: step.stage,
+          taskId: result.taskId,
+          orderId: result.orderId,
+          branchId: result.branchId,
+          tableSessionId: result.tableSessionId,
+          durationMs: Date.now() - startedAt,
+          exception: this.safeRoutingExceptionSummary(error),
+        });
+      }
+    }
+  }
+
+  private async recordTicketSyncRealtime(
+    ticketSync: KitchenTicketTaskSyncResult,
+  ) {
+    if (ticketSync.realtimeEvent === "ready") {
+      return this.realtimeEventsService.recordKitchenTicketReady(
+        ticketSync.ticketId,
+        this.prisma,
+      );
+    }
+
+    if (ticketSync.realtimeEvent === "cancelled") {
+      return this.realtimeEventsService.recordKitchenTicketCancelled(
+        ticketSync.ticketId,
+        this.prisma,
+      );
+    }
+
+    return this.realtimeEventsService.recordKitchenTicketUpdated(
+      ticketSync.ticketId,
+      this.prisma,
+    );
+  }
+
   private kdsRoutingBadRequest(
     orderId: string,
     branchId: string,
     details: Record<string, unknown>,
   ) {
     this.logger.error({
-      message: 'kds.routing_failed_for_order',
+      message: "kds.routing_failed_for_order",
       orderId,
       branchId,
       ...details,
     });
 
     return new BadRequestException({
-      message: 'Kitchen routing failed for accepted order',
-      code: 'kds_routing_failed',
+      message: "Kitchen routing failed for accepted order",
+      code: "kds_routing_failed",
       details: {
         orderId,
         branchId,
@@ -910,10 +1275,8 @@ export class PreparationTasksService {
     });
   }
 
-  private skippedItemsSummary(skippedItems: KdsRoutingResult['skippedItems']) {
-    const reasons = [
-      ...new Set(skippedItems.map((item) => item.reason)),
-    ];
+  private skippedItemsSummary(skippedItems: KdsRoutingResult["skippedItems"]) {
+    const reasons = [...new Set(skippedItems.map((item) => item.reason))];
 
     return {
       count: skippedItems.length,
@@ -930,15 +1293,15 @@ export class PreparationTasksService {
 
     return {
       name:
-        typeof record.name === 'string'
+        typeof record.name === "string"
           ? this.redactSensitiveText(record.name)
-          : 'Error',
+          : "Error",
       message:
-        typeof record.message === 'string'
+        typeof record.message === "string"
           ? this.redactSensitiveText(record.message)
-          : 'Unknown error',
+          : "Unknown error",
       code:
-        typeof record.code === 'string'
+        typeof record.code === "string"
           ? this.redactSensitiveText(record.code)
           : undefined,
     };
@@ -948,11 +1311,11 @@ export class PreparationTasksService {
     const redacted = value
       .replace(
         /(password|passwd|pwd|secret|token|api[_-]?key|authorization|cookie)(\s*[:=]\s*)([^,\s}]+)/gi,
-        '$1$2[redacted]',
+        "$1$2[redacted]",
       )
       .replace(
         /(postgres(?:ql)?:\/\/[^:\s]+:)([^@\s]+)(@)/gi,
-        '$1[redacted]$3',
+        "$1[redacted]$3",
       );
 
     return redacted.length > 1_000
@@ -962,7 +1325,7 @@ export class PreparationTasksService {
 
   private async recalculateAttention(
     tableSessionId: string,
-    tx: Prisma.TransactionClient,
+    tx: PrismaExecutor,
     source: string,
     metadata: Record<string, unknown>,
   ) {
@@ -1051,12 +1414,12 @@ export class PreparationTasksService {
       orderItem: {
         include: {
           modifierOptions: {
-            orderBy: [{ createdAt: 'asc' as const }],
+            orderBy: [{ createdAt: "asc" as const }],
           },
         },
       },
       events: {
-        orderBy: [{ createdAt: 'asc' as const }],
+        orderBy: [{ createdAt: "asc" as const }],
       },
     } satisfies Prisma.PreparationTaskInclude;
   }

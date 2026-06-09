@@ -1,15 +1,20 @@
-import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  Logger,
+  NotFoundException,
+} from "@nestjs/common";
 import {
   KitchenTicketStatus,
   KitchenTicketType,
   OrderStatus,
   PreparationStation,
   Prisma,
-} from '@prisma/client';
-import { PrismaService } from '../prisma/prisma.service';
-import { PrintJobsService } from '../print-jobs/print-jobs.service';
-import { RealtimeEventsService } from '../realtime-events/realtime-events.service';
-import { BranchKitchenTicketsQueryDto } from './dto/branch-kitchen-tickets-query.dto';
+} from "@prisma/client";
+import { PrismaService } from "../prisma/prisma.service";
+import { PrintJobsService } from "../print-jobs/print-jobs.service";
+import { RealtimeEventsService } from "../realtime-events/realtime-events.service";
+import { BranchKitchenTicketsQueryDto } from "./dto/branch-kitchen-tickets-query.dto";
 
 type PrismaExecutor = PrismaService | Prisma.TransactionClient;
 
@@ -28,10 +33,10 @@ const TICKET_TYPE_BY_STATION: Record<PreparationStation, KitchenTicketType> = {
 };
 
 const DISPLAY_PREFIX_BY_STATION: Record<PreparationStation, string> = {
-  [PreparationStation.barista]: 'B',
-  [PreparationStation.kitchen]: 'K',
-  [PreparationStation.dessert]: 'D',
-  [PreparationStation.cashier]: 'R',
+  [PreparationStation.barista]: "B",
+  [PreparationStation.kitchen]: "K",
+  [PreparationStation.dessert]: "D",
+  [PreparationStation.cashier]: "R",
 };
 
 export type KitchenTicketRoutingResult = {
@@ -42,7 +47,7 @@ export type KitchenTicketRoutingResult = {
   skippedItems: {
     orderItemId: string;
     station: PreparationStation;
-    reason: 'non_actionable_station';
+    reason: "non_actionable_station";
   }[];
   createdTicketCount: number;
   existingTicketCount: number;
@@ -89,6 +94,18 @@ type CreateTicketsForAcceptedOrderOptions = {
   recordRealtimeEvents?: boolean;
 };
 
+type SyncTicketsForTaskOptions = {
+  createPrintJobs?: boolean;
+  recordRealtimeEvents?: boolean;
+};
+
+export type KitchenTicketTaskSyncResult = {
+  ticketId: string;
+  realtimeEvent: "updated" | "ready" | "cancelled";
+  status: KitchenTicketStatus;
+  voidTicket?: boolean;
+};
+
 @Injectable()
 export class KitchenTicketsService {
   private readonly logger = new Logger(KitchenTicketsService.name);
@@ -127,7 +144,7 @@ export class KitchenTicketsService {
           },
         },
         items: {
-          orderBy: [{ createdAt: 'asc' }],
+          orderBy: [{ createdAt: "asc" }],
           select: {
             id: true,
             menuItemId: true,
@@ -137,7 +154,7 @@ export class KitchenTicketsService {
             itemSlugSnapshot: true,
             menuItem: { select: { station: true } },
             modifierOptions: {
-              orderBy: [{ createdAt: 'asc' }],
+              orderBy: [{ createdAt: "asc" }],
               select: {
                 modifierGroupId: true,
                 modifierOptionId: true,
@@ -155,7 +172,7 @@ export class KitchenTicketsService {
     });
 
     if (!order) {
-      throw new NotFoundException('Order not found');
+      throw new NotFoundException("Order not found");
     }
 
     const taskIdByOrderItemId = new Map<string, string>();
@@ -210,11 +227,15 @@ export class KitchenTicketsService {
     };
 
     if (order.status !== OrderStatus.cashier_accepted) {
-      return this.emptyRoutingResult(order.id, order.branchId, order.items.length);
+      return this.emptyRoutingResult(
+        order.id,
+        order.branchId,
+        order.items.length,
+      );
     }
 
     const itemsByStation = new Map<PreparationStation, typeof order.items>();
-    const skippedItems: KitchenTicketRoutingResult['skippedItems'] = [];
+    const skippedItems: KitchenTicketRoutingResult["skippedItems"] = [];
 
     for (const item of order.items) {
       const station = item.menuItem.station;
@@ -229,7 +250,7 @@ export class KitchenTicketsService {
         skippedItems.push({
           orderItemId: item.id,
           station,
-          reason: 'non_actionable_station',
+          reason: "non_actionable_station",
         });
         continue;
       }
@@ -305,7 +326,7 @@ export class KitchenTicketsService {
     };
 
     this.logger.log({
-      message: 'kds.create_tickets_for_order',
+      message: "kds.create_tickets_for_order",
       orderId: order.id,
       branchId: order.branchId,
       itemCount: result.itemCount,
@@ -319,14 +340,14 @@ export class KitchenTicketsService {
       timings,
       zeroTicketReason:
         result.actionableItemCount > 0 && ticketIds.length === 0
-          ? 'actionable_items_without_tickets'
+          ? "actionable_items_without_tickets"
           : undefined,
     });
 
     if (result.actionableItemCount > 0 && ticketIds.length === 0) {
       throw new BadRequestException({
-        message: 'Kitchen routing failed for accepted order',
-        code: 'kds_routing_failed',
+        message: "Kitchen routing failed for accepted order",
+        code: "kds_routing_failed",
         details: {
           orderId: order.id,
           branchId: order.branchId,
@@ -337,9 +358,7 @@ export class KitchenTicketsService {
           ticketCount: ticketIds.length,
           skippedItems: {
             count: skippedItems.length,
-            reasons: [
-              ...new Set(skippedItems.map((item) => item.reason)),
-            ],
+            reasons: [...new Set(skippedItems.map((item) => item.reason))],
           },
         },
       });
@@ -354,11 +373,11 @@ export class KitchenTicketsService {
     itemCount: number,
   ): KitchenTicketRoutingResult {
     this.logger.warn({
-      message: 'kds.create_tickets_for_order_skipped',
+      message: "kds.create_tickets_for_order_skipped",
       orderId,
       branchId,
       itemCount,
-      reason: 'order_not_cashier_accepted',
+      reason: "order_not_cashier_accepted",
     });
 
     return {
@@ -390,6 +409,20 @@ export class KitchenTicketsService {
     return createdCount;
   }
 
+  async createVoidPrintJobForTicket(
+    ticketId: string,
+    staffUserId: string | undefined,
+    reason?: string | null,
+  ) {
+    return this.prisma.$transaction((tx) =>
+      this.printJobsService.createForKitchenTicket(ticketId, tx, {
+        requestedByStaffUserId: staffUserId,
+        reason,
+        voidTicket: true,
+      }),
+    );
+  }
+
   async recordCreatedRealtimeEventsForTickets(
     ticketIds: string[],
     tx: PrismaExecutor = this.prisma,
@@ -411,24 +444,22 @@ export class KitchenTicketsService {
     });
 
     if (!branch) {
-      throw new NotFoundException('Branch not found');
+      throw new NotFoundException("Branch not found");
     }
 
-    const station = query.station ?? 'all';
-    const status = query.status ?? 'all';
-    const type = query.type ?? 'all';
+    const station = query.station ?? "all";
+    const status = query.status ?? "all";
+    const type = query.type ?? "all";
     const tickets = await this.prisma.kitchenTicket.findMany({
       where: {
         branchId,
-        ...(station === 'all'
+        ...(station === "all"
           ? {}
           : { station: station as PreparationStation }),
-        ...(status === 'all'
-          ? {}
-          : { status: status as KitchenTicketStatus }),
-        ...(type === 'all' ? {} : { type: type as KitchenTicketType }),
+        ...(status === "all" ? {} : { status: status as KitchenTicketStatus }),
+        ...(type === "all" ? {} : { type: type as KitchenTicketType }),
       },
-      orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
+      orderBy: [{ createdAt: "asc" }, { id: "asc" }],
       take: this.normalizeLimit(query.limit),
       include: this.ticketInclude(),
     });
@@ -452,7 +483,7 @@ export class KitchenTicketsService {
     });
 
     if (!ticket) {
-      throw new NotFoundException('Kitchen ticket not found');
+      throw new NotFoundException("Kitchen ticket not found");
     }
 
     return this.toTicketResponse(ticket);
@@ -469,49 +500,111 @@ export class KitchenTicketsService {
   async syncTicketsForTaskStarted(
     taskId: string,
     tx: Prisma.TransactionClient,
+    options: SyncTicketsForTaskOptions = {},
   ) {
+    const startedAt = Date.now();
+    const timings = {
+      ticketItemLookupMs: 0,
+      ticketItemUpdateMs: 0,
+      ticketUpdateMs: 0,
+      realtimeMs: 0,
+    };
+    let stageStartedAt = Date.now();
     const item = await this.findTicketItemForTask(taskId, tx);
+    timings.ticketItemLookupMs += Date.now() - stageStartedAt;
 
     if (!item) {
       return undefined;
     }
 
+    stageStartedAt = Date.now();
     await tx.kitchenTicketItem.update({
       where: { id: item.id },
       data: { status: KitchenTicketStatus.in_progress },
     });
+    timings.ticketItemUpdateMs += Date.now() - stageStartedAt;
 
+    let status = item.ticket.status;
     if (item.ticket.status === KitchenTicketStatus.queued) {
+      stageStartedAt = Date.now();
       await tx.kitchenTicket.update({
         where: { id: item.ticketId },
         data: { status: KitchenTicketStatus.in_progress },
       });
+      timings.ticketUpdateMs += Date.now() - stageStartedAt;
+      status = KitchenTicketStatus.in_progress;
     }
 
-    await this.realtimeEventsService.recordKitchenTicketUpdated(
-      item.ticketId,
-      tx,
-    );
+    if (options.recordRealtimeEvents ?? true) {
+      stageStartedAt = Date.now();
+      await this.realtimeEventsService.recordKitchenTicketUpdated(
+        item.ticketId,
+        tx,
+      );
+      timings.realtimeMs += Date.now() - stageStartedAt;
+    }
 
-    return this.findOne(item.ticketId, tx);
+    this.logger.log({
+      message: "kds.sync_ticket_for_task_started",
+      taskId,
+      ticketId: item.ticketId,
+      status,
+      durationMs: Date.now() - startedAt,
+      timings,
+    });
+
+    return {
+      ticketId: item.ticketId,
+      realtimeEvent: "updated" as const,
+      status,
+    };
   }
 
   async syncTicketsForTaskReady(
     taskId: string,
     tx: Prisma.TransactionClient,
+    options: SyncTicketsForTaskOptions = {},
   ) {
+    const startedAt = Date.now();
+    const timings = {
+      ticketItemLookupMs: 0,
+      ticketItemUpdateMs: 0,
+      aggregateSyncMs: 0,
+    };
+    let stageStartedAt = Date.now();
     const item = await this.findTicketItemForTask(taskId, tx);
+    timings.ticketItemLookupMs += Date.now() - stageStartedAt;
 
     if (!item) {
       return undefined;
     }
 
+    stageStartedAt = Date.now();
     await tx.kitchenTicketItem.update({
       where: { id: item.id },
       data: { status: KitchenTicketStatus.ready },
     });
+    timings.ticketItemUpdateMs += Date.now() - stageStartedAt;
 
-    return this.syncTicketAggregateStatus(item.ticketId, tx);
+    stageStartedAt = Date.now();
+    const result = await this.syncTicketAggregateStatus(
+      item.ticketId,
+      tx,
+      options,
+    );
+    timings.aggregateSyncMs += Date.now() - stageStartedAt;
+
+    this.logger.log({
+      message: "kds.sync_ticket_for_task_ready",
+      taskId,
+      ticketId: item.ticketId,
+      status: result?.status,
+      realtimeEvent: result?.realtimeEvent,
+      durationMs: Date.now() - startedAt,
+      timings,
+    });
+
+    return result;
   }
 
   async syncTicketsForTaskCancelled(
@@ -519,27 +612,63 @@ export class KitchenTicketsService {
     reason: string | null,
     staffUserId: string | undefined,
     tx: Prisma.TransactionClient,
+    options: SyncTicketsForTaskOptions = {},
   ) {
+    const startedAt = Date.now();
+    const timings = {
+      ticketItemLookupMs: 0,
+      ticketItemUpdateMs: 0,
+      aggregateSyncMs: 0,
+      printJobMs: 0,
+    };
+    let stageStartedAt = Date.now();
     const item = await this.findTicketItemForTask(taskId, tx);
+    timings.ticketItemLookupMs += Date.now() - stageStartedAt;
 
     if (!item) {
       return undefined;
     }
 
+    stageStartedAt = Date.now();
     await tx.kitchenTicketItem.update({
       where: { id: item.id },
       data: { status: KitchenTicketStatus.cancelled },
     });
+    timings.ticketItemUpdateMs += Date.now() - stageStartedAt;
 
-    const ticket = await this.syncTicketAggregateStatus(item.ticketId, tx);
+    stageStartedAt = Date.now();
+    const ticket = await this.syncTicketAggregateStatus(
+      item.ticketId,
+      tx,
+      options,
+    );
+    timings.aggregateSyncMs += Date.now() - stageStartedAt;
 
-    if (ticket?.ticket.status === KitchenTicketStatus.cancelled) {
+    if (
+      ticket?.status === KitchenTicketStatus.cancelled &&
+      (options.createPrintJobs ?? true)
+    ) {
+      stageStartedAt = Date.now();
       await this.printJobsService.createForKitchenTicket(item.ticketId, tx, {
         requestedByStaffUserId: staffUserId,
         reason,
         voidTicket: true,
       });
+      timings.printJobMs += Date.now() - stageStartedAt;
+
+      ticket.voidTicket = true;
     }
+
+    this.logger.log({
+      message: "kds.sync_ticket_for_task_cancelled",
+      taskId,
+      ticketId: item.ticketId,
+      status: ticket?.status,
+      realtimeEvent: ticket?.realtimeEvent,
+      voidTicket: ticket?.voidTicket,
+      durationMs: Date.now() - startedAt,
+      timings,
+    });
 
     return ticket;
   }
@@ -638,22 +767,20 @@ export class KitchenTicketsService {
         (item: any) => item.status === KitchenTicketStatus.cancelled,
       ).length,
       printJobsTotal: printJobs.length,
-      printJobsPending: printJobs.filter(
-        (job: any) => job.status === 'pending',
-      ).length,
-      printJobsPrinted: printJobs.filter(
-        (job: any) => job.status === 'printed',
-      ).length,
-      printJobsFailed: printJobs.filter(
-        (job: any) => job.status === 'failed',
-      ).length,
+      printJobsPending: printJobs.filter((job: any) => job.status === "pending")
+        .length,
+      printJobsPrinted: printJobs.filter((job: any) => job.status === "printed")
+        .length,
+      printJobsFailed: printJobs.filter((job: any) => job.status === "failed")
+        .length,
     };
   }
 
   private async syncTicketAggregateStatus(
     ticketId: string,
     tx: Prisma.TransactionClient,
-  ) {
+    options: SyncTicketsForTaskOptions = {},
+  ): Promise<KitchenTicketTaskSyncResult | undefined> {
     const ticket = await tx.kitchenTicket.findUnique({
       where: { id: ticketId },
       include: { items: true },
@@ -676,12 +803,19 @@ export class KitchenTicketsService {
           cancelledAt: now,
         },
       });
-      await this.realtimeEventsService.recordKitchenTicketCancelled(
-        ticketId,
-        tx,
-      );
+      if (options.recordRealtimeEvents ?? true) {
+        await this.realtimeEventsService.recordKitchenTicketCancelled(
+          ticketId,
+          tx,
+        );
+      }
 
-      return this.findOne(ticketId, tx);
+      return {
+        ticketId,
+        realtimeEvent: "cancelled",
+        status: KitchenTicketStatus.cancelled,
+        voidTicket: true,
+      };
     }
 
     if (
@@ -695,24 +829,40 @@ export class KitchenTicketsService {
           readyAt: now,
         },
       });
-      await this.realtimeEventsService.recordKitchenTicketReady(ticketId, tx);
+      if (options.recordRealtimeEvents ?? true) {
+        await this.realtimeEventsService.recordKitchenTicketReady(ticketId, tx);
+      }
 
-      return this.findOne(ticketId, tx);
+      return {
+        ticketId,
+        realtimeEvent: "ready",
+        status: KitchenTicketStatus.ready,
+      };
     }
 
+    let status = ticket.status;
     if (
       ticket.status === KitchenTicketStatus.queued &&
-      activeItems.some((item) => item.status === KitchenTicketStatus.in_progress)
+      activeItems.some(
+        (item) => item.status === KitchenTicketStatus.in_progress,
+      )
     ) {
       await tx.kitchenTicket.update({
         where: { id: ticketId },
         data: { status: KitchenTicketStatus.in_progress },
       });
+      status = KitchenTicketStatus.in_progress;
     }
 
-    await this.realtimeEventsService.recordKitchenTicketUpdated(ticketId, tx);
+    if (options.recordRealtimeEvents ?? true) {
+      await this.realtimeEventsService.recordKitchenTicketUpdated(ticketId, tx);
+    }
 
-    return this.findOne(ticketId, tx);
+    return {
+      ticketId,
+      realtimeEvent: "updated",
+      status,
+    };
   }
 
   private async findTicketItemForTask(
@@ -805,10 +955,10 @@ export class KitchenTicketsService {
     }
 
     throw new BadRequestException({
-      message: 'Kitchen routing failed for accepted order',
-      code: 'kds_routing_failed',
+      message: "Kitchen routing failed for accepted order",
+      code: "kds_routing_failed",
       details: {
-        reason: 'ticket_sequence_collision',
+        reason: "ticket_sequence_collision",
         orderId: order.id,
         branchId: order.branchId,
         station,
@@ -834,19 +984,19 @@ export class KitchenTicketsService {
       return false;
     }
 
-    if (error.code !== 'P2002') {
+    if (error.code !== "P2002") {
       return false;
     }
 
     const target = error.meta?.target;
 
     return Array.isArray(target)
-      ? target.includes('branchId') && target.includes('displayCode')
-      : String(target ?? '').includes('displayCode');
+      ? target.includes("branchId") && target.includes("displayCode")
+      : String(target ?? "").includes("displayCode");
   }
 
   private formatDisplayCode(station: PreparationStation, sequence: number) {
-    return `${DISPLAY_PREFIX_BY_STATION[station]}${String(sequence).padStart(4, '0')}`;
+    return `${DISPLAY_PREFIX_BY_STATION[station]}${String(sequence).padStart(4, "0")}`;
   }
 
   private normalizeLimit(limit?: number) {
@@ -876,7 +1026,11 @@ export class KitchenTicketsService {
       floor,
       items,
       printJobs,
-      lifecycle: this.getTicketLifecycleSummary({ ...ticketFields, items, printJobs }),
+      lifecycle: this.getTicketLifecycleSummary({
+        ...ticketFields,
+        items,
+        printJobs,
+      }),
     };
   }
 
@@ -917,7 +1071,7 @@ export class KitchenTicketsService {
         },
       },
       items: {
-        orderBy: [{ createdAt: 'asc' as const }],
+        orderBy: [{ createdAt: "asc" as const }],
         include: {
           preparationTask: {
             select: {
@@ -931,7 +1085,7 @@ export class KitchenTicketsService {
         },
       },
       printJobs: {
-        orderBy: [{ createdAt: 'desc' as const }],
+        orderBy: [{ createdAt: "desc" as const }],
         include: {
           printerStation: true,
         },
