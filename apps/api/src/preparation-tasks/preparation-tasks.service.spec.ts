@@ -219,6 +219,185 @@ function buildService(input: {
   return { service, tx, realtimeEventsService, kitchenTicketsService };
 }
 
+function acceptedOrderForCreate(
+  station: PreparationStation,
+  itemNameSnapshot = 'Espresso',
+) {
+  return {
+    id: 'order-1',
+    companyId: 'company-1',
+    branchId: 'branch-1',
+    status: OrderStatus.cashier_accepted,
+    tableSessionId: 'session-1',
+    items: [
+      {
+        id: 'order-item-1',
+        quantity: 1,
+        notes: null,
+        itemNameSnapshot,
+        itemSlugSnapshot: itemNameSnapshot.toLowerCase().replace(/\s+/g, '-'),
+        menuItem: { station },
+      },
+    ],
+  };
+}
+
+function ticketRoutingForCreate(
+  station: PreparationStation,
+  ticketIds = ['ticket-1'],
+) {
+  return {
+    tickets: ticketIds.map((id) => ({ ticket: { id } })),
+    ticketIds,
+    itemCount: 1,
+    actionableItemCount: ticketIds.length > 0 ? 1 : 0,
+    stationsDetected: ticketIds.length > 0 ? [station] : [],
+    skippedItems: [],
+    createdTicketCount: ticketIds.length,
+    existingTicketCount: 0,
+  };
+}
+
+function buildCreateTasksService(input: {
+  station: PreparationStation;
+  itemNameSnapshot?: string;
+  existingTask?: boolean;
+  ticketIds?: string[];
+}) {
+  const order = acceptedOrderForCreate(
+    input.station,
+    input.itemNameSnapshot,
+  );
+  const tx = {
+    order: {
+      findUnique: jest.fn().mockResolvedValue(order),
+      updateMany: jest.fn().mockResolvedValue({ count: 1 }),
+    },
+    preparationTask: {
+      findUnique: jest
+        .fn()
+        .mockResolvedValue(input.existingTask ? { id: 'task-existing' } : null),
+      create: jest.fn().mockResolvedValue({ id: 'task-1' }),
+    },
+    orderEvent: {
+      create: jest.fn().mockResolvedValue({ id: 'order-event-1' }),
+    },
+  };
+  const realtimeEventsService = {
+    recordPreparationTaskCreated: jest.fn().mockResolvedValue({}),
+    recordPreparationTaskStarted: jest.fn().mockResolvedValue({}),
+    recordPreparationTaskReady: jest.fn().mockResolvedValue({}),
+    recordPreparationTaskCancelled: jest.fn().mockResolvedValue({}),
+    recordOrderPreparationStarted: jest.fn().mockResolvedValue({}),
+    recordOrderPreparationReady: jest.fn().mockResolvedValue({}),
+  };
+  const ticketRouting = ticketRoutingForCreate(
+    input.station,
+    input.ticketIds,
+  );
+  const kitchenTicketsService = {
+    createTicketsForAcceptedOrder: jest.fn().mockResolvedValue(ticketRouting),
+    syncTicketsForTaskStarted: jest.fn().mockResolvedValue(undefined),
+    syncTicketsForTaskReady: jest.fn().mockResolvedValue(undefined),
+    syncTicketsForTaskCancelled: jest.fn().mockResolvedValue(undefined),
+  };
+  const service = new PreparationTasksService(
+    {} as never,
+    {
+      createPreparationStartedNotification: jest.fn().mockResolvedValue({}),
+      createPreparationReadyNotification: jest.fn().mockResolvedValue({}),
+    } as never,
+    realtimeEventsService as never,
+    { recalculateForTableSession: jest.fn().mockResolvedValue({}) } as never,
+    kitchenTicketsService as never,
+  );
+
+  return { service, tx, realtimeEventsService, kitchenTicketsService };
+}
+
+describe('PreparationTasksService accepted-order KDS routing', () => {
+  it.each([
+    ['Espresso', PreparationStation.barista],
+    ['Spanish Latte', PreparationStation.barista],
+    ['Avocado Toast', PreparationStation.kitchen],
+    ['Chocolate Cake', PreparationStation.dessert],
+  ])('routes accepted %s items to %s KDS tasks and tickets', async (name, station) => {
+    const { service, tx, realtimeEventsService, kitchenTicketsService } =
+      buildCreateTasksService({
+        station,
+        itemNameSnapshot: name,
+      });
+
+    const result = await service.createTasksForAcceptedOrder(
+      'order-1',
+      'staff-1',
+      tx as never,
+    );
+
+    expect(tx.preparationTask.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        orderItemId: 'order-item-1',
+        station,
+        itemNameSnapshot: name,
+      }),
+      select: { id: true },
+    });
+    expect(
+      realtimeEventsService.recordPreparationTaskCreated,
+    ).toHaveBeenCalledWith('task-1', tx);
+    expect(
+      kitchenTicketsService.createTicketsForAcceptedOrder,
+    ).toHaveBeenCalledWith('order-1', 'staff-1', tx, {
+      createPrintJobs: undefined,
+    });
+    expect(result).toMatchObject({
+      actionableItemCount: 1,
+      stationsDetected: [station],
+      createdTaskCount: 1,
+      activeTaskCount: 1,
+      ticketRouting: expect.objectContaining({
+        ticketIds: ['ticket-1'],
+        createdTicketCount: 1,
+      }),
+    });
+  });
+
+  it('does not duplicate preparation tasks when repairing an accepted order', async () => {
+    const { service, tx } = buildCreateTasksService({
+      station: PreparationStation.barista,
+      existingTask: true,
+    });
+
+    const result = await service.createTasksForAcceptedOrder(
+      'order-1',
+      'staff-1',
+      tx as never,
+    );
+
+    expect(tx.preparationTask.create).not.toHaveBeenCalled();
+    expect(result).toMatchObject({
+      existingTaskCount: 1,
+      activeTaskCount: 1,
+    });
+  });
+
+  it('rejects accepted actionable orders that would create zero KDS tickets', async () => {
+    const { service, tx } = buildCreateTasksService({
+      station: PreparationStation.barista,
+      ticketIds: [],
+    });
+
+    await expect(
+      service.createTasksForAcceptedOrder('order-1', 'staff-1', tx as never),
+    ).rejects.toMatchObject({
+      response: expect.objectContaining({
+        message: 'Kitchen routing failed for accepted order',
+        code: 'kds_routing_failed',
+      }),
+    });
+  });
+});
+
 describe('PreparationTasksService lifecycle hardening', () => {
   it('cannot start a task when the parent order is cancelled', async () => {
     const { service } = buildService({

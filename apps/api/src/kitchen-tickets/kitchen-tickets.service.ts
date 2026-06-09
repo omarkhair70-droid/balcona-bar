@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import {
   KitchenTicketStatus,
   KitchenTicketType,
@@ -34,8 +34,29 @@ const DISPLAY_PREFIX_BY_STATION: Record<PreparationStation, string> = {
   [PreparationStation.cashier]: 'R',
 };
 
+export type KitchenTicketRoutingResult = {
+  tickets: any[];
+  ticketIds: string[];
+  itemCount: number;
+  actionableItemCount: number;
+  stationsDetected: PreparationStation[];
+  skippedItems: {
+    orderItemId: string;
+    station: PreparationStation;
+    reason: 'non_actionable_station';
+  }[];
+  createdTicketCount: number;
+  existingTicketCount: number;
+};
+
+type CreateTicketsForAcceptedOrderOptions = {
+  createPrintJobs?: boolean;
+};
+
 @Injectable()
 export class KitchenTicketsService {
+  private readonly logger = new Logger(KitchenTicketsService.name);
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly printJobsService: PrintJobsService,
@@ -46,6 +67,7 @@ export class KitchenTicketsService {
     orderId: string,
     staffUserId: string | undefined,
     tx: Prisma.TransactionClient,
+    options: CreateTicketsForAcceptedOrderOptions = {},
   ) {
     const order = await tx.order.findUnique({
       where: { id: orderId },
@@ -101,15 +123,27 @@ export class KitchenTicketsService {
     }
 
     if (order.status !== OrderStatus.cashier_accepted) {
-      return [];
+      return this.emptyRoutingResult(orderId, order.branchId, order.items.length);
     }
 
     const itemsByStation = new Map<PreparationStation, typeof order.items>();
+    const skippedItems: KitchenTicketRoutingResult['skippedItems'] = [];
+    const taskIdByOrderItemId = new Map<string, string>();
 
     for (const item of order.items) {
       const station = item.menuItem.station;
+      const taskId = item.preparationTask?.id;
+
+      if (taskId) {
+        taskIdByOrderItemId.set(item.id, taskId);
+      }
 
       if (!ACTIONABLE_STATIONS.includes(station)) {
+        skippedItems.push({
+          orderItemId: item.id,
+          station,
+          reason: 'non_actionable_station',
+        });
         continue;
       }
 
@@ -119,7 +153,29 @@ export class KitchenTicketsService {
       ]);
     }
 
+    const actionableItems = [...itemsByStation.values()].flat();
+    const actionableMissingTaskIds = actionableItems
+      .filter((item) => !taskIdByOrderItemId.has(item.id))
+      .map((item) => item.id);
+
+    if (actionableMissingTaskIds.length > 0) {
+      const tasks = await tx.preparationTask.findMany({
+        where: {
+          orderId: order.id,
+          orderItemId: { in: actionableMissingTaskIds },
+        },
+        select: { id: true, orderItemId: true },
+      });
+
+      for (const task of tasks) {
+        taskIdByOrderItemId.set(task.orderItemId, task.id);
+      }
+    }
+
     const tickets: any[] = [];
+    const ticketIds: string[] = [];
+    let createdTicketCount = 0;
+    let existingTicketCount = 0;
 
     for (const [station, stationItems] of itemsByStation.entries()) {
       const type = TICKET_TYPE_BY_STATION[station];
@@ -135,6 +191,8 @@ export class KitchenTicketsService {
       });
 
       if (existingTicket) {
+        ticketIds.push(existingTicket.id);
+        existingTicketCount += 1;
         tickets.push(await this.findOne(existingTicket.id, tx));
         continue;
       }
@@ -161,7 +219,7 @@ export class KitchenTicketsService {
           items: {
             create: stationItems.map((item) => ({
               orderItemId: item.id,
-              preparationTaskId: item.preparationTask?.id,
+              preparationTaskId: taskIdByOrderItemId.get(item.id),
               menuItemId: item.menuItemId,
               itemNameSnapshot: item.itemNameSnapshot,
               itemSlugSnapshot: item.itemSlugSnapshot,
@@ -188,13 +246,84 @@ export class KitchenTicketsService {
         ticket.id,
         tx,
       );
-      await this.printJobsService.createForKitchenTicket(ticket.id, tx, {
-        requestedByStaffUserId: staffUserId,
-      });
+      if (options.createPrintJobs ?? true) {
+        await this.printJobsService.createForKitchenTicket(ticket.id, tx, {
+          requestedByStaffUserId: staffUserId,
+        });
+      }
+      ticketIds.push(ticket.id);
+      createdTicketCount += 1;
       tickets.push(await this.findOne(ticket.id, tx));
     }
 
-    return tickets;
+    const result: KitchenTicketRoutingResult = {
+      tickets,
+      ticketIds,
+      itemCount: order.items.length,
+      actionableItemCount: actionableItems.length,
+      stationsDetected: [...itemsByStation.keys()],
+      skippedItems,
+      createdTicketCount,
+      existingTicketCount,
+    };
+
+    this.logger.log({
+      message: 'kds.create_tickets_for_order',
+      orderId: order.id,
+      branchId: order.branchId,
+      itemCount: result.itemCount,
+      actionableItemCount: result.actionableItemCount,
+      stationsDetected: result.stationsDetected,
+      createdTicketCount,
+      existingTicketCount,
+      ticketCount: ticketIds.length,
+      skippedItemCount: skippedItems.length,
+      zeroTicketReason:
+        result.actionableItemCount > 0 && ticketIds.length === 0
+          ? 'actionable_items_without_tickets'
+          : undefined,
+    });
+
+    if (result.actionableItemCount > 0 && ticketIds.length === 0) {
+      throw new BadRequestException({
+        message: 'Kitchen routing failed for accepted order',
+        code: 'kds_routing_failed',
+        details: {
+          orderId: order.id,
+          branchId: order.branchId,
+          actionableItemCount: result.actionableItemCount,
+          stationsDetected: result.stationsDetected,
+          ticketCount: ticketIds.length,
+        },
+      });
+    }
+
+    return result;
+  }
+
+  private emptyRoutingResult(
+    orderId: string,
+    branchId: string,
+    itemCount: number,
+  ): KitchenTicketRoutingResult {
+    this.logger.warn({
+      message: 'kds.create_tickets_for_order_skipped',
+      orderId,
+      branchId,
+      itemCount,
+      reason: 'order_not_cashier_accepted',
+    });
+
+    return {
+      tickets: [],
+      ticketIds: [],
+      itemCount,
+      actionableItemCount: 0,
+      stationsDetected: [],
+      skippedItems: [],
+      createdTicketCount: 0,
+      existingTicketCount: 0,
+    };
   }
 
   async findForBranch(

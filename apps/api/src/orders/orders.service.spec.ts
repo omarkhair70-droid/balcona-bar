@@ -78,6 +78,28 @@ function orderResponse(status: OrderStatus) {
   };
 }
 
+const kdsRoutingResult = {
+  orderId: 'order-1',
+  branchId: 'branch-1',
+  itemCount: 1,
+  actionableItemCount: 1,
+  stationsDetected: ['barista'],
+  skippedItems: [],
+  createdTaskCount: 1,
+  existingTaskCount: 0,
+  activeTaskCount: 1,
+  ticketRouting: {
+    tickets: [{ ticket: { id: 'ticket-1' } }],
+    ticketIds: ['ticket-1'],
+    itemCount: 1,
+    actionableItemCount: 1,
+    stationsDetected: ['barista'],
+    skippedItems: [],
+    createdTicketCount: 1,
+    existingTicketCount: 0,
+  },
+};
+
 function lifecycleErrorCode(error: unknown) {
   const response =
     typeof (error as { getResponse?: () => unknown }).getResponse === 'function'
@@ -123,6 +145,7 @@ function buildService(input: {
             : input.transitionOrder
               ? {
                   id: 'order-1',
+                  branchId: 'branch-1',
                   tableSessionId: 'session-1',
                   status: input.transitionOrder.status,
                   preparationTasks: input.transitionOrder.preparationTasks ?? [],
@@ -149,7 +172,7 @@ function buildService(input: {
   const preparationTasksService = {
     createTasksForAcceptedOrder: input.preparationRejects
       ? jest.fn().mockRejectedValue(new Error('Ticket printer token=secret failed'))
-      : jest.fn().mockResolvedValue(undefined),
+      : jest.fn().mockResolvedValue(kdsRoutingResult),
     cancelActiveTasksForOrderCancellation: jest.fn().mockResolvedValue(['task-1']),
   };
   const presenceNotificationsService = {
@@ -543,9 +566,9 @@ describe('OrdersService lifecycle hardening', () => {
     expect(preparationTasksService.createTasksForAcceptedOrder).not.toHaveBeenCalled();
   });
 
-  it('keeps the accepted order when post-accept automation fails', async () => {
+  it('rejects accept with a readable KDS routing error when task creation fails', async () => {
     const loggerSpy = jest
-      .spyOn(Logger.prototype, 'warn')
+      .spyOn(Logger.prototype, 'error')
       .mockImplementation();
     const { service, tx, preparationTasksService, inventoryService } =
       buildService({
@@ -554,7 +577,13 @@ describe('OrdersService lifecycle hardening', () => {
         preparationRejects: true,
       });
 
-    const result = await service.accept('order-1', {}, 'staff-1', 'req-accept');
+    await expect(service.accept('order-1', {}, 'staff-1', 'req-accept')).rejects
+      .toMatchObject({
+        response: expect.objectContaining({
+          message: 'Kitchen routing failed for accepted order',
+          code: 'kds_routing_failed',
+        }),
+      });
 
     expect(tx.order.updateMany).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -565,7 +594,6 @@ describe('OrdersService lifecycle hardening', () => {
     );
     expect(inventoryService.consumeStockForAcceptedOrder).toHaveBeenCalled();
     expect(preparationTasksService.createTasksForAcceptedOrder).toHaveBeenCalled();
-    expect(result.order.status).toBe(OrderStatus.cashier_accepted);
 
     const loggedPayload = JSON.stringify(loggerSpy.mock.calls[0][0]);
 

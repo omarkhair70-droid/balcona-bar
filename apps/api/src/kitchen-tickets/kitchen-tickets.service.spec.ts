@@ -56,6 +56,17 @@ function buildOrder() {
         preparationTask: { id: 'task-2' },
       },
       {
+        id: 'item-4',
+        menuItemId: 'menu-4',
+        quantity: 1,
+        notes: null,
+        itemNameSnapshot: 'Chocolate Cake',
+        itemSlugSnapshot: 'chocolate-cake',
+        menuItem: { station: PreparationStation.dessert },
+        modifierOptions: [],
+        preparationTask: { id: 'task-4' },
+      },
+      {
         id: 'item-3',
         menuItemId: 'menu-3',
         quantity: 1,
@@ -153,10 +164,11 @@ describe('KitchenTicketsService', () => {
     await service.createTicketsForAcceptedOrder('order-1', 'staff-1', tx as never);
     await service.createTicketsForAcceptedOrder('order-1', 'staff-1', tx as never);
 
-    expect(tx.kitchenTicket.create).toHaveBeenCalledTimes(2);
-    expect(printJobsService.createForKitchenTicket).toHaveBeenCalledTimes(2);
+    expect(tx.kitchenTicket.create).toHaveBeenCalledTimes(3);
+    expect(printJobsService.createForKitchenTicket).toHaveBeenCalledTimes(3);
     expect(createdTickets.map((entry) => entry.data.station).sort()).toEqual([
       PreparationStation.barista,
+      PreparationStation.dessert,
       PreparationStation.kitchen,
     ]);
     expect(createdTickets[0].data.items.create[0].modifiersSnapshot).toEqual([
@@ -165,11 +177,73 @@ describe('KitchenTicketsService', () => {
         optionName: 'Medium',
       }),
     ]);
+    expect(createdTickets[0].data.items.create[0].preparationTaskId).toBe(
+      'task-1',
+    );
     expect(
       createdTickets.some(
-        (entry) => entry.data.type === KitchenTicketType.dessert_order,
+        (entry) => entry.data.type === KitchenTicketType.receipt,
       ),
     ).toBe(false);
+  });
+
+  it('links ticket items to preparation tasks found after task creation', async () => {
+    const createdTickets: any[] = [];
+    const order: any = buildOrder();
+    order.items = [
+      {
+        ...order.items[0],
+        preparationTask: null,
+      },
+    ];
+    const tx = {
+      $executeRaw: jest.fn().mockResolvedValue(undefined),
+      order: {
+        findUnique: jest.fn().mockResolvedValue(order),
+      },
+      preparationTask: {
+        findMany: jest
+          .fn()
+          .mockResolvedValue([{ id: 'task-refetched', orderItemId: 'item-1' }]),
+      },
+      kitchenTicket: {
+        count: jest.fn().mockImplementation(() => createdTickets.length),
+        findUnique: jest.fn().mockImplementation((args) => {
+          if (args.where.id) {
+            const ticket = createdTickets.find((entry) => entry.id === args.where.id);
+
+            return ticket ? ticketResponse(ticket.id, ticket.data) : null;
+          }
+
+          return null;
+        }),
+        create: jest.fn().mockImplementation((args) => {
+          const id = `ticket-${createdTickets.length + 1}`;
+
+          createdTickets.push({ id, data: args.data });
+
+          return { id };
+        }),
+      },
+    };
+    const service = new KitchenTicketsService(
+      {} as never,
+      { createForKitchenTicket: jest.fn().mockResolvedValue({}) } as never,
+      { recordKitchenTicketCreated: jest.fn().mockResolvedValue({}) } as never,
+    );
+
+    await service.createTicketsForAcceptedOrder('order-1', 'staff-1', tx as never);
+
+    expect(tx.preparationTask.findMany).toHaveBeenCalledWith({
+      where: {
+        orderId: 'order-1',
+        orderItemId: { in: ['item-1'] },
+      },
+      select: { id: true, orderItemId: true },
+    });
+    expect(createdTickets[0].data.items.create[0].preparationTaskId).toBe(
+      'task-refetched',
+    );
   });
 
   it('marks a ticket ready when all ticket items are ready', async () => {

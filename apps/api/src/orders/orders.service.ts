@@ -341,7 +341,12 @@ export class OrdersService {
 
         const order = await tx.order.findUnique({
           where: { id: orderId },
-          select: { id: true, tableSessionId: true, status: true },
+          select: {
+            id: true,
+            branchId: true,
+            tableSessionId: true,
+            status: true,
+          },
         });
 
         if (!order) {
@@ -371,6 +376,29 @@ export class OrdersService {
           actorStaffUserId,
           tx,
         );
+
+        stage = 'preparation_tasks';
+        const kdsRouting =
+          await this.preparationTasksService.createTasksForAcceptedOrder(
+            order.id,
+            actorStaffUserId,
+            tx,
+          );
+        this.logger.log({
+          message: 'accept.preparation_tasks',
+          requestId,
+          orderId: order.id,
+          branchId: order.branchId,
+          itemCount: kdsRouting.itemCount,
+          actionableItemCount: kdsRouting.actionableItemCount,
+          stationsDetected: kdsRouting.stationsDetected,
+          createdTaskCount: kdsRouting.createdTaskCount,
+          existingTaskCount: kdsRouting.existingTaskCount,
+          createdTicketCount: kdsRouting.ticketRouting.createdTicketCount,
+          existingTicketCount: kdsRouting.ticketRouting.existingTicketCount,
+          ticketCount: kdsRouting.ticketRouting.ticketIds.length,
+          skippedItemCount: kdsRouting.skippedItems.length,
+        });
 
         stage = 'status_update';
         await tx.orderEvent.create({
@@ -409,17 +437,6 @@ export class OrdersService {
       previousStatus: transactionResult.previousStatus,
       targetStatus: transactionResult.targetStatus,
     }, [
-      {
-        stage: 'preparation_tasks',
-        run: () =>
-          this.prisma.$transaction((tx) =>
-            this.preparationTasksService.createTasksForAcceptedOrder(
-              transactionResult.orderId,
-              transactionResult.actorStaffUserId,
-              tx,
-            ),
-          ),
-      },
       {
         stage: 'notification',
         run: () =>
@@ -1270,6 +1287,22 @@ export class OrdersService {
       this.logger.error(payload);
     }
 
+    if (
+      context.failureStage === 'preparation_tasks' &&
+      !(error instanceof HttpException)
+    ) {
+      return new BadRequestException({
+        message: 'Kitchen routing failed for accepted order',
+        code: 'kds_routing_failed',
+        details: {
+          orderId: context.orderId,
+          sessionId: context.sessionId,
+          action: context.action,
+          failureStage: context.failureStage,
+        },
+      });
+    }
+
     return error;
   }
 
@@ -1380,6 +1413,7 @@ export class OrdersService {
         unitPriceMinorSnapshot: item.unitPriceMinorSnapshot,
         lineTotalMinorSnapshot: item.lineTotalMinorSnapshot,
         currency: item.currency,
+        station: item.menuItem?.station,
         createdAt: item.createdAt,
         updatedAt: item.updatedAt,
         modifierOptions: item.modifierOptions.map((option: any) => ({
@@ -1519,6 +1553,11 @@ export class OrdersService {
       items: {
         orderBy: [{ createdAt: 'asc' as const }],
         include: {
+          menuItem: {
+            select: {
+              station: true,
+            },
+          },
           modifierOptions: {
             orderBy: [{ createdAt: 'asc' as const }],
           },

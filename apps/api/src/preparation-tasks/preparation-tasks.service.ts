@@ -1,6 +1,7 @@
 import {
   BadRequestException,
   Injectable,
+  Logger,
   NotFoundException,
 } from '@nestjs/common';
 import {
@@ -13,7 +14,10 @@ import {
   Prisma,
 } from '@prisma/client';
 import { TableAttentionService } from '../autopilot/table-attention.service';
-import { KitchenTicketsService } from '../kitchen-tickets/kitchen-tickets.service';
+import {
+  KitchenTicketRoutingResult,
+  KitchenTicketsService,
+} from '../kitchen-tickets/kitchen-tickets.service';
 import { PresenceNotificationsService } from '../presence-notifications/presence-notifications.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { RealtimeEventsService } from '../realtime-events/realtime-events.service';
@@ -33,8 +37,31 @@ const ACTIONABLE_STATIONS: PreparationStation[] = [
 
 type PrismaExecutor = PrismaService | Prisma.TransactionClient;
 
+export type KdsRoutingResult = {
+  orderId: string;
+  branchId: string;
+  itemCount: number;
+  actionableItemCount: number;
+  stationsDetected: PreparationStation[];
+  skippedItems: {
+    orderItemId: string;
+    station: PreparationStation;
+    reason: 'non_actionable_station';
+  }[];
+  createdTaskCount: number;
+  existingTaskCount: number;
+  activeTaskCount: number;
+  ticketRouting: KitchenTicketRoutingResult;
+};
+
+type CreateTasksForAcceptedOrderOptions = {
+  createPrintJobs?: boolean;
+};
+
 @Injectable()
 export class PreparationTasksService {
+  private readonly logger = new Logger(PreparationTasksService.name);
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly presenceNotificationsService: PresenceNotificationsService,
@@ -47,6 +74,7 @@ export class PreparationTasksService {
     orderId: string,
     staffUserId: string | undefined,
     tx: Prisma.TransactionClient,
+    options: CreateTasksForAcceptedOrderOptions = {},
   ) {
     const order = await tx.order.findUnique({
       where: { id: orderId },
@@ -86,11 +114,24 @@ export class PreparationTasksService {
     }
 
     let activeTaskCount = 0;
+    let createdTaskCount = 0;
+    let existingTaskCount = 0;
+    const skippedItems: KdsRoutingResult['skippedItems'] = [];
+    const actionableStations = new Set<PreparationStation>();
+    let actionableItemCount = 0;
 
     for (const item of order.items) {
       if (!ACTIONABLE_STATIONS.includes(item.menuItem.station)) {
+        skippedItems.push({
+          orderItemId: item.id,
+          station: item.menuItem.station,
+          reason: 'non_actionable_station',
+        });
         continue;
       }
+
+      actionableItemCount += 1;
+      actionableStations.add(item.menuItem.station);
 
       const existingTask = await tx.preparationTask.findUnique({
         where: { orderItemId: item.id },
@@ -99,6 +140,7 @@ export class PreparationTasksService {
 
       if (existingTask) {
         activeTaskCount += 1;
+        existingTaskCount += 1;
         continue;
       }
 
@@ -133,13 +175,65 @@ export class PreparationTasksService {
         tx,
       );
       activeTaskCount += 1;
+      createdTaskCount += 1;
     }
 
-    await this.kitchenTicketsService.createTicketsForAcceptedOrder(
-      order.id,
-      staffUserId,
-      tx,
-    );
+    const ticketRouting =
+      await this.kitchenTicketsService.createTicketsForAcceptedOrder(
+        order.id,
+        staffUserId,
+        tx,
+        { createPrintJobs: options.createPrintJobs },
+      );
+
+    const result: KdsRoutingResult = {
+      orderId: order.id,
+      branchId: order.branchId,
+      itemCount: order.items.length,
+      actionableItemCount,
+      stationsDetected: [...actionableStations],
+      skippedItems,
+      createdTaskCount,
+      existingTaskCount,
+      activeTaskCount,
+      ticketRouting,
+    };
+
+    this.logger.log({
+      message: 'kds.create_tasks_for_order',
+      orderId: order.id,
+      branchId: order.branchId,
+      itemCount: result.itemCount,
+      actionableItemCount,
+      stationsDetected: result.stationsDetected,
+      createdTaskCount,
+      existingTaskCount,
+      activeTaskCount,
+      createdTicketCount: ticketRouting.createdTicketCount,
+      existingTicketCount: ticketRouting.existingTicketCount,
+      ticketCount: ticketRouting.ticketIds.length,
+      skippedItemCount: skippedItems.length,
+      zeroTicketReason:
+        actionableItemCount > 0 && ticketRouting.ticketIds.length === 0
+          ? 'actionable_items_without_tickets'
+          : undefined,
+    });
+
+    if (actionableItemCount > 0 && activeTaskCount === 0) {
+      throw this.kdsRoutingBadRequest(order.id, order.branchId, {
+        reason: 'actionable_items_without_tasks',
+        actionableItemCount,
+        stationsDetected: [...actionableStations],
+      });
+    }
+
+    if (actionableItemCount > 0 && ticketRouting.ticketIds.length === 0) {
+      throw this.kdsRoutingBadRequest(order.id, order.branchId, {
+        reason: 'actionable_items_without_tickets',
+        actionableItemCount,
+        stationsDetected: [...actionableStations],
+      });
+    }
 
     if (activeTaskCount === 0) {
       await this.syncOrderPreparationReady(
@@ -149,6 +243,8 @@ export class PreparationTasksService {
         'no_active_preparation_tasks',
       );
     }
+
+    return result;
   }
 
   async findForBranch(
@@ -668,6 +764,29 @@ export class PreparationTasksService {
     return new BadRequestException({
       code,
       message: code,
+    });
+  }
+
+  private kdsRoutingBadRequest(
+    orderId: string,
+    branchId: string,
+    details: Record<string, unknown>,
+  ) {
+    this.logger.error({
+      message: 'kds.routing_failed_for_order',
+      orderId,
+      branchId,
+      ...details,
+    });
+
+    return new BadRequestException({
+      message: 'Kitchen routing failed for accepted order',
+      code: 'kds_routing_failed',
+      details: {
+        orderId,
+        branchId,
+        ...details,
+      },
     });
   }
 
