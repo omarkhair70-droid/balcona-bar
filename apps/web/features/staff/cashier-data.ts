@@ -77,6 +77,31 @@ export function getOrderKitchenTickets(value: unknown) {
   return getRecordArray(getOrderEnvelopeRecord(value).kitchenTickets);
 }
 
+export function getOrderPreparationTasks(value: unknown) {
+  return getRecordArray(getOrderEnvelopeRecord(value).preparationTasks);
+}
+
+const actionableStations = new Set(["barista", "kitchen", "dessert"]);
+
+export function orderHasActionableItems(value: unknown) {
+  return getOrderItems(value).some((item) => {
+    const station =
+      getRecordString(item, "station") ||
+      getRecordString(getRecord(item.menuItem), "station");
+
+    return actionableStations.has(station);
+  });
+}
+
+export function orderNeedsKdsRoutingAttention(value: unknown) {
+  return (
+    getOrderStatus(value) === "cashier_accepted" &&
+    orderHasActionableItems(value) &&
+    getOrderPreparationTasks(value).length === 0 &&
+    getOrderKitchenTickets(value).length === 0
+  );
+}
+
 export function getOrderLifecycle(value: unknown) {
   return getRecord(getOrderEnvelopeRecord(value).lifecycle);
 }
