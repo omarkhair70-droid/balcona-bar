@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { type ReactNode } from "react";
 import "./globals.css";
+import { ObservabilityRouteTracker } from "@/components/debug/observability-route-tracker";
 import { QueryProvider } from "@/lib/query/query-provider";
 import { ThemeProvider } from "@/lib/theme/theme-provider";
 
@@ -30,7 +31,10 @@ export default function RootLayout({
     <html lang="en">
       <body>
         <QueryProvider>
-          <ThemeProvider>{children}</ThemeProvider>
+          <ThemeProvider>
+            <ObservabilityRouteTracker />
+            {children}
+          </ThemeProvider>
         </QueryProvider>
       </body>
     </html>

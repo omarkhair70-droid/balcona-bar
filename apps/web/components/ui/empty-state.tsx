@@ -1,11 +1,14 @@
 import { Inbox } from "lucide-react";
 import { type ReactNode } from "react";
+import { CopyDebugReportButton } from "@/components/debug/copy-debug-report-button";
+import type { DebugReportInput } from "@/lib/observability/debug-report";
 import { cn } from "@/lib/utils/cn";
 
 type EmptyStateProps = {
   title: string;
   description?: string;
   action?: ReactNode;
+  debug?: DebugReportInput;
   className?: string;
 };
 
@@ -13,8 +16,13 @@ export function EmptyState({
   title,
   description,
   action,
+  debug,
   className
 }: EmptyStateProps) {
+  const debugAction = debug ? (
+    <CopyDebugReportButton {...debug} label="Copy debug report" />
+  ) : null;
+
   return (
     <section
       className={cn(
@@ -33,7 +41,12 @@ export function EmptyState({
           {description}
         </p>
       ) : null}
-      {action ? <div className="mt-5 flex justify-center">{action}</div> : null}
+      {action || debugAction ? (
+        <div className="mt-5 flex flex-wrap justify-center gap-3">
+          {action}
+          {debugAction}
+        </div>
+      ) : null}
     </section>
   );
 }

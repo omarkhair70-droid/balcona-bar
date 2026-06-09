@@ -4,6 +4,7 @@ import { useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useMutation } from "@tanstack/react-query";
 import { AlertTriangle, LoaderCircle, QrCode } from "lucide-react";
+import { CopyDebugReportButton } from "@/components/debug/copy-debug-report-button";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -150,6 +151,11 @@ export function CustomerTableStartPage({
               <Button variant="secondary" onClick={() => router.push("/customer")}>
                 Back
               </Button>
+              <CopyDebugReportButton
+                action="table_session_start"
+                flow="customer_table_start"
+                error={startMutation.error}
+              />
             </>
           ) : null}
         </div>

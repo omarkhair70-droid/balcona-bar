@@ -122,6 +122,12 @@ export function CustomerStatusPage({ sessionId }: CustomerStatusPageProps) {
               <EmptyState
                 title="Orders could not load"
                 description={ordersQuery.error.message}
+                debug={{
+                  action: "order_status",
+                  flow: "customer_order_cycle",
+                  sessionId,
+                  error: ordersQuery.error
+                }}
               />
             ) : null}
             {ordersQuery.isSuccess && orders.length === 0 ? (
@@ -165,6 +171,12 @@ export function CustomerStatusPage({ sessionId }: CustomerStatusPageProps) {
               <EmptyState
                 title="Timeline could not load"
                 description={timelineQuery.error.message}
+                debug={{
+                  action: "customer_timeline",
+                  flow: "customer_order_cycle",
+                  sessionId,
+                  error: timelineQuery.error
+                }}
               />
             ) : null}
             {timelineQuery.data ? (

@@ -15,6 +15,12 @@ export type SystemInfoResult = {
   appEnvironment?: string;
   nodeEnvironment?: string;
   apiPrefix?: string;
+  gitSha?: string;
+  buildTime?: string;
+  migration?: {
+    status?: string;
+    check?: string;
+  };
   timestamp?: string;
 };
 

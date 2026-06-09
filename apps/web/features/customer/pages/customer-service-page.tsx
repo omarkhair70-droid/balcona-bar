@@ -11,6 +11,7 @@ import {
   ReceiptText,
   Sparkles
 } from "lucide-react";
+import { CopyDebugReportButton } from "@/components/debug/copy-debug-report-button";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -356,6 +357,14 @@ export function CustomerServicePage({ sessionId }: CustomerServicePageProps) {
         >
           We could not send that service request. Please try again from the
           table. {formatErrorMessage(callMutation.error)}
+          <div className="mt-3">
+            <CopyDebugReportButton
+              action="waiter_call_create"
+              flow="customer_service"
+              sessionId={sessionId}
+              error={callMutation.error}
+            />
+          </div>
         </div>
       ) : null}
 
@@ -373,6 +382,12 @@ export function CustomerServicePage({ sessionId }: CustomerServicePageProps) {
               <EmptyState
                 title="Service calls could not load"
                 description={formatErrorMessage(waiterCallsQuery.error)}
+                debug={{
+                  action: "waiter_call_list",
+                  flow: "customer_service",
+                  sessionId,
+                  error: waiterCallsQuery.error
+                }}
               />
             ) : null}
             {waiterCalls.length === 0 && waiterCallsQuery.isSuccess ? (
@@ -411,6 +426,12 @@ export function CustomerServicePage({ sessionId }: CustomerServicePageProps) {
               <EmptyState
                 title="Bill could not load"
                 description={formatErrorMessage(billQuery.error)}
+                debug={{
+                  action: "bill_get",
+                  flow: "customer_billing",
+                  sessionId,
+                  error: billQuery.error
+                }}
               />
             ) : null}
             <div className="rounded-card border bg-surface/75 p-4">
@@ -538,6 +559,14 @@ export function CustomerServicePage({ sessionId }: CustomerServicePageProps) {
                             >
                               Online checkout could not be prepared.{" "}
                               {formatErrorMessage(onlinePaymentMutation.error)}
+                              <div className="mt-3">
+                                <CopyDebugReportButton
+                                  action="online_payment_intent_create"
+                                  flow="customer_billing"
+                                  sessionId={sessionId}
+                                  error={onlinePaymentMutation.error}
+                                />
+                              </div>
                             </div>
                           ) : null}
                           {mockOnlinePaymentMutation.isError ? (
@@ -549,6 +578,14 @@ export function CustomerServicePage({ sessionId }: CustomerServicePageProps) {
                               {formatErrorMessage(
                                 mockOnlinePaymentMutation.error
                               )}
+                              <div className="mt-3">
+                                <CopyDebugReportButton
+                                  action="mock_online_payment_confirm"
+                                  flow="customer_billing"
+                                  sessionId={sessionId}
+                                  error={mockOnlinePaymentMutation.error}
+                                />
+                              </div>
                             </div>
                           ) : null}
                         </div>
@@ -583,6 +620,14 @@ export function CustomerServicePage({ sessionId }: CustomerServicePageProps) {
                   We could not request the bill yet. The bill may not be
                   available until your order is accepted or served.{" "}
                   {formatErrorMessage(billMutation.error)}
+                  <div className="mt-3">
+                    <CopyDebugReportButton
+                      action="bill_request_create"
+                      flow="customer_billing"
+                      sessionId={sessionId}
+                      error={billMutation.error}
+                    />
+                  </div>
                 </div>
               ) : null}
               <Button

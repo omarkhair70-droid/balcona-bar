@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { LoaderCircle, Send, Trash2 } from "lucide-react";
+import { CopyDebugReportButton } from "@/components/debug/copy-debug-report-button";
 import { Button, buttonVariants } from "@/components/ui/button";
 import {
   Card,
@@ -241,6 +242,12 @@ export function CustomerCartPage({ sessionId }: CustomerCartPageProps) {
         <EmptyState
           title="Cart could not load"
           description={cartQuery.error.message}
+          debug={{
+            action: "cart_get",
+            flow: "customer_order_cycle",
+            sessionId,
+            error: cartQuery.error
+          }}
         />
       ) : null}
       {cartQuery.isSuccess && isCartEmpty ? (
@@ -306,6 +313,14 @@ export function CustomerCartPage({ sessionId }: CustomerCartPageProps) {
                 >
                   We could not submit your order yet. Please check the cart and
                   try again. {submitErrorMessage}
+                  <div className="mt-3">
+                    <CopyDebugReportButton
+                      action="cart_submit"
+                      flow="customer_order_cycle"
+                      sessionId={sessionId}
+                      error={submitMutation.error}
+                    />
+                  </div>
                 </div>
               ) : null}
             </CardContent>

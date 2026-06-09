@@ -1,5 +1,6 @@
 import { ApiError } from "@/lib/api/client";
 import { formatErrorMessage } from "@/lib/api/error-message";
+import { addDebugBreadcrumb } from "@/lib/observability/breadcrumbs";
 
 const DEFAULT_MAX_ATTEMPTS = 3;
 const DEFAULT_INITIAL_DELAY_MS = 350;
@@ -72,6 +73,12 @@ export async function withCustomerTransientRetry<T>(
       attempt,
       maxAttempts
     });
+    addDebugBreadcrumb({
+      action: "customer_retry_attempt",
+      route: typeof window !== "undefined" ? window.location.pathname : undefined,
+      flow: options.flow,
+      result: "started"
+    });
 
     try {
       const result = await operation();
@@ -80,6 +87,12 @@ export async function withCustomerTransientRetry<T>(
         flow: options.flow,
         attempt,
         maxAttempts
+      });
+      addDebugBreadcrumb({
+        action: "customer_retry_success",
+        route: typeof window !== "undefined" ? window.location.pathname : undefined,
+        flow: options.flow,
+        result: attempt > 1 ? "replayed" : "success"
       });
 
       return result;
@@ -93,6 +106,16 @@ export async function withCustomerTransientRetry<T>(
           maxAttempts,
           retryable: false,
           message: formatErrorMessage(error)
+        });
+        addDebugBreadcrumb({
+          action: "customer_retry_failed",
+          route:
+            typeof window !== "undefined" ? window.location.pathname : undefined,
+          flow: options.flow,
+          result: "failure",
+          status: error instanceof ApiError ? error.status : undefined,
+          requestId: error instanceof ApiError ? error.requestId : undefined,
+          durationMs: error instanceof ApiError ? error.durationMs : undefined
         });
         throw error;
       }
@@ -112,6 +135,15 @@ export async function withCustomerTransientRetry<T>(
         maxAttempts,
         delayMs,
         message: formatErrorMessage(error)
+      });
+      addDebugBreadcrumb({
+        action: "customer_retry_scheduled",
+        route: typeof window !== "undefined" ? window.location.pathname : undefined,
+        flow: options.flow,
+        result: "failure",
+        status: error instanceof ApiError ? error.status : undefined,
+        requestId: error instanceof ApiError ? error.requestId : undefined,
+        durationMs: error instanceof ApiError ? error.durationMs : undefined
       });
       await sleep(delayMs);
     }

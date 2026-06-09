@@ -63,6 +63,30 @@ class EnvironmentVariables {
   APP_VERSION?: string;
 
   @IsString()
+  @IsOptional()
+  GIT_SHA?: string;
+
+  @IsString()
+  @IsOptional()
+  RAILWAY_GIT_COMMIT_SHA?: string;
+
+  @IsString()
+  @IsOptional()
+  VERCEL_GIT_COMMIT_SHA?: string;
+
+  @IsString()
+  @IsOptional()
+  SOURCE_VERSION?: string;
+
+  @IsString()
+  @IsOptional()
+  BUILD_TIME?: string;
+
+  @IsString()
+  @IsOptional()
+  APP_BUILD_TIME?: string;
+
+  @IsString()
   DATABASE_URL!: string;
 
   @Matches(/^rediss?:\/\//)

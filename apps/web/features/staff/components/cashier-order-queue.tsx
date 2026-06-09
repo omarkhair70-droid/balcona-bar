@@ -84,6 +84,11 @@ export function CashierOrderQueue({
           <EmptyState
             title="Orders could not load"
             description={error.message}
+            debug={{
+              action: "cashier_orders_list",
+              flow: "staff_cashier",
+              error
+            }}
           />
         ) : null}
         {!isLoading && !error && orders.length === 0 ? (

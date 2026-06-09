@@ -7,7 +7,10 @@ const envSchema = z.object({
     .string()
     .url()
     .default("http://localhost:3000/api/v1"),
-  NEXT_PUBLIC_APP_ENV: z.enum(webAppEnvironments).default("development")
+  NEXT_PUBLIC_APP_ENV: z.enum(webAppEnvironments).default("development"),
+  NEXT_PUBLIC_APP_VERSION: z.string().default("0.1.0"),
+  NEXT_PUBLIC_GIT_SHA: z.string().default("local"),
+  NEXT_PUBLIC_BUILD_TIME: z.string().default("not_provided")
 });
 
 function webAppEnvironment() {
@@ -28,7 +31,14 @@ function webAppEnvironment() {
 export const env = envSchema.parse({
   NEXT_PUBLIC_API_BASE_URL:
     process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:3000/api/v1",
-  NEXT_PUBLIC_APP_ENV: webAppEnvironment()
+  NEXT_PUBLIC_APP_ENV: webAppEnvironment(),
+  NEXT_PUBLIC_APP_VERSION: process.env.NEXT_PUBLIC_APP_VERSION ?? "0.1.0",
+  NEXT_PUBLIC_GIT_SHA:
+    process.env.NEXT_PUBLIC_GIT_SHA ??
+    process.env.VERCEL_GIT_COMMIT_SHA ??
+    "local",
+  NEXT_PUBLIC_BUILD_TIME:
+    process.env.NEXT_PUBLIC_BUILD_TIME ?? process.env.BUILD_TIME ?? "not_provided"
 });
 
 export type ApiBaseUrlSafety = {

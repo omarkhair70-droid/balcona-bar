@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { AlertTriangle, Sparkles } from "lucide-react";
+import { CopyDebugReportButton } from "@/components/debug/copy-debug-report-button";
 import { buttonVariants } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { LoadingState } from "@/components/ui/loading-state";
@@ -182,6 +183,12 @@ export function CustomerMenuPage({ sessionId }: CustomerMenuPageProps) {
           title="Menu could not load"
           description={menuQuery.error.message}
           action={<AlertTriangle className="size-5 text-warning" aria-hidden="true" />}
+          debug={{
+            action: "menu_load",
+            flow: "customer_order_cycle",
+            sessionId,
+            error: menuQuery.error
+          }}
         />
       ) : null}
       {menuQuery.isSuccess && categories.length === 0 ? (
@@ -236,25 +243,37 @@ export function CustomerMenuPage({ sessionId }: CustomerMenuPageProps) {
           </div>
           <aside>
             {selectedItem ? (
-              <ItemDetailPanel
-                item={selectedItem}
-                isAdding={addMutation.isPending}
-                isAddDisabled={!readiness.isReady}
-                disabledMessage={
-                  readiness.isReady ? undefined : readiness.message
-                }
-                errorMessage={
-                  addMutation.isError
-                    ? `We could not add this item to your cart. ${formatErrorMessage(
-                        addMutation.error
-                      )}`
-                    : undefined
-                }
-                onClose={() => setSelectedItem(null)}
-                onAdd={async (payload) => {
-                  await addMutation.mutateAsync(payload);
-                }}
-              />
+              <>
+                <ItemDetailPanel
+                  item={selectedItem}
+                  isAdding={addMutation.isPending}
+                  isAddDisabled={!readiness.isReady}
+                  disabledMessage={
+                    readiness.isReady ? undefined : readiness.message
+                  }
+                  errorMessage={
+                    addMutation.isError
+                      ? `We could not add this item to your cart. ${formatErrorMessage(
+                          addMutation.error
+                        )}`
+                      : undefined
+                  }
+                  onClose={() => setSelectedItem(null)}
+                  onAdd={async (payload) => {
+                    await addMutation.mutateAsync(payload);
+                  }}
+                />
+                {addMutation.isError ? (
+                  <div className="mt-3">
+                    <CopyDebugReportButton
+                      action="cart_add_item"
+                      flow="customer_order_cycle"
+                      sessionId={sessionId}
+                      error={addMutation.error}
+                    />
+                  </div>
+                ) : null}
+              </>
             ) : (
               <EmptyState
                 title="Select an item"
