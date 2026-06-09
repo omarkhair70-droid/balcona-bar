@@ -479,6 +479,16 @@ describe("PreparationTasksService accepted-order KDS routing", () => {
       response: expect.objectContaining({
         message: "Kitchen routing failed for accepted order",
         code: "kds_routing_failed",
+        details: expect.objectContaining({
+          reason: "actionable_items_without_tickets",
+          failureStage: "preparation_tasks",
+          substage: "ticket_creation",
+          actionableItemCount: 1,
+          createdTaskCount: 1,
+          createdTicketCount: 0,
+          stationsDetected: [PreparationStation.barista],
+          skippedItems: { count: 0, reasons: [] },
+        }),
       }),
     });
   });
@@ -497,10 +507,15 @@ describe("PreparationTasksService accepted-order KDS routing", () => {
         code: "kds_routing_failed",
         details: expect.objectContaining({
           reason: "ticket_creation_exception",
+          failureStage: "preparation_tasks",
+          substage: "ticket_creation",
           actionableItemCount: 1,
+          stationsDetected: [PreparationStation.barista],
           createdTaskCount: 1,
           activeTaskCount: 1,
+          createdTicketCount: 0,
           ticketCount: 0,
+          skippedItems: { count: 0, reasons: [] },
           exception: expect.objectContaining({
             message: "database token=[redacted] failed",
           }),

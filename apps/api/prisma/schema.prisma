@@ -2323,6 +2323,7 @@ model KitchenTicket {
   @@unique([branchId, displayCode])
   @@index([companyId])
   @@index([branchId])
+  @@index([branchId, sequence])
   @@index([branchId, status, station, createdAt])
   @@index([branchId, type, createdAt])
   @@index([orderId])

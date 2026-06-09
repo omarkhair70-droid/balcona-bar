@@ -355,6 +355,7 @@ function buildService(input: {
     service,
     tx,
     preparationTasksService,
+    presenceNotificationsService,
     realtimeEventsService,
     kitchenTicketsService,
     inventoryService,
@@ -629,15 +630,15 @@ function buildAcceptKdsFlowService() {
       }),
     },
     kitchenTicket: {
-      aggregate: jest.fn(() => {
+      findFirst: jest.fn(() => {
         const maxSequence = state.kitchenTickets.reduce(
           (max, ticket) => Math.max(max, ticket.sequence),
           0,
         );
 
-        return Promise.resolve({
-          _max: { sequence: maxSequence === 0 ? null : maxSequence },
-        });
+        return Promise.resolve(
+          maxSequence === 0 ? null : { sequence: maxSequence },
+        );
       }),
       findUnique: jest.fn((args: any) => {
         if (args.where.id) {
@@ -1218,14 +1219,32 @@ describe("OrdersService lifecycle hardening", () => {
     ).toHaveBeenCalledWith("ticket-1", expect.anything());
   });
 
-  it("keeps accept successful when post-commit KDS print jobs fail", async () => {
+  it("keeps accept successful when post-commit KDS side effects fail", async () => {
     const loggerSpy = jest.spyOn(Logger.prototype, "warn").mockImplementation();
-    const { service, kitchenTicketsService } = buildService({
+    const {
+      service,
+      preparationTasksService,
+      presenceNotificationsService,
+      realtimeEventsService,
+      kitchenTicketsService,
+    } = buildService({
       transitionOrder: { status: OrderStatus.submitted },
       responseOrder: spanishLatteAcceptedOrderResponse(),
     });
+    preparationTasksService.recordCreatedRealtimeEventsForOrder.mockRejectedValueOnce(
+      new Error("Preparation token=secret failed"),
+    );
+    kitchenTicketsService.recordCreatedRealtimeEventsForTickets.mockRejectedValueOnce(
+      new Error("KDS realtime token=secret failed"),
+    );
     kitchenTicketsService.createPrintJobsForTickets.mockRejectedValueOnce(
       new Error("Printer token=secret failed"),
+    );
+    presenceNotificationsService.createOrderAcceptedNotification.mockRejectedValueOnce(
+      new Error("Notification token=secret failed"),
+    );
+    realtimeEventsService.recordOrderAccepted.mockRejectedValueOnce(
+      new Error("Order realtime token=secret failed"),
     );
 
     const result = await service.accept("order-1", {}, "staff-1", "req-print");
@@ -1234,9 +1253,13 @@ describe("OrdersService lifecycle hardening", () => {
     expect(result.order.status).toBe(OrderStatus.cashier_accepted);
     expect(result.kitchenTickets).toHaveLength(1);
 
-    const loggedPayload = JSON.stringify(loggerSpy.mock.calls[0][0]);
+    const loggedPayload = JSON.stringify(loggerSpy.mock.calls);
 
+    expect(loggedPayload).toContain("preparation_realtime");
+    expect(loggedPayload).toContain("kds_realtime");
     expect(loggedPayload).toContain("print_jobs");
+    expect(loggedPayload).toContain("notification");
+    expect(loggedPayload).toContain("realtime");
     expect(loggedPayload).toContain("req-print");
     expect(loggedPayload).toContain("token=[redacted]");
     expect(loggedPayload).not.toContain("token=secret");
@@ -1304,6 +1327,18 @@ describe("OrdersService lifecycle hardening", () => {
       response: expect.objectContaining({
         message: "Kitchen routing failed for accepted order",
         code: "kds_routing_failed",
+        details: expect.objectContaining({
+          reason: "routing_exception",
+          failureStage: "preparation_tasks",
+          orderId: "order-1",
+          branchId: "branch-1",
+          createdTaskCount: 0,
+          createdTicketCount: 0,
+          skippedItems: { count: 0, reasons: [] },
+          exception: expect.objectContaining({
+            message: "Ticket printer token=[redacted] failed",
+          }),
+        }),
       }),
     });
 

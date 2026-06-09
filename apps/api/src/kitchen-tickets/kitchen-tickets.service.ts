@@ -349,10 +349,14 @@ export class KitchenTicketsService {
         message: "Kitchen routing failed for accepted order",
         code: "kds_routing_failed",
         details: {
+          reason: "actionable_items_without_tickets",
+          failureStage: "preparation_tasks",
+          substage: "ticket_creation",
           orderId: order.id,
           branchId: order.branchId,
           actionableItemCount: result.actionableItemCount,
           stationsDetected: result.stationsDetected,
+          createdTaskCount: taskIdByOrderItemId.size,
           createdTicketCount,
           existingTicketCount,
           ticketCount: ticketIds.length,
@@ -959,10 +963,17 @@ export class KitchenTicketsService {
       code: "kds_routing_failed",
       details: {
         reason: "ticket_sequence_collision",
+        failureStage: "preparation_tasks",
+        substage: "ticket_creation",
         orderId: order.id,
         branchId: order.branchId,
         station,
         type,
+        stationsDetected: [station],
+        createdTaskCount: taskIdByOrderItemId.size,
+        createdTicketCount: 0,
+        ticketCount: 0,
+        skippedItems: { count: 0, reasons: [] },
       },
     });
   }
@@ -971,12 +982,13 @@ export class KitchenTicketsService {
     branchId: string,
     tx: Prisma.TransactionClient,
   ) {
-    const aggregate = await tx.kitchenTicket.aggregate({
+    const latestTicket = await tx.kitchenTicket.findFirst({
       where: { branchId },
-      _max: { sequence: true },
+      orderBy: { sequence: "desc" },
+      select: { sequence: true },
     });
 
-    return (aggregate._max.sequence ?? 0) + 1;
+    return (latestTicket?.sequence ?? 0) + 1;
   }
 
   private isUniqueDisplayCodeCollision(error: unknown) {
