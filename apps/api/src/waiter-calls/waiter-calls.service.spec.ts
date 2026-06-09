@@ -28,6 +28,18 @@ function createService() {
     },
     waiterCall: {
       create: jest.fn().mockResolvedValue({ id: 'waiter-call-1' }),
+      findUnique: jest.fn().mockResolvedValue({
+        id: 'waiter-call-1',
+        tableSessionId: tableSession.id,
+        status: 'open',
+      }),
+      update: jest.fn().mockResolvedValue({ id: 'waiter-call-1' }),
+    },
+    waiterCallEvent: {
+      create: jest.fn().mockResolvedValue({ id: 'waiter-call-event-1' }),
+    },
+    staffUser: {
+      findUnique: jest.fn().mockResolvedValue({ id: 'staff-1' }),
     },
   };
   let insideTransaction = false;
@@ -43,9 +55,14 @@ function createService() {
   };
   const presenceNotificationsService = {
     createWaiterCallCreatedNotification: jest.fn().mockResolvedValue(undefined),
+    createWaiterCallAcknowledgedNotification: jest.fn().mockResolvedValue(undefined),
+    createWaiterCallResolvedNotification: jest.fn().mockResolvedValue(undefined),
   };
   const realtimeEventsService = {
     recordWaiterCallCreated: jest.fn().mockResolvedValue(undefined),
+    recordWaiterCallAcknowledged: jest.fn().mockResolvedValue(undefined),
+    recordWaiterCallResolved: jest.fn().mockResolvedValue(undefined),
+    recordWaiterCallCancelled: jest.fn().mockResolvedValue(undefined),
   };
   const tableAttentionService = {
     recalculateForTableSession: jest.fn().mockResolvedValue(undefined),
@@ -144,12 +161,124 @@ describe('WaiterCallsService createForTableSession', () => {
     );
 
     await expect(
-      (service as any).runWaiterCallCreatedPostCommitSideEffects({
+      (service as any).runWaiterCallPostCommitSideEffects({
         waiterCallId: 'waiter-call-1',
         tableSessionId: tableSession.id,
-        companyId: tableSession.companyId,
-        branchId: tableSession.branchId,
+        action: 'created',
       }),
     ).resolves.toBeUndefined();
+  });
+
+  it('acknowledges when post-commit notification, realtime, and attention fail', async () => {
+    const {
+      service,
+      tx,
+      prisma,
+      presenceNotificationsService,
+      realtimeEventsService,
+      tableAttentionService,
+    } = createService();
+    presenceNotificationsService.createWaiterCallAcknowledgedNotification.mockRejectedValue(
+      new Error('notification unavailable'),
+    );
+    realtimeEventsService.recordWaiterCallAcknowledged.mockRejectedValue(
+      new Error('realtime unavailable'),
+    );
+    tableAttentionService.recalculateForTableSession.mockRejectedValue(
+      new Error('attention unavailable'),
+    );
+
+    await expect(service.acknowledge('waiter-call-1')).resolves.toEqual(
+      waiterCallResponse,
+    );
+
+    expect(tx.waiterCall.update).toHaveBeenCalledWith({
+      where: { id: 'waiter-call-1' },
+      data: expect.objectContaining({ status: 'acknowledged' }),
+    });
+    expect(tx.waiterCallEvent.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        waiterCallId: 'waiter-call-1',
+        type: 'acknowledged',
+      }),
+    });
+    expect((service as any).getWaiterCallResponse).toHaveBeenCalledWith(
+      'waiter-call-1',
+      prisma,
+    );
+  });
+
+  it('resolves when post-commit notification, realtime, and attention fail', async () => {
+    const {
+      service,
+      tx,
+      prisma,
+      presenceNotificationsService,
+      realtimeEventsService,
+      tableAttentionService,
+    } = createService();
+    presenceNotificationsService.createWaiterCallResolvedNotification.mockRejectedValue(
+      new Error('notification unavailable'),
+    );
+    realtimeEventsService.recordWaiterCallResolved.mockRejectedValue(
+      new Error('realtime unavailable'),
+    );
+    tableAttentionService.recalculateForTableSession.mockRejectedValue(
+      new Error('attention unavailable'),
+    );
+
+    await expect(service.resolve('waiter-call-1')).resolves.toEqual(
+      waiterCallResponse,
+    );
+
+    expect(tx.waiterCall.update).toHaveBeenCalledWith({
+      where: { id: 'waiter-call-1' },
+      data: expect.objectContaining({ status: 'resolved' }),
+    });
+    expect(tx.waiterCallEvent.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        waiterCallId: 'waiter-call-1',
+        type: 'resolved',
+      }),
+    });
+    expect((service as any).getWaiterCallResponse).toHaveBeenCalledWith(
+      'waiter-call-1',
+      prisma,
+    );
+  });
+
+  it('cancels when post-commit realtime and attention fail', async () => {
+    const {
+      service,
+      tx,
+      prisma,
+      realtimeEventsService,
+      tableAttentionService,
+    } = createService();
+    realtimeEventsService.recordWaiterCallCancelled.mockRejectedValue(
+      new Error('realtime unavailable'),
+    );
+    tableAttentionService.recalculateForTableSession.mockRejectedValue(
+      new Error('attention unavailable'),
+    );
+
+    await expect(service.cancel('waiter-call-1')).resolves.toEqual(
+      waiterCallResponse,
+    );
+
+    expect(tx.waiterCall.update).toHaveBeenCalledWith({
+      where: { id: 'waiter-call-1' },
+      data: expect.objectContaining({ status: 'cancelled' }),
+    });
+    expect(tx.waiterCallEvent.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        waiterCallId: 'waiter-call-1',
+        type: 'cancelled',
+      }),
+    });
+    expect((service as any).getWaiterCallResponse).toHaveBeenCalledWith(
+      'waiter-call-1',
+      prisma,
+    );
   });
 });

@@ -19,7 +19,7 @@ const IDEMPOTENCY_KEY_MAX_LENGTH = 128;
 
 type PrismaExecutor = PrismaService | Prisma.TransactionClient;
 
-type AddCartItemTimings = {
+export type AddCartItemTimings = {
   sessionLookupMs: number;
   accessValidationMs: number;
   menuItemValidationMs: number;
@@ -32,7 +32,7 @@ type AddCartItemTimings = {
   postCommitSideEffectsMs: number;
 };
 
-type AddCartItemMutationResult = {
+export type AddCartItemMutationResult = {
   cartId: string;
   cartItemId: string | null;
   idempotencyReplay: boolean;
@@ -62,7 +62,7 @@ export class CartService {
     const startedAt = Date.now();
     const timings = this.emptyAddItemTimings();
     const mutationResult = await this.prisma.$transaction(async (tx) =>
-      this.addItemMutationWithTransaction(
+      this.addItemWithTransaction(
         sessionId,
         body,
         tx,
@@ -71,7 +71,7 @@ export class CartService {
       ),
     );
     const hydrationStartedAt = Date.now();
-    const cart = await this.getCartById(mutationResult.cartId, this.prisma);
+    const response = await this.getCartResponseById(mutationResult.cartId);
     timings.responseHydrationMs += Date.now() - hydrationStartedAt;
 
     this.logger.log({
@@ -84,7 +84,7 @@ export class CartService {
       timings,
     });
 
-    return this.toCartResponse(cart);
+    return response;
   }
 
   async addItemWithTransaction(
@@ -92,20 +92,19 @@ export class CartService {
     body: AddCartItemDto,
     tx: Prisma.TransactionClient,
     rawIdempotencyKey?: string,
-  ) {
-    const timings = this.emptyAddItemTimings();
-    const mutationResult = await this.addItemMutationWithTransaction(
+    timings: AddCartItemTimings = this.emptyAddItemTimings(),
+  ): Promise<AddCartItemMutationResult> {
+    return this.addItemMutationWithTransaction(
       sessionId,
       body,
       tx,
       rawIdempotencyKey,
       timings,
     );
-    const hydrationStartedAt = Date.now();
-    const response = this.toCartResponse(await this.getCartById(mutationResult.cartId, tx));
-    timings.responseHydrationMs += Date.now() - hydrationStartedAt;
+  }
 
-    return response;
+  async getCartResponseById(cartId: string) {
+    return this.toCartResponse(await this.getCartById(cartId, this.prisma));
   }
 
   private async addItemMutationWithTransaction(

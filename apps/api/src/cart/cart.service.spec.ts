@@ -60,13 +60,18 @@ describe('CartService add item idempotency', () => {
       },
     };
 
-    await service.addItemWithTransaction(
+    const result = await service.addItemWithTransaction(
       session.id,
       payload,
       tx as never,
       ' add-key-1 ',
     );
 
+    expect(result).toEqual({
+      cartId: cart.id,
+      cartItemId: 'cart-item-1',
+      idempotencyReplay: false,
+    });
     expect(tx.cartItem.findFirst).toHaveBeenCalledWith({
       where: { cartId: cart.id, idempotencyKey: 'add-key-1' },
       select: { id: true },
@@ -79,6 +84,7 @@ describe('CartService add item idempotency', () => {
       }),
       select: { id: true },
     });
+    expect((service as any).getCartById).not.toHaveBeenCalled();
   });
 
   it('replays an existing cart response without creating a duplicate item', async () => {
@@ -90,15 +96,20 @@ describe('CartService add item idempotency', () => {
       },
     };
 
-    await service.addItemWithTransaction(
+    const result = await service.addItemWithTransaction(
       session.id,
       payload,
       tx as never,
       'add-key-1',
     );
 
+    expect(result).toEqual({
+      cartId: cart.id,
+      cartItemId: 'cart-item-existing',
+      idempotencyReplay: true,
+    });
     expect(tx.cartItem.create).not.toHaveBeenCalled();
-    expect((service as any).getCartById).toHaveBeenCalledWith(cart.id, tx);
+    expect((service as any).getCartById).not.toHaveBeenCalled();
   });
 
   it('replays safely when a duplicate idempotency key races the create', async () => {
@@ -120,14 +131,19 @@ describe('CartService add item idempotency', () => {
       },
     };
 
-    await service.addItemWithTransaction(
+    const result = await service.addItemWithTransaction(
       session.id,
       payload,
       tx as never,
       'add-key-1',
     );
 
-    expect((service as any).getCartById).toHaveBeenCalledWith(cart.id, tx);
+    expect(result).toEqual({
+      cartId: cart.id,
+      cartItemId: 'cart-item-existing',
+      idempotencyReplay: true,
+    });
+    expect((service as any).getCartById).not.toHaveBeenCalled();
   });
 
   it('accepts a smoke-style item with required size and temperature modifiers', () => {

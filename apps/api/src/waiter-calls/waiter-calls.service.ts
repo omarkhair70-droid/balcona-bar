@@ -32,11 +32,16 @@ type WaiterCallCreateTimings = {
   postCommitSideEffectsMs: number;
 };
 
-type WaiterCallCreatedMutationResult = {
+type WaiterCallPostCommitAction =
+  | 'created'
+  | 'acknowledged'
+  | 'resolved'
+  | 'cancelled';
+
+type WaiterCallMutationResult = {
   waiterCallId: string;
   tableSessionId: string;
-  companyId: string;
-  branchId: string;
+  action: WaiterCallPostCommitAction;
 };
 
 @Injectable()
@@ -95,8 +100,7 @@ export class WaiterCallsService {
       return {
         waiterCallId: waiterCall.id,
         tableSessionId: session.id,
-        companyId: session.companyId,
-        branchId: session.branchId,
+        action: 'created' as const,
       };
     });
 
@@ -107,10 +111,7 @@ export class WaiterCallsService {
     );
     timings.responseHydrationMs += Date.now() - hydrationStartedAt;
 
-    this.scheduleWaiterCallCreatedPostCommitSideEffects(
-      mutationResult,
-      timings,
-    );
+    this.scheduleWaiterCallPostCommitSideEffects(mutationResult, timings);
 
     this.logger.log({
       message: 'waiter_call_create_completed',
@@ -198,7 +199,7 @@ export class WaiterCallsService {
   }
 
   async acknowledge(waiterCallId: string, body: WaiterCallStaffActionDto = {}) {
-    return this.prisma.$transaction(async (tx) => {
+    const mutationResult = await this.prisma.$transaction(async (tx) => {
       await this.assertStaffUserExists(body.staffUserId, tx);
 
       const waiterCall = await this.findWaiterCallStatus(waiterCallId, tx);
@@ -228,27 +229,24 @@ export class WaiterCallsService {
         },
       });
 
-      await this.presenceNotificationsService.createWaiterCallAcknowledgedNotification(
-        waiterCall.id,
-        tx,
-      );
-      await this.realtimeEventsService.recordWaiterCallAcknowledged(
-        waiterCall.id,
-        tx,
-      );
-      await this.recalculateAttention(
-        waiterCall.tableSessionId,
-        tx,
-        'waiter_call_acknowledged',
-        { waiterCallId: waiterCall.id },
-      );
-
-      return this.getWaiterCallResponse(waiterCall.id, tx);
+      return {
+        waiterCallId: waiterCall.id,
+        tableSessionId: waiterCall.tableSessionId,
+        action: 'acknowledged' as const,
+      };
     });
+
+    const response = await this.getWaiterCallResponse(
+      mutationResult.waiterCallId,
+      this.prisma,
+    );
+    this.scheduleWaiterCallPostCommitSideEffects(mutationResult);
+
+    return response;
   }
 
   async resolve(waiterCallId: string, body: ResolveWaiterCallDto = {}) {
-    return this.prisma.$transaction(async (tx) => {
+    const mutationResult = await this.prisma.$transaction(async (tx) => {
       await this.assertStaffUserExists(body.staffUserId, tx);
 
       const waiterCall = await this.findWaiterCallStatus(waiterCallId, tx);
@@ -283,27 +281,24 @@ export class WaiterCallsService {
         },
       });
 
-      await this.presenceNotificationsService.createWaiterCallResolvedNotification(
-        waiterCall.id,
-        tx,
-      );
-      await this.realtimeEventsService.recordWaiterCallResolved(
-        waiterCall.id,
-        tx,
-      );
-      await this.recalculateAttention(
-        waiterCall.tableSessionId,
-        tx,
-        'waiter_call_resolved',
-        { waiterCallId: waiterCall.id },
-      );
-
-      return this.getWaiterCallResponse(waiterCall.id, tx);
+      return {
+        waiterCallId: waiterCall.id,
+        tableSessionId: waiterCall.tableSessionId,
+        action: 'resolved' as const,
+      };
     });
+
+    const response = await this.getWaiterCallResponse(
+      mutationResult.waiterCallId,
+      this.prisma,
+    );
+    this.scheduleWaiterCallPostCommitSideEffects(mutationResult);
+
+    return response;
   }
 
   async cancel(waiterCallId: string, body: CancelWaiterCallDto = {}) {
-    return this.prisma.$transaction(async (tx) => {
+    const mutationResult = await this.prisma.$transaction(async (tx) => {
       const waiterCall = await this.findWaiterCallStatus(waiterCallId, tx);
 
       if (
@@ -335,19 +330,20 @@ export class WaiterCallsService {
         },
       });
 
-      await this.realtimeEventsService.recordWaiterCallCancelled(
-        waiterCall.id,
-        tx,
-      );
-      await this.recalculateAttention(
-        waiterCall.tableSessionId,
-        tx,
-        'waiter_call_cancelled',
-        { waiterCallId: waiterCall.id },
-      );
-
-      return this.getWaiterCallResponse(waiterCall.id, tx);
+      return {
+        waiterCallId: waiterCall.id,
+        tableSessionId: waiterCall.tableSessionId,
+        action: 'cancelled' as const,
+      };
     });
+
+    const response = await this.getWaiterCallResponse(
+      mutationResult.waiterCallId,
+      this.prisma,
+    );
+    this.scheduleWaiterCallPostCommitSideEffects(mutationResult);
+
+    return response;
   }
 
   private async findOpenTableSession(sessionId: string, tx: PrismaExecutor) {
@@ -442,48 +438,46 @@ export class WaiterCallsService {
     };
   }
 
-  private scheduleWaiterCallCreatedPostCommitSideEffects(
-    context: WaiterCallCreatedMutationResult,
-    timings: WaiterCallCreateTimings,
+  private scheduleWaiterCallPostCommitSideEffects(
+    context: WaiterCallMutationResult,
+    timings?: Pick<WaiterCallCreateTimings, 'postCommitSideEffectsMs'>,
   ) {
     const startedAt = Date.now();
 
-    void this.runWaiterCallCreatedPostCommitSideEffects(context)
+    void this.runWaiterCallPostCommitSideEffects(context)
       .catch((error) => {
         this.logger.warn({
-          message: 'waiter_call_created_post_commit_side_effects_failed',
+          message: 'waiter_call_post_commit_side_effects_failed',
+          action: context.action,
           waiterCallId: context.waiterCallId,
           tableSessionId: context.tableSessionId,
           error: this.safeErrorSummary(error),
         });
       })
       .finally(() => {
-        timings.postCommitSideEffectsMs += Date.now() - startedAt;
+        if (timings) {
+          timings.postCommitSideEffectsMs += Date.now() - startedAt;
+        }
       });
   }
 
-  private async runWaiterCallCreatedPostCommitSideEffects(
-    context: WaiterCallCreatedMutationResult,
+  private async runWaiterCallPostCommitSideEffects(
+    context: WaiterCallMutationResult,
   ) {
-    await this.runWaiterCallCreatedPostCommitSideEffect(
-      'presence_notification',
-      context,
-      () =>
-        this.presenceNotificationsService.createWaiterCallCreatedNotification(
-          context.waiterCallId,
-          this.prisma,
-        ),
-    );
-    await this.runWaiterCallCreatedPostCommitSideEffect(
+    if (context.action !== 'cancelled') {
+      await this.runWaiterCallPostCommitSideEffect(
+        'presence_notification',
+        context,
+        () => this.createWaiterCallLifecycleNotification(context),
+      );
+    }
+
+    await this.runWaiterCallPostCommitSideEffect(
       'realtime_event',
       context,
-      () =>
-        this.realtimeEventsService.recordWaiterCallCreated(
-          context.waiterCallId,
-          this.prisma,
-        ),
+      () => this.recordWaiterCallLifecycleRealtimeEvent(context),
     );
-    await this.runWaiterCallCreatedPostCommitSideEffect(
+    await this.runWaiterCallPostCommitSideEffect(
       'table_attention',
       context,
       () =>
@@ -491,29 +485,91 @@ export class WaiterCallsService {
           context.tableSessionId,
           this.prisma,
           {
-            source: 'waiter_call_created',
+            source: this.waiterCallAttentionSource(context.action),
             metadata: { waiterCallId: context.waiterCallId },
           },
         ),
     );
   }
 
-  private async runWaiterCallCreatedPostCommitSideEffect(
+  private async runWaiterCallPostCommitSideEffect(
     stage: string,
-    context: WaiterCallCreatedMutationResult,
+    context: WaiterCallMutationResult,
     effect: () => Promise<unknown>,
   ) {
     try {
       await effect();
     } catch (error) {
       this.logger.warn({
-        message: 'waiter_call_created_post_commit_side_effect_failed',
+        message: 'waiter_call_post_commit_side_effect_failed',
+        action: context.action,
         stage,
         waiterCallId: context.waiterCallId,
         tableSessionId: context.tableSessionId,
         error: this.safeErrorSummary(error),
       });
     }
+  }
+
+  private async createWaiterCallLifecycleNotification(
+    context: WaiterCallMutationResult,
+  ) {
+    if (context.action === 'created') {
+      return this.presenceNotificationsService.createWaiterCallCreatedNotification(
+        context.waiterCallId,
+        this.prisma,
+      );
+    }
+
+    if (context.action === 'acknowledged') {
+      return this.presenceNotificationsService.createWaiterCallAcknowledgedNotification(
+        context.waiterCallId,
+        this.prisma,
+      );
+    }
+
+    if (context.action === 'resolved') {
+      return this.presenceNotificationsService.createWaiterCallResolvedNotification(
+        context.waiterCallId,
+        this.prisma,
+      );
+    }
+
+    return undefined;
+  }
+
+  private async recordWaiterCallLifecycleRealtimeEvent(
+    context: WaiterCallMutationResult,
+  ) {
+    if (context.action === 'created') {
+      return this.realtimeEventsService.recordWaiterCallCreated(
+        context.waiterCallId,
+        this.prisma,
+      );
+    }
+
+    if (context.action === 'acknowledged') {
+      return this.realtimeEventsService.recordWaiterCallAcknowledged(
+        context.waiterCallId,
+        this.prisma,
+      );
+    }
+
+    if (context.action === 'resolved') {
+      return this.realtimeEventsService.recordWaiterCallResolved(
+        context.waiterCallId,
+        this.prisma,
+      );
+    }
+
+    return this.realtimeEventsService.recordWaiterCallCancelled(
+      context.waiterCallId,
+      this.prisma,
+    );
+  }
+
+  private waiterCallAttentionSource(action: WaiterCallPostCommitAction) {
+    return `waiter_call_${action}`;
   }
 
   private safeErrorSummary(error: unknown) {
@@ -546,23 +602,6 @@ export class WaiterCallsService {
 
     if (!staffUser) {
       throw new NotFoundException('Staff user not found');
-    }
-  }
-
-  private async recalculateAttention(
-    tableSessionId: string,
-    tx: Prisma.TransactionClient,
-    source: string,
-    metadata: Record<string, unknown>,
-  ) {
-    try {
-      await this.tableAttentionService.recalculateForTableSession(
-        tableSessionId,
-        tx,
-        { source, metadata },
-      );
-    } catch {
-      return undefined;
     }
   }
 
