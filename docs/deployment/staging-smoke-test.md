@@ -271,6 +271,28 @@ available menu item and a logged-in cashier/manager:
    `requestId`, method, path, status code, exception name/message/code, and a
    sanitized stack first line for unexpected exceptions.
 
+## KDS Routing Smoke
+
+Run this after a customer order can be submitted and a cashier can accept it:
+
+1. Submit an Espresso or Spanish Latte from `/customer/table/balcona-main-t01`.
+2. Open `/staff/cashier`, select the submitted order, and click Accept once.
+3. Confirm the order becomes `cashier_accepted`.
+4. Confirm the order detail shows a barista kitchen ticket instead of an empty
+   Kitchen tickets area.
+5. Open `/staff/kitchen` and confirm the Tasks tab shows a pending barista task
+   and the Tickets tab shows a queued barista ticket.
+6. Start the task and confirm the matching ticket becomes preparing or
+   in-progress.
+7. Mark the task ready and confirm the task/ticket become ready. Confirm cashier
+   or order status updates when that workflow is supported.
+8. If the order is accepted but no task/ticket appears for a barista, kitchen,
+   or dessert item, treat it as a blocker. The cashier detail should warn that
+   kitchen routing needs attention, and API logs should include
+   `accept.preparation_tasks`, `kds.create_tasks_for_order`, or
+   `kds.create_tickets_for_order` diagnostics with order, branch, station, task,
+   and ticket counts.
+
 The smoke does not require a real payment gateway. Mock online payment should
 remain explicit and staging-only until a real provider is added.
 

@@ -27,6 +27,7 @@ import {
   getOrderSubmittedAt,
   getOrderTable,
   getOrderTotals,
+  orderNeedsKdsRoutingAttention,
   orderAllowsAction
 } from "@/features/staff/cashier-data";
 import {
@@ -139,6 +140,9 @@ export function CashierOrderDetailPanel({
   const items = order ? getOrderItems(order) : [];
   const events = order ? getOrderEvents(order) : [];
   const kitchenTickets = order ? getOrderKitchenTickets(order) : [];
+  const needsKdsRoutingAttention = order
+    ? orderNeedsKdsRoutingAttention(order)
+    : false;
   const canAccept = order ? orderAllowsAction(order, "accept") : false;
   const canReject = order ? orderAllowsAction(order, "reject") : false;
   const canCancel = order ? orderAllowsAction(order, "cancel") : false;
@@ -309,6 +313,25 @@ export function CashierOrderDetailPanel({
                 <ClipboardList className="size-4 text-primary" aria-hidden="true" />
                 Kitchen tickets
               </h3>
+              {needsKdsRoutingAttention ? (
+                <div className="rounded-card border border-warning/45 bg-warning/10 p-4 text-sm text-warning">
+                  <div className="flex items-start gap-3">
+                    <AlertTriangle
+                      className="mt-0.5 size-4 shrink-0"
+                      aria-hidden="true"
+                    />
+                    <div>
+                      <p className="font-semibold">
+                        Order accepted, but kitchen routing needs attention.
+                      </p>
+                      <p className="mt-1 text-xs">
+                        Refresh the branch. If no ticket appears, ask a manager
+                        to review KDS routing for this order.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              ) : null}
               {kitchenTickets.length === 0 ? (
                 <p className="rounded-card border border-dashed bg-surface/70 p-4 text-sm text-muted-foreground">
                   Ticket rows appear here after the order is accepted and routed
