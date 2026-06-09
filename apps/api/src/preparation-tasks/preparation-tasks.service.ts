@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  HttpException,
   Injectable,
   Logger,
   NotFoundException,
@@ -120,151 +121,181 @@ export class PreparationTasksService {
     const skippedItems: KdsRoutingResult['skippedItems'] = [];
     const actionableStations = new Set<PreparationStation>();
     let actionableItemCount = 0;
+    let routingStage:
+      | 'task_lookup'
+      | 'task_create'
+      | 'ticket_creation'
+      | 'ready_sync' = 'task_lookup';
+    let ticketRouting: KitchenTicketRoutingResult | undefined;
 
-    for (const item of order.items) {
-      if (!ACTIONABLE_STATIONS.includes(item.menuItem.station)) {
-        skippedItems.push({
-          orderItemId: item.id,
-          station: item.menuItem.station,
-          reason: 'non_actionable_station',
+    try {
+      for (const item of order.items) {
+        if (!ACTIONABLE_STATIONS.includes(item.menuItem.station)) {
+          skippedItems.push({
+            orderItemId: item.id,
+            station: item.menuItem.station,
+            reason: 'non_actionable_station',
+          });
+          continue;
+        }
+
+        actionableItemCount += 1;
+        actionableStations.add(item.menuItem.station);
+
+        routingStage = 'task_lookup';
+        const existingTask = await tx.preparationTask.findUnique({
+          where: { orderItemId: item.id },
+          select: { id: true },
         });
-        continue;
-      }
 
-      actionableItemCount += 1;
-      actionableStations.add(item.menuItem.station);
+        if (existingTask) {
+          activeTaskCount += 1;
+          existingTaskCount += 1;
+          continue;
+        }
 
-      const existingTask = await tx.preparationTask.findUnique({
-        where: { orderItemId: item.id },
-        select: { id: true },
-      });
-
-      if (existingTask) {
-        activeTaskCount += 1;
-        existingTaskCount += 1;
-        continue;
-      }
-
-      const task = await tx.preparationTask.create({
-        data: {
-          companyId: order.companyId,
-          branchId: order.branchId,
-          orderId: order.id,
-          orderItemId: item.id,
-          station: item.menuItem.station,
-          status: PreparationTaskStatus.pending,
-          quantity: item.quantity,
-          itemNameSnapshot: item.itemNameSnapshot,
-          itemSlugSnapshot: item.itemSlugSnapshot,
-          notes: item.notes,
-          events: {
-            create: {
-              type: PreparationTaskEventType.created,
-              actorStaffUserId: staffUserId,
-              metadata: {
-                orderId: order.id,
-                orderItemId: item.id,
+        routingStage = 'task_create';
+        const task = await tx.preparationTask.create({
+          data: {
+            companyId: order.companyId,
+            branchId: order.branchId,
+            orderId: order.id,
+            orderItemId: item.id,
+            station: item.menuItem.station,
+            status: PreparationTaskStatus.pending,
+            quantity: item.quantity,
+            itemNameSnapshot: item.itemNameSnapshot,
+            itemSlugSnapshot: item.itemSlugSnapshot,
+            notes: item.notes,
+            events: {
+              create: {
+                type: PreparationTaskEventType.created,
+                actorStaffUserId: staffUserId,
+                metadata: {
+                  orderId: order.id,
+                  orderItemId: item.id,
+                },
               },
             },
           },
-        },
-        select: { id: true },
+          select: { id: true },
+        });
+
+        if (options.recordRealtimeEvents ?? true) {
+          await this.realtimeEventsService.recordPreparationTaskCreated(
+            task.id,
+            tx,
+          );
+        }
+        activeTaskCount += 1;
+        createdTaskCount += 1;
+      }
+
+      routingStage = 'ticket_creation';
+      ticketRouting =
+        await this.kitchenTicketsService.createTicketsForAcceptedOrder(
+          order.id,
+          staffUserId,
+          tx,
+          {
+            createPrintJobs: options.createPrintJobs,
+            recordRealtimeEvents: options.recordRealtimeEvents,
+          },
+        );
+
+      const result: KdsRoutingResult = {
+        orderId: order.id,
+        branchId: order.branchId,
+        itemCount: order.items.length,
+        actionableItemCount,
+        stationsDetected: [...actionableStations],
+        skippedItems,
+        createdTaskCount,
+        existingTaskCount,
+        activeTaskCount,
+        ticketRouting,
+      };
+
+      this.logger.log({
+        message: 'kds.create_tasks_for_order',
+        orderId: order.id,
+        branchId: order.branchId,
+        itemCount: result.itemCount,
+        actionableItemCount,
+        stationsDetected: result.stationsDetected,
+        createdTaskCount,
+        existingTaskCount,
+        activeTaskCount,
+        createdTicketCount: ticketRouting.createdTicketCount,
+        existingTicketCount: ticketRouting.existingTicketCount,
+        ticketCount: ticketRouting.ticketIds.length,
+        skippedItemCount: skippedItems.length,
+        zeroTicketReason:
+          actionableItemCount > 0 && ticketRouting.ticketIds.length === 0
+            ? 'actionable_items_without_tickets'
+            : undefined,
       });
 
-      if (options.recordRealtimeEvents ?? true) {
-        await this.realtimeEventsService.recordPreparationTaskCreated(
-          task.id,
+      if (actionableItemCount > 0 && activeTaskCount === 0) {
+        throw this.kdsRoutingBadRequest(order.id, order.branchId, {
+          reason: 'actionable_items_without_tasks',
+          actionableItemCount,
+          stationsDetected: [...actionableStations],
+          createdTaskCount,
+          existingTaskCount,
+          activeTaskCount,
+          createdTicketCount: ticketRouting.createdTicketCount,
+          existingTicketCount: ticketRouting.existingTicketCount,
+          ticketCount: ticketRouting.ticketIds.length,
+          skippedItems: this.skippedItemsSummary(skippedItems),
+        });
+      }
+
+      if (actionableItemCount > 0 && ticketRouting.ticketIds.length === 0) {
+        throw this.kdsRoutingBadRequest(order.id, order.branchId, {
+          reason: 'actionable_items_without_tickets',
+          actionableItemCount,
+          stationsDetected: [...actionableStations],
+          createdTaskCount,
+          existingTaskCount,
+          activeTaskCount,
+          createdTicketCount: ticketRouting.createdTicketCount,
+          existingTicketCount: ticketRouting.existingTicketCount,
+          ticketCount: ticketRouting.ticketIds.length,
+          skippedItems: this.skippedItemsSummary(skippedItems),
+        });
+      }
+
+      if (activeTaskCount === 0) {
+        routingStage = 'ready_sync';
+        await this.syncOrderPreparationReady(
+          order.id,
+          staffUserId,
           tx,
+          'no_active_preparation_tasks',
         );
       }
-      activeTaskCount += 1;
-      createdTaskCount += 1;
-    }
 
-    const ticketRouting =
-      await this.kitchenTicketsService.createTicketsForAcceptedOrder(
-        order.id,
-        staffUserId,
-        tx,
-      {
-        createPrintJobs: options.createPrintJobs,
-        recordRealtimeEvents: options.recordRealtimeEvents,
-      },
-    );
+      return result;
+    } catch (error) {
+      if (error instanceof HttpException) {
+        throw error;
+      }
 
-    const result: KdsRoutingResult = {
-      orderId: order.id,
-      branchId: order.branchId,
-      itemCount: order.items.length,
-      actionableItemCount,
-      stationsDetected: [...actionableStations],
-      skippedItems,
-      createdTaskCount,
-      existingTaskCount,
-      activeTaskCount,
-      ticketRouting,
-    };
-
-    this.logger.log({
-      message: 'kds.create_tasks_for_order',
-      orderId: order.id,
-      branchId: order.branchId,
-      itemCount: result.itemCount,
-      actionableItemCount,
-      stationsDetected: result.stationsDetected,
-      createdTaskCount,
-      existingTaskCount,
-      activeTaskCount,
-      createdTicketCount: ticketRouting.createdTicketCount,
-      existingTicketCount: ticketRouting.existingTicketCount,
-      ticketCount: ticketRouting.ticketIds.length,
-      skippedItemCount: skippedItems.length,
-      zeroTicketReason:
-        actionableItemCount > 0 && ticketRouting.ticketIds.length === 0
-          ? 'actionable_items_without_tickets'
-          : undefined,
-    });
-
-    if (actionableItemCount > 0 && activeTaskCount === 0) {
       throw this.kdsRoutingBadRequest(order.id, order.branchId, {
-        reason: 'actionable_items_without_tasks',
+        reason: `${routingStage}_exception`,
         actionableItemCount,
         stationsDetected: [...actionableStations],
         createdTaskCount,
         existingTaskCount,
         activeTaskCount,
-        createdTicketCount: ticketRouting.createdTicketCount,
-        existingTicketCount: ticketRouting.existingTicketCount,
-        ticketCount: ticketRouting.ticketIds.length,
+        createdTicketCount: ticketRouting?.createdTicketCount ?? 0,
+        existingTicketCount: ticketRouting?.existingTicketCount ?? 0,
+        ticketCount: ticketRouting?.ticketIds.length ?? 0,
         skippedItems: this.skippedItemsSummary(skippedItems),
+        exception: this.safeRoutingExceptionSummary(error),
       });
     }
-
-    if (actionableItemCount > 0 && ticketRouting.ticketIds.length === 0) {
-      throw this.kdsRoutingBadRequest(order.id, order.branchId, {
-        reason: 'actionable_items_without_tickets',
-        actionableItemCount,
-        stationsDetected: [...actionableStations],
-        createdTaskCount,
-        existingTaskCount,
-        activeTaskCount,
-        createdTicketCount: ticketRouting.createdTicketCount,
-        existingTicketCount: ticketRouting.existingTicketCount,
-        ticketCount: ticketRouting.ticketIds.length,
-        skippedItems: this.skippedItemsSummary(skippedItems),
-      });
-    }
-
-    if (activeTaskCount === 0) {
-      await this.syncOrderPreparationReady(
-        order.id,
-        staffUserId,
-        tx,
-        'no_active_preparation_tasks',
-      );
-    }
-
-    return result;
   }
 
   async findForBranch(
@@ -839,6 +870,45 @@ export class PreparationTasksService {
       count: skippedItems.length,
       reasons,
     };
+  }
+
+  private safeRoutingExceptionSummary(error: unknown) {
+    const record = error as {
+      name?: unknown;
+      message?: unknown;
+      code?: unknown;
+    };
+
+    return {
+      name:
+        typeof record.name === 'string'
+          ? this.redactSensitiveText(record.name)
+          : 'Error',
+      message:
+        typeof record.message === 'string'
+          ? this.redactSensitiveText(record.message)
+          : 'Unknown error',
+      code:
+        typeof record.code === 'string'
+          ? this.redactSensitiveText(record.code)
+          : undefined,
+    };
+  }
+
+  private redactSensitiveText(value: string) {
+    const redacted = value
+      .replace(
+        /(password|passwd|pwd|secret|token|api[_-]?key|authorization|cookie)(\s*[:=]\s*)([^,\s}]+)/gi,
+        '$1$2[redacted]',
+      )
+      .replace(
+        /(postgres(?:ql)?:\/\/[^:\s]+:)([^@\s]+)(@)/gi,
+        '$1[redacted]$3',
+      );
+
+    return redacted.length > 1_000
+      ? `${redacted.slice(0, 1_000)}...`
+      : redacted;
   }
 
   private async recalculateAttention(

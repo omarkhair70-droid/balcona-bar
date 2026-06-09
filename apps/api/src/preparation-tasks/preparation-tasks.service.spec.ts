@@ -263,6 +263,7 @@ function buildCreateTasksService(input: {
   itemNameSnapshot?: string;
   existingTask?: boolean;
   ticketIds?: string[];
+  ticketRejects?: boolean;
 }) {
   const order = acceptedOrderForCreate(
     input.station,
@@ -296,7 +297,11 @@ function buildCreateTasksService(input: {
     input.ticketIds,
   );
   const kitchenTicketsService = {
-    createTicketsForAcceptedOrder: jest.fn().mockResolvedValue(ticketRouting),
+    createTicketsForAcceptedOrder: input.ticketRejects
+      ? jest
+          .fn()
+          .mockRejectedValue(new Error('database token=secret failed'))
+      : jest.fn().mockResolvedValue(ticketRouting),
     syncTicketsForTaskStarted: jest.fn().mockResolvedValue(undefined),
     syncTicketsForTaskReady: jest.fn().mockResolvedValue(undefined),
     syncTicketsForTaskCancelled: jest.fn().mockResolvedValue(undefined),
@@ -394,6 +399,32 @@ describe('PreparationTasksService accepted-order KDS routing', () => {
       response: expect.objectContaining({
         message: 'Kitchen routing failed for accepted order',
         code: 'kds_routing_failed',
+      }),
+    });
+  });
+
+  it('returns safe stage details when ticket creation throws unexpectedly', async () => {
+    const { service, tx } = buildCreateTasksService({
+      station: PreparationStation.barista,
+      ticketRejects: true,
+    });
+
+    await expect(
+      service.createTasksForAcceptedOrder('order-1', 'staff-1', tx as never),
+    ).rejects.toMatchObject({
+      response: expect.objectContaining({
+        message: 'Kitchen routing failed for accepted order',
+        code: 'kds_routing_failed',
+        details: expect.objectContaining({
+          reason: 'ticket_creation_exception',
+          actionableItemCount: 1,
+          createdTaskCount: 1,
+          activeTaskCount: 1,
+          ticketCount: 0,
+          exception: expect.objectContaining({
+            message: 'database token=[redacted] failed',
+          }),
+        }),
       }),
     });
   });

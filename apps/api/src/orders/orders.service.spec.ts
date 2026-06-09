@@ -1,5 +1,7 @@
 import { BadRequestException, Logger, NotFoundException } from '@nestjs/common';
 import {
+  KitchenTicketStatus,
+  KitchenTicketType,
   OrderEventActorType,
   OrderEventType,
   OrderSource,
@@ -7,6 +9,8 @@ import {
   PreparationStation,
   PreparationTaskStatus,
 } from '@prisma/client';
+import { KitchenTicketsService } from '../kitchen-tickets/kitchen-tickets.service';
+import { PreparationTasksService } from '../preparation-tasks/preparation-tasks.service';
 import { OrdersService } from './orders.service';
 
 const now = new Date('2026-01-01T00:00:00.000Z');
@@ -328,6 +332,409 @@ function buildService(input: {
     realtimeEventsService,
     kitchenTicketsService,
     inventoryService,
+  };
+}
+
+function buildAcceptKdsFlowService() {
+  const orderItem = {
+    id: 'order-item-1',
+    orderId: 'order-1',
+    menuItemId: 'spanish-latte',
+    quantity: 1,
+    notes: 'Iced',
+    itemNameSnapshot: 'Spanish Latte',
+    itemSlugSnapshot: 'spanish-latte',
+    basePriceMinorSnapshot: 11500,
+    effectiveBasePriceMinorSnapshot: 11500,
+    modifiersTotalMinorSnapshot: 0,
+    unitPriceMinorSnapshot: 11500,
+    lineTotalMinorSnapshot: 11500,
+    currency: 'EGP',
+    createdAt: now,
+    updatedAt: now,
+    menuItem: { station: PreparationStation.barista },
+    modifierOptions: [],
+  };
+  const state: {
+    orderStatus: OrderStatus;
+    preparationTasks: any[];
+    kitchenTickets: any[];
+  } = {
+    orderStatus: OrderStatus.submitted,
+    preparationTasks: [],
+    kitchenTickets: [],
+  };
+
+  const tableSession = {
+    id: 'session-1',
+    companyId: 'company-1',
+    branchId: 'branch-1',
+    tableId: 'table-1',
+    status: 'active',
+    source: 'qr',
+    guestLabel: null,
+    partySize: null,
+    startedAt: now,
+    lastSeenAt: now,
+    expiresAt: now,
+    closedAt: null,
+    closeReason: null,
+    createdAt: now,
+    updatedAt: now,
+    table: {
+      id: 'table-1',
+      code: 'T01',
+      displayName: 'T01',
+      capacity: 2,
+      qrToken: 'balcona-main-t01',
+      status: 'active',
+      floor: { id: 'floor-1', name: 'Main', sortOrder: 1 },
+    },
+  };
+
+  const orderContext = () => ({
+    id: 'order-1',
+    companyId: 'company-1',
+    branchId: 'branch-1',
+    tableSessionId: 'session-1',
+    cartId: 'cart-1',
+    orderNumber: 'B0001',
+    status: state.orderStatus,
+    source: OrderSource.customer_qr,
+    currency: 'EGP',
+    subtotalMinor: 11500,
+    totalQuantity: 1,
+    itemCount: 1,
+    customerNote: null,
+    idempotencyKey: null,
+    submittedAt: now,
+    cashierAcceptedAt:
+      state.orderStatus === OrderStatus.cashier_accepted ? now : null,
+    cashierRejectedAt: null,
+    rejectionReason: null,
+    preparingAt: null,
+    readyAt: null,
+    servedAt: null,
+    completedAt: null,
+    servedByStaffUserId: null,
+    completedByStaffUserId: null,
+    completionNote: null,
+    createdAt: now,
+    updatedAt: now,
+    company: {
+      id: 'company-1',
+      name: 'Balkona',
+      slug: 'balkona',
+      status: 'active',
+    },
+    branch: {
+      id: 'branch-1',
+      companyId: 'company-1',
+      name: 'Main',
+      slug: 'main',
+      address: null,
+      status: 'active',
+    },
+    tableSession,
+    items: [orderItem],
+    events: [],
+    preparationTasks: state.preparationTasks,
+    kitchenTickets: state.kitchenTickets,
+  });
+
+  const kitchenOrderContext = () => ({
+    id: 'order-1',
+    companyId: 'company-1',
+    branchId: 'branch-1',
+    tableSessionId: 'session-1',
+    orderNumber: 'B0001',
+    status: state.orderStatus,
+    customerNote: null,
+    tableSession: {
+      table: {
+        code: tableSession.table.code,
+        displayName: tableSession.table.displayName,
+        floor: { name: tableSession.table.floor.name },
+      },
+    },
+    items: [
+      {
+        ...orderItem,
+        preparationTask:
+          state.preparationTasks.find(
+            (task) => task.orderItemId === orderItem.id,
+          ) ?? null,
+      },
+    ],
+  });
+
+  const ticketResponse = (ticket: any) => ({
+    ...ticket,
+    company: { id: 'company-1', name: 'Balkona', slug: 'balkona' },
+    branch: { id: 'branch-1', companyId: 'company-1', name: 'Main', slug: 'main' },
+    order: {
+      id: 'order-1',
+      orderNumber: 'B0001',
+      status: state.orderStatus,
+      customerNote: null,
+      readyAt: null,
+      servedAt: null,
+      createdAt: now,
+    },
+    tableSession: {
+      ...tableSession,
+      table: tableSession.table,
+    },
+  });
+
+  const tx = {
+    staffUser: {
+      findUnique: jest.fn().mockResolvedValue({ id: 'staff-1' }),
+    },
+    order: {
+      findUnique: jest.fn((args: any) => {
+        if (args.include) {
+          return Promise.resolve(orderContext());
+        }
+
+        if (args.select?.items && args.select?.tableSession) {
+          return Promise.resolve(kitchenOrderContext());
+        }
+
+        if (args.select?.items) {
+          return Promise.resolve({
+            id: 'order-1',
+            companyId: 'company-1',
+            branchId: 'branch-1',
+            status: state.orderStatus,
+            tableSessionId: 'session-1',
+            items: [orderItem],
+          });
+        }
+
+        return Promise.resolve({
+          id: 'order-1',
+          branchId: 'branch-1',
+          tableSessionId: 'session-1',
+          status: state.orderStatus,
+          preparationTasks: [],
+        });
+      }),
+      updateMany: jest.fn((args: any) => {
+        if (args.where.id !== 'order-1') {
+          return Promise.resolve({ count: 0 });
+        }
+
+        if (args.where.status && args.where.status !== state.orderStatus) {
+          return Promise.resolve({ count: 0 });
+        }
+
+        if (args.data.status) {
+          state.orderStatus = args.data.status;
+        }
+
+        return Promise.resolve({ count: 1 });
+      }),
+    },
+    orderEvent: {
+      create: jest.fn().mockResolvedValue({ id: 'event-1' }),
+    },
+    preparationTask: {
+      findUnique: jest.fn((args: any) =>
+        Promise.resolve(
+          state.preparationTasks.find(
+            (task) => task.orderItemId === args.where.orderItemId,
+          ) ?? null,
+        ),
+      ),
+      findMany: jest.fn((args: any) =>
+        Promise.resolve(
+          state.preparationTasks.filter((task) => {
+            if (args.where.orderId && task.orderId !== args.where.orderId) {
+              return false;
+            }
+
+            const itemIds = args.where.orderItemId?.in;
+
+            return Array.isArray(itemIds)
+              ? itemIds.includes(task.orderItemId)
+              : true;
+          }),
+        ),
+      ),
+      create: jest.fn((args: any) => {
+        const task = {
+          id: `task-${state.preparationTasks.length + 1}`,
+          companyId: args.data.companyId,
+          branchId: args.data.branchId,
+          orderId: args.data.orderId,
+          orderItemId: args.data.orderItemId,
+          station: args.data.station,
+          status: args.data.status,
+          quantity: args.data.quantity,
+          itemNameSnapshot: args.data.itemNameSnapshot,
+          itemSlugSnapshot: args.data.itemSlugSnapshot,
+          notes: args.data.notes,
+          startedAt: null,
+          readyAt: null,
+          cancelledAt: null,
+          createdAt: now,
+          updatedAt: now,
+          events: [
+            {
+              id: 'task-event-1',
+              preparationTaskId: `task-${state.preparationTasks.length + 1}`,
+              type: args.data.events.create.type,
+              actorStaffUserId: args.data.events.create.actorStaffUserId,
+              metadata: args.data.events.create.metadata,
+              createdAt: now,
+            },
+          ],
+        };
+
+        state.preparationTasks.push(task);
+
+        return Promise.resolve({ id: task.id });
+      }),
+    },
+    kitchenTicket: {
+      aggregate: jest.fn(() => {
+        const maxSequence = state.kitchenTickets.reduce(
+          (max, ticket) => Math.max(max, ticket.sequence),
+          0,
+        );
+
+        return Promise.resolve({
+          _max: { sequence: maxSequence === 0 ? null : maxSequence },
+        });
+      }),
+      findUnique: jest.fn((args: any) => {
+        if (args.where.id) {
+          const ticket = state.kitchenTickets.find(
+            (entry) => entry.id === args.where.id,
+          );
+
+          return Promise.resolve(ticket ? ticketResponse(ticket) : null);
+        }
+
+        const key = args.where.orderId_station_type;
+
+        return Promise.resolve(
+          state.kitchenTickets.find(
+            (entry) =>
+              entry.orderId === key.orderId &&
+              entry.station === key.station &&
+              entry.type === key.type,
+          ) ?? null,
+        );
+      }),
+      create: jest.fn((args: any) => {
+        const ticketId = `ticket-${state.kitchenTickets.length + 1}`;
+        const { items: _nestedItems, ...ticketData } = args.data;
+        const ticketItems = args.data.items.create.map(
+          (item: any, index: number) => ({
+            id: `ticket-item-${index + 1}`,
+            ticketId,
+            ...item,
+            createdAt: now,
+            updatedAt: now,
+          }),
+        );
+        const ticket = {
+          id: ticketId,
+          ...ticketData,
+          items: ticketItems,
+          printJobs: [],
+          printedAt: null,
+          readyAt: null,
+          cancelledAt: null,
+          servedAt: null,
+          createdAt: now,
+          updatedAt: now,
+        };
+
+        state.kitchenTickets.push(ticket);
+
+        return Promise.resolve({ id: ticketId });
+      }),
+    },
+  };
+
+  const prisma = {
+    $transaction: jest.fn((callback: (txArg: typeof tx) => unknown) =>
+      callback(tx),
+    ),
+    order: {
+      findUnique: jest.fn().mockImplementation(() => orderContext()),
+    },
+    preparationTask: {
+      findMany: jest.fn().mockImplementation(() =>
+        state.preparationTasks.map((task) => ({ id: task.id })),
+      ),
+    },
+    kitchenTicket: tx.kitchenTicket,
+  };
+  const realtimeEventsService = {
+    recordPreparationTaskCreated: jest.fn().mockResolvedValue({}),
+    recordPreparationTaskStarted: jest.fn().mockResolvedValue({}),
+    recordPreparationTaskReady: jest.fn().mockResolvedValue({}),
+    recordPreparationTaskCancelled: jest.fn().mockResolvedValue({}),
+    recordOrderPreparationStarted: jest.fn().mockResolvedValue({}),
+    recordOrderPreparationReady: jest.fn().mockResolvedValue({}),
+    recordKitchenTicketCreated: jest.fn().mockResolvedValue({}),
+    recordKitchenTicketUpdated: jest.fn().mockResolvedValue({}),
+    recordKitchenTicketReady: jest.fn().mockResolvedValue({}),
+    recordKitchenTicketCancelled: jest.fn().mockResolvedValue({}),
+    recordOrderAccepted: jest.fn().mockResolvedValue({}),
+    recordOrderRejected: jest.fn().mockResolvedValue({}),
+    recordOrderServed: jest.fn().mockResolvedValue({}),
+    recordOrderCompleted: jest.fn().mockResolvedValue({}),
+    recordOrderCancelled: jest.fn().mockResolvedValue({}),
+  };
+  const printJobsService = {
+    createForKitchenTicket: jest.fn().mockResolvedValue({ id: 'print-job-1' }),
+  };
+  const kitchenTicketsService = new KitchenTicketsService(
+    prisma as never,
+    printJobsService as never,
+    realtimeEventsService as never,
+  );
+  const preparationTasksService = new PreparationTasksService(
+    prisma as never,
+    {} as never,
+    realtimeEventsService as never,
+    { recalculateForTableSession: jest.fn().mockResolvedValue({}) } as never,
+    kitchenTicketsService,
+  );
+  const inventoryService = {
+    consumeStockForAcceptedOrder: jest.fn().mockResolvedValue({
+      consumed: true,
+      movements: [],
+    }),
+  };
+  const service = new OrdersService(
+    prisma as never,
+    {} as never,
+    preparationTasksService,
+    {
+      createOrderAcceptedNotification: jest.fn().mockResolvedValue({}),
+      createOrderRejectedNotification: jest.fn().mockResolvedValue({}),
+      createOrderServedNotification: jest.fn().mockResolvedValue({}),
+    } as never,
+    realtimeEventsService as never,
+    {} as never,
+    { recalculateForTableSession: jest.fn().mockResolvedValue({}) } as never,
+    kitchenTicketsService,
+    inventoryService as never,
+  );
+
+  return {
+    service,
+    tx,
+    state,
+    inventoryService,
+    printJobsService,
+    realtimeEventsService,
   };
 }
 
@@ -678,6 +1085,83 @@ describe('OrdersService lifecycle hardening', () => {
     expect(kitchenTicketsService.createPrintJobsForTickets).toHaveBeenCalledWith(
       ['ticket-1'],
       'staff-1',
+    );
+  });
+
+  it('accepts a Spanish Latte through real preparation task and KDS ticket routing', async () => {
+    const {
+      service,
+      tx,
+      state,
+      inventoryService,
+      printJobsService,
+      realtimeEventsService,
+    } = buildAcceptKdsFlowService();
+
+    const result = await service.accept('order-1', {}, 'staff-1');
+
+    expect(result.order.status).toBe(OrderStatus.cashier_accepted);
+    expect(state.orderStatus).toBe(OrderStatus.cashier_accepted);
+    expect(inventoryService.consumeStockForAcceptedOrder).toHaveBeenCalledWith(
+      'order-1',
+      'staff-1',
+      tx,
+    );
+    expect(tx.preparationTask.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        orderItemId: 'order-item-1',
+        station: PreparationStation.barista,
+        itemNameSnapshot: 'Spanish Latte',
+      }),
+      select: { id: true },
+    });
+    expect(tx.kitchenTicket.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          orderId: 'order-1',
+          station: PreparationStation.barista,
+          type: KitchenTicketType.barista_order,
+          status: KitchenTicketStatus.queued,
+          displayCode: 'B0001',
+          items: {
+            create: [
+              expect.objectContaining({
+                orderItemId: 'order-item-1',
+                preparationTaskId: 'task-1',
+                station: PreparationStation.barista,
+              }),
+            ],
+          },
+        }),
+      }),
+    );
+    expect(result.preparationTasks).toEqual([
+      expect.objectContaining({
+        id: 'task-1',
+        orderItemId: 'order-item-1',
+        station: PreparationStation.barista,
+      }),
+    ]);
+    expect(result.kitchenTickets).toEqual([
+      expect.objectContaining({
+        id: 'ticket-1',
+        station: PreparationStation.barista,
+        items: [
+          expect.objectContaining({
+            orderItemId: 'order-item-1',
+            preparationTaskId: 'task-1',
+          }),
+        ],
+      }),
+    ]);
+    expect(printJobsService.createForKitchenTicket).toHaveBeenCalledWith(
+      'ticket-1',
+      tx,
+      { requestedByStaffUserId: 'staff-1' },
+    );
+    expect(realtimeEventsService.recordKitchenTicketCreated).toHaveBeenCalledWith(
+      'ticket-1',
+      expect.anything(),
     );
   });
 
