@@ -10,6 +10,13 @@ export default () => ({
     port: Number.parseInt(process.env.PORT ?? "3000", 10),
     prefix: process.env.API_PREFIX ?? "api/v1",
     version: process.env.APP_VERSION ?? "0.1.0",
+    gitSha:
+      process.env.GIT_SHA ??
+      process.env.RAILWAY_GIT_COMMIT_SHA ??
+      process.env.VERCEL_GIT_COMMIT_SHA ??
+      process.env.SOURCE_VERSION ??
+      "local",
+    buildTime: process.env.BUILD_TIME ?? process.env.APP_BUILD_TIME,
   },
   database: {
     url: process.env.DATABASE_URL,

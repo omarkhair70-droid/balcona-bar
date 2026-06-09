@@ -18,6 +18,7 @@ import {
   XCircle,
 } from "lucide-react";
 import { useMemo, useState } from "react";
+import { CopyDebugReportButton } from "@/components/debug/copy-debug-report-button";
 import { Badge } from "@/components/ui/badge";
 import { Button, buttonVariants } from "@/components/ui/button";
 import {
@@ -84,12 +85,14 @@ import { CashierOrderQueue } from "../components/cashier-order-queue";
 import { StaffAuthGate } from "../components/staff-auth-gate";
 import { StaffBranchSelector } from "../components/staff-branch-selector";
 import { StaffRealtimeStatus } from "../components/staff-realtime-status";
+import type { DebugReportInput } from "@/lib/observability/debug-report";
 
 type Notice = {
   tone: "success" | "error";
   message: string;
   actionLabel?: string;
   onAction?: () => void;
+  debug?: DebugReportInput;
 };
 
 type BillAction = {
@@ -206,6 +209,9 @@ function NoticeBanner({ notice }: { notice?: Notice }) {
             <RefreshCw className="size-4" aria-hidden="true" />
             {notice.actionLabel ?? "Refresh now"}
           </Button>
+        ) : null}
+        {notice.tone === "error" && notice.debug ? (
+          <CopyDebugReportButton {...notice.debug} />
         ) : null}
       </div>
     </div>
@@ -847,6 +853,17 @@ function CashierDashboardContent() {
       message: `Order could not be ${action}. ${formatErrorMessage(error)}`,
       actionLabel: "Refresh now",
       onAction: refreshBranch,
+      debug: {
+        action:
+          action === "accepted"
+            ? "cashier_accept"
+            : action === "rejected"
+              ? "cashier_reject"
+              : `order_${action}`,
+        flow: "staff_cashier",
+        orderId,
+        error,
+      },
     });
   };
   const showOrderActionSuccess = (
@@ -1021,6 +1038,11 @@ function CashierDashboardContent() {
       setNotice({
         tone: "error",
         message: `Bill request action failed. ${formatErrorMessage(error)}`,
+        debug: {
+          action: "bill_request_action",
+          flow: "staff_cashier",
+          error,
+        },
       });
     },
   });
@@ -1056,6 +1078,11 @@ function CashierDashboardContent() {
       setNotice({
         tone: "error",
         message: `Manual payment could not be recorded. ${formatErrorMessage(error)}`,
+        debug: {
+          action: "manual_payment_record",
+          flow: "staff_cashier",
+          error,
+        },
       });
     },
   });

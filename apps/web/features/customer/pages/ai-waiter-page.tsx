@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { AlertTriangle, CheckCircle2, Power, ShoppingBag } from "lucide-react";
+import { CopyDebugReportButton } from "@/components/debug/copy-debug-report-button";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { LoadingState } from "@/components/ui/loading-state";
@@ -416,6 +417,22 @@ export function AiWaiterPage({ sessionId }: AiWaiterPageProps) {
               onApply={(proposalId) => applyMutation.mutate(proposalId)}
               onReject={(proposalId) => rejectMutation.mutate(proposalId)}
             />
+            {proposalActionError ? (
+              <CopyDebugReportButton
+                action={
+                  applyMutation.isError
+                    ? "ai_proposal_apply"
+                    : "ai_proposal_reject"
+                }
+                flow="customer_ai_waiter"
+                sessionId={sessionId}
+                error={
+                  applyMutation.isError
+                    ? applyMutation.error
+                    : rejectMutation.error
+                }
+              />
+            ) : null}
             <AiEscalationCard
               isPending={escalationMutation.isPending}
               successMessage={escalationNotice}
@@ -428,6 +445,14 @@ export function AiWaiterPage({ sessionId }: AiWaiterPageProps) {
               }
               onEscalate={() => escalationMutation.mutate()}
             />
+            {escalationMutation.isError ? (
+              <CopyDebugReportButton
+                action="ai_waiter_escalate"
+                flow="customer_ai_waiter"
+                sessionId={sessionId}
+                error={escalationMutation.error}
+              />
+            ) : null}
             <CartSummary
               sessionId={sessionId}
               cart={cartSummary}
@@ -444,6 +469,12 @@ export function AiWaiterPage({ sessionId }: AiWaiterPageProps) {
               title="AI waiter could not load"
               description={formatErrorMessage(aiWaiterQuery.error)}
               action={<AlertTriangle className="size-5 text-warning" aria-hidden="true" />}
+              debug={{
+                action: "ai_waiter_state",
+                flow: "customer_ai_waiter",
+                sessionId,
+                error: aiWaiterQuery.error
+              }}
             />
           ) : null}
           {!aiWaiterQuery.data?.session && aiWaiterQuery.isSuccess ? (
@@ -475,6 +506,14 @@ export function AiWaiterPage({ sessionId }: AiWaiterPageProps) {
                   className="mt-4 rounded-card border border-danger bg-danger/10 p-3 text-sm text-danger"
                 >
                   AI waiter could not start. {formatErrorMessage(startMutation.error)}
+                  <div className="mt-3">
+                    <CopyDebugReportButton
+                      action="ai_waiter_start"
+                      flow="customer_ai_waiter"
+                      sessionId={sessionId}
+                      error={startMutation.error}
+                    />
+                  </div>
                 </div>
               ) : null}
             </div>
@@ -539,6 +578,14 @@ export function AiWaiterPage({ sessionId }: AiWaiterPageProps) {
                 : "")
             }
           />
+          {sendMutation.isError ? (
+            <CopyDebugReportButton
+              action="ai_waiter_send_message"
+              flow="customer_ai_waiter"
+              sessionId={sessionId}
+              error={sendMutation.error}
+            />
+          ) : null}
 
           <div className="flex flex-wrap items-center gap-3">
             <Link
@@ -565,6 +612,14 @@ export function AiWaiterPage({ sessionId }: AiWaiterPageProps) {
               className="rounded-card border border-danger bg-danger/10 p-3 text-sm text-danger"
             >
               AI waiter could not close. {formatErrorMessage(closeMutation.error)}
+              <div className="mt-3">
+                <CopyDebugReportButton
+                  action="ai_waiter_close"
+                  flow="customer_ai_waiter"
+                  sessionId={sessionId}
+                  error={closeMutation.error}
+                />
+              </div>
             </div>
           ) : null}
         </div>

@@ -206,6 +206,8 @@ type TableSessionStartOptions = {
 
 type CustomerMutationOptions = {
   timeoutMs?: number;
+  flowId?: string;
+  attempt?: number;
 };
 
 export function getCompanies() {
@@ -1289,6 +1291,8 @@ export function startTableSession(
       body: payload,
       signal: options.signal,
       timeoutMs: options.timeoutMs,
+      flow: "customer_table_start",
+      action: "table_session_start",
     },
   );
 }
@@ -1296,6 +1300,9 @@ export function startTableSession(
 export function getCart(sessionId: string, token?: string) {
   return apiRequest<CartResponse>(`/table-sessions/${sessionId}/cart`, {
     token,
+    flow: "customer_order_cycle",
+    action: "cart_get",
+    sessionId,
   });
 }
 
@@ -1315,6 +1322,12 @@ export function addCartItem(
         : undefined,
       token,
       timeoutMs: options.timeoutMs,
+      flow: "customer_order_cycle",
+      action: "cart_add_item",
+      sessionId,
+      flowId: options.flowId,
+      attempt: options.attempt,
+      idempotencyKeyPresent: Boolean(options.idempotencyKey),
     },
   );
 }
@@ -1330,6 +1343,8 @@ export function updateCartItem(
       method: "PATCH",
       body: payload,
       token,
+      flow: "customer_order_cycle",
+      action: "cart_update_item",
     },
   );
 }
@@ -1338,6 +1353,8 @@ export function removeCartItem(cartItemId: string, token?: string) {
   return apiRequest<CartResponse>(`/cart/items/${cartItemId}`, {
     method: "DELETE",
     token,
+    flow: "customer_order_cycle",
+    action: "cart_remove_item",
   });
 }
 
@@ -1345,6 +1362,9 @@ export function clearCart(sessionId: string, token?: string) {
   return apiRequest<CartResponse>(`/table-sessions/${sessionId}/cart/clear`, {
     method: "POST",
     token,
+    flow: "customer_order_cycle",
+    action: "cart_clear",
+    sessionId,
   });
 }
 
@@ -1354,6 +1374,9 @@ export function validateCart(sessionId: string, token?: string) {
     {
       method: "POST",
       token,
+      flow: "customer_order_cycle",
+      action: "cart_validate",
+      sessionId,
     },
   );
 }
@@ -1373,6 +1396,12 @@ export function submitCart(
       headers: { "Idempotency-Key": idempotencyKey },
       token,
       timeoutMs: options.timeoutMs,
+      flow: "customer_order_cycle",
+      action: "cart_submit",
+      sessionId,
+      flowId: options.flowId,
+      attempt: options.attempt,
+      idempotencyKeyPresent: true,
     },
   );
 }
@@ -1380,21 +1409,36 @@ export function submitCart(
 export function getTableSessionOrders(sessionId: string, token?: string) {
   return apiRequest<SessionOrdersResult>(
     `/table-sessions/${sessionId}/orders`,
-    { token },
+    {
+      token,
+      flow: "customer_order_cycle",
+      action: "order_status",
+      sessionId,
+    },
   );
 }
 
 export function getCustomerStatus(sessionId: string, token?: string) {
   return apiRequest<CustomerStatusResult>(
     `/table-sessions/${sessionId}/customer-status`,
-    { token },
+    {
+      token,
+      flow: "customer_order_cycle",
+      action: "order_status",
+      sessionId,
+    },
   );
 }
 
 export function getCustomerTimeline(sessionId: string, token?: string) {
   return apiRequest<CustomerTimelineResult>(
     `/table-sessions/${sessionId}/customer-timeline`,
-    { token },
+    {
+      token,
+      flow: "customer_order_cycle",
+      action: "customer_timeline",
+      sessionId,
+    },
   );
 }
 
@@ -1409,6 +1453,9 @@ export function createWaiterCall(
       method: "POST",
       body: payload,
       token,
+      flow: "customer_service",
+      action: "waiter_call_create",
+      sessionId,
     },
   );
 }
@@ -1493,6 +1540,9 @@ export function requestBill(
       method: "POST",
       body: payload,
       token,
+      flow: "customer_billing",
+      action: "bill_request_create",
+      sessionId,
     },
   );
 }
@@ -1500,6 +1550,9 @@ export function requestBill(
 export function getBill(sessionId: string, token?: string) {
   return apiRequest<BillResult>(`/table-sessions/${sessionId}/bill`, {
     token,
+    flow: "customer_billing",
+    action: "bill_get",
+    sessionId,
   });
 }
 
@@ -1541,6 +1594,9 @@ export function startAiWaiter(
       method: "POST",
       body: payload,
       token,
+      flow: "customer_ai_waiter",
+      action: "ai_waiter_start",
+      sessionId,
     },
   );
 }
@@ -1548,7 +1604,12 @@ export function startAiWaiter(
 export function getCurrentAiWaiterSession(sessionId: string, token?: string) {
   return apiRequest<AiWaiterStateResult>(
     `/table-sessions/${sessionId}/ai-waiter`,
-    { token },
+    {
+      token,
+      flow: "customer_ai_waiter",
+      action: "ai_waiter_state",
+      sessionId,
+    },
   );
 }
 
@@ -1559,7 +1620,13 @@ export function listAiWaiterMessages(
 ) {
   return apiRequest<AiWaiterMessagesResult>(
     `/table-sessions/${sessionId}/ai-waiter/messages`,
-    { query, token },
+    {
+      query,
+      token,
+      flow: "customer_ai_waiter",
+      action: "ai_waiter_messages",
+      sessionId,
+    },
   );
 }
 
@@ -1574,6 +1641,9 @@ export function sendAiWaiterMessage(
       method: "POST",
       body: payload,
       token,
+      flow: "customer_ai_waiter",
+      action: "ai_waiter_send_message",
+      sessionId,
     },
   );
 }
@@ -1589,6 +1659,10 @@ export function applyAiCartProposal(
       method: "POST",
       token,
       timeoutMs: options.timeoutMs,
+      flow: "customer_ai_waiter",
+      action: "ai_proposal_apply",
+      flowId: options.flowId,
+      attempt: options.attempt,
     },
   );
 }
@@ -1660,7 +1734,13 @@ export function getCashierOrders(
 ) {
   return apiRequest<CashierOrdersResult>(
     `/branches/${branchId}/cashier/orders`,
-    { query, token },
+    {
+      query,
+      token,
+      flow: "staff_cashier",
+      action: "cashier_orders_list",
+      sessionId: undefined,
+    },
   );
 }
 
@@ -1686,6 +1766,9 @@ export function acceptOrder(
       method: "POST",
       body: payload,
       token,
+      flow: "staff_cashier",
+      action: "cashier_accept",
+      orderId,
     },
   );
 }
@@ -1701,6 +1784,9 @@ export function rejectOrder(
       method: "POST",
       body: payload,
       token,
+      flow: "staff_cashier",
+      action: "cashier_reject",
+      orderId,
     },
   );
 }
@@ -1716,6 +1802,9 @@ export function serveOrder(
       method: "POST",
       body: payload,
       token,
+      flow: "staff_waiter",
+      action: "order_serve",
+      orderId,
     },
   );
 }
@@ -1731,6 +1820,9 @@ export function completeOrder(
       method: "POST",
       body: payload,
       token,
+      flow: "staff_waiter",
+      action: "order_complete",
+      orderId,
     },
   );
 }
@@ -1746,6 +1838,9 @@ export function cancelOrder(
       method: "POST",
       body: payload,
       token,
+      flow: "staff_cashier",
+      action: "order_cancel",
+      orderId,
     },
   );
 }
@@ -2085,6 +2180,8 @@ export function getBranchKitchenTickets(
     {
       query,
       token,
+      flow: "staff_kds",
+      action: "kitchen_ticket_list",
     },
   );
 }
@@ -2092,6 +2189,9 @@ export function getBranchKitchenTickets(
 export function getKitchenTicketDetail(ticketId: string, token?: string) {
   return apiRequest<KitchenTicketDetailResult>(`/kitchen-tickets/${ticketId}`, {
     token,
+    flow: "staff_kds",
+    action: "kitchen_ticket_detail",
+    ticketId,
   });
 }
 
@@ -2106,6 +2206,9 @@ export function reprintKitchenTicket(
       method: "POST",
       body: payload,
       token,
+      flow: "staff_kds",
+      action: "kitchen_ticket_reprint",
+      ticketId,
     },
   );
 }
@@ -2152,6 +2255,8 @@ export function markPrintJobFailed(
       method: "POST",
       body: payload,
       token,
+      flow: "staff_kds",
+      action: "print_job_failed",
     },
   );
 }
@@ -2198,6 +2303,9 @@ export function startPreparationTask(
       method: "POST",
       body: payload,
       token,
+      flow: "staff_kds",
+      action: "preparation_task_ready",
+      taskId,
     },
   );
 }
@@ -2213,6 +2321,9 @@ export function markPreparationTaskReady(
       method: "POST",
       body: payload,
       token,
+      flow: "staff_kds",
+      action: "preparation_task_cancel",
+      taskId,
     },
   );
 }

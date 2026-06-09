@@ -93,7 +93,15 @@ export function KitchenTaskBoard({
 
         {isLoading ? <LoadingState label="Loading preparation tasks" /> : null}
         {error ? (
-          <EmptyState title="Tasks could not load" description={error.message} />
+          <EmptyState
+            title="Tasks could not load"
+            description={error.message}
+            debug={{
+              action: "preparation_task_list",
+              flow: "staff_kds",
+              error
+            }}
+          />
         ) : null}
         {!isLoading && !error && tasks.length === 0 ? (
           <EmptyState

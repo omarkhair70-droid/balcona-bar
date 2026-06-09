@@ -20,6 +20,7 @@ import {
   XCircle
 } from "lucide-react";
 import { useMemo, useState } from "react";
+import { CopyDebugReportButton } from "@/components/debug/copy-debug-report-button";
 import { Badge } from "@/components/ui/badge";
 import { Button, buttonVariants } from "@/components/ui/button";
 import {
@@ -94,10 +95,12 @@ import { KitchenTaskDetailPanel } from "../components/kitchen-task-detail-panel"
 import { StaffAuthGate } from "../components/staff-auth-gate";
 import { StaffBranchSelector } from "../components/staff-branch-selector";
 import { StaffRealtimeStatus } from "../components/staff-realtime-status";
+import type { DebugReportInput } from "@/lib/observability/debug-report";
 
 type Notice = {
   tone: "success" | "error";
   message: string;
+  debug?: DebugReportInput;
 };
 
 type TaskAction = {
@@ -443,7 +446,12 @@ function NoticeBanner({ notice }: { notice?: Notice }) {
           : "rounded-card border border-danger bg-danger/10 p-4 text-sm text-danger"
       }
     >
-      {notice.message}
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <span>{notice.message}</span>
+        {notice.tone === "error" && notice.debug ? (
+          <CopyDebugReportButton {...notice.debug} />
+        ) : null}
+      </div>
     </div>
   );
 }
@@ -711,10 +719,16 @@ function KitchenDashboardContent() {
       setNotice({ tone: "success", message: "Preparation task started." });
       invalidateTaskState(variables.taskId, getTaskOrderId(result));
     },
-    onError: (error: Error) => {
+    onError: (error: Error, variables) => {
       setNotice({
         tone: "error",
-        message: `Task could not be started. ${error.message}`
+        message: `Task could not be started. ${error.message}`,
+        debug: {
+          action: "preparation_task_start",
+          flow: "staff_kds",
+          taskId: variables.taskId,
+          error
+        }
       });
     }
   });
@@ -729,10 +743,16 @@ function KitchenDashboardContent() {
       setNotice({ tone: "success", message: "Preparation task marked ready." });
       invalidateTaskState(variables.taskId, getTaskOrderId(result));
     },
-    onError: (error: Error) => {
+    onError: (error: Error, variables) => {
       setNotice({
         tone: "error",
-        message: `Task could not be marked ready. ${error.message}`
+        message: `Task could not be marked ready. ${error.message}`,
+        debug: {
+          action: "preparation_task_ready",
+          flow: "staff_kds",
+          taskId: variables.taskId,
+          error
+        }
       });
     }
   });
@@ -747,10 +767,16 @@ function KitchenDashboardContent() {
       setNotice({ tone: "success", message: "Preparation task cancelled." });
       invalidateTaskState(variables.taskId, getTaskOrderId(result));
     },
-    onError: (error: Error) => {
+    onError: (error: Error, variables) => {
       setNotice({
         tone: "error",
-        message: `Task could not be cancelled. ${error.message}`
+        message: `Task could not be cancelled. ${error.message}`,
+        debug: {
+          action: "preparation_task_cancel",
+          flow: "staff_kds",
+          taskId: variables.taskId,
+          error
+        }
       });
     }
   });
@@ -968,6 +994,11 @@ function KitchenDashboardContent() {
             <EmptyState
               title="Tickets could not load"
               description={ticketsQuery.error.message}
+              debug={{
+                action: "kitchen_ticket_list",
+                flow: "staff_kds",
+                error: ticketsQuery.error
+              }}
             />
           ) : null}
           {!ticketsQuery.isPending && tickets.length === 0 ? (
@@ -1014,6 +1045,11 @@ function KitchenDashboardContent() {
             <EmptyState
               title="Print queue could not load"
               description={printJobsQuery.error.message}
+              debug={{
+                action: "print_job_list",
+                flow: "staff_kds",
+                error: printJobsQuery.error
+              }}
             />
           ) : null}
           {!printJobsQuery.isPending && printJobs.length === 0 ? (

@@ -99,6 +99,11 @@ export function BillRequestQueue({
           <EmptyState
             title="Bill requests could not load"
             description={error.message}
+            debug={{
+              action: "bill_request_list",
+              flow: "staff_cashier",
+              error,
+            }}
           />
         ) : null}
         {!isLoading && !error && billRequests.length === 0 ? (
