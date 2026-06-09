@@ -44,6 +44,12 @@ type RequestBillTransactionResult = {
   tableSessionId: string;
   shouldRunPostCommitSideEffects: boolean;
 };
+type BillStaffActionPostCommitAction = "acknowledged" | "presented";
+type BillStaffActionTransactionResult = {
+  billRequestId: string;
+  tableSessionId: string;
+  postCommitAction: BillStaffActionPostCommitAction;
+};
 
 @Injectable()
 export class BillRequestsService {
@@ -231,7 +237,7 @@ export class BillRequestsService {
   }
 
   async acknowledge(billRequestId: string, body: BillStaffActionDto = {}) {
-    return this.prisma.$transaction(async (tx) => {
+    const transactionResult = await this.prisma.$transaction(async (tx) => {
       await this.assertStaffUserExists(body.staffUserId, tx);
 
       const billRequest = await this.findBillRequestStatusOrThrow(
@@ -263,23 +269,24 @@ export class BillRequestsService {
         note ? { note } : undefined,
         tx,
       );
-      await this.realtimeEventsService.recordBillAcknowledged(
-        billRequest.id,
-        tx,
-      );
-      await this.recalculateAttention(
-        billRequest.tableSessionId,
-        tx,
-        "bill_acknowledged",
-        { billRequestId: billRequest.id },
-      );
 
-      return this.getBillRequestResponse(billRequest.id, tx);
+      return {
+        billRequestId: billRequest.id,
+        tableSessionId: billRequest.tableSessionId,
+        postCommitAction: "acknowledged",
+      } satisfies BillStaffActionTransactionResult;
     });
+
+    this.scheduleBillStaffActionPostCommitSideEffects(transactionResult);
+
+    return this.getBillRequestResponse(
+      transactionResult.billRequestId,
+      this.prisma,
+    );
   }
 
   async present(billRequestId: string, body: BillStaffActionDto = {}) {
-    return this.prisma.$transaction(async (tx) => {
+    const transactionResult = await this.prisma.$transaction(async (tx) => {
       await this.assertStaffUserExists(body.staffUserId, tx);
 
       const billRequest = await this.findBillRequestStatusOrThrow(
@@ -314,26 +321,26 @@ export class BillRequestsService {
         note ? { note } : undefined,
         tx,
       );
-      await this.presenceNotificationsService.createBillPresentedNotification(
-        billRequest.id,
-        tx,
-      );
-      await this.realtimeEventsService.recordBillPresented(billRequest.id, tx);
       await this.billsService.presentBillForBillRequest(
         billRequest.id,
         body.staffUserId,
         note,
         tx,
       );
-      await this.recalculateAttention(
-        billRequest.tableSessionId,
-        tx,
-        "bill_presented",
-        { billRequestId: billRequest.id },
-      );
 
-      return this.getBillRequestResponse(billRequest.id, tx);
+      return {
+        billRequestId: billRequest.id,
+        tableSessionId: billRequest.tableSessionId,
+        postCommitAction: "presented",
+      } satisfies BillStaffActionTransactionResult;
     });
+
+    this.scheduleBillStaffActionPostCommitSideEffects(transactionResult);
+
+    return this.getBillRequestResponse(
+      transactionResult.billRequestId,
+      this.prisma,
+    );
   }
 
   async close(billRequestId: string, body: BillStaffActionDto = {}) {
@@ -486,6 +493,93 @@ export class BillRequestsService {
         });
       }
     }
+  }
+
+  private scheduleBillStaffActionPostCommitSideEffects(
+    input: BillStaffActionTransactionResult,
+  ) {
+    void this.runBillStaffActionPostCommitSideEffects(input).catch((error) => {
+      this.logger.warn({
+        message:
+          "Bill request staff post-commit side effect scheduler failed; committed bill request status remains source of truth",
+        action: input.postCommitAction,
+        billRequestId: input.billRequestId,
+        tableSessionId: input.tableSessionId,
+        exception: this.safeExceptionSummary(error),
+      });
+    });
+  }
+
+  private async runBillStaffActionPostCommitSideEffects(
+    input: BillStaffActionTransactionResult,
+  ) {
+    const steps = this.billStaffActionPostCommitSteps(input);
+
+    for (const step of steps) {
+      try {
+        await step.run();
+      } catch (error) {
+        this.logger.warn({
+          message:
+            "Bill request staff post-commit side effect failed; committed bill request status remains source of truth",
+          action: input.postCommitAction,
+          stage: step.stage,
+          billRequestId: input.billRequestId,
+          tableSessionId: input.tableSessionId,
+          exception: this.safeExceptionSummary(error),
+        });
+      }
+    }
+  }
+
+  private billStaffActionPostCommitSteps(
+    input: BillStaffActionTransactionResult,
+  ): Array<{ stage: string; run: () => Promise<unknown> }> {
+    const billRequestId = input.billRequestId;
+    const tableSessionId = input.tableSessionId;
+    const steps: Array<{ stage: string; run: () => Promise<unknown> }> = [];
+
+    if (input.postCommitAction === "presented") {
+      steps.push({
+        stage: "presence_notification",
+        run: () =>
+          this.presenceNotificationsService.createBillPresentedNotification(
+            billRequestId,
+            this.prisma,
+          ),
+      });
+    }
+
+    steps.push({
+      stage: "realtime_event",
+      run: () =>
+        input.postCommitAction === "acknowledged"
+          ? this.realtimeEventsService.recordBillAcknowledged(
+              billRequestId,
+              this.prisma,
+            )
+          : this.realtimeEventsService.recordBillPresented(
+              billRequestId,
+              this.prisma,
+            ),
+    });
+    steps.push({
+      stage: "table_attention",
+      run: () =>
+        this.tableAttentionService.recalculateForTableSession(
+          tableSessionId,
+          this.prisma,
+          {
+            source:
+              input.postCommitAction === "acknowledged"
+                ? "bill_acknowledged"
+                : "bill_presented",
+            metadata: { billRequestId },
+          },
+        ),
+    });
+
+    return steps;
   }
 
   private async createBillRequestEvent(

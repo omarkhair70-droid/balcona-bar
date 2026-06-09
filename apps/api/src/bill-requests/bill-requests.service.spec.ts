@@ -181,6 +181,7 @@ function buildService(tx: any, overrides: Record<string, any> = {}) {
   const prisma = {
     $transaction: jest.fn((callback) => callback(tx)),
     ...tx,
+    ...overrides.prisma,
   };
   const presenceNotificationsService = {
     createBillRequestedNotification: jest.fn().mockResolvedValue(undefined),
@@ -189,6 +190,7 @@ function buildService(tx: any, overrides: Record<string, any> = {}) {
   };
   const realtimeEventsService = {
     recordBillRequested: jest.fn().mockResolvedValue(undefined),
+    recordBillAcknowledged: jest.fn().mockResolvedValue(undefined),
     recordBillPresented: jest.fn().mockResolvedValue(undefined),
     ...overrides.realtimeEventsService,
   };
@@ -386,6 +388,136 @@ describe('BillRequestsService', () => {
     expect(result.latestBills).toHaveLength(1);
   });
 
+  it('keeps bill acknowledge successful when post-commit side effects fail', async () => {
+    const loggerSpy = jest.spyOn(Logger.prototype, 'warn').mockImplementation();
+    const tx = {
+      staffUser: {
+        findUnique: jest.fn().mockResolvedValue({ id: 'staff-1' }),
+      },
+      billRequest: {
+        findUnique: jest
+          .fn()
+          .mockResolvedValueOnce({
+            id: 'bill-request-1',
+            tableSessionId: 'session-1',
+            status: BillRequestStatus.open,
+          })
+          .mockResolvedValueOnce(
+            billRequestRecord({
+              status: BillRequestStatus.acknowledged,
+              acknowledgedAt: now,
+              acknowledgedByStaffUserId: 'staff-1',
+            }),
+          ),
+        update: jest.fn().mockResolvedValue({ id: 'bill-request-1' }),
+      },
+      billRequestEvent: {
+        create: jest.fn().mockResolvedValue({ id: 'event-2' }),
+      },
+      order: {
+        findMany: jest.fn().mockResolvedValue([billableOrder()]),
+      },
+    };
+    const { service, realtimeEventsService, tableAttentionService } =
+      buildService(tx, {
+        realtimeEventsService: {
+          recordBillAcknowledged: jest
+            .fn()
+            .mockRejectedValue(new Error('realtime token=secret failed')),
+        },
+        tableAttentionService: {
+          recalculateForTableSession: jest
+            .fn()
+            .mockRejectedValue(new Error('attention token=secret failed')),
+        },
+      });
+
+    const result = await service.acknowledge('bill-request-1', {
+      staffUserId: 'staff-1',
+    });
+    await flushAsyncWork();
+
+    expect(result.billRequest.status).toBe(BillRequestStatus.acknowledged);
+    expect(realtimeEventsService.recordBillAcknowledged).toHaveBeenCalled();
+    expect(tableAttentionService.recalculateForTableSession).toHaveBeenCalled();
+
+    const loggedPayload = JSON.stringify(loggerSpy.mock.calls);
+
+    expect(loggedPayload).toContain('realtime_event');
+    expect(loggedPayload).toContain('table_attention');
+    expect(loggedPayload).toContain('token=[redacted]');
+    expect(loggedPayload).not.toContain('token=secret');
+  });
+
+  it('hydrates bill acknowledge response after the transaction commits', async () => {
+    let inTransaction = false;
+    const tx = {
+      staffUser: {
+        findUnique: jest.fn().mockResolvedValue({ id: 'staff-1' }),
+      },
+      billRequest: {
+        findUnique: jest.fn(async () => {
+          expect(inTransaction).toBe(true);
+
+          return {
+            id: 'bill-request-1',
+            tableSessionId: 'session-1',
+            status: BillRequestStatus.open,
+          };
+        }),
+        update: jest.fn().mockResolvedValue({ id: 'bill-request-1' }),
+      },
+      billRequestEvent: {
+        create: jest.fn().mockResolvedValue({ id: 'event-2' }),
+      },
+      order: {
+        findMany: jest.fn().mockResolvedValue([]),
+      },
+    };
+    const responseFindUnique = jest.fn(async () => {
+      expect(inTransaction).toBe(false);
+
+      return billRequestRecord({
+        status: BillRequestStatus.acknowledged,
+        acknowledgedAt: now,
+        acknowledgedByStaffUserId: 'staff-1',
+      });
+    });
+    const responseFindMany = jest.fn(async () => {
+      expect(inTransaction).toBe(false);
+
+      return [billableOrder()];
+    });
+    const { service } = buildService(tx, {
+      prisma: {
+        $transaction: jest.fn(async (callback) => {
+          inTransaction = true;
+
+          try {
+            return await callback(tx);
+          } finally {
+            inTransaction = false;
+          }
+        }),
+        billRequest: {
+          findUnique: responseFindUnique,
+        },
+        order: {
+          findMany: responseFindMany,
+        },
+      },
+    });
+
+    const result = await service.acknowledge('bill-request-1', {
+      staffUserId: 'staff-1',
+    });
+    await flushAsyncWork();
+
+    expect(responseFindUnique).toHaveBeenCalled();
+    expect(responseFindMany).toHaveBeenCalled();
+    expect(result.billRequest.status).toBe(BillRequestStatus.acknowledged);
+  });
+
   it('presents an open bill request and asks the bills service to present the linked bill', async () => {
     const tx = {
       staffUser: {
@@ -416,11 +548,19 @@ describe('BillRequestsService', () => {
         findMany: jest.fn().mockResolvedValue([billableOrder()]),
       },
     };
-    const { service, billsService, realtimeEventsService } = buildService(tx);
+    const {
+      service,
+      billsService,
+      prisma,
+      presenceNotificationsService,
+      realtimeEventsService,
+      tableAttentionService,
+    } = buildService(tx);
 
     const result = await service.present('bill-request-1', {
       staffUserId: 'staff-1',
     });
+    await flushAsyncWork();
 
     expect(tx.billRequest.update).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -437,14 +577,169 @@ describe('BillRequestsService', () => {
       null,
       tx,
     );
+    expect(presenceNotificationsService.createBillPresentedNotification).toHaveBeenCalledWith(
+      'bill-request-1',
+      prisma,
+    );
     expect(realtimeEventsService.recordBillPresented).toHaveBeenCalledWith(
       'bill-request-1',
-      tx,
+      prisma,
+    );
+    expect(tableAttentionService.recalculateForTableSession).toHaveBeenCalledWith(
+      'session-1',
+      prisma,
+      {
+        source: 'bill_presented',
+        metadata: { billRequestId: 'bill-request-1' },
+      },
     );
     if (!result.bill) {
       throw new Error('Expected presented bill request response to include a bill');
     }
     expect(result.bill.status).toBe(BillStatus.presented);
+  });
+
+  it('keeps bill present successful when post-commit side effects fail', async () => {
+    const loggerSpy = jest.spyOn(Logger.prototype, 'warn').mockImplementation();
+    const tx = {
+      staffUser: {
+        findUnique: jest.fn().mockResolvedValue({ id: 'staff-1' }),
+      },
+      billRequest: {
+        findUnique: jest
+          .fn()
+          .mockResolvedValueOnce({
+            id: 'bill-request-1',
+            tableSessionId: 'session-1',
+            status: BillRequestStatus.acknowledged,
+          })
+          .mockResolvedValueOnce(
+            billRequestRecord({
+              status: BillRequestStatus.presented,
+              presentedAt: now,
+              presentedByStaffUserId: 'staff-1',
+              bill: billSummary({ status: BillStatus.presented }),
+            }),
+          ),
+        update: jest.fn().mockResolvedValue({ id: 'bill-request-1' }),
+      },
+      billRequestEvent: {
+        create: jest.fn().mockResolvedValue({ id: 'event-2' }),
+      },
+      order: {
+        findMany: jest.fn().mockResolvedValue([billableOrder()]),
+      },
+    };
+    const {
+      service,
+      presenceNotificationsService,
+      realtimeEventsService,
+      tableAttentionService,
+    } = buildService(tx, {
+      presenceNotificationsService: {
+        createBillPresentedNotification: jest
+          .fn()
+          .mockRejectedValue(new Error('notification token=secret failed')),
+      },
+      realtimeEventsService: {
+        recordBillPresented: jest
+          .fn()
+          .mockRejectedValue(new Error('realtime token=secret failed')),
+      },
+      tableAttentionService: {
+        recalculateForTableSession: jest
+          .fn()
+          .mockRejectedValue(new Error('attention token=secret failed')),
+      },
+    });
+
+    const result = await service.present('bill-request-1', {
+      staffUserId: 'staff-1',
+    });
+    await flushAsyncWork();
+
+    expect(result.billRequest.status).toBe(BillRequestStatus.presented);
+    expect(presenceNotificationsService.createBillPresentedNotification).toHaveBeenCalled();
+    expect(realtimeEventsService.recordBillPresented).toHaveBeenCalled();
+    expect(tableAttentionService.recalculateForTableSession).toHaveBeenCalled();
+
+    const loggedPayload = JSON.stringify(loggerSpy.mock.calls);
+
+    expect(loggedPayload).toContain('presence_notification');
+    expect(loggedPayload).toContain('realtime_event');
+    expect(loggedPayload).toContain('table_attention');
+    expect(loggedPayload).toContain('token=[redacted]');
+    expect(loggedPayload).not.toContain('token=secret');
+  });
+
+  it('hydrates bill present response after the transaction commits', async () => {
+    let inTransaction = false;
+    const tx = {
+      staffUser: {
+        findUnique: jest.fn().mockResolvedValue({ id: 'staff-1' }),
+      },
+      billRequest: {
+        findUnique: jest.fn(async () => {
+          expect(inTransaction).toBe(true);
+
+          return {
+            id: 'bill-request-1',
+            tableSessionId: 'session-1',
+            status: BillRequestStatus.acknowledged,
+          };
+        }),
+        update: jest.fn().mockResolvedValue({ id: 'bill-request-1' }),
+      },
+      billRequestEvent: {
+        create: jest.fn().mockResolvedValue({ id: 'event-2' }),
+      },
+      order: {
+        findMany: jest.fn().mockResolvedValue([]),
+      },
+    };
+    const responseFindUnique = jest.fn(async () => {
+      expect(inTransaction).toBe(false);
+
+      return billRequestRecord({
+        status: BillRequestStatus.presented,
+        presentedAt: now,
+        presentedByStaffUserId: 'staff-1',
+        bill: billSummary({ status: BillStatus.presented }),
+      });
+    });
+    const responseFindMany = jest.fn(async () => {
+      expect(inTransaction).toBe(false);
+
+      return [billableOrder()];
+    });
+    const { service } = buildService(tx, {
+      prisma: {
+        $transaction: jest.fn(async (callback) => {
+          inTransaction = true;
+
+          try {
+            return await callback(tx);
+          } finally {
+            inTransaction = false;
+          }
+        }),
+        billRequest: {
+          findUnique: responseFindUnique,
+        },
+        order: {
+          findMany: responseFindMany,
+        },
+      },
+    });
+
+    const result = await service.present('bill-request-1', {
+      staffUserId: 'staff-1',
+    });
+    await flushAsyncWork();
+
+    expect(responseFindUnique).toHaveBeenCalled();
+    expect(responseFindMany).toHaveBeenCalled();
+    expect(result.bill?.status).toBe(BillStatus.presented);
   });
 
   it('rejects bill request creation with a clear BadRequest when no billable orders exist', async () => {
