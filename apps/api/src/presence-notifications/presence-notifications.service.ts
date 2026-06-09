@@ -289,7 +289,7 @@ export class PresenceNotificationsService {
 
   async createBillRequestedNotification(
     billRequestId: string,
-    tx: Prisma.TransactionClient,
+    tx: PrismaExecutor = this.prisma,
   ) {
     const billRequest = await this.findBillRequestNotificationContext(
       billRequestId,

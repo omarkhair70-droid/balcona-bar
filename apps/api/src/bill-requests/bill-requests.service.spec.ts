@@ -1,4 +1,4 @@
-import { BadRequestException } from '@nestjs/common';
+import { BadRequestException, Logger } from '@nestjs/common';
 import {
   BillRequestActorType,
   BillRequestStatus,
@@ -9,6 +9,14 @@ import {
 import { BillRequestsService } from './bill-requests.service';
 
 const now = new Date('2026-06-05T09:30:00.000Z');
+
+afterEach(() => {
+  jest.restoreAllMocks();
+});
+
+function flushAsyncWork() {
+  return new Promise((resolve) => setImmediate(resolve));
+}
 
 function tableSession(overrides: Record<string, unknown> = {}) {
   return {
@@ -177,13 +185,16 @@ function buildService(tx: any, overrides: Record<string, any> = {}) {
   const presenceNotificationsService = {
     createBillRequestedNotification: jest.fn().mockResolvedValue(undefined),
     createBillPresentedNotification: jest.fn().mockResolvedValue(undefined),
+    ...overrides.presenceNotificationsService,
   };
   const realtimeEventsService = {
     recordBillRequested: jest.fn().mockResolvedValue(undefined),
     recordBillPresented: jest.fn().mockResolvedValue(undefined),
+    ...overrides.realtimeEventsService,
   };
   const tableAttentionService = {
     recalculateForTableSession: jest.fn().mockResolvedValue(undefined),
+    ...overrides.tableAttentionService,
   };
   const billsService = {
     createOrGetBillForBillRequest: jest
@@ -237,11 +248,14 @@ describe('BillRequestsService', () => {
     const {
       service,
       billsService,
+      prisma,
       presenceNotificationsService,
       realtimeEventsService,
+      tableAttentionService,
     } = buildService(tx);
 
     const result = await service.requestBill('session-1');
+    await flushAsyncWork();
 
     expect(tx.billRequest.create).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -260,11 +274,19 @@ describe('BillRequestsService', () => {
     );
     expect(presenceNotificationsService.createBillRequestedNotification).toHaveBeenCalledWith(
       'bill-request-1',
-      tx,
+      prisma,
     );
     expect(realtimeEventsService.recordBillRequested).toHaveBeenCalledWith(
       'bill-request-1',
-      tx,
+      prisma,
+    );
+    expect(tableAttentionService.recalculateForTableSession).toHaveBeenCalledWith(
+      'session-1',
+      prisma,
+      {
+        source: 'bill_requested',
+        metadata: { billRequestId: 'bill-request-1' },
+      },
     );
     expect(result.billRequest.id).toBe('bill-request-1');
     if (!result.bill) {
@@ -281,6 +303,64 @@ describe('BillRequestsService', () => {
         modifierOptionSlugSnapshot: 'medium',
       },
     ]);
+  });
+
+  it('keeps bill request creation successful when post-commit side effects fail', async () => {
+    const loggerSpy = jest.spyOn(Logger.prototype, 'warn').mockImplementation();
+    const tx = {
+      tableSession: {
+        findUnique: jest.fn().mockResolvedValue(tableSession()),
+      },
+      billRequest: {
+        findFirst: jest.fn().mockResolvedValue(null),
+        create: jest.fn().mockResolvedValue({ id: 'bill-request-1' }),
+        findUnique: jest.fn().mockResolvedValue(billRequestRecord()),
+      },
+      order: {
+        findMany: jest.fn().mockResolvedValue([billableOrder()]),
+      },
+      orderEvent: {
+        create: jest.fn().mockResolvedValue({ id: 'order-event-1' }),
+      },
+    };
+    const {
+      service,
+      presenceNotificationsService,
+      realtimeEventsService,
+      tableAttentionService,
+    } = buildService(tx, {
+      presenceNotificationsService: {
+        createBillRequestedNotification: jest
+          .fn()
+          .mockRejectedValue(new Error('notification token=secret failed')),
+      },
+      realtimeEventsService: {
+        recordBillRequested: jest
+          .fn()
+          .mockRejectedValue(new Error('realtime token=secret failed')),
+      },
+      tableAttentionService: {
+        recalculateForTableSession: jest
+          .fn()
+          .mockRejectedValue(new Error('attention token=secret failed')),
+      },
+    });
+
+    const result = await service.requestBill('session-1');
+    await flushAsyncWork();
+
+    expect(result.billRequest.id).toBe('bill-request-1');
+    expect(presenceNotificationsService.createBillRequestedNotification).toHaveBeenCalled();
+    expect(realtimeEventsService.recordBillRequested).toHaveBeenCalled();
+    expect(tableAttentionService.recalculateForTableSession).toHaveBeenCalled();
+
+    const loggedPayload = JSON.stringify(loggerSpy.mock.calls);
+
+    expect(loggedPayload).toContain('presence_notification');
+    expect(loggedPayload).toContain('realtime_event');
+    expect(loggedPayload).toContain('table_attention');
+    expect(loggedPayload).toContain('token=[redacted]');
+    expect(loggedPayload).not.toContain('token=secret');
   });
 
   it('returns activeBillRequest and activeBill for a table session with an open bill', async () => {

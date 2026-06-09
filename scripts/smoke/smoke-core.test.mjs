@@ -209,4 +209,22 @@ describe("smoke core", () => {
     assert.ok(waiterAcknowledgeBlock);
     assert.doesNotMatch(waiterAcknowledgeBlock[0], /\bnote\b/);
   });
+
+  it("uses valid preparation task action payloads in the staging runner", async () => {
+    const source = await readFile(
+      new URL("./staging-smoke.mjs", import.meta.url),
+      "utf8"
+    );
+    const startBlock = source.match(
+      /action: "preparation_task_start"[\s\S]{0,160}?body: \{\s*\}/
+    );
+    const readyBlock = source.match(
+      /action: "preparation_task_ready"[\s\S]{0,160}?body: \{\s*\}/
+    );
+
+    assert.ok(startBlock);
+    assert.ok(readyBlock);
+    assert.doesNotMatch(startBlock[0], /\bnote\b/);
+    assert.doesNotMatch(readyBlock[0], /\bnote\b/);
+  });
 });
