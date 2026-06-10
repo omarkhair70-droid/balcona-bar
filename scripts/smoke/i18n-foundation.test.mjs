@@ -41,6 +41,26 @@ function flattenKeys(value, prefix = "") {
   });
 }
 
+function flattenEntries(value, prefix = "") {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return [];
+  }
+
+  return Object.entries(value).flatMap(([key, nested]) => {
+    const nextPrefix = prefix ? `${prefix}.${key}` : key;
+
+    return nested && typeof nested === "object" && !Array.isArray(nested)
+      ? flattenEntries(nested, nextPrefix)
+      : [[nextPrefix, String(nested)]];
+  });
+}
+
+function placeholders(value) {
+  return Array.from(value.matchAll(/\{([a-zA-Z0-9_]+)\}/g))
+    .map((match) => match[1])
+    .sort();
+}
+
 describe("i18n Crowdin foundation", () => {
   it("keeps English and Arabic message namespaces aligned", async () => {
     const enMessages = await readJson("../../apps/web/messages/en.json");
@@ -52,6 +72,88 @@ describe("i18n Crowdin foundation", () => {
     }
 
     assert.deepEqual(flattenKeys(arMessages).sort(), flattenKeys(enMessages).sort());
+  });
+
+  it("keeps English and Arabic placeholders aligned", async () => {
+    const enMessages = await readJson("../../apps/web/messages/en.json");
+    const arMessages = await readJson("../../apps/web/messages/ar.json");
+    const arEntries = new Map(flattenEntries(arMessages));
+
+    for (const [key, enValue] of flattenEntries(enMessages)) {
+      assert.deepEqual(
+        placeholders(arEntries.get(key) ?? ""),
+        placeholders(enValue),
+        `placeholder mismatch for ${key}`
+      );
+    }
+  });
+
+  it("includes the customer ordering namespaces required for Crowdin", async () => {
+    const enMessages = await readJson("../../apps/web/messages/en.json");
+    const customer = enMessages.customer;
+
+    for (const namespace of [
+      "actions",
+      "bill",
+      "cart",
+      "empty",
+      "entry",
+      "errors",
+      "home",
+      "item",
+      "menu",
+      "quantity",
+      "realtime",
+      "service",
+      "status",
+      "tableStart"
+    ]) {
+      assert.ok(customer[namespace], `missing customer.${namespace}`);
+    }
+  });
+
+  it("keeps extracted customer ordering strings out of targeted source files", async () => {
+    const files = [
+      "../../apps/web/features/customer/pages/customer-entry-page.tsx",
+      "../../apps/web/features/customer/pages/customer-table-start-page.tsx",
+      "../../apps/web/features/customer/pages/customer-session-home-page.tsx",
+      "../../apps/web/features/customer/pages/customer-menu-page.tsx",
+      "../../apps/web/features/customer/pages/customer-cart-page.tsx",
+      "../../apps/web/features/customer/pages/customer-status-page.tsx",
+      "../../apps/web/features/customer/pages/customer-service-page.tsx",
+      "../../apps/web/features/customer/item-detail-panel.tsx",
+      "../../apps/web/features/customer/menu-item-card.tsx",
+      "../../apps/web/features/customer/cart-summary.tsx",
+      "../../apps/web/features/customer/service-action-card.tsx",
+      "../../apps/web/features/customer/status-timeline.tsx"
+    ];
+    const extractedPhrases = [
+      "Start your table experience",
+      "Enter or scan a table token",
+      "Opening your table session",
+      "Your table is live",
+      "Choose for the table",
+      "Menu could not load",
+      "Review before sending",
+      "Your cart is empty",
+      "Submit order",
+      "Follow your table timeline",
+      "Orders could not load",
+      "Ask the team without leaving your table",
+      "We could not request the bill yet",
+      "A table-ready selection from the menu.",
+      "Add to cart",
+      "Prepared for this table experience.",
+      "Cart is ready",
+      "Your table timeline will appear"
+    ];
+    const combinedSource = (
+      await Promise.all(files.map((file) => readText(file)))
+    ).join("\n");
+
+    for (const phrase of extractedPhrases) {
+      assert.doesNotMatch(combinedSource, new RegExp(phrase.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
+    }
   });
 
   it("keeps Crowdin configured for English source and Arabic output without secrets", async () => {

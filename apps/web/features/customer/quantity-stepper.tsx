@@ -2,6 +2,7 @@
 
 import { Minus, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { useTranslations } from "@/lib/i18n/i18n-provider";
 
 type QuantityStepperProps = {
   value: number;
@@ -16,6 +17,8 @@ export function QuantityStepper({
   onChange,
   disabled
 }: QuantityStepperProps) {
+  const t = useTranslations("customer");
+
   return (
     <div className="inline-flex items-center gap-2 rounded-button border bg-surface p-1">
       <Button
@@ -23,7 +26,7 @@ export function QuantityStepper({
         variant="ghost"
         onClick={() => onChange(Math.max(min, value - 1))}
         disabled={disabled || value <= min}
-        aria-label="Decrease quantity"
+        aria-label={t("quantity.decrease")}
       >
         <Minus className="size-4" aria-hidden="true" />
       </Button>
@@ -33,7 +36,7 @@ export function QuantityStepper({
         variant="ghost"
         onClick={() => onChange(value + 1)}
         disabled={disabled}
-        aria-label="Increase quantity"
+        aria-label={t("quantity.increase")}
       >
         <Plus className="size-4" aria-hidden="true" />
       </Button>

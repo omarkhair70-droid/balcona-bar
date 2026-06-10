@@ -2,6 +2,7 @@
 
 import { Badge } from "@/components/ui/badge";
 import type { MenuModifierGroup } from "@/lib/api/types";
+import { useTranslations } from "@/lib/i18n/i18n-provider";
 import { cn } from "@/lib/utils/cn";
 import { formatMoney } from "./customer-format";
 
@@ -16,6 +17,7 @@ export function ModifierGroupSelector({
   selectedOptionIds,
   onChange
 }: ModifierGroupSelectorProps) {
+  const t = useTranslations("customer");
   const isSingle = group.selectionType === "single";
 
   function toggleOption(optionId: string) {
@@ -49,7 +51,9 @@ export function ModifierGroupSelector({
             </p>
           ) : null}
         </div>
-        {group.isRequired ? <Badge variant="warning">Required</Badge> : null}
+        {group.isRequired ? (
+          <Badge variant="warning">{t("item.required")}</Badge>
+        ) : null}
       </div>
       <div className="mt-3 grid gap-2">
         {group.options.map((option) => {

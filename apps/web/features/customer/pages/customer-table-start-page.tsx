@@ -18,6 +18,7 @@ import { startTableSession } from "@/lib/api/endpoints";
 import { withCustomerTransientRetry } from "@/lib/customer/customer-api-reliability";
 import { assertCustomerSessionReady } from "@/lib/customer/customer-session-readiness";
 import { useCustomerSessionStore } from "@/lib/customer/customer-session-store";
+import { useTranslations } from "@/lib/i18n/i18n-provider";
 import { CustomerShell } from "@/features/customer/customer-shell";
 
 const TABLE_SESSION_START_TIMEOUT_MS = 12_000;
@@ -27,24 +28,28 @@ type CustomerTableStartPageProps = {
   qrToken: string;
 };
 
-function tableStartErrorMessage(error: unknown, qrToken: string) {
+function tableStartErrorMessage(
+  error: unknown,
+  qrToken: string,
+  t: (key: string, values?: Record<string, string | number>) => string
+) {
   if (error instanceof ApiError) {
     if (error.status === 404) {
-      return `This table QR code was not found. Ask the cafe team to check table token ${qrToken}.`;
+      return t("errors.tableNotFound", { token: qrToken });
     }
 
     if (error.status === 0) {
-      return "The staging API is slow or unreachable. Please wait a moment and try again.";
+      return t("errors.tableApiSlow");
     }
 
     if (error.status >= 500) {
-      return "The table service is temporarily unavailable. Please try again in a moment.";
+      return t("errors.tableServiceUnavailable");
     }
   }
 
   return formatErrorMessage(
     error,
-    "The table link could not open. Please try again.",
+    t("errors.tableLinkFallback"),
   );
 }
 
@@ -52,6 +57,7 @@ export function CustomerTableStartPage({
   qrToken
 }: CustomerTableStartPageProps) {
   const router = useRouter();
+  const t = useTranslations("customer");
   const setFromStartResult = useCustomerSessionStore(
     (state) => state.setFromStartResult
   );
@@ -95,24 +101,27 @@ export function CustomerTableStartPage({
   const isRetrying =
     startMutation.isPending && startMutation.failureCount > 0;
   const loadingDescription = isRetrying
-    ? `Retrying the table session connection (${startMutation.failureCount + 1} of ${TABLE_SESSION_START_MAX_FAILURES}).`
-    : "Opening your table...";
+    ? t("tableStart.retrying", {
+        attempt: startMutation.failureCount + 1,
+        max: TABLE_SESSION_START_MAX_FAILURES
+      })
+    : t("tableStart.loading");
   const errorDescription = startMutation.isError
-    ? tableStartErrorMessage(startMutation.error, qrToken)
+    ? tableStartErrorMessage(startMutation.error, qrToken, t)
     : "";
 
   return (
     <CustomerShell
-      eyebrow="Opening table"
+      eyebrow={t("tableStart.eyebrow")}
       title={
         startMutation.isError
-          ? "Table link could not open"
-          : "Opening your table session"
+          ? t("tableStart.titleError")
+          : t("tableStart.titleOpening")
       }
       description={
         startMutation.isError
           ? errorDescription
-          : "Starting or resuming the customer session for this table."
+          : t("tableStart.descriptionOpening")
       }
     >
       <Card
@@ -130,7 +139,7 @@ export function CustomerTableStartPage({
             )}
           </div>
           <CardTitle>
-            {startMutation.isError ? "Table link could not open" : qrToken}
+            {startMutation.isError ? t("tableStart.titleError") : qrToken}
           </CardTitle>
           <CardDescription>
             {startMutation.isError ? errorDescription : loadingDescription}
@@ -140,16 +149,18 @@ export function CustomerTableStartPage({
           {startMutation.isPending ? (
             <span className="inline-flex items-center gap-2 text-sm text-muted-foreground">
               <LoaderCircle className="size-4 animate-spin" aria-hidden="true" />
-              {isRetrying ? "Retrying connection" : "Starting session"}
+              {isRetrying
+                ? t("tableStart.retryingConnection")
+                : t("tableStart.startingSession")}
             </span>
           ) : null}
           {startMutation.isError ? (
             <>
               <Button onClick={() => startMutation.mutate()}>
-                Try again
+                {t("actions.tryAgain")}
               </Button>
               <Button variant="secondary" onClick={() => router.push("/customer")}>
-                Back
+                {t("actions.back")}
               </Button>
               <CopyDebugReportButton
                 action="table_session_start"

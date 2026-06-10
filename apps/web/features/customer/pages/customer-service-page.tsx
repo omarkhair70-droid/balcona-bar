@@ -29,6 +29,7 @@ import { customerQueryKeys } from "@/lib/api/query-keys";
 import type { WaiterCallPayload } from "@/lib/api/types";
 import { useCustomerSessionStore } from "@/lib/customer/customer-session-store";
 import { vibrateSuccess, vibrateWarning } from "@/lib/haptics/haptics";
+import { useTranslations } from "@/lib/i18n/i18n-provider";
 import { CustomerSessionScreen } from "../customer-session-screen";
 import { formatMoney, getRecordString } from "../customer-format";
 import { ServiceActionCard } from "../service-action-card";
@@ -38,30 +39,30 @@ type CustomerServicePageProps = {
 };
 
 const serviceActions: Array<{
-  title: string;
-  description: string;
-  actionLabel: string;
+  titleKey: string;
+  descriptionKey: string;
+  actionLabelKey: string;
   payload: WaiterCallPayload;
   icon: ReactNode;
 }> = [
   {
-    title: "Call waiter",
-    description: "Let the team know you need service at the table.",
-    actionLabel: "Call",
+    titleKey: "service.callTitle",
+    descriptionKey: "service.callDescription",
+    actionLabelKey: "service.callAction",
     payload: { type: "call_waiter", priority: 2 },
     icon: <BellRing className="size-6" aria-hidden="true" />
   },
   {
-    title: "Water",
-    description: "Ask for water without leaving the table experience.",
-    actionLabel: "Request water",
+    titleKey: "service.waterTitle",
+    descriptionKey: "service.waterDescription",
+    actionLabelKey: "service.waterAction",
     payload: { type: "need_water", priority: 1 },
     icon: <Droplets className="size-6" aria-hidden="true" />
   },
   {
-    title: "Need help",
-    description: "For questions, special requests, or order help.",
-    actionLabel: "Ask for help",
+    titleKey: "service.helpTitle",
+    descriptionKey: "service.helpDescription",
+    actionLabelKey: "service.helpAction",
     payload: { type: "need_help", priority: 2 },
     icon: <HelpCircle className="size-6" aria-hidden="true" />
   }
@@ -97,6 +98,7 @@ function getRecordNumber(
 }
 
 export function CustomerServicePage({ sessionId }: CustomerServicePageProps) {
+  const t = useTranslations("customer");
   const queryClient = useQueryClient();
   const token = useCustomerSessionStore((state) => state.customerAccessToken);
   const waiterCallsQuery = useQuery({
@@ -201,7 +203,7 @@ export function CustomerServicePage({ sessionId }: CustomerServicePageProps) {
   const activeBillNumber = getRecordString(
     activeBillRecord,
     "billNumber",
-    "current bill"
+    t("bill.currentBillFallback")
   );
   const activeBillTotalMinor = getRecordNumber(
     activeBillRecord,
@@ -250,32 +252,42 @@ export function CustomerServicePage({ sessionId }: CustomerServicePageProps) {
     Boolean(activeBillRequest) ||
     Boolean(activeBillRecord) ||
     hasNoBillableOrders;
-  const billSummary = `${billOrderCount} billable order${
-    billOrderCount === 1 ? "" : "s"
-  } totaling ${formatMoney(billSubtotalMinor, billCurrency)}.`;
+  const billSummary = t(
+    billOrderCount === 1 ? "bill.billSummaryOne" : "bill.billSummary",
+    {
+      count: billOrderCount,
+      price: formatMoney(billSubtotalMinor, billCurrency)
+    }
+  );
   const billStateDescription = activeBillRecord
-    ? `${activeBillNumber} is ${activeBillLifecycleStatus || "being prepared"} with ${formatMoney(
-        activeBillBalanceDueMinor,
-        billCurrency
-      )} remaining.`
+    ? activeBillLifecycleStatus
+      ? t("bill.stateWithBalance", {
+          billNumber: activeBillNumber,
+          status: activeBillLifecycleStatus,
+          price: formatMoney(activeBillBalanceDueMinor, billCurrency)
+        })
+      : t("bill.stateWithFallback", {
+          billNumber: activeBillNumber,
+          price: formatMoney(activeBillBalanceDueMinor, billCurrency)
+        })
     : activeBillRequest
-      ? `Active bill request: ${activeBillStatus}.`
+      ? t("bill.activeBillRequest", { status: activeBillStatus })
       : hasNoBillableOrders
-        ? "The bill will be available after your order is accepted or served."
+        ? t("bill.billNotAvailable")
         : billQuery.data
           ? billSummary
-          : "No bill request is active yet.";
+          : t("bill.noActiveRequest");
   const billButtonLabel = billMutation.isPending
-    ? "Requesting..."
+    ? t("bill.requesting")
     : activeBillReceipt
-      ? "Receipt ready"
+      ? t("bill.receiptReady")
       : activeBillRecord
-        ? "Bill in progress"
+        ? t("bill.billInProgress")
         : activeBillRequest
-      ? "Bill requested"
+      ? t("bill.billRequested")
       : hasNoBillableOrders
-        ? "Not available yet"
-        : "Request bill";
+        ? t("bill.notAvailableYet")
+        : t("bill.requestBill");
   const billButtonVariant =
     activeBillRequest || hasNoBillableOrders ? "secondary" : "primary";
   const showBillRequestError =
@@ -290,13 +302,13 @@ export function CustomerServicePage({ sessionId }: CustomerServicePageProps) {
     (activeBillRawStatus === "presented" ||
       activeBillRawStatus === "payment_pending");
   const onlinePaymentButtonLabel = onlinePaymentMutation.isPending
-    ? "Preparing checkout..."
+    ? t("bill.preparingCheckout")
     : hasActiveOnlinePayment
-      ? "Checkout ready"
-      : "Pay online";
+      ? t("bill.checkoutReady")
+      : t("bill.payOnline");
   const mockSettleButtonLabel = mockOnlinePaymentMutation.isPending
-    ? "Confirming..."
-    : "Confirm mock payment";
+    ? t("bill.confirming")
+    : t("bill.confirmMockPayment");
 
   useEffect(() => {
     if (billHasResolvedState && billMutation.isError) {
@@ -308,9 +320,9 @@ export function CustomerServicePage({ sessionId }: CustomerServicePageProps) {
     <CustomerSessionScreen
       sessionId={sessionId}
       active="service"
-      eyebrow="Service"
-      title="Ask the team without leaving your table"
-      description="Call a waiter, ask for help, request water, or ask for the bill. The UI keeps active requests visible to prevent noisy repeats."
+      eyebrow={t("service.eyebrow")}
+      title={t("service.title")}
+      description={t("service.description")}
     >
       <div className="mb-5 rounded-card border border-primary/40 bg-primary/10 p-4">
         <div className="flex flex-wrap items-center justify-between gap-3">
@@ -318,11 +330,10 @@ export function CustomerServicePage({ sessionId }: CustomerServicePageProps) {
             <Sparkles className="mt-0.5 size-5 text-primary" aria-hidden="true" />
             <div>
               <h2 className="text-sm font-semibold text-foreground">
-                Ask AI waiter first
+                {t("service.aiHelpTitle")}
               </h2>
               <p className="mt-1 text-sm text-muted-foreground">
-                Get menu-grounded help, then ask a human waiter here whenever
-                you prefer.
+                {t("service.aiHelpDescription")}
               </p>
             </div>
           </div>
@@ -330,17 +341,17 @@ export function CustomerServicePage({ sessionId }: CustomerServicePageProps) {
             href={`/customer/session/${sessionId}/ai-waiter`}
             className={buttonVariants({ variant: "secondary" })}
           >
-            Open AI waiter
+            {t("actions.openAiWaiter")}
           </Link>
         </div>
       </div>
       <section className="grid gap-4 md:grid-cols-3">
         {serviceActions.map((action) => (
           <ServiceActionCard
-            key={action.title}
-            title={action.title}
-            description={action.description}
-            actionLabel={action.actionLabel}
+            key={action.titleKey}
+            title={t(action.titleKey)}
+            description={t(action.descriptionKey)}
+            actionLabel={t(action.actionLabelKey)}
             icon={action.icon}
             pending={
               callMutation.isPending &&
@@ -355,8 +366,9 @@ export function CustomerServicePage({ sessionId }: CustomerServicePageProps) {
           role="alert"
           className="mt-4 rounded-card border border-danger bg-danger/10 p-3 text-sm text-danger"
         >
-          We could not send that service request. Please try again from the
-          table. {formatErrorMessage(callMutation.error)}
+          {t("errors.serviceRequest", {
+            message: formatErrorMessage(callMutation.error)
+          })}
           <div className="mt-3">
             <CopyDebugReportButton
               action="waiter_call_create"
@@ -371,16 +383,18 @@ export function CustomerServicePage({ sessionId }: CustomerServicePageProps) {
       <section className="mt-5 grid gap-5 lg:grid-cols-[1fr_1fr]">
         <Card variant="glass" padding="lg">
           <CardHeader>
-            <CardTitle>Recent service calls</CardTitle>
+            <CardTitle>{t("service.recentCallsTitle")}</CardTitle>
             <CardDescription>
-              Latest table requests returned by the backend.
+              {t("service.recentCallsDescription")}
             </CardDescription>
           </CardHeader>
           <CardContent className="grid gap-3">
-            {waiterCallsQuery.isPending ? <LoadingState label="Loading calls" /> : null}
+            {waiterCallsQuery.isPending ? (
+              <LoadingState label={t("service.loadingCalls")} />
+            ) : null}
             {waiterCallsQuery.isError ? (
               <EmptyState
-                title="Service calls could not load"
+                title={t("errors.serviceCallsLoad")}
                 description={formatErrorMessage(waiterCallsQuery.error)}
                 debug={{
                   action: "waiter_call_list",
@@ -392,14 +406,14 @@ export function CustomerServicePage({ sessionId }: CustomerServicePageProps) {
             ) : null}
             {waiterCalls.length === 0 && waiterCallsQuery.isSuccess ? (
               <EmptyState
-                title="No active calls"
-                description="The team has no pending request from this table."
+                title={t("empty.serviceCallsTitle")}
+                description={t("empty.serviceCallsDescription")}
               />
             ) : null}
             {waiterCalls.slice(0, 5).map((call, index) => (
               <div key={`${String(call.id ?? index)}`} className="rounded-card border bg-surface/75 p-4">
                 <p className="text-sm font-semibold text-foreground">
-                  {String(call.type ?? "Service request")}
+                  {String(call.type ?? t("service.requestFallback"))}
                 </p>
                 <p className="mt-2 text-xs text-muted-foreground">
                   {String(call.status ?? "open")}
@@ -414,17 +428,18 @@ export function CustomerServicePage({ sessionId }: CustomerServicePageProps) {
             <div className="text-primary">
               <ReceiptText className="size-6" aria-hidden="true" />
             </div>
-            <CardTitle>Bill request</CardTitle>
+            <CardTitle>{t("bill.title")}</CardTitle>
             <CardDescription>
-              Ask for the bill when your table is ready. Existing bill state is
-              shown when the backend returns it.
+              {t("bill.description")}
             </CardDescription>
           </CardHeader>
           <CardContent className="grid gap-4">
-            {billQuery.isPending ? <LoadingState label="Loading bill" /> : null}
+            {billQuery.isPending ? (
+              <LoadingState label={t("service.loadingBill")} />
+            ) : null}
             {billQuery.isError ? (
               <EmptyState
-                title="Bill could not load"
+                title={t("errors.billLoad")}
                 description={formatErrorMessage(billQuery.error)}
                 debug={{
                   action: "bill_get",
@@ -436,15 +451,14 @@ export function CustomerServicePage({ sessionId }: CustomerServicePageProps) {
             ) : null}
             <div className="rounded-card border bg-surface/75 p-4">
               <p className="text-sm font-semibold text-foreground">
-                Current bill state
+                {t("bill.currentBillState")}
               </p>
               <p className="mt-2 text-xs text-muted-foreground">
                 {billStateDescription}
               </p>
               {activeBillRequest ? (
                 <div className="mt-3 rounded-card border border-success bg-success/10 p-3 text-sm text-success">
-                  Your bill request is already active. Status:{" "}
-                  {activeBillStatus}.
+                  {t("bill.yourRequestActive", { status: activeBillStatus })}
                 </div>
               ) : null}
               {activeBillRecord ? (
@@ -469,7 +483,7 @@ export function CustomerServicePage({ sessionId }: CustomerServicePageProps) {
                             {getRecordString(
                               line,
                               "itemNameSnapshot",
-                              "Menu item"
+                              t("bill.billLineFallback")
                             )}
                           </p>
                           <p className="shrink-0 font-semibold text-foreground">
@@ -483,11 +497,10 @@ export function CustomerServicePage({ sessionId }: CustomerServicePageProps) {
                     </div>
                   ) : null}
                   <div className="mt-3 rounded-card border bg-surface/70 p-3 text-xs text-muted-foreground">
-                    Balance due:{" "}
-                    <span className="font-semibold text-foreground">
-                      {formatMoney(activeBillBalanceDueMinor, billCurrency)}
-                    </span>
-                    . Cashier manual payment remains available at the table.
+                    {t("bill.balanceDue", {
+                      price: formatMoney(activeBillBalanceDueMinor, billCurrency)
+                    })}{" "}
+                    {t("bill.cashierManualPaymentAvailable")}
                   </div>
                   {canPayOnline ? (
                     <div className="mt-3 rounded-card border border-primary/35 bg-primary/10 p-3">
@@ -498,26 +511,32 @@ export function CustomerServicePage({ sessionId }: CustomerServicePageProps) {
                         />
                         <div className="min-w-0 flex-1">
                           <p className="text-sm font-semibold text-foreground">
-                            Pay online
+                            {t("bill.payOnline")}
                           </p>
                           <p className="mt-1 text-xs text-muted-foreground">
-                            This phase uses a hosted mock checkout. No card
-                            details are collected in the app.
+                            {t("bill.payOnlineDescription")}
                           </p>
                           {latestOnlinePaymentIntent ? (
                             <p className="mt-2 text-xs text-muted-foreground">
-                              Latest online payment:{" "}
-                              {latestOnlinePaymentStatus.replaceAll("_", " ")}
-                              {latestOnlinePaymentProvider
-                                ? ` via ${latestOnlinePaymentProvider}`
-                                : ""}
-                              .
+                              {t("bill.latestOnlinePayment", {
+                                status: latestOnlinePaymentStatus.replaceAll(
+                                  "_",
+                                  " "
+                                ),
+                                provider: latestOnlinePaymentProvider
+                                  ? t("bill.latestOnlinePaymentProvider", {
+                                      provider: latestOnlinePaymentProvider
+                                    })
+                                  : ""
+                              })}
                             </p>
                           ) : null}
                           {latestOnlinePaymentCheckoutUrl &&
                           hasActiveOnlinePayment ? (
                             <p className="mt-2 break-all text-xs text-muted-foreground">
-                              Mock checkout URL: {latestOnlinePaymentCheckoutUrl}
+                              {t("bill.mockCheckoutUrl", {
+                                url: latestOnlinePaymentCheckoutUrl
+                              })}
                             </p>
                           ) : null}
                           <div className="mt-3 flex flex-wrap gap-2">
@@ -557,8 +576,11 @@ export function CustomerServicePage({ sessionId }: CustomerServicePageProps) {
                               role="alert"
                               className="mt-3 rounded-card border border-danger bg-danger/10 p-3 text-sm text-danger"
                             >
-                              Online checkout could not be prepared.{" "}
-                              {formatErrorMessage(onlinePaymentMutation.error)}
+                              {t("bill.onlineCheckoutError", {
+                                message: formatErrorMessage(
+                                  onlinePaymentMutation.error
+                                )
+                              })}
                               <div className="mt-3">
                                 <CopyDebugReportButton
                                   action="online_payment_intent_create"
@@ -574,10 +596,11 @@ export function CustomerServicePage({ sessionId }: CustomerServicePageProps) {
                               role="alert"
                               className="mt-3 rounded-card border border-danger bg-danger/10 p-3 text-sm text-danger"
                             >
-                              Mock payment could not be confirmed.{" "}
-                              {formatErrorMessage(
-                                mockOnlinePaymentMutation.error
-                              )}
+                              {t("bill.mockPaymentError", {
+                                message: formatErrorMessage(
+                                  mockOnlinePaymentMutation.error
+                                )
+                              })}
                               <div className="mt-3">
                                 <CopyDebugReportButton
                                   action="mock_online_payment_confirm"
@@ -594,22 +617,25 @@ export function CustomerServicePage({ sessionId }: CustomerServicePageProps) {
                   ) : null}
                   {hasSucceededOnlinePayment && !activeBillReceipt ? (
                     <div className="mt-3 rounded-card border border-success bg-success/10 p-3 text-sm text-success">
-                      Online payment is confirmed. Receipt is being prepared.
+                      {t("bill.onlineConfirmed")}
                     </div>
                   ) : null}
                 </div>
               ) : null}
               {activeBillReceipt ? (
                 <div className="mt-3 rounded-card border border-success bg-success/10 p-3 text-sm text-success">
-                  Receipt{" "}
-                  {getRecordString(activeBillReceipt, "receiptNumber", "ready")}{" "}
-                  is ready. Thank you.
+                  {t("bill.receiptReadyMessage", {
+                    receiptNumber: getRecordString(
+                      activeBillReceipt,
+                      "receiptNumber",
+                      t("bill.receiptReady")
+                    )
+                  })}
                 </div>
               ) : null}
               {hasNoBillableOrders ? (
                 <div className="mt-3 rounded-card border border-warning bg-warning/10 p-3 text-sm text-warning">
-                  The bill will be available after your order is accepted or
-                  served.
+                  {t("bill.billNotAvailable")}
                 </div>
               ) : null}
               {showBillRequestError ? (
@@ -617,9 +643,9 @@ export function CustomerServicePage({ sessionId }: CustomerServicePageProps) {
                   role="alert"
                   className="mt-3 rounded-card border border-danger bg-danger/10 p-3 text-sm text-danger"
                 >
-                  We could not request the bill yet. The bill may not be
-                  available until your order is accepted or served.{" "}
-                  {formatErrorMessage(billMutation.error)}
+                  {t("bill.requestError", {
+                    message: formatErrorMessage(billMutation.error)
+                  })}
                   <div className="mt-3">
                     <CopyDebugReportButton
                       action="bill_request_create"

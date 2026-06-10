@@ -19,6 +19,7 @@ import type {
   MenuModifierGroup
 } from "@/lib/api/types";
 import { vibrateLight, vibrateWarning } from "@/lib/haptics/haptics";
+import { useTranslations } from "@/lib/i18n/i18n-provider";
 import { formatMoney, getMenuItemPrice } from "./customer-format";
 import { ModifierGroupSelector } from "./modifier-group-selector";
 import { QuantityStepper } from "./quantity-stepper";
@@ -56,6 +57,7 @@ export function ItemDetailPanel({
   onClose,
   onAdd
 }: ItemDetailPanelProps) {
+  const t = useTranslations("customer");
   const [quantity, setQuantity] = useState(1);
   const [notes, setNotes] = useState("");
   const [selections, setSelections] = useState<SelectionState>({});
@@ -103,15 +105,20 @@ export function ItemDetailPanel({
           <div>
             <CardTitle className="text-2xl">{item.name}</CardTitle>
             <CardDescription className="mt-2">
-              {item.description ?? "A table-ready selection from the menu."}
+              {item.description ?? t("item.descriptionFallback")}
             </CardDescription>
           </div>
           {stockBlocked ? (
-            <Badge variant="danger">Sold out</Badge>
+            <Badge variant="danger">{t("item.soldOut")}</Badge>
           ) : item.stockStatus === "low_stock" ? (
-            <Badge variant="warning">Low stock</Badge>
+            <Badge variant="warning">{t("item.lowStock")}</Badge>
           ) : null}
-          <Button variant="ghost" size="icon" onClick={onClose} aria-label="Close item detail">
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={onClose}
+            aria-label={t("item.close")}
+          >
             <X className="size-4" aria-hidden="true" />
           </Button>
         </div>
@@ -121,7 +128,9 @@ export function ItemDetailPanel({
       </CardHeader>
       <CardContent className="grid gap-4">
         <div className="flex items-center justify-between gap-4">
-          <span className="text-sm font-semibold text-foreground">Quantity</span>
+          <span className="text-sm font-semibold text-foreground">
+            {t("item.quantity")}
+          </span>
           <QuantityStepper value={quantity} onChange={setQuantity} />
         </div>
         {modifierGroups.map((group) => (
@@ -138,22 +147,23 @@ export function ItemDetailPanel({
           />
         ))}
         <label className="grid gap-2 text-sm font-medium text-foreground">
-          Note for the team
+          {t("item.noteLabel")}
           <Input
             value={notes}
             onChange={(event) => setNotes(event.target.value)}
-            placeholder="No onions, extra hot, seat preference"
+            placeholder={t("item.notePlaceholder")}
           />
         </label>
         {missingRequiredGroups.length > 0 ? (
           <p className="text-sm text-warning">
-            Choose required options for{" "}
-            {missingRequiredGroups.map((group) => group.name).join(", ")}.
+            {t("item.missingRequired", {
+              names: missingRequiredGroups.map((group) => group.name).join(", ")
+            })}
           </p>
         ) : null}
         {!canOrder ? (
           <div className="rounded-card border border-warning bg-warning/10 p-3 text-sm text-warning">
-            This item is not available for ordering right now.
+            {t("item.unavailableMessage")}
           </div>
         ) : null}
         {isAddDisabled && disabledMessage ? (
@@ -176,7 +186,11 @@ export function ItemDetailPanel({
           disabled={isAdding || isAddDisabled || !canOrder}
         >
           <ShoppingBag className="size-4" aria-hidden="true" />
-          {isAdding ? "Adding..." : canOrder ? "Add to cart" : "Unavailable"}
+          {isAdding
+            ? t("item.adding")
+            : canOrder
+              ? t("item.addToCart")
+              : t("item.unavailable")}
         </Button>
       </CardFooter>
     </Card>

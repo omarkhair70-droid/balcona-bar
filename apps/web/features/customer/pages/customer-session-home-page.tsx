@@ -14,6 +14,7 @@ import { MetricCard } from "@/components/ui/metric-card";
 import { getCart, getCustomerStatus } from "@/lib/api/endpoints";
 import { customerQueryKeys } from "@/lib/api/query-keys";
 import { useCustomerSessionStore } from "@/lib/customer/customer-session-store";
+import { useTranslations } from "@/lib/i18n/i18n-provider";
 import { CustomerSessionScreen } from "../customer-session-screen";
 import { formatMoney, getCartItemCount, getRecordString } from "../customer-format";
 
@@ -23,33 +24,33 @@ type CustomerSessionHomePageProps = {
 
 const actions = [
   {
-    label: "Browse menu",
+    labelKey: "home.actionMenuLabel",
     href: "menu",
-    description: "Pick real branch menu items and add them to the cart.",
+    descriptionKey: "home.actionMenuDescription",
     icon: <Utensils className="size-5" aria-hidden="true" />
   },
   {
-    label: "AI waiter",
+    labelKey: "home.actionAiWaiterLabel",
     href: "ai-waiter",
-    description: "Ask for menu-grounded suggestions before deciding.",
+    descriptionKey: "home.actionAiWaiterDescription",
     icon: <Sparkles className="size-5" aria-hidden="true" />
   },
   {
-    label: "Review cart",
+    labelKey: "home.actionCartLabel",
     href: "cart",
-    description: "Validate totals and submit the final order yourself.",
+    descriptionKey: "home.actionCartDescription",
     icon: <ShoppingBag className="size-5" aria-hidden="true" />
   },
   {
-    label: "Order status",
+    labelKey: "home.actionStatusLabel",
     href: "status",
-    description: "Follow accepted orders and table timeline updates.",
+    descriptionKey: "home.actionStatusDescription",
     icon: <ClipboardList className="size-5" aria-hidden="true" />
   },
   {
-    label: "Service",
+    labelKey: "home.actionServiceLabel",
     href: "service",
-    description: "Call a waiter, ask for help, or request the bill.",
+    descriptionKey: "home.actionServiceDescription",
     icon: <Bell className="size-5" aria-hidden="true" />
   }
 ];
@@ -57,6 +58,7 @@ const actions = [
 export function CustomerSessionHomePage({
   sessionId
 }: CustomerSessionHomePageProps) {
+  const t = useTranslations("customer");
   const token = useCustomerSessionStore((state) => state.customerAccessToken);
   const branchId = useCustomerSessionStore((state) => state.branchId);
   const tableId = useCustomerSessionStore((state) => state.tableId);
@@ -80,13 +82,13 @@ export function CustomerSessionHomePage({
     <CustomerSessionScreen
       sessionId={sessionId}
       active="home"
-      eyebrow="Table home"
-      title="Your table is live"
-      description="Browse the menu, send an order, follow the kitchen timeline, or ask the team for help."
+      eyebrow={t("home.eyebrow")}
+      title={t("home.title")}
+      description={t("home.description")}
     >
       <section className="grid gap-4 md:grid-cols-3">
         <MetricCard
-          label="Cart"
+          label={t("home.cartMetric")}
           value={`${getCartItemCount(cartQuery.data)}`}
           description={formatMoney(
             cartQuery.data?.totals.subtotalMinor ?? 0,
@@ -95,15 +97,19 @@ export function CustomerSessionHomePage({
           icon={<ShoppingBag className="size-4" aria-hidden="true" />}
         />
         <MetricCard
-          label="Status"
+          label={t("home.statusMetric")}
           value={customerStatus.replaceAll("_", " ")}
-          description="Realtime refresh ready"
+          description={t("home.realtimeReady")}
           icon={<ClipboardList className="size-4" aria-hidden="true" />}
         />
         <MetricCard
-          label="Scope"
-          value={branchId ? "Branch" : "Local"}
-          description={tableId ? `Table ${tableId.slice(0, 8)}` : "Session gate"}
+          label={t("home.scopeMetric")}
+          value={branchId ? t("home.branch") : t("home.local")}
+          description={
+            tableId
+              ? t("home.tableShort", { table: tableId.slice(0, 8) })
+              : t("home.sessionGate")
+          }
           icon={<Utensils className="size-4" aria-hidden="true" />}
         />
       </section>
@@ -113,15 +119,15 @@ export function CustomerSessionHomePage({
           <Card key={action.href} variant="glass">
             <CardHeader>
               <div className="text-primary">{action.icon}</div>
-              <CardTitle>{action.label}</CardTitle>
-              <CardDescription>{action.description}</CardDescription>
+              <CardTitle>{t(action.labelKey)}</CardTitle>
+              <CardDescription>{t(action.descriptionKey)}</CardDescription>
             </CardHeader>
             <div className="px-6 pb-6">
               <Link
                 href={`/customer/session/${sessionId}/${action.href}`}
                 className={buttonVariants({ variant: "secondary" })}
               >
-                Open
+                {t("actions.open")}
               </Link>
             </div>
           </Card>

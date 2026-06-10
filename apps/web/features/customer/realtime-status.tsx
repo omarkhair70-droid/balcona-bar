@@ -1,5 +1,8 @@
+"use client";
+
 import { Wifi, WifiOff } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import { useTranslations } from "@/lib/i18n/i18n-provider";
 import type { RealtimeState } from "./use-customer-realtime";
 
 type RealtimeStatusProps = {
@@ -7,6 +10,7 @@ type RealtimeStatusProps = {
 };
 
 export function RealtimeStatus({ state }: RealtimeStatusProps) {
+  const t = useTranslations("customer");
   const isConnected = state === "connected";
 
   return (
@@ -16,7 +20,11 @@ export function RealtimeStatus({ state }: RealtimeStatusProps) {
       ) : (
         <WifiOff className="size-3.5" aria-hidden="true" />
       )}
-      {isConnected ? "Live" : state === "error" ? "Reconnecting" : "Quiet"}
+      {isConnected
+        ? t("realtime.live")
+        : state === "error"
+          ? t("realtime.reconnecting")
+          : t("realtime.quiet")}
     </Badge>
   );
 }

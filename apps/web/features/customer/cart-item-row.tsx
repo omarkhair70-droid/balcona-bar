@@ -3,6 +3,7 @@
 import { Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import type { CartItemSummary } from "@/lib/api/types";
+import { useTranslations } from "@/lib/i18n/i18n-provider";
 import { formatMoney } from "./customer-format";
 import { QuantityStepper } from "./quantity-stepper";
 
@@ -19,6 +20,8 @@ export function CartItemRow({
   onRemove,
   isPending
 }: CartItemRowProps) {
+  const t = useTranslations("customer");
+
   return (
     <div className="rounded-card border bg-surface/75 p-4">
       <div className="flex items-start justify-between gap-4">
@@ -52,7 +55,7 @@ export function CartItemRow({
           size="icon"
           onClick={onRemove}
           disabled={isPending}
-          aria-label={`Remove ${item.itemNameSnapshot}`}
+          aria-label={t("cart.removeItem", { name: item.itemNameSnapshot })}
         >
           <Trash2 className="size-4" aria-hidden="true" />
         </Button>

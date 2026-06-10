@@ -1,5 +1,8 @@
+"use client";
+
 import { CheckCircle2, Circle } from "lucide-react";
 import { Card } from "@/components/ui/card";
+import { useTranslations } from "@/lib/i18n/i18n-provider";
 
 type TimelineEvent = {
   type: string;
@@ -12,12 +15,13 @@ type StatusTimelineProps = {
 };
 
 export function StatusTimeline({ events }: StatusTimelineProps) {
+  const t = useTranslations("customer");
+
   if (events.length === 0) {
     return (
       <Card variant="quiet">
         <p className="text-sm text-muted-foreground">
-          Your table timeline will appear as soon as an order or service event
-          happens.
+          {t("empty.timelineDescription")}
         </p>
       </Card>
     );
