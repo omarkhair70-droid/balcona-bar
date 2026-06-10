@@ -8,6 +8,8 @@ import {
   SmokeHttpClient,
   SmokeRun,
   readSmokeConfig,
+  renderMarkdownReport,
+  renderSummary,
   safePublicConfig,
   sanitizeValue,
   validateSmokeConfig,
@@ -366,6 +368,160 @@ describe("smoke core", () => {
     assert.equal(step.status, "passed_with_retry");
     assert.equal(run.entityIds.orderId, "order-after-retry");
     assert.equal(run.entityIds.submittedOrderId, "order-after-retry");
+  });
+
+  it("warns with category-specific slow budgets", async () => {
+    const originalNow = Date.now;
+    const nowValues = [0, 0, 0, 0, 2_501, 2_501];
+
+    Date.now = () =>
+      nowValues.length > 0 ? nowValues.shift() : 2_501;
+
+    try {
+      const run = new SmokeRun({
+        runId: "run-budget",
+        retryTransient: false,
+        timeoutMs: 5_000,
+        clientTraceId: "client-budget"
+      });
+      const step = await run.step(
+        {
+          stepName: "public page budget check",
+          role: "public",
+          method: "GET",
+          group: "system"
+        },
+        async () => ({
+          http: {
+            method: "GET",
+            requestId: "req-budget",
+            durationMs: 10
+          }
+        })
+      );
+
+      assert.equal(step.performanceCategory, "public_page");
+      assert.equal(step.status, "warning");
+      assert.ok(
+        step.notes.some((note) =>
+          note.includes("slow_budget: public_page > 2000ms")
+        )
+      );
+    } finally {
+      Date.now = originalNow;
+    }
+  });
+
+  it("ranks slowest steps and splits critical non-AI from AI duration", () => {
+    const run = new SmokeRun({
+      runId: "run-performance",
+      timeoutMs: 5_000,
+      clientTraceId: "client-performance"
+    });
+
+    run.steps = [
+      {
+        stepName: "AI English message",
+        status: "warning",
+        performanceCategory: "ai_optional",
+        durationMs: 10_000,
+        notes: ["slow_budget: ai_optional > 10000ms"]
+      },
+      {
+        stepName: "cashier accept",
+        status: "warning",
+        performanceCategory: "critical_staff",
+        durationMs: 5_000,
+        notes: ["slow_request: API request > 2000ms"]
+      },
+      {
+        stepName: "customer submit cart",
+        status: "passed",
+        performanceCategory: "critical_customer",
+        durationMs: 2_000,
+        notes: []
+      }
+    ];
+
+    const report = run.finish();
+
+    assert.equal(report.performance.topSlowestSteps[0].stepName, "AI English message");
+    assert.equal(report.performance.topSlowestSteps[1].stepName, "cashier accept");
+    assert.equal(report.performance.criticalNonAiDurationMs, 7_000);
+    assert.equal(report.performance.aiDurationMs, 10_000);
+    assert.equal(report.performance.slowStepCategories.critical_staff, 1);
+  });
+
+  it("includes retry reasons in smoke performance summaries", async () => {
+    const run = new SmokeRun({
+      runId: "run-retry-summary",
+      retryTransient: true,
+      timeoutMs: 5_000,
+      clientTraceId: "client-retry-summary"
+    });
+    let attempts = 0;
+
+    await run.step(
+      {
+        stepName: "customer submit cart",
+        role: "customer",
+        method: "POST",
+        group: "customer",
+        retryable: true
+      },
+      async () => {
+        attempts += 1;
+
+        if (attempts === 1) {
+          throw new Error("first timeout token=secret");
+        }
+
+        return {
+          http: {
+            method: "POST",
+            requestId: "req-final",
+            durationMs: 20
+          }
+        };
+      }
+    );
+
+    const report = run.finish();
+    const serialized = `${renderSummary(report)}\n${renderMarkdownReport(report)}`;
+
+    assert.equal(report.performance.retrySummary[0].stepName, "customer submit cart");
+    assert.equal(report.performance.retrySummary[0].finalRequestId, "req-final");
+    assert.match(serialized, /Retries:/);
+    assert.match(serialized, /first timeout/);
+    assert.doesNotMatch(serialized, /token=secret/);
+    assert.match(serialized, /token=\[redacted\]/);
+  });
+
+  it("redacts sensitive text from performance report notes", () => {
+    const run = new SmokeRun({
+      runId: "run-redact-performance",
+      timeoutMs: 5_000,
+      clientTraceId: "client-redact-performance"
+    });
+
+    run.steps = [
+      {
+        stepName: "customer submit cart",
+        status: "warning",
+        performanceCategory: "critical_customer",
+        durationMs: 4_000,
+        requestId: "req-redact",
+        notes: ["slow_request token=secret password=raw"]
+      }
+    ];
+
+    const report = run.finish();
+    const serialized = JSON.stringify(report);
+
+    assert.doesNotMatch(serialized, /token=secret/);
+    assert.doesNotMatch(serialized, /password=raw/);
+    assert.match(serialized, /token=\[redacted\]/);
+    assert.match(serialized, /password=\[redacted\]/);
   });
 
   it("scores FAIL when any step failed", () => {

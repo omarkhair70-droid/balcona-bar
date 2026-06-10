@@ -64,6 +64,30 @@ type SubmitCartLogContext = {
   requestId?: string;
   sessionId: string;
   orderId?: string;
+  failureStage?: SubmitCartFailureStage;
+  slowStage?: string;
+  durationMs?: number;
+  timings?: SubmitCartTimings;
+};
+
+type SubmitCartFailureStage =
+  | "submit_lock"
+  | "idempotency_lookup"
+  | "cart_validation"
+  | "order_number"
+  | "order_create"
+  | "cart_conversion"
+  | "response_mapping";
+
+type SubmitCartTimings = {
+  submitLockMs: number;
+  idempotencyLookupMs: number;
+  cartValidationMs: number;
+  orderNumberMs: number;
+  orderCreateMs: number;
+  cartConversionMs: number;
+  transactionMs: number;
+  responseMappingMs: number;
 };
 
 type SubmitCartTransactionResult =
@@ -140,7 +164,7 @@ export class OrdersService {
     const customerNote = this.normalizeOptionalText(body.customerNote);
     const logContext = { requestId, sessionId };
     const startedAt = Date.now();
-    const timings = {
+    const timings: SubmitCartTimings = {
       submitLockMs: 0,
       idempotencyLookupMs: 0,
       cartValidationMs: 0,
@@ -152,15 +176,18 @@ export class OrdersService {
     };
 
     let transactionResult: SubmitCartTransactionResult;
+    let stage: SubmitCartFailureStage = "submit_lock";
 
     try {
       const transactionStartedAt = Date.now();
       transactionResult = await this.prisma.$transaction(async (tx) => {
+        stage = "submit_lock";
         let stageStartedAt = Date.now();
         await this.lockSubmitForSession(sessionId, tx);
         timings.submitLockMs += Date.now() - stageStartedAt;
 
         if (idempotencyKey) {
+          stage = "idempotency_lookup";
           stageStartedAt = Date.now();
           const existingOrder = await this.findByIdempotencyKey(
             sessionId,
@@ -180,10 +207,13 @@ export class OrdersService {
           }
         }
 
+        stage = "cart_validation";
         stageStartedAt = Date.now();
         const { session, cart, totals } =
           await this.cartService.getValidatedDraftCartForSubmit(sessionId, tx);
         timings.cartValidationMs += Date.now() - stageStartedAt;
+
+        stage = "order_number";
         stageStartedAt = Date.now();
         const orderNumber = await this.generateOrderNumber(
           session.branchId,
@@ -202,6 +232,7 @@ export class OrdersService {
           submittedMetadata.idempotencyKey = idempotencyKey;
         }
 
+        stage = "order_create";
         stageStartedAt = Date.now();
         const order = await tx.order.create({
           data: {
@@ -260,6 +291,7 @@ export class OrdersService {
         });
         timings.orderCreateMs += Date.now() - stageStartedAt;
 
+        stage = "cart_conversion";
         stageStartedAt = Date.now();
         await tx.cart.update({
           where: { id: cart.id },
@@ -279,7 +311,13 @@ export class OrdersService {
       });
       timings.transactionMs = Date.now() - transactionStartedAt;
     } catch (error) {
-      throw this.toSubmitCartError(error, logContext);
+      throw this.toSubmitCartError(error, {
+        ...logContext,
+        failureStage: stage,
+        slowStage: this.slowestTimingStage(timings),
+        durationMs: Date.now() - startedAt,
+        timings,
+      });
     }
 
     if (transactionResult.replayed) {
@@ -292,13 +330,28 @@ export class OrdersService {
       return transactionResult.response;
     }
 
-    const responseStartedAt = Date.now();
-    const response = await this.getOrderResponse(
-      transactionResult.orderId,
-      this.prisma,
-      transactionResult.idempotency,
-    );
-    timings.responseMappingMs = Date.now() - responseStartedAt;
+    let response: any;
+
+    try {
+      stage = "response_mapping";
+      const responseStartedAt = Date.now();
+      response = await this.getSubmittedOrderResponse(
+        transactionResult.orderId,
+        this.prisma,
+        transactionResult.idempotency,
+      );
+      timings.responseMappingMs = Date.now() - responseStartedAt;
+    } catch (error) {
+      throw this.toSubmitCartError(error, {
+        ...logContext,
+        sessionId: transactionResult.sessionId,
+        orderId: transactionResult.orderId,
+        failureStage: "response_mapping",
+        slowStage: this.slowestTimingStage(timings),
+        durationMs: Date.now() - startedAt,
+        timings,
+      });
+    }
 
     this.logger.log({
       message: "cart_submit.response_ready",
@@ -306,6 +359,7 @@ export class OrdersService {
       sessionId: transactionResult.sessionId,
       orderId: transactionResult.orderId,
       durationMs: Date.now() - startedAt,
+      slowStage: this.slowestTimingStage(timings),
       timings,
     });
 
@@ -1221,7 +1275,15 @@ export class OrdersService {
   ) {
     await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`order-number:${branchId}`})::bigint)`;
 
-    let sequence = (await tx.order.count({ where: { branchId } })) + 1;
+    const latestOrder = await tx.order.findFirst({
+      where: {
+        branchId,
+        orderNumber: { startsWith: ORDER_NUMBER_PREFIX },
+      },
+      orderBy: [{ submittedAt: "desc" }, { createdAt: "desc" }, { id: "desc" }],
+      select: { orderNumber: true },
+    });
+    let sequence = this.sequenceFromOrderNumber(latestOrder?.orderNumber) + 1;
 
     while (true) {
       const orderNumber = `${ORDER_NUMBER_PREFIX}${String(sequence).padStart(4, "0")}`;
@@ -1241,6 +1303,12 @@ export class OrdersService {
 
       sequence += 1;
     }
+  }
+
+  private sequenceFromOrderNumber(orderNumber: string | null | undefined) {
+    const match = orderNumber?.match(/^B(\d+)$/);
+
+    return match ? Number.parseInt(match[1], 10) : 0;
   }
 
   private async findByIdempotencyKey(
@@ -1267,6 +1335,23 @@ export class OrdersService {
     const order = await tx.order.findUnique({
       where: { id: orderId },
       include: this.orderInclude(),
+    });
+
+    if (!order) {
+      throw new NotFoundException("Order not found");
+    }
+
+    return this.toOrderResponse(order, idempotency);
+  }
+
+  private async getSubmittedOrderResponse(
+    orderId: string,
+    tx: PrismaExecutor,
+    idempotency?: IdempotencyReplay,
+  ) {
+    const order = await tx.order.findUnique({
+      where: { id: orderId },
+      include: this.submittedOrderInclude(),
     });
 
     if (!order) {
@@ -1532,6 +1617,17 @@ export class OrdersService {
     }
 
     return error;
+  }
+
+  private slowestTimingStage(timings: SubmitCartTimings) {
+    const [stage, durationMs] = Object.entries(timings).reduce<
+      [string, number]
+    >(
+      (slowest, current) => (current[1] > slowest[1] ? current : slowest),
+      ["unknown", 0],
+    );
+
+    return durationMs > 0 ? stage : undefined;
   }
 
   private toOrderActionError(error: unknown, context: OrderActionLogContext) {
@@ -1854,6 +1950,32 @@ export class OrdersService {
             orderBy: [{ createdAt: "desc" as const }],
           },
         },
+      },
+    } satisfies Prisma.OrderInclude;
+  }
+
+  private submittedOrderInclude() {
+    return {
+      company: { select: this.companySelect() },
+      branch: { select: this.branchSelect() },
+      tableSession: {
+        select: this.tableSessionContextSelect(),
+      },
+      items: {
+        orderBy: [{ createdAt: "asc" as const }],
+        include: {
+          menuItem: {
+            select: {
+              station: true,
+            },
+          },
+          modifierOptions: {
+            orderBy: [{ createdAt: "asc" as const }],
+          },
+        },
+      },
+      events: {
+        orderBy: [{ createdAt: "asc" as const }],
       },
     } satisfies Prisma.OrderInclude;
   }

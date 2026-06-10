@@ -1984,6 +1984,16 @@ function printConsoleReport(report) {
 
   console.log("\nFinal score");
   console.log(renderSummary(report));
+
+  if (report.performance?.topSlowestSteps?.length) {
+    console.log("\nTop slowest smoke steps");
+    for (const [index, step] of report.performance.topSlowestSteps.entries()) {
+      console.log(
+        `${index + 1}. ${step.stepName} | ${step.performanceCategory} | ${step.status} | ${step.durationMs}ms | requestId=${step.requestId ?? ""}`
+      );
+    }
+  }
+
   console.log("\nArtifacts written:");
   console.log("- smoke-results/latest.json");
   console.log("- smoke-results/latest.md");
