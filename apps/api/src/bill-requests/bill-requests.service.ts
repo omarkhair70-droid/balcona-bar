@@ -77,6 +77,21 @@ type BillStaffActionTransactionResult = {
   tableSessionId: string;
   postCommitAction: BillStaffActionPostCommitAction;
 };
+type BillPresentFailureStage =
+  | "bill_ensure"
+  | "validation"
+  | "bill_request_present"
+  | "bill_present"
+  | "post_commit"
+  | "response_mapping";
+type BillPresentLogContext = {
+  flow: "bill_request_present";
+  action: "present";
+  billRequestId: string;
+  billId?: string;
+  tableSessionId?: string;
+  failureStage?: BillPresentFailureStage;
+};
 
 @Injectable()
 export class BillRequestsService {
@@ -344,65 +359,118 @@ export class BillRequestsService {
   }
 
   async present(billRequestId: string, body: BillStaffActionDto = {}) {
-    const transactionResult = await this.prisma.$transaction(async (tx) => {
-      await this.assertStaffUserExists(body.staffUserId, tx);
+    const note = this.normalizeOptionalText(body.note);
+    const context: BillPresentLogContext = {
+      flow: "bill_request_present",
+      action: "present",
+      billRequestId,
+    };
+    let ensuredBill: Awaited<
+      ReturnType<BillsService["ensureBillForBillRequestCompact"]>
+    >;
 
-      const billRequest = await this.findBillRequestStatusOrThrow(
+    try {
+      ensuredBill = await this.billsService.ensureBillForBillRequestCompact(
         billRequestId,
-        tx,
+        { actorType: "staff" },
       );
-
-      if (
-        billRequest.status !== BillRequestStatus.open &&
-        billRequest.status !== BillRequestStatus.acknowledged
-      ) {
-        throw new BadRequestException(
-          "Only open or acknowledged bill requests can be presented",
-        );
-      }
-
-      const note = this.normalizeOptionalText(body.note);
-      const now = new Date();
-
-      await tx.billRequest.update({
-        where: { id: billRequest.id },
-        data: {
-          status: BillRequestStatus.presented,
-          presentedAt: now,
-          presentedByStaffUserId: body.staffUserId,
-        },
+      context.billId = ensuredBill.billId;
+      context.tableSessionId = ensuredBill.tableSessionId;
+    } catch (error) {
+      throw this.toBillPresentError(error, {
+        ...context,
+        failureStage: "bill_ensure",
       });
-      await this.createBillRequestEvent(
-        billRequest.id,
-        BillRequestEventType.presented,
-        body.staffUserId,
-        note ? { note } : undefined,
-        tx,
-      );
-      const bill: BillRequestBillPresentMutationResult =
-        await this.billsService.presentBillForBillRequestCompact(
-          billRequest.id,
-          body.staffUserId,
-          note,
+    }
+
+    let stage: BillPresentFailureStage = "validation";
+    let transactionResult: BillStaffActionTransactionResult;
+
+    try {
+      transactionResult = await this.prisma.$transaction(async (tx) => {
+        stage = "validation";
+        await this.assertStaffUserExists(body.staffUserId, tx);
+
+        const billRequest = await this.findBillRequestStatusOrThrow(
+          billRequestId,
           tx,
         );
 
-      return {
-        billRequestId: billRequest.id,
-        billId: bill.billId,
-        billCreated: bill.created,
-        billPresented: bill.presented,
-        tableSessionId: billRequest.tableSessionId,
-        postCommitAction: "presented",
-      } satisfies BillStaffActionTransactionResult;
-    });
+        context.tableSessionId = billRequest.tableSessionId;
+
+        if (
+          billRequest.status !== BillRequestStatus.open &&
+          billRequest.status !== BillRequestStatus.acknowledged
+        ) {
+          throw new BadRequestException(
+            "Only open or acknowledged bill requests can be presented",
+          );
+        }
+
+        const now = new Date();
+
+        stage = "bill_request_present";
+        await tx.billRequest.update({
+          where: { id: billRequest.id },
+          data: {
+            status: BillRequestStatus.presented,
+            presentedAt: now,
+            presentedByStaffUserId: body.staffUserId,
+          },
+        });
+        await this.createBillRequestEvent(
+          billRequest.id,
+          BillRequestEventType.presented,
+          body.staffUserId,
+          note ? { note } : undefined,
+          tx,
+        );
+
+        stage = "bill_present";
+        const bill: BillRequestBillPresentMutationResult =
+          await this.billsService.presentExistingBillCompact(
+            ensuredBill.billId,
+            {
+              staffUserId: body.staffUserId,
+              note: note ?? undefined,
+              billCreated: ensuredBill.created,
+              billRequestId: ensuredBill.billRequestId,
+            },
+            tx,
+          );
+
+        return {
+          billRequestId: billRequest.id,
+          billId: bill.billId,
+          billCreated: bill.created,
+          billPresented: bill.presented,
+          tableSessionId: billRequest.tableSessionId,
+          postCommitAction: "presented",
+        } satisfies BillStaffActionTransactionResult;
+      });
+    } catch (error) {
+      throw this.toBillPresentError(error, {
+        ...context,
+        billId: ensuredBill.billId,
+        failureStage: stage,
+      });
+    }
 
     this.scheduleBillStaffActionPostCommitSideEffects(transactionResult);
 
-    return this.getBillRequestResponse(
-      transactionResult.billRequestId,
-      this.prisma,
-    );
+    try {
+      return await this.getBillRequestResponse(
+        transactionResult.billRequestId,
+        this.prisma,
+      );
+    } catch (error) {
+      throw this.toBillPresentError(error, {
+        ...context,
+        billId: transactionResult.billId,
+        tableSessionId: transactionResult.tableSessionId,
+        failureStage: "response_mapping",
+      });
+    }
   }
 
   async close(billRequestId: string, body: BillStaffActionDto = {}) {
@@ -603,6 +671,50 @@ export class BillRequestsService {
           companyId: context.companyId,
           branchId: context.branchId,
           billRequestId: context.billRequestId,
+          failureStage: context.failureStage,
+          exception,
+        },
+      });
+    }
+
+    return error;
+  }
+
+  private toBillPresentError(
+    error: unknown,
+    context: BillPresentLogContext,
+  ) {
+    const statusCode =
+      error instanceof HttpException ? error.getStatus() : undefined;
+    const exception = this.safeExceptionSummary(error);
+    const payload = {
+      message: "Bill request present failed",
+      ...context,
+      statusCode,
+      exception,
+    };
+
+    if (error instanceof HttpException && statusCode && statusCode < 500) {
+      this.logger.warn(payload);
+
+      return error;
+    }
+
+    this.logger.error(payload);
+
+    if (
+      exception.code === "P2028" ||
+      exception.message?.includes("Transaction already closed")
+    ) {
+      return new InternalServerErrorException({
+        message: "The operation timed out while saving. Please retry.",
+        code: "DB_TRANSACTION_TIMEOUT",
+        details: {
+          flow: context.flow,
+          action: context.action,
+          billRequestId: context.billRequestId,
+          billId: context.billId,
+          tableSessionId: context.tableSessionId,
           failureStage: context.failureStage,
           exception,
         },

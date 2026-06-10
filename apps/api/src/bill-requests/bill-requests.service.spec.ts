@@ -228,6 +228,20 @@ function buildService(tx: any, overrides: Record<string, any> = {}) {
       status: BillStatus.presented,
       presented: true,
     }),
+    ensureBillForBillRequestCompact: jest.fn().mockResolvedValue({
+      billId: 'bill-1',
+      billRequestId: 'bill-request-1',
+      tableSessionId: 'session-1',
+      created: true,
+    }),
+    presentExistingBillCompact: jest.fn().mockResolvedValue({
+      billId: 'bill-1',
+      billRequestId: 'bill-request-1',
+      tableSessionId: 'session-1',
+      created: true,
+      status: BillStatus.presented,
+      presented: true,
+    }),
     ...overrides.billsService,
   };
 
@@ -662,7 +676,7 @@ describe('BillRequestsService', () => {
     expect(result.billRequest.status).toBe(BillRequestStatus.acknowledged);
   });
 
-  it('presents an open bill request and asks the bills service to present the linked bill', async () => {
+  it('presents an open bill request after ensuring a missing bill first', async () => {
     const tx = {
       staffUser: {
         findUnique: jest.fn().mockResolvedValue({ id: 'staff-1' }),
@@ -715,13 +729,26 @@ describe('BillRequestsService', () => {
         }),
       }),
     );
-    expect(billsService.presentBillForBillRequestCompact).toHaveBeenCalledWith(
+    expect(billsService.ensureBillForBillRequestCompact).toHaveBeenCalledWith(
       'bill-request-1',
-      'staff-1',
-      null,
+      { actorType: 'staff' },
+    );
+    expect(billsService.presentExistingBillCompact).toHaveBeenCalledWith(
+      'bill-1',
+      {
+        staffUserId: 'staff-1',
+        note: undefined,
+        billCreated: true,
+        billRequestId: 'bill-request-1',
+      },
       tx,
     );
+    expect(billsService.presentBillForBillRequestCompact).not.toHaveBeenCalled();
     expect(billsService.presentBillForBillRequest).not.toHaveBeenCalled();
+    expect(realtimeEventsService.recordBillCreated).toHaveBeenCalledWith(
+      'bill-1',
+      prisma,
+    );
     expect(realtimeEventsService.recordBillPresentedForBill).toHaveBeenCalledWith(
       'bill-1',
       prisma,
@@ -746,6 +773,79 @@ describe('BillRequestsService', () => {
       throw new Error('Expected presented bill request response to include a bill');
     }
     expect(result.bill.status).toBe(BillStatus.presented);
+  });
+
+  it('reuses an existing bill when presenting a bill request', async () => {
+    const tx = {
+      staffUser: {
+        findUnique: jest.fn().mockResolvedValue({ id: 'staff-1' }),
+      },
+      billRequest: {
+        findUnique: jest
+          .fn()
+          .mockResolvedValueOnce({
+            id: 'bill-request-1',
+            tableSessionId: 'session-1',
+            status: BillRequestStatus.acknowledged,
+          })
+          .mockResolvedValueOnce(
+            billRequestRecord({
+              status: BillRequestStatus.presented,
+              presentedAt: now,
+              presentedByStaffUserId: 'staff-1',
+              bill: billSummary({ status: BillStatus.presented }),
+            }),
+          ),
+        update: jest.fn().mockResolvedValue({ id: 'bill-request-1' }),
+      },
+      billRequestEvent: {
+        create: jest.fn().mockResolvedValue({ id: 'event-2' }),
+      },
+      order: {
+        findMany: jest.fn().mockResolvedValue([billableOrder()]),
+      },
+    };
+    const { service, billsService, realtimeEventsService } = buildService(tx, {
+      billsService: {
+        ensureBillForBillRequestCompact: jest.fn().mockResolvedValue({
+          billId: 'bill-existing',
+          billRequestId: 'bill-request-1',
+          tableSessionId: 'session-1',
+          created: false,
+        }),
+        presentExistingBillCompact: jest.fn().mockResolvedValue({
+          billId: 'bill-existing',
+          billRequestId: 'bill-request-1',
+          tableSessionId: 'session-1',
+          created: false,
+          status: BillStatus.presented,
+          presented: true,
+        }),
+      },
+    });
+
+    const result = await service.present('bill-request-1', {
+      staffUserId: 'staff-1',
+      note: 'At the table',
+    });
+    await flushAsyncWork();
+
+    expect(billsService.ensureBillForBillRequestCompact).toHaveBeenCalledWith(
+      'bill-request-1',
+      { actorType: 'staff' },
+    );
+    expect(billsService.presentExistingBillCompact).toHaveBeenCalledWith(
+      'bill-existing',
+      {
+        staffUserId: 'staff-1',
+        note: 'At the table',
+        billCreated: false,
+        billRequestId: 'bill-request-1',
+      },
+      tx,
+    );
+    expect(realtimeEventsService.recordBillCreated).not.toHaveBeenCalled();
+    expect(result.bill?.status).toBe(BillStatus.presented);
   });
 
   it('keeps bill present successful when post-commit side effects fail', async () => {
@@ -791,6 +891,9 @@ describe('BillRequestsService', () => {
           .mockRejectedValue(new Error('notification token=secret failed')),
       },
       realtimeEventsService: {
+        recordBillCreated: jest
+          .fn()
+          .mockRejectedValue(new Error('bill created realtime token=secret failed')),
         recordBillPresentedForBill: jest
           .fn()
           .mockRejectedValue(new Error('bill realtime token=secret failed')),
@@ -812,12 +915,14 @@ describe('BillRequestsService', () => {
 
     expect(result.billRequest.status).toBe(BillRequestStatus.presented);
     expect(presenceNotificationsService.createBillPresentedNotification).toHaveBeenCalled();
+    expect(realtimeEventsService.recordBillCreated).toHaveBeenCalled();
     expect(realtimeEventsService.recordBillPresentedForBill).toHaveBeenCalled();
     expect(realtimeEventsService.recordBillPresented).toHaveBeenCalled();
     expect(tableAttentionService.recalculateForTableSession).toHaveBeenCalled();
 
     const loggedPayload = JSON.stringify(loggerSpy.mock.calls);
 
+    expect(loggedPayload).toContain('bill_created_realtime');
     expect(loggedPayload).toContain('bill_realtime_event');
     expect(loggedPayload).toContain('presence_notification');
     expect(loggedPayload).toContain('realtime_event');
@@ -866,7 +971,17 @@ describe('BillRequestsService', () => {
 
       return [billableOrder()];
     });
-    const presentBillForBillRequestCompact = jest.fn(async () => {
+    const ensureBillForBillRequestCompact = jest.fn(async () => {
+      expect(inTransaction).toBe(false);
+
+      return {
+        billId: 'bill-1',
+        billRequestId: 'bill-request-1',
+        tableSessionId: 'session-1',
+        created: false,
+      };
+    });
+    const presentExistingBillCompact = jest.fn(async () => {
       expect(inTransaction).toBe(true);
 
       return {
@@ -897,7 +1012,8 @@ describe('BillRequestsService', () => {
         },
       },
       billsService: {
-        presentBillForBillRequestCompact,
+        ensureBillForBillRequestCompact,
+        presentExistingBillCompact,
       },
     });
 
@@ -908,8 +1024,71 @@ describe('BillRequestsService', () => {
 
     expect(responseFindUnique).toHaveBeenCalled();
     expect(responseFindMany).toHaveBeenCalled();
-    expect(presentBillForBillRequestCompact).toHaveBeenCalled();
+    expect(ensureBillForBillRequestCompact).toHaveBeenCalled();
+    expect(presentExistingBillCompact).toHaveBeenCalled();
     expect(result.bill?.status).toBe(BillStatus.presented);
+  });
+
+  it('maps staff bill present transaction timeouts with safe stage details', async () => {
+    jest.spyOn(Logger.prototype, 'error').mockImplementation();
+    const tx = {
+      staffUser: {
+        findUnique: jest.fn().mockResolvedValue({ id: 'staff-1' }),
+      },
+      billRequest: {
+        findUnique: jest.fn().mockResolvedValue({
+          id: 'bill-request-1',
+          tableSessionId: 'session-1',
+          status: BillRequestStatus.acknowledged,
+        }),
+        update: jest.fn().mockResolvedValue({ id: 'bill-request-1' }),
+      },
+      billRequestEvent: {
+        create: jest.fn().mockResolvedValue({ id: 'event-2' }),
+      },
+    };
+    const { service } = buildService(tx, {
+      billsService: {
+        ensureBillForBillRequestCompact: jest.fn().mockResolvedValue({
+          billId: 'bill-1',
+          billRequestId: 'bill-request-1',
+          tableSessionId: 'session-1',
+          created: false,
+        }),
+        presentExistingBillCompact: jest.fn().mockRejectedValue(
+          Object.assign(new Error('Transaction already closed token=secret'), {
+            code: 'P2028',
+          }),
+        ),
+      },
+    });
+    let caught: { getResponse?: () => unknown } | undefined;
+
+    try {
+      await service.present('bill-request-1', { staffUserId: 'staff-1' });
+    } catch (error) {
+      caught = error as { getResponse?: () => unknown };
+    }
+
+    if (!caught?.getResponse) {
+      throw new Error('Expected bill present timeout to return an HttpException');
+    }
+
+    expect(caught.getResponse()).toMatchObject({
+      code: 'DB_TRANSACTION_TIMEOUT',
+      details: {
+        flow: 'bill_request_present',
+        action: 'present',
+        billRequestId: 'bill-request-1',
+        billId: 'bill-1',
+        tableSessionId: 'session-1',
+        failureStage: 'bill_present',
+        exception: {
+          code: 'P2028',
+          message: 'Transaction already closed token=[redacted]',
+        },
+      },
+    });
   });
 
   it('rejects bill request creation with a clear BadRequest when no billable orders exist', async () => {

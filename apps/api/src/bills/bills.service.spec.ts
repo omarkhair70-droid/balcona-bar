@@ -218,6 +218,7 @@ describe('BillsService', () => {
       },
       bill: {
         count: jest.fn().mockResolvedValue(0),
+        findFirst: jest.fn().mockResolvedValue(null),
         findUnique: jest.fn((args) => {
           if (args.where.billRequestId || args.where.branchId_billNumber) {
             return null;
