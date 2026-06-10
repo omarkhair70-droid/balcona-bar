@@ -6,6 +6,7 @@ import type {
 } from "@/lib/api/types";
 import { cn } from "@/lib/utils/cn";
 import { humanizeStatus } from "@/features/staff/staff-format";
+import { useTranslations } from "@/lib/i18n/i18n-provider";
 
 type KitchenStationFilterProps = {
   station: PreparationStation;
@@ -60,11 +61,13 @@ export function KitchenStationFilter({
   onStationChange,
   onStatusChange
 }: KitchenStationFilterProps) {
+  const t = useTranslations("staff");
+
   return (
     <div className="grid gap-3">
       <div>
         <p className="mb-2 text-xs font-semibold uppercase text-muted-foreground">
-          Station
+          {t("tasks.filterStation")}
         </p>
         <div className="flex gap-2 overflow-x-auto pb-1">
           {stationOptions.map((option) => (
@@ -79,7 +82,7 @@ export function KitchenStationFilter({
       </div>
       <div>
         <p className="mb-2 text-xs font-semibold uppercase text-muted-foreground">
-          Status
+          {t("tasks.filterStatus")}
         </p>
         <div className="flex gap-2 overflow-x-auto pb-1">
           {statusOptions.map((option) => (

@@ -16,6 +16,7 @@ import { cn } from "@/lib/utils/cn";
 import { getBillRequestId } from "@/features/staff/cashier-data";
 import { humanizeStatus } from "@/features/staff/staff-format";
 import type { RecordManualPaymentPayload } from "@/lib/api/types";
+import { useTranslations } from "@/lib/i18n/i18n-provider";
 import { BillRequestCard } from "./bill-request-card";
 
 type BillRequestQueueProps = {
@@ -60,19 +61,18 @@ export function BillRequestQueue({
   onPresent,
   onRecordManualPayment,
 }: BillRequestQueueProps) {
+  const t = useTranslations("staff");
+
   return (
     <Card variant="glass" padding="lg">
       <CardHeader className="gap-4 sm:flex sm:flex-row sm:items-start sm:justify-between sm:space-y-0">
         <div>
-          <CardTitle>Bill requests</CardTitle>
-          <CardDescription>
-            Present a stable bill, record a manual payment, then issue a
-            receipt. No online payment is taken here.
-          </CardDescription>
+          <CardTitle>{t("billRequests.title")}</CardTitle>
+          <CardDescription>{t("billRequests.description")}</CardDescription>
         </div>
         <Button variant="secondary" size="sm" onClick={onRefresh}>
           <RefreshCw className="size-4" aria-hidden="true" />
-          Refresh
+          {t("actions.refresh")}
         </Button>
       </CardHeader>
       <CardContent>
@@ -94,10 +94,10 @@ export function BillRequestQueue({
           ))}
         </div>
 
-        {isLoading ? <LoadingState label="Loading bill requests" /> : null}
+        {isLoading ? <LoadingState label={t("billRequests.loading")} /> : null}
         {error ? (
           <EmptyState
-            title="Bill requests could not load"
+            title={t("billRequests.errorTitle")}
             description={error.message}
             debug={{
               action: "bill_request_list",
@@ -108,8 +108,8 @@ export function BillRequestQueue({
         ) : null}
         {!isLoading && !error && billRequests.length === 0 ? (
           <EmptyState
-            title="No bill requests in this lane"
-            description="Customer bill requests will appear here when the backend marks them active."
+            title={t("billRequests.emptyTitle")}
+            description={t("billRequests.emptyDescription")}
           />
         ) : null}
         {!isLoading && !error && billRequests.length > 0 ? (

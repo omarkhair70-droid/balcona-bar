@@ -21,6 +21,7 @@ import {
   humanizeStatus,
   shortId
 } from "@/features/staff/staff-format";
+import { useTranslations } from "@/lib/i18n/i18n-provider";
 import { cn } from "@/lib/utils/cn";
 import { WaiterCallStatusPill } from "./waiter-call-status-pill";
 
@@ -35,6 +36,7 @@ export function WaiterCallCard({
   selected,
   onSelect
 }: WaiterCallCardProps) {
+  const t = useTranslations("staff");
   const waiterCallId = getWaiterCallId(waiterCall);
   const priority = getWaiterCallPriority(waiterCall);
   const orderNumber = getWaiterCallOrderNumber(waiterCall);
@@ -48,7 +50,7 @@ export function WaiterCallCard({
       aria-pressed={selected}
       onClick={() => waiterCallId && onSelect(waiterCallId)}
       className={cn(
-        "w-full rounded-card border bg-surface/75 p-4 text-left shadow-card transition hover:border-primary/55 hover:bg-surface",
+        "w-full rounded-card border bg-surface/75 p-4 text-start shadow-card transition hover:border-primary/55 hover:bg-surface",
         selected ? "border-primary/70 bg-primary/10" : "border-border",
         isHighPriority && !selected ? "border-warning/60" : ""
       )}
@@ -80,13 +82,13 @@ export function WaiterCallCard({
 
       <dl className="mt-4 grid grid-cols-2 gap-3 text-xs">
         <div>
-          <dt className="text-muted-foreground">Priority</dt>
+          <dt className="text-muted-foreground">{t("waiter.priority")}</dt>
           <dd className="mt-1 font-semibold text-foreground">
-            {priority > 0 ? priority : "Standard"}
+            {priority > 0 ? priority : t("waiter.standardPriority")}
           </dd>
         </div>
         <div>
-          <dt className="text-muted-foreground">Request</dt>
+          <dt className="text-muted-foreground">{t("waiter.request")}</dt>
           <dd className="mt-1 font-semibold text-foreground">
             {humanizeStatus(getWaiterCallType(waiterCall))}
           </dd>
@@ -104,20 +106,22 @@ export function WaiterCallCard({
             {orderNumber}
           </span>
         ) : (
-          <span>Call {shortId(waiterCallId)}</span>
+          <span>
+            {t("waiter.callFallback", { callId: shortId(waiterCallId) })}
+          </span>
         )}
       </div>
 
       {orderStatus ? (
         <Badge variant="muted" className="mt-3">
-          Order {humanizeStatus(orderStatus)}
+          {t("tasks.orderStatus", { status: humanizeStatus(orderStatus) })}
         </Badge>
       ) : null}
 
       {message ? (
         <p className="mt-3 line-clamp-2 rounded-card border border-primary/30 bg-primary/10 p-2 text-xs text-foreground">
           <MessageSquareText
-            className="mr-1.5 inline size-3.5 text-primary"
+            className="me-1.5 inline size-3.5 text-primary"
             aria-hidden="true"
           />
           {message}

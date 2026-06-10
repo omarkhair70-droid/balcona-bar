@@ -20,6 +20,7 @@ import type {
   PreparationStation,
   PreparationTaskStatus
 } from "@/lib/api/types";
+import { useTranslations } from "@/lib/i18n/i18n-provider";
 import { KitchenStationFilter } from "./kitchen-station-filter";
 import { KitchenTaskCard } from "./kitchen-task-card";
 
@@ -64,21 +65,19 @@ export function KitchenTaskBoard({
   onSelectTask,
   onRefresh
 }: KitchenTaskBoardProps) {
+  const t = useTranslations("staff");
   const groups = stationStatusGroups(tasks);
 
   return (
     <Card variant="glass" padding="lg" className="min-h-[34rem]">
       <CardHeader className="gap-4 sm:flex sm:flex-row sm:items-start sm:justify-between sm:space-y-0">
         <div>
-          <CardTitle>Preparation board</CardTitle>
-          <CardDescription>
-            Tasks are created after cashier acceptance and stay owned by the
-            backend workflow.
-          </CardDescription>
+          <CardTitle>{t("tasks.queueTitle")}</CardTitle>
+          <CardDescription>{t("tasks.queueDescription")}</CardDescription>
         </div>
         <Button variant="secondary" size="sm" onClick={onRefresh}>
           <RefreshCw className="size-4" aria-hidden="true" />
-          Refresh
+          {t("actions.refresh")}
         </Button>
       </CardHeader>
       <CardContent>
@@ -91,10 +90,10 @@ export function KitchenTaskBoard({
           />
         </div>
 
-        {isLoading ? <LoadingState label="Loading preparation tasks" /> : null}
+        {isLoading ? <LoadingState label={t("tasks.loading")} /> : null}
         {error ? (
           <EmptyState
-            title="Tasks could not load"
+            title={t("tasks.loadError")}
             description={error.message}
             debug={{
               action: "preparation_task_list",
@@ -105,8 +104,8 @@ export function KitchenTaskBoard({
         ) : null}
         {!isLoading && !error && tasks.length === 0 ? (
           <EmptyState
-            title="No tasks in this lane"
-            description="Accepted orders will create preparation tasks for the active stations."
+            title={t("tasks.emptyTitle")}
+            description={t("tasks.emptyDescription")}
           />
         ) : null}
         {!isLoading && !error && tasks.length > 0 ? (

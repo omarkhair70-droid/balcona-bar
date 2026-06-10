@@ -1,6 +1,9 @@
+"use client";
+
 import { Radio } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { humanizeStatus } from "@/features/staff/staff-format";
+import { useTranslations } from "@/lib/i18n/i18n-provider";
 import type { StaffRealtimeState } from "@/features/staff/use-staff-branch-realtime";
 
 type StaffRealtimeStatusProps = {
@@ -20,16 +23,16 @@ function realtimeVariant(state: StaffRealtimeState) {
   return "muted";
 }
 
-function realtimeLabel(state: StaffRealtimeState) {
+function realtimeLabelKey(state: StaffRealtimeState) {
   switch (state) {
     case "connected":
-      return "Live";
+      return "realtime.connected";
     case "connecting":
-      return "Connecting";
+      return "realtime.connecting";
     case "error":
-      return "Reconnecting";
+      return "realtime.error";
     default:
-      return "Idle";
+      return "realtime.idle";
   }
 }
 
@@ -37,15 +40,17 @@ export function StaffRealtimeStatus({
   state,
   lastEventType
 }: StaffRealtimeStatusProps) {
+  const t = useTranslations("staff");
+
   return (
     <div className="flex flex-wrap items-center gap-2">
       <Badge variant={realtimeVariant(state)} className="gap-2">
         <Radio className="size-3.5" aria-hidden="true" />
-        {realtimeLabel(state)}
+        {t(realtimeLabelKey(state))}
       </Badge>
       {lastEventType ? (
         <span className="text-xs text-muted-foreground">
-          Last: {humanizeStatus(lastEventType)}
+          {t("realtime.lastEvent", { event: humanizeStatus(lastEventType) })}
         </span>
       ) : null}
     </div>
