@@ -3,6 +3,8 @@ import {
   BillRequestActorType,
   BillRequestStatus,
   BillStatus,
+  OrderEventActorType,
+  OrderEventType,
   OrderStatus,
   TableSessionStatus,
 } from '@prisma/client';
@@ -246,7 +248,7 @@ function buildService(tx: any, overrides: Record<string, any> = {}) {
 }
 
 describe('BillRequestsService', () => {
-  it('lets a served table session request a bill and returns the linked bill snapshot', async () => {
+  it('lets a served table session request a bill without creating the bill in the customer transaction', async () => {
     const tx = {
       tableSession: {
         findUnique: jest.fn().mockResolvedValue(tableSession()),
@@ -254,7 +256,7 @@ describe('BillRequestsService', () => {
       billRequest: {
         findFirst: jest.fn().mockResolvedValue(null),
         create: jest.fn().mockResolvedValue({ id: 'bill-request-1' }),
-        findUnique: jest.fn().mockResolvedValue(billRequestRecord()),
+        findUnique: jest.fn().mockResolvedValue(billRequestRecord({ bill: null })),
       },
       order: {
         findMany: jest.fn().mockResolvedValue([billableOrder()]),
@@ -285,16 +287,20 @@ describe('BillRequestsService', () => {
         }),
       }),
     );
-    expect(billsService.createOrGetBillForBillRequestCompact).toHaveBeenCalledWith(
-      'bill-request-1',
-      { actorType: 'customer' },
-      tx,
-    );
+    expect(billsService.createOrGetBillForBillRequestCompact).not.toHaveBeenCalled();
     expect(billsService.createOrGetBillForBillRequest).not.toHaveBeenCalled();
-    expect(realtimeEventsService.recordBillCreated).toHaveBeenCalledWith(
-      'bill-1',
-      prisma,
-    );
+    expect(realtimeEventsService.recordBillCreated).not.toHaveBeenCalled();
+    expect(tx.orderEvent.create).toHaveBeenCalledWith({
+      data: {
+        orderId: 'order-1',
+        type: OrderEventType.bill_requested,
+        actorType: OrderEventActorType.customer,
+        metadata: {
+          billRequestId: 'bill-request-1',
+          tableSessionId: 'session-1',
+        },
+      },
+    });
     expect(presenceNotificationsService.createBillRequestedNotification).toHaveBeenCalledWith(
       'bill-request-1',
       prisma,
@@ -312,20 +318,7 @@ describe('BillRequestsService', () => {
       },
     );
     expect(result.billRequest.id).toBe('bill-request-1');
-    if (!result.bill) {
-      throw new Error('Expected bill request response to include a bill');
-    }
-    expect(result.bill.id).toBe('bill-1');
-    expect(result.bill.totalMinor).toBe(12500);
-    expect(result.bill.balanceDueMinor).toBe(12500);
-    expect(result.bill.orderCount).toBe(1);
-    expect(result.bill.lineCount).toBe(1);
-    expect(result.bill.lines[0].modifiersSnapshot).toEqual([
-      {
-        modifierGroupSlugSnapshot: 'size',
-        modifierOptionSlugSnapshot: 'medium',
-      },
-    ]);
+    expect(result.bill).toBeNull();
   });
 
   it('keeps bill request creation successful when post-commit side effects fail', async () => {
@@ -337,7 +330,7 @@ describe('BillRequestsService', () => {
       billRequest: {
         findFirst: jest.fn().mockResolvedValue(null),
         create: jest.fn().mockResolvedValue({ id: 'bill-request-1' }),
-        findUnique: jest.fn().mockResolvedValue(billRequestRecord()),
+        findUnique: jest.fn().mockResolvedValue(billRequestRecord({ bill: null })),
       },
       order: {
         findMany: jest.fn().mockResolvedValue([billableOrder()]),
@@ -348,10 +341,18 @@ describe('BillRequestsService', () => {
     };
     const {
       service,
+      prisma,
       presenceNotificationsService,
       realtimeEventsService,
       tableAttentionService,
     } = buildService(tx, {
+      prisma: {
+        orderEvent: {
+          create: jest
+            .fn()
+            .mockRejectedValue(new Error('order event token=secret failed')),
+        },
+      },
       presenceNotificationsService: {
         createBillRequestedNotification: jest
           .fn()
@@ -373,17 +374,139 @@ describe('BillRequestsService', () => {
     await flushAsyncWork();
 
     expect(result.billRequest.id).toBe('bill-request-1');
+    expect(prisma.orderEvent.create).toHaveBeenCalled();
     expect(presenceNotificationsService.createBillRequestedNotification).toHaveBeenCalled();
     expect(realtimeEventsService.recordBillRequested).toHaveBeenCalled();
     expect(tableAttentionService.recalculateForTableSession).toHaveBeenCalled();
 
     const loggedPayload = JSON.stringify(loggerSpy.mock.calls);
 
+    expect(loggedPayload).toContain('order_events');
     expect(loggedPayload).toContain('presence_notification');
     expect(loggedPayload).toContain('realtime_event');
     expect(loggedPayload).toContain('table_attention');
     expect(loggedPayload).toContain('token=[redacted]');
     expect(loggedPayload).not.toContain('token=secret');
+  });
+
+  it('hydrates request bill response after commit and does not create a bill inside the transaction', async () => {
+    let inTransaction = false;
+    const createOrGetBillForBillRequestCompact = jest.fn();
+    const tx = {
+      tableSession: {
+        findUnique: jest.fn().mockResolvedValue(tableSession()),
+      },
+      billRequest: {
+        findFirst: jest.fn().mockResolvedValue(null),
+        create: jest.fn().mockResolvedValue({ id: 'bill-request-1' }),
+      },
+      order: {
+        findMany: jest.fn().mockResolvedValue([billableOrder()]),
+      },
+      orderEvent: {
+        create: jest.fn(() => {
+          throw new Error('order events should run after commit');
+        }),
+      },
+    };
+    const responseFindUnique = jest.fn(async () => {
+      expect(inTransaction).toBe(false);
+
+      return billRequestRecord({ bill: null });
+    });
+    const responseFindMany = jest.fn(async () => {
+      expect(inTransaction).toBe(false);
+
+      return [billableOrder()];
+    });
+    const postCommitOrderEventCreate = jest.fn(async () => {
+      expect(inTransaction).toBe(false);
+
+      return { id: 'order-event-1' };
+    });
+    const { service } = buildService(tx, {
+      prisma: {
+        $transaction: jest.fn(async (callback) => {
+          inTransaction = true;
+
+          try {
+            return await callback(tx);
+          } finally {
+            inTransaction = false;
+          }
+        }),
+        billRequest: {
+          findUnique: responseFindUnique,
+        },
+        order: {
+          findMany: responseFindMany,
+        },
+        orderEvent: {
+          create: postCommitOrderEventCreate,
+        },
+      },
+      billsService: {
+        createOrGetBillForBillRequestCompact,
+      },
+    });
+
+    const result = await service.requestBill('session-1');
+    await flushAsyncWork();
+
+    expect(result.billRequest.id).toBe('bill-request-1');
+    expect(result.bill).toBeNull();
+    expect(createOrGetBillForBillRequestCompact).not.toHaveBeenCalled();
+    expect(responseFindUnique).toHaveBeenCalled();
+    expect(responseFindMany).toHaveBeenCalled();
+    expect(postCommitOrderEventCreate).toHaveBeenCalled();
+    expect(tx.orderEvent.create).not.toHaveBeenCalled();
+  });
+
+  it('maps request bill transaction timeouts with safe stage details', async () => {
+    jest.spyOn(Logger.prototype, 'error').mockImplementation();
+    const tx = {
+      tableSession: {
+        findUnique: jest.fn().mockResolvedValue(tableSession()),
+      },
+      billRequest: {
+        findFirst: jest.fn().mockResolvedValue(null),
+      },
+      order: {
+        findMany: jest.fn().mockRejectedValue(
+          Object.assign(new Error('Transaction already closed token=secret'), {
+            code: 'P2028',
+          }),
+        ),
+      },
+    };
+    const { service } = buildService(tx);
+    let caught: { getResponse?: () => unknown } | undefined;
+
+    try {
+      await service.requestBill('session-1');
+    } catch (error) {
+      caught = error as { getResponse?: () => unknown };
+    }
+
+    if (!caught?.getResponse) {
+      throw new Error('Expected request bill timeout to return an HttpException');
+    }
+
+    expect(caught.getResponse()).toMatchObject({
+      code: 'DB_TRANSACTION_TIMEOUT',
+      details: {
+        flow: 'bill_request',
+        action: 'request_bill',
+        sessionId: 'session-1',
+        companyId: 'company-1',
+        branchId: 'branch-1',
+        failureStage: 'billable_orders_lookup',
+        exception: {
+          code: 'P2028',
+          message: 'Transaction already closed token=[redacted]',
+        },
+      },
+    });
   });
 
   it('returns activeBillRequest and activeBill for a table session with an open bill', async () => {

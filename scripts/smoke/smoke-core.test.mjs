@@ -368,6 +368,48 @@ describe("smoke core", () => {
     assert.equal(run.entityIds.submittedOrderId, "order-after-retry");
   });
 
+  it("scores FAIL when any step failed", () => {
+    const run = new SmokeRun({
+      runId: "run-failed",
+      timeoutMs: 5_000,
+      clientTraceId: "client-score"
+    });
+
+    run.steps = [
+      { status: "passed", critical: true },
+      { status: "failed", critical: false }
+    ];
+
+    assert.equal(run.finish().score.overallResult, "FAIL");
+  });
+
+  it("scores PASS_WITH_WARNINGS when there are warnings and no failures", () => {
+    const run = new SmokeRun({
+      runId: "run-warning",
+      timeoutMs: 5_000,
+      clientTraceId: "client-score"
+    });
+
+    run.steps = [
+      { status: "passed", critical: true },
+      { status: "warning", critical: false }
+    ];
+
+    assert.equal(run.finish().score.overallResult, "PASS_WITH_WARNINGS");
+  });
+
+  it("scores PASS when all steps passed cleanly", () => {
+    const run = new SmokeRun({
+      runId: "run-pass",
+      timeoutMs: 5_000,
+      clientTraceId: "client-score"
+    });
+
+    run.steps = [{ status: "passed", critical: true }];
+
+    assert.equal(run.finish().score.overallResult, "PASS");
+  });
+
   it("selects the current cashier order instead of stale branch orders", () => {
     const selected = selectCurrentCashierOrder(
       {
