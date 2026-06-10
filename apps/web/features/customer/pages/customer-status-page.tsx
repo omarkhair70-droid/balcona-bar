@@ -15,6 +15,7 @@ import {
 } from "@/lib/api/endpoints";
 import { customerQueryKeys } from "@/lib/api/query-keys";
 import { useCustomerSessionStore } from "@/lib/customer/customer-session-store";
+import { useTranslations } from "@/lib/i18n/i18n-provider";
 import { CustomerSessionScreen } from "../customer-session-screen";
 import { getRecordString } from "../customer-format";
 import { StatusTimeline } from "../status-timeline";
@@ -23,8 +24,8 @@ type CustomerStatusPageProps = {
   sessionId: string;
 };
 
-function getOrderNumber(order: Record<string, unknown>) {
-  return getRecordString(order, "orderNumber", getRecordString(order, "id", "Order"));
+function getOrderNumber(order: Record<string, unknown>, fallback: string) {
+  return getRecordString(order, "orderNumber", getRecordString(order, "id", fallback));
 }
 
 function getOrderKey(order: Record<string, unknown>, index: number) {
@@ -56,6 +57,7 @@ function getOrderStatus(order: Record<string, unknown>) {
 }
 
 export function CustomerStatusPage({ sessionId }: CustomerStatusPageProps) {
+  const t = useTranslations("customer");
   const token = useCustomerSessionStore((state) => state.customerAccessToken);
   const ordersQuery = useQuery({
     queryKey: customerQueryKeys.orders(sessionId),
@@ -83,27 +85,27 @@ export function CustomerStatusPage({ sessionId }: CustomerStatusPageProps) {
     <CustomerSessionScreen
       sessionId={sessionId}
       active="status"
-      eyebrow="Order status"
-      title="Follow your table timeline"
-      description="Current orders, customer status, and timeline events refresh when realtime session events arrive."
+      eyebrow={t("status.eyebrow")}
+      title={t("status.title")}
+      description={t("status.description")}
     >
       <section className="grid gap-4 md:grid-cols-3">
         <MetricCard
-          label="Current"
+          label={t("status.current")}
           value={customerStatus.replaceAll("_", " ")}
-          description="Customer-facing state"
+          description={t("status.customerFacingState")}
           icon={<Clock className="size-4" aria-hidden="true" />}
         />
         <MetricCard
-          label="Orders"
+          label={t("status.ordersMetric")}
           value={`${orders.length}`}
-          description="For this session"
+          description={t("status.forThisSession")}
           icon={<ClipboardList className="size-4" aria-hidden="true" />}
         />
         <MetricCard
-          label="Timeline"
+          label={t("status.timelineMetric")}
           value={`${timelineQuery.data?.timeline.length ?? 0}`}
-          description="Visible events"
+          description={t("status.visibleEvents")}
           icon={<PackageCheck className="size-4" aria-hidden="true" />}
         />
       </section>
@@ -111,16 +113,18 @@ export function CustomerStatusPage({ sessionId }: CustomerStatusPageProps) {
       <section className="mt-5 grid gap-5 lg:grid-cols-[1fr_1fr]">
         <Card variant="glass" padding="lg">
           <CardHeader>
-            <CardTitle>Orders</CardTitle>
+            <CardTitle>{t("status.ordersTitle")}</CardTitle>
             <CardDescription>
-              Friendly status cards for orders submitted from this table.
+              {t("status.ordersDescription")}
             </CardDescription>
           </CardHeader>
           <CardContent className="grid gap-3">
-            {ordersQuery.isPending ? <LoadingState label="Loading orders" /> : null}
+            {ordersQuery.isPending ? (
+              <LoadingState label={t("status.loadingOrders")} />
+            ) : null}
             {ordersQuery.isError ? (
               <EmptyState
-                title="Orders could not load"
+                title={t("errors.ordersLoad")}
                 description={ordersQuery.error.message}
                 debug={{
                   action: "order_status",
@@ -132,14 +136,14 @@ export function CustomerStatusPage({ sessionId }: CustomerStatusPageProps) {
             ) : null}
             {ordersQuery.isSuccess && orders.length === 0 ? (
               <EmptyState
-                title="No orders yet"
-                description="Submit your cart and the timeline will begin here."
+                title={t("empty.statusOrdersTitle")}
+                description={t("empty.statusOrdersDescription")}
                 action={
                   <Link
                     href={`/customer/session/${sessionId}/cart`}
                     className={buttonVariants({ variant: "secondary" })}
                   >
-                    Review cart
+                    {t("actions.reviewCart")}
                   </Link>
                 }
               />
@@ -147,7 +151,7 @@ export function CustomerStatusPage({ sessionId }: CustomerStatusPageProps) {
             {orders.map((order, index) => (
               <div key={getOrderKey(order, index)} className="rounded-card border bg-surface/75 p-4">
                 <p className="text-sm font-semibold text-foreground">
-                  {getOrderNumber(order)}
+                  {getOrderNumber(order, t("status.orderFallback"))}
                 </p>
                 <p className="mt-2 text-sm capitalize text-muted-foreground">
                   {getOrderStatus(order)}
@@ -159,17 +163,18 @@ export function CustomerStatusPage({ sessionId }: CustomerStatusPageProps) {
 
         <Card variant="glass" padding="lg">
           <CardHeader>
-            <CardTitle>Timeline</CardTitle>
+            <CardTitle>{t("status.timelineTitle")}</CardTitle>
             <CardDescription>
-              Table, order, notification, service, and bill events in one
-              customer-friendly list.
+              {t("status.timelineDescription")}
             </CardDescription>
           </CardHeader>
           <CardContent>
-            {timelineQuery.isPending ? <LoadingState label="Loading timeline" /> : null}
+            {timelineQuery.isPending ? (
+              <LoadingState label={t("status.loadingTimeline")} />
+            ) : null}
             {timelineQuery.isError ? (
               <EmptyState
-                title="Timeline could not load"
+                title={t("errors.timelineLoad")}
                 description={timelineQuery.error.message}
                 debug={{
                   action: "customer_timeline",

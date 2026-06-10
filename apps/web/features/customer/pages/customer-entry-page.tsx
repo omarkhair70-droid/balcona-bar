@@ -16,9 +16,11 @@ import { Input } from "@/components/ui/input";
 import { CustomerShell } from "@/features/customer/customer-shell";
 import { balkonaDemoQrToken } from "@/features/demo/balkona-demo";
 import { useCustomerSessionStore } from "@/lib/customer/customer-session-store";
+import { useTranslations } from "@/lib/i18n/i18n-provider";
 
 export function CustomerEntryPage() {
   const router = useRouter();
+  const t = useTranslations("customer");
   const [qrToken, setQrToken] = useState("");
   const storedSessionId = useCustomerSessionStore((state) => state.sessionId);
   const clearSession = useCustomerSessionStore((state) => state.clearSession);
@@ -30,14 +32,14 @@ export function CustomerEntryPage() {
 
   return (
     <CustomerShell
-      eyebrow="Customer PWA core"
-      title="Start your table experience"
-      description="Open from a QR code, resume your table session, browse the live branch menu, and keep service requests in one warm mobile surface."
+      eyebrow={t("entry.eyebrow")}
+      title={t("entry.title")}
+      description={t("entry.description")}
       actions={
         <>
           <Button onClick={openTable}>
             <QrCode className="size-4" aria-hidden="true" />
-            Open table
+            {t("actions.openTable")}
           </Button>
           {storedSessionId ? (
             <Button
@@ -45,7 +47,7 @@ export function CustomerEntryPage() {
               onClick={() => router.push(`/customer/session/${storedSessionId}`)}
             >
               <ArrowRight className="size-4" aria-hidden="true" />
-              Resume
+              {t("actions.resume")}
             </Button>
           ) : null}
         </>
@@ -55,12 +57,11 @@ export function CustomerEntryPage() {
         <Card variant="glass" padding="lg">
           <CardHeader>
             <Badge variant="muted" className="w-fit">
-              Table link
+              {t("entry.tableLinkBadge")}
             </Badge>
-            <CardTitle>Enter or scan a table token</CardTitle>
+            <CardTitle>{t("entry.tableTokenTitle")}</CardTitle>
             <CardDescription>
-              Use the demo token to try the customer flow with the backend
-              seed data, or paste a QR token from another table.
+              {t("entry.tableTokenDescription")}
             </CardDescription>
           </CardHeader>
           <div className="grid gap-3 px-6 pb-6">
@@ -68,12 +69,12 @@ export function CustomerEntryPage() {
               value={qrToken}
               onChange={(event) => setQrToken(event.target.value)}
               placeholder={balkonaDemoQrToken}
-              aria-label="Table QR token"
+              aria-label={t("aria.tableQrToken")}
             />
             <div className="flex flex-wrap gap-3">
               <Button onClick={openTable}>
                 <QrCode className="size-4" aria-hidden="true" />
-                Continue
+                {t("actions.continue")}
               </Button>
               <Button
                 variant="ghost"
@@ -83,7 +84,7 @@ export function CustomerEntryPage() {
                 }}
               >
                 <RotateCcw className="size-4" aria-hidden="true" />
-                Reset
+                {t("actions.reset")}
               </Button>
             </div>
           </div>
@@ -94,14 +95,18 @@ export function CustomerEntryPage() {
             <div className="text-primary">
               <Utensils className="size-7" aria-hidden="true" />
             </div>
-            <CardTitle>What opens next</CardTitle>
+            <CardTitle>{t("entry.whatOpensNext")}</CardTitle>
             <CardDescription>
-              Session start, branch theme, menu, cart, order status, service
-              calls, bill request, and realtime refresh hooks.
+              {t("entry.nextDescription")}
             </CardDescription>
           </CardHeader>
           <div className="grid gap-3 px-6 pb-6">
-            {["Menu", "Cart", "Status", "Service"].map((label) => (
+            {[
+              t("entry.nextMenu"),
+              t("entry.nextCart"),
+              t("entry.nextStatus"),
+              t("entry.nextService")
+            ].map((label) => (
               <div key={label} className="rounded-card border bg-surface/70 p-3">
                 <p className="text-sm font-semibold text-foreground">{label}</p>
               </div>
@@ -111,7 +116,7 @@ export function CustomerEntryPage() {
               className={buttonVariants({ variant: "secondary" })}
             >
               <MonitorPlay className="size-4" aria-hidden="true" />
-              Full demo launcher
+              {t("actions.fullDemoLauncher")}
             </Link>
           </div>
         </Card>

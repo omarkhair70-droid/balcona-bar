@@ -21,18 +21,18 @@ type CustomerShellProps = {
 
 const ambientItems = [
   {
-    label: "Table",
-    value: "18",
+    labelKey: "shell.ambientTable",
+    valueKey: "shell.ambientTableValue",
     icon: <QrCode className="size-4" aria-hidden="true" />
   },
   {
-    label: "Mood",
-    value: "Evening",
+    labelKey: "shell.ambientMood",
+    valueKey: "shell.ambientMoodValue",
     icon: <Coffee className="size-4" aria-hidden="true" />
   },
   {
-    label: "Service",
-    value: "Calm",
+    labelKey: "shell.ambientService",
+    valueKey: "shell.ambientServiceValue",
     icon: <ConciergeBell className="size-4" aria-hidden="true" />
   }
 ];
@@ -103,23 +103,23 @@ export function CustomerShell({
           <div className="flex items-center justify-between border-b pb-4">
             <div>
               <p className="text-xs font-semibold uppercase text-muted-foreground">
-                Tonight
+                {t("shell.tonight")}
               </p>
               <p className="mt-1 text-lg font-semibold text-foreground">
-                Balcony lounge
+                {t("shell.balconyLounge")}
               </p>
             </div>
             <Sparkles className="size-5 text-primary" aria-hidden="true" />
           </div>
           <div className="mt-5 grid grid-cols-3 gap-3">
             {ambientItems.map((item) => (
-              <div key={item.label} className="rounded-card bg-muted p-3">
+              <div key={item.labelKey} className="rounded-card bg-muted p-3">
                 <div className="text-primary">{item.icon}</div>
                 <p className="mt-3 text-xs text-muted-foreground">
-                  {item.label}
+                  {t(item.labelKey)}
                 </p>
                 <p className="text-sm font-semibold text-foreground">
-                  {item.value}
+                  {t(item.valueKey)}
                 </p>
               </div>
             ))}
@@ -131,10 +131,10 @@ export function CustomerShell({
               </span>
               <div>
                 <p className="text-sm font-semibold text-foreground">
-                  Evening service pace
+                  {t("shell.servicePaceTitle")}
                 </p>
                 <p className="text-xs text-muted-foreground">
-                  Warm contrast, calm spacing, table-first layout
+                  {t("shell.servicePaceDescription")}
                 </p>
               </div>
             </div>

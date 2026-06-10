@@ -36,6 +36,7 @@ import {
 } from "@/lib/customer/customer-session-readiness";
 import { useCustomerSessionStore } from "@/lib/customer/customer-session-store";
 import { vibrateSuccess, vibrateWarning } from "@/lib/haptics/haptics";
+import { useTranslations } from "@/lib/i18n/i18n-provider";
 import { CartItemRow } from "../cart-item-row";
 import { CustomerSessionScreen } from "../customer-session-screen";
 import { formatMoney } from "../customer-format";
@@ -55,6 +56,7 @@ function createIdempotencyKey(sessionId: string) {
 }
 
 export function CustomerCartPage({ sessionId }: CustomerCartPageProps) {
+  const t = useTranslations("customer");
   const router = useRouter();
   const queryClient = useQueryClient();
   const hasHydrated = useCustomerSessionStore((state) => state.hasHydrated);
@@ -204,7 +206,7 @@ export function CustomerCartPage({ sessionId }: CustomerCartPageProps) {
   const submitErrorMessage = submitMutation.isError
     ? formatErrorMessage(
         submitMutation.error,
-        "Please try again."
+        t("cart.submitFallback")
       )
     : null;
   const pendingItemId = useMemo(() => {
@@ -228,11 +230,11 @@ export function CustomerCartPage({ sessionId }: CustomerCartPageProps) {
     <CustomerSessionScreen
       sessionId={sessionId}
       active="cart"
-      eyebrow="Cart"
-      title="Review before sending"
-      description="The backend owns pricing and validation. This screen shows returned cart totals and submits with an idempotency key."
+      eyebrow={t("cart.eyebrow")}
+      title={t("cart.title")}
+      description={t("cart.description")}
     >
-      {cartQuery.isPending ? <LoadingState label="Loading cart" /> : null}
+      {cartQuery.isPending ? <LoadingState label={t("cart.loading")} /> : null}
       {!readiness.isReady ? (
         <div className="mb-4 rounded-card border border-warning bg-warning/10 p-3 text-sm text-warning">
           {readiness.message}
@@ -240,7 +242,7 @@ export function CustomerCartPage({ sessionId }: CustomerCartPageProps) {
       ) : null}
       {cartQuery.isError ? (
         <EmptyState
-          title="Cart could not load"
+          title={t("cart.errorTitle")}
           description={cartQuery.error.message}
           debug={{
             action: "cart_get",
@@ -252,14 +254,14 @@ export function CustomerCartPage({ sessionId }: CustomerCartPageProps) {
       ) : null}
       {cartQuery.isSuccess && isCartEmpty ? (
         <EmptyState
-          title="Your cart is empty"
-          description="Browse the menu and add something beautiful for the table."
+          title={t("cart.emptyTitle")}
+          description={t("cart.emptyDescription")}
           action={
             <Link
               href={`/customer/session/${sessionId}/menu`}
               className={buttonVariants({ variant: "secondary" })}
             >
-              Browse menu
+              {t("actions.browseMenu")}
             </Link>
           }
         />
@@ -281,29 +283,29 @@ export function CustomerCartPage({ sessionId }: CustomerCartPageProps) {
           </div>
           <Card variant="glass" padding="lg" className="h-fit">
             <CardHeader>
-              <CardTitle>Total</CardTitle>
+              <CardTitle>{t("cart.total")}</CardTitle>
               <CardDescription>
                 {formatMoney(cart.totals.subtotalMinor, cart.totals.currency)}
               </CardDescription>
             </CardHeader>
             <CardContent className="grid gap-4">
               <label className="grid gap-2 text-sm font-medium text-foreground">
-                Note for this order
+                {t("cart.noteLabel")}
                 <Input
                   value={customerNote}
                   onChange={(event) => setCustomerNote(event.target.value)}
-                  placeholder="Optional note"
+                  placeholder={t("cart.notePlaceholder")}
                 />
               </label>
               {validationQuery.isPending ? (
                 <span className="inline-flex items-center gap-2 text-sm text-muted-foreground">
                   <LoaderCircle className="size-4 animate-spin" aria-hidden="true" />
-                  Validating cart
+                  {t("cart.validating")}
                 </span>
               ) : null}
               {!isValid ? (
                 <div className="rounded-card border border-warning bg-warning/10 p-3 text-sm text-warning">
-                  Cart needs attention before submitting.
+                  {t("cart.needsAttention")}
                 </div>
               ) : null}
               {submitErrorMessage ? (
@@ -311,8 +313,7 @@ export function CustomerCartPage({ sessionId }: CustomerCartPageProps) {
                   role="alert"
                   className="rounded-card border border-danger bg-danger/10 p-3 text-sm text-danger"
                 >
-                  We could not submit your order yet. Please check the cart and
-                  try again. {submitErrorMessage}
+                  {t("cart.submitError", { message: submitErrorMessage })}
                   <div className="mt-3">
                     <CopyDebugReportButton
                       action="cart_submit"
@@ -335,7 +336,9 @@ export function CustomerCartPage({ sessionId }: CustomerCartPageProps) {
                 disabled={!canSubmit}
               >
                 <Send className="size-4" aria-hidden="true" />
-                {submitMutation.isPending ? "Sending..." : "Submit order"}
+                {submitMutation.isPending
+                  ? t("cart.submitting")
+                  : t("cart.submitOrder")}
               </Button>
               <Button
                 variant="ghost"
@@ -343,7 +346,7 @@ export function CustomerCartPage({ sessionId }: CustomerCartPageProps) {
                 disabled={clearMutation.isPending}
               >
                 <Trash2 className="size-4" aria-hidden="true" />
-                Clear
+                {t("cart.clear")}
               </Button>
             </CardFooter>
           </Card>

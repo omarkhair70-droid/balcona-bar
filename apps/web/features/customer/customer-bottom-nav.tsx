@@ -25,11 +25,12 @@ export function CustomerBottomNav({
   cartCount = 0
 }: CustomerBottomNavProps) {
   const t = useTranslations("navigation");
+  const tCustomer = useTranslations("customer");
 
   return (
     <nav
       className="fixed inset-x-0 bottom-0 z-20 border-t bg-background/95 px-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] pt-3 backdrop-blur md:left-1/2 md:max-w-3xl md:-translate-x-1/2 md:rounded-t-card md:border"
-      aria-label="Customer session navigation"
+      aria-label={tCustomer("aria.customerSessionNavigation")}
     >
       <div className="grid grid-cols-5 gap-1">
         {navItems.map((item) => {
@@ -48,7 +49,7 @@ export function CustomerBottomNav({
               <Icon className="size-4" aria-hidden="true" />
               <span>{t(item.labelKey)}</span>
               {item.key === "cart" && cartCount > 0 ? (
-                <span className="absolute right-2 top-1 flex min-w-5 items-center justify-center rounded-full bg-accent px-1 text-[10px] font-semibold text-accent-foreground">
+                <span className="absolute end-2 top-1 flex min-w-5 items-center justify-center rounded-full bg-accent px-1 text-[10px] font-semibold text-accent-foreground">
                   {cartCount}
                 </span>
               ) : null}

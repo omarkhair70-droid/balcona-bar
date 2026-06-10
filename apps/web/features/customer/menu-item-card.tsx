@@ -1,6 +1,9 @@
+"use client";
+
 import { Badge } from "@/components/ui/badge";
 import { Card, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import type { MenuItemSummary } from "@/lib/api/types";
+import { useTranslations } from "@/lib/i18n/i18n-provider";
 import { getMenuItemPrice, formatMoney } from "./customer-format";
 
 type MenuItemCardProps = {
@@ -9,6 +12,7 @@ type MenuItemCardProps = {
 };
 
 export function MenuItemCard({ item, onSelect }: MenuItemCardProps) {
+  const t = useTranslations("customer");
   const isUnavailable =
     item.canOrder === false ||
     item.isAvailable === false ||
@@ -20,7 +24,7 @@ export function MenuItemCard({ item, onSelect }: MenuItemCardProps) {
       type="button"
       onClick={() => onSelect(item)}
       disabled={isUnavailable}
-      className="text-left disabled:cursor-not-allowed disabled:opacity-60"
+      className="text-start disabled:cursor-not-allowed disabled:opacity-60"
     >
       <Card variant="glass" className="h-full overflow-hidden transition hover:border-primary/60">
         {item.imageUrl ? (
@@ -37,15 +41,15 @@ export function MenuItemCard({ item, onSelect }: MenuItemCardProps) {
             <div>
               <CardTitle className="text-base">{item.name}</CardTitle>
               <CardDescription className="mt-2 line-clamp-2">
-                {item.description ?? "Prepared for this table experience."}
+                {item.description ?? t("item.preparedFallback")}
               </CardDescription>
             </div>
             {isStockBlocked ? (
-              <Badge variant="danger">Sold out</Badge>
+              <Badge variant="danger">{t("item.soldOut")}</Badge>
             ) : item.stockStatus === "low_stock" ? (
-              <Badge variant="warning">Low stock</Badge>
+              <Badge variant="warning">{t("item.lowStock")}</Badge>
             ) : item.isFeatured ? (
-              <Badge>Featured</Badge>
+              <Badge>{t("item.featured")}</Badge>
             ) : null}
           </div>
           <div className="mt-4 flex items-center justify-between gap-3">

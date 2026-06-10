@@ -18,6 +18,7 @@ import {
   getCustomerSessionReadiness
 } from "@/lib/customer/customer-session-readiness";
 import { useCustomerSessionStore } from "@/lib/customer/customer-session-store";
+import { useTranslations } from "@/lib/i18n/i18n-provider";
 import { CustomerSessionScreen } from "../customer-session-screen";
 import { CartSummary } from "../cart-summary";
 import { ItemDetailPanel } from "../item-detail-panel";
@@ -39,6 +40,7 @@ function createAddCartIdempotencyKey(sessionId: string, menuItemId: string) {
 }
 
 export function CustomerMenuPage({ sessionId }: CustomerMenuPageProps) {
+  const t = useTranslations("customer");
   const queryClient = useQueryClient();
   const hasHydrated = useCustomerSessionStore((state) => state.hasHydrated);
   const storedSessionId = useCustomerSessionStore((state) => state.sessionId);
@@ -145,9 +147,9 @@ export function CustomerMenuPage({ sessionId }: CustomerMenuPageProps) {
     <CustomerSessionScreen
       sessionId={sessionId}
       active="menu"
-      eyebrow="Visual menu"
-      title="Choose for the table"
-      description="Browse live branch menu categories, inspect modifiers, and add items to the backend cart."
+      eyebrow={t("menu.eyebrow")}
+      title={t("menu.title")}
+      description={t("menu.description")}
     >
       <div className="mb-5 rounded-card border border-primary/40 bg-primary/10 p-4">
         <div className="flex flex-wrap items-center justify-between gap-3">
@@ -155,11 +157,10 @@ export function CustomerMenuPage({ sessionId }: CustomerMenuPageProps) {
             <Sparkles className="mt-0.5 size-5 text-primary" aria-hidden="true" />
             <div>
               <h2 className="text-sm font-semibold text-foreground">
-                Need help choosing?
+                {t("menu.aiHelpTitle")}
               </h2>
               <p className="mt-1 text-sm text-muted-foreground">
-                Ask the AI waiter for menu-grounded suggestions. You still
-                review the cart before ordering.
+                {t("menu.aiHelpDescription")}
               </p>
             </div>
           </div>
@@ -167,20 +168,20 @@ export function CustomerMenuPage({ sessionId }: CustomerMenuPageProps) {
             href={`/customer/session/${sessionId}/ai-waiter`}
             className={buttonVariants({ variant: "secondary" })}
           >
-            Ask AI waiter
+            {t("actions.askAiWaiter")}
           </Link>
         </div>
       </div>
       {!readiness.isReady ? (
         <EmptyState
-          title="Table access is still loading"
+          title={t("menu.tableAccessLoading")}
           description={readiness.message}
         />
       ) : null}
-      {menuQuery.isPending ? <LoadingState label="Loading menu" /> : null}
+      {menuQuery.isPending ? <LoadingState label={t("menu.loading")} /> : null}
       {menuQuery.isError ? (
         <EmptyState
-          title="Menu could not load"
+          title={t("errors.menuLoad")}
           description={menuQuery.error.message}
           action={<AlertTriangle className="size-5 text-warning" aria-hidden="true" />}
           debug={{
@@ -193,8 +194,8 @@ export function CustomerMenuPage({ sessionId }: CustomerMenuPageProps) {
       ) : null}
       {menuQuery.isSuccess && categories.length === 0 ? (
         <EmptyState
-          title="No menu is available"
-          description="This branch does not have visible items yet."
+          title={t("empty.menuUnavailableTitle")}
+          description={t("empty.menuUnavailableDescription")}
         />
       ) : null}
       {categories.length > 0 ? (
@@ -208,7 +209,7 @@ export function CustomerMenuPage({ sessionId }: CustomerMenuPageProps) {
             {featuredItems.length > 0 ? (
               <section className="mt-4">
                 <h2 className="text-lg font-semibold text-foreground">
-                  Featured
+                  {t("menu.featured")}
                 </h2>
                 <div className="mt-3 grid gap-4 sm:grid-cols-2">
                   {featuredItems.slice(0, 4).map((item) => (
@@ -253,9 +254,9 @@ export function CustomerMenuPage({ sessionId }: CustomerMenuPageProps) {
                   }
                   errorMessage={
                     addMutation.isError
-                      ? `We could not add this item to your cart. ${formatErrorMessage(
-                          addMutation.error
-                        )}`
+                      ? t("errors.addCartItem", {
+                          message: formatErrorMessage(addMutation.error)
+                        })
                       : undefined
                   }
                   onClose={() => setSelectedItem(null)}
@@ -276,8 +277,8 @@ export function CustomerMenuPage({ sessionId }: CustomerMenuPageProps) {
               </>
             ) : (
               <EmptyState
-                title="Select an item"
-                description="Details, required modifiers, notes, and quantity controls appear here."
+                title={t("empty.selectItemTitle")}
+                description={t("empty.selectItemDescription")}
               />
             )}
           </aside>
