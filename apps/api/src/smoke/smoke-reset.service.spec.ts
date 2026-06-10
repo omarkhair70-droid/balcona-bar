@@ -112,6 +112,7 @@ function buildResetPrisma() {
   return {
     tx,
     prisma: {
+      ...tx,
       $transaction: jest.fn((callback) => callback(tx)),
     },
   };
@@ -220,6 +221,81 @@ describe("SmokeResetService", () => {
     expect((result.deleted as Record<string, number>).orders).toBeGreaterThan(0);
   });
 
+  it("runs reset in timeout-bounded phases and returns phase counts", async () => {
+    const { prisma } = buildResetPrisma();
+    const service = serviceWithConfig(
+      {
+        "app.environment": "staging",
+        "app.nodeEnvironment": "production",
+        "smokeBootstrap.enabled": true,
+        "smokeBootstrap.token": "token",
+      },
+      prisma,
+    );
+
+    const result = await service.reset("token", "reset-request-1");
+
+    expect(prisma.$transaction).toHaveBeenCalledTimes(8);
+    for (const transactionCall of prisma.$transaction.mock.calls) {
+      expect(transactionCall[1]).toEqual({ maxWait: 10_000, timeout: 30_000 });
+    }
+    expect(result.phases).toHaveLength(8);
+    expect(result.phases[0]).toEqual(
+      expect.objectContaining({
+        phase: "realtime_notifications_print_attention_presence_device",
+        deleted: expect.objectContaining({
+          realtimeEvents: expect.any(Number),
+        }),
+      }),
+    );
+    expect((result.deleted as Record<string, number>).orders).toBeGreaterThan(0);
+  });
+
+  it("is idempotent when reset is run twice", async () => {
+    const { prisma, tx } = buildResetPrisma();
+    const service = serviceWithConfig(
+      {
+        "app.environment": "staging",
+        "app.nodeEnvironment": "production",
+        "smokeBootstrap.enabled": true,
+        "smokeBootstrap.token": "token",
+      },
+      prisma,
+    );
+
+    await service.reset("token");
+    for (const model of operationalDeleteModels) {
+      tx[model].deleteMany.mockResolvedValue({ count: 0 });
+    }
+    const secondRun = await service.reset("token");
+
+    expect((secondRun.deleted as Record<string, number>).orders).toBe(0);
+    expect((secondRun.deleted as Record<string, number>).tableSessions).toBe(0);
+  });
+
+  it("allows empty phases without failing", async () => {
+    const { prisma, tx } = buildResetPrisma();
+    const service = serviceWithConfig(
+      {
+        "app.environment": "staging",
+        "app.nodeEnvironment": "production",
+        "smokeBootstrap.enabled": true,
+        "smokeBootstrap.token": "token",
+      },
+      prisma,
+    );
+
+    for (const model of operationalDeleteModels) {
+      tx[model].findMany.mockResolvedValue([]);
+      tx[model].deleteMany.mockResolvedValue({ count: 0 });
+    }
+    const result = await service.reset("token");
+
+    expect(result.phases).toHaveLength(8);
+    expect((result.deleted as Record<string, number>).orders).toBe(0);
+    expect((result.deleted as Record<string, number>).tableSessions).toBe(0);
+  });
+
   it("deletes dependent operational data in safe dependency order", async () => {
     const { prisma, tx } = buildResetPrisma();
     const service = serviceWithConfig(
@@ -243,8 +319,8 @@ describe("SmokeResetService", () => {
     expect(tx.orderItem.deleteMany.mock.invocationCallOrder[0]).toBeLessThan(
       tx.order.deleteMany.mock.invocationCallOrder[0],
     );
-    expect(tx.tableSessionEvent.deleteMany.mock.invocationCallOrder[0]).toBeLessThan(
-      tx.tableSession.deleteMany.mock.invocationCallOrder[0],
-    );
+    expect(
+      tx.tableSessionEvent.deleteMany.mock.invocationCallOrder[0],
+    ).toBeLessThan(tx.tableSession.deleteMany.mock.invocationCallOrder[0]);
   });
 });

@@ -76,6 +76,8 @@ The endpoint is `POST /api/v1/smoke/bootstrap`. It is disabled for `APP_ENV=prod
 
 SMOKE-STABILITY-1 also adds `POST /api/v1/smoke/reset` and `pnpm smoke:reset:staging`. Use reset when a previous smoke run left active sessions, submitted orders, kitchen tickets, bill requests, or other operational rows behind. Stale operational rows can make the cashier list select an older branch order and produce confusing errors such as `order_not_submitted` even though the current customer flow submitted a fresh cart.
 
+SMOKE-RESET-2 keeps the same safety guard but runs reset in small timeout-bounded phases instead of one large database transaction. Each phase is idempotent, so if staging times out or fails partway through, rerunning `pnpm smoke:reset:staging` continues from the remaining operational data.
+
 The reset endpoint uses the same `X-Smoke-Bootstrap-Token` guard. It is disabled in production, requires the smoke bootstrap token, and resolves only the deterministic smoke tenant:
 
 ```text
@@ -353,7 +355,7 @@ The smoke does not assert exact AI wording, does not score LLM quality, and does
 
 ## Data And Cleanup
 
-The runner uses the configured staging demo table and includes the run ID in guest labels and notes. It does not add broad reset endpoints and does not delete staging data.
+The runner uses the configured staging demo table and includes the run ID in guest labels and notes. The reset helper deletes only deterministic `balcona-smoke` operational rows and does not accept arbitrary tenant IDs.
 
 Recommended cleanup strategy:
 
