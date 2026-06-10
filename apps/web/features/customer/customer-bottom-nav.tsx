@@ -1,5 +1,8 @@
+"use client";
+
 import Link from "next/link";
 import { Bell, ClipboardList, Home, ShoppingBag, Utensils } from "lucide-react";
+import { useTranslations } from "@/lib/i18n/i18n-provider";
 import { cn } from "@/lib/utils/cn";
 
 type CustomerBottomNavProps = {
@@ -9,11 +12,11 @@ type CustomerBottomNavProps = {
 };
 
 const navItems = [
-  { key: "home", label: "Table", icon: Home, href: "" },
-  { key: "menu", label: "Menu", icon: Utensils, href: "/menu" },
-  { key: "cart", label: "Cart", icon: ShoppingBag, href: "/cart" },
-  { key: "status", label: "Status", icon: ClipboardList, href: "/status" },
-  { key: "service", label: "Service", icon: Bell, href: "/service" }
+  { key: "home", labelKey: "home", icon: Home, href: "" },
+  { key: "menu", labelKey: "menu", icon: Utensils, href: "/menu" },
+  { key: "cart", labelKey: "cart", icon: ShoppingBag, href: "/cart" },
+  { key: "status", labelKey: "status", icon: ClipboardList, href: "/status" },
+  { key: "service", labelKey: "service", icon: Bell, href: "/service" }
 ] as const;
 
 export function CustomerBottomNav({
@@ -21,6 +24,8 @@ export function CustomerBottomNav({
   active,
   cartCount = 0
 }: CustomerBottomNavProps) {
+  const t = useTranslations("navigation");
+
   return (
     <nav
       className="fixed inset-x-0 bottom-0 z-20 border-t bg-background/95 px-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] pt-3 backdrop-blur md:left-1/2 md:max-w-3xl md:-translate-x-1/2 md:rounded-t-card md:border"
@@ -41,7 +46,7 @@ export function CustomerBottomNav({
               )}
             >
               <Icon className="size-4" aria-hidden="true" />
-              <span>{item.label}</span>
+              <span>{t(item.labelKey)}</span>
               {item.key === "cart" && cartCount > 0 ? (
                 <span className="absolute right-2 top-1 flex min-w-5 items-center justify-center rounded-full bg-accent px-1 text-[10px] font-semibold text-accent-foreground">
                   {cartCount}

@@ -1,0 +1,82 @@
+{
+  "common": {
+    "appName": "بالكونا بار",
+    "back": "رجوع",
+    "continue": "متابعة",
+    "copied": "تم النسخ",
+    "copyDebugReport": "نسخ تقرير التشخيص",
+    "empty": "لا يوجد شيء للعرض بعد",
+    "error": "حدث خطأ",
+    "language": "اللغة",
+    "loading": "جار التحميل",
+    "refresh": "تحديث",
+    "retry": "إعادة المحاولة"
+  },
+  "navigation": {
+    "addCafe": "إضافة مقهى",
+    "billing": "الفوترة",
+    "branches": "الفروع",
+    "cart": "السلة",
+    "cashier": "الكاشير",
+    "companies": "الشركات",
+    "dashboard": "لوحة التحكم",
+    "home": "الترابيزة",
+    "inventory": "المخزون",
+    "kitchen": "المطبخ",
+    "login": "تسجيل الدخول",
+    "menu": "المنيو",
+    "owner": "المالك",
+    "overview": "نظرة عامة",
+    "service": "الخدمة",
+    "setup": "الإعداد",
+    "status": "الحالة",
+    "waiter": "الويتر"
+  },
+  "customer": {
+    "previewService": "خدمة تجريبية",
+    "smartTable": "ترابيزة ذكية",
+    "staffView": "عرض العاملين",
+    "tableLabel": "ترابيزة {token}"
+  },
+  "cart": {
+    "cart": "السلة",
+    "loading": "جار تحميل السلة"
+  },
+  "status": {
+    "status": "الحالة",
+    "loadingOrders": "جار تحميل الطلبات",
+    "loadingTimeline": "جار تحميل الخط الزمني"
+  },
+  "service": {
+    "service": "الخدمة",
+    "loadingBill": "جار تحميل الحساب",
+    "loadingCalls": "جار تحميل طلبات الخدمة"
+  },
+  "staff": {
+    "operatorShell": "واجهة التشغيل",
+    "productLabel": "طاقم بالكونا",
+    "smartCafeOs": "نظام تشغيل المقهى الذكي"
+  },
+  "cashier": {
+    "cashier": "الكاشير"
+  },
+  "kitchen": {
+    "kitchen": "المطبخ"
+  },
+  "owner": {
+    "owner": "المالك"
+  },
+  "platform": {
+    "internalOnboarding": "إعداد داخلي",
+    "platformConsole": "لوحة المنصة",
+    "productLabel": "منصة بالكونا"
+  },
+  "errors": {
+    "missingTranslation": "ترجمة غير موجودة"
+  },
+  "debug": {
+    "copyDebugReport": "نسخ تقرير التشخيص",
+    "copied": "تم النسخ",
+    "locale": "اللغة المختارة"
+  }
+}

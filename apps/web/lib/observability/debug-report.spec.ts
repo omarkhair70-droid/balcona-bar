@@ -68,6 +68,7 @@ describe("debug report helpers", () => {
       flow: "customer_order_cycle",
       action: "cart_submit",
       sessionId: "session-1",
+      locale: "ar",
       error,
       breadcrumbs: []
     });
@@ -76,8 +77,10 @@ describe("debug report helpers", () => {
     assert.equal(report.flow, "customer_order_cycle");
     assert.equal(report.requestId, "req-123");
     assert.equal(report.clientTraceId, "client-1");
+    assert.equal(report.locale, "ar");
     assert.equal(report.api?.durationMs, 2200);
     assert.ok(report.build.buildSha);
     assert.match(stringifyDebugReport(report), /cart_submit/);
+    assert.match(stringifyDebugReport(report), /"locale": "ar"/);
   });
 });

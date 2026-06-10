@@ -8,6 +8,7 @@ import {
   stringifyDebugReport,
   type DebugReportInput
 } from "@/lib/observability/debug-report";
+import { useI18n, useTranslations } from "@/lib/i18n/i18n-provider";
 import { shouldShowDebugReportControls } from "@/lib/observability/metadata";
 
 type CopyDebugReportButtonProps = DebugReportInput & {
@@ -15,10 +16,12 @@ type CopyDebugReportButtonProps = DebugReportInput & {
 };
 
 export function CopyDebugReportButton({
-  label = "Copy debug report",
+  label,
   ...input
 }: CopyDebugReportButtonProps) {
   const [copied, setCopied] = useState(false);
+  const { locale } = useI18n();
+  const t = useTranslations("debug");
 
   if (!shouldShowDebugReportControls()) {
     return null;
@@ -30,7 +33,9 @@ export function CopyDebugReportButton({
       variant="secondary"
       size="sm"
       onClick={async () => {
-        const report = stringifyDebugReport(buildDebugReport(input));
+        const report = stringifyDebugReport(
+          buildDebugReport({ ...input, locale: input.locale ?? locale })
+        );
 
         await navigator.clipboard.writeText(report);
         setCopied(true);
@@ -42,7 +47,7 @@ export function CopyDebugReportButton({
       ) : (
         <ClipboardCopy className="size-4" aria-hidden="true" />
       )}
-      {copied ? "Copied" : label}
+      {copied ? t("copied") : (label ?? t("copyDebugReport"))}
     </Button>
   );
 }

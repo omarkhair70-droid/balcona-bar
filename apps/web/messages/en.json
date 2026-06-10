@@ -1,0 +1,82 @@
+{
+  "common": {
+    "appName": "Balcona Bar",
+    "back": "Back",
+    "continue": "Continue",
+    "copied": "Copied",
+    "copyDebugReport": "Copy debug report",
+    "empty": "Nothing to show yet",
+    "error": "Something went wrong",
+    "language": "Language",
+    "loading": "Loading",
+    "refresh": "Refresh",
+    "retry": "Retry"
+  },
+  "navigation": {
+    "addCafe": "Add Cafe",
+    "billing": "Billing",
+    "branches": "Branches",
+    "cart": "Cart",
+    "cashier": "Cashier",
+    "companies": "Companies",
+    "dashboard": "Dashboard",
+    "home": "Table",
+    "inventory": "Inventory",
+    "kitchen": "Kitchen",
+    "login": "Login",
+    "menu": "Menu",
+    "owner": "Owner",
+    "overview": "Overview",
+    "service": "Service",
+    "setup": "Setup",
+    "status": "Status",
+    "waiter": "Waiter"
+  },
+  "customer": {
+    "previewService": "Preview service",
+    "smartTable": "Smart table",
+    "staffView": "Staff view",
+    "tableLabel": "Table {token}"
+  },
+  "cart": {
+    "cart": "Cart",
+    "loading": "Loading cart"
+  },
+  "status": {
+    "status": "Status",
+    "loadingOrders": "Loading orders",
+    "loadingTimeline": "Loading timeline"
+  },
+  "service": {
+    "service": "Service",
+    "loadingBill": "Loading bill",
+    "loadingCalls": "Loading calls"
+  },
+  "staff": {
+    "operatorShell": "Operator shell",
+    "productLabel": "Balkona Staff",
+    "smartCafeOs": "Smart cafe OS"
+  },
+  "cashier": {
+    "cashier": "Cashier"
+  },
+  "kitchen": {
+    "kitchen": "Kitchen"
+  },
+  "owner": {
+    "owner": "Owner"
+  },
+  "platform": {
+    "internalOnboarding": "Internal onboarding",
+    "platformConsole": "Platform console",
+    "productLabel": "Balcona Platform"
+  },
+  "errors": {
+    "missingTranslation": "Missing translation"
+  },
+  "debug": {
+    "copyDebugReport": "Copy debug report",
+    "copied": "Copied",
+    "locale": "Selected locale"
+  }
+}

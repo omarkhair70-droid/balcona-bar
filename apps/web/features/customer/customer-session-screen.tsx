@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { type ReactNode } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { LanguageSwitcher } from "@/components/i18n/language-switcher";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { getCart } from "@/lib/api/endpoints";
@@ -12,6 +13,7 @@ import {
   getCustomerSessionReadiness
 } from "@/lib/customer/customer-session-readiness";
 import { useCustomerSessionStore } from "@/lib/customer/customer-session-store";
+import { useTranslations } from "@/lib/i18n/i18n-provider";
 import { CustomerBottomNav } from "./customer-bottom-nav";
 import { CustomerSessionGate } from "./customer-session-gate";
 import { CustomerThemeLoader } from "./customer-theme-loader";
@@ -36,6 +38,7 @@ export function CustomerSessionScreen({
   children,
   eyebrow
 }: CustomerSessionScreenProps) {
+  const t = useTranslations("customer");
   const hasHydrated = useCustomerSessionStore((state) => state.hasHydrated);
   const storedSessionId = useCustomerSessionStore((state) => state.sessionId);
   const branchId = useCustomerSessionStore((state) => state.branchId);
@@ -83,11 +86,14 @@ export function CustomerSessionScreen({
               Balkona
             </span>
             <span className="block text-xs text-muted-foreground">
-              {qrToken ? `Table ${qrToken}` : "Smart table"}
+              {qrToken ? t("tableLabel", { token: qrToken }) : t("smartTable")}
             </span>
           </span>
         </Link>
-        <RealtimeStatus state={realtimeState} />
+        <div className="flex items-center gap-2">
+          <RealtimeStatus state={realtimeState} />
+          <LanguageSwitcher />
+        </div>
       </header>
 
       <section className="py-6">
