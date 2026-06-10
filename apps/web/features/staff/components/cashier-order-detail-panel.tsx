@@ -50,6 +50,7 @@ import {
 } from "@/features/staff/kds-data";
 import { formatErrorMessage } from "@/lib/api/error-message";
 import type { OrderDetailResult } from "@/lib/api/types";
+import { useTranslations } from "@/lib/i18n/i18n-provider";
 import { CashierActionBar } from "./cashier-action-bar";
 import { CashierOrderStatusPill } from "./cashier-order-status-pill";
 
@@ -87,36 +88,47 @@ function getTicketPrintSummary(ticket: Record<string, unknown>) {
   const statuses = printJobs.map(getPrintJobStatus);
 
   if (statuses.includes("failed")) {
-    return { label: "Print failed", variant: "danger" as const };
+    return { labelKey: "tickets.printFailed", variant: "danger" as const };
   }
 
   if (statuses.includes("pending") || statuses.includes("printing")) {
-    return { label: "Print pending", variant: "warning" as const };
+    return { labelKey: "tickets.printPending", variant: "warning" as const };
   }
 
   if (statuses.includes("printed")) {
-    return { label: "Printed", variant: "success" as const };
+    return { labelKey: "tickets.printed", variant: "success" as const };
   }
 
-  return { label: "No print job", variant: "muted" as const };
+  return { labelKey: "tickets.noPrintJob", variant: "muted" as const };
 }
 
 function getCashierDisabledReason(
   status: string | undefined,
   progressStep: string,
-  nextExpectedRole: string
+  nextExpectedRole: string,
+  t: (key: string, values?: Record<string, string | number>) => string
 ) {
   const details = [
-    status ? `status ${humanizeStatus(status)}` : "",
-    progressStep ? `progress ${humanizeStatus(progressStep)}` : "",
-    nextExpectedRole ? `next expected role ${humanizeStatus(nextExpectedRole)}` : ""
+    status
+      ? t("orders.disabledDetailStatus", { status: humanizeStatus(status) })
+      : "",
+    progressStep
+      ? t("orders.disabledDetailProgress", {
+          status: humanizeStatus(progressStep)
+        })
+      : "",
+    nextExpectedRole
+      ? t("orders.disabledDetailNextRole", {
+          role: humanizeStatus(nextExpectedRole)
+        })
+      : ""
   ].filter(Boolean);
 
   if (details.length === 0) {
-    return "Cashier actions will unlock when the backend exposes the next lifecycle step.";
+    return t("orders.disabledFallback");
   }
 
-  return `Cashier actions are locked for ${details.join(", ")}.`;
+  return t("orders.disabledWithDetails", { details: details.join(", ") });
 }
 
 export function CashierOrderDetailPanel({
@@ -133,6 +145,7 @@ export function CashierOrderDetailPanel({
   onCancel,
   onComplete
 }: CashierOrderDetailPanelProps) {
+  const t = useTranslations("staff");
   const [rejectReason, setRejectReason] = useState("");
   const [cancelReason, setCancelReason] = useState("");
   const status = order ? getOrderStatus(order) : undefined;
@@ -152,7 +165,8 @@ export function CashierOrderDetailPanel({
   const disabledReason = getCashierDisabledReason(
     status,
     progressStep,
-    nextExpectedRole
+    nextExpectedRole,
+    t
   );
 
   return (
@@ -160,11 +174,8 @@ export function CashierOrderDetailPanel({
       <CardHeader>
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
-            <CardTitle>Order detail</CardTitle>
-            <CardDescription>
-              Inspect the returned backend order before making a cashier
-              decision.
-            </CardDescription>
+            <CardTitle>{t("orders.orderDetailTitle")}</CardTitle>
+            <CardDescription>{t("orders.orderDetailDescription")}</CardDescription>
           </div>
           {status ? <CashierOrderStatusPill status={status} /> : null}
         </div>
@@ -172,14 +183,14 @@ export function CashierOrderDetailPanel({
       <CardContent className="grid gap-4">
         {!order && !isLoading && !error ? (
           <EmptyState
-            title="Select an order"
-            description="Choose an order from the queue to inspect items, notes, events, and cashier actions."
+            title={t("orders.selectTitle")}
+            description={t("orders.selectDescription")}
           />
         ) : null}
-        {isLoading ? <LoadingState label="Loading order detail" /> : null}
+        {isLoading ? <LoadingState label={t("orders.loadingDetail")} /> : null}
         {error ? (
           <EmptyState
-            title="Order detail could not load"
+            title={t("orders.orderDetailError")}
             description={formatErrorMessage(error)}
           />
         ) : null}
@@ -195,19 +206,23 @@ export function CashierOrderDetailPanel({
                     {getTableLabel(getOrderTable(order), getOrderFloor(order))}
                   </p>
                 </div>
-                <div className="text-right">
+                <div className="text-end">
                   <p className="text-lg font-semibold text-foreground">
                     {formatMoney(getMinorTotal(totals), getCurrency(totals))}
                   </p>
                   <p className="mt-1 text-xs text-muted-foreground">
-                    {getRecordNumber(totals, "itemCount")} items /{" "}
-                    {getRecordNumber(totals, "totalQuantity")} qty
+                    {t("orders.itemsQuantity", {
+                      count: getRecordNumber(totals, "itemCount"),
+                      quantity: getRecordNumber(totals, "totalQuantity")
+                    })}
                   </p>
                 </div>
               </div>
               <p className="mt-4 inline-flex items-center gap-2 text-xs text-muted-foreground">
                 <Clock3 className="size-3.5" aria-hidden="true" />
-                Submitted {formatDateTime(getOrderSubmittedAt(order))}
+                {t("orders.submittedAt", {
+                  date: formatDateTime(getOrderSubmittedAt(order))
+                })}
               </p>
               {getOrderCustomerNote(order) ? (
                 <div className="mt-4 rounded-card border border-warning/40 bg-warning/10 p-3 text-sm text-warning">
@@ -223,7 +238,9 @@ export function CashierOrderDetailPanel({
                   ) : null}
                   {nextExpectedRole ? (
                     <Badge variant="muted">
-                      Next: {humanizeStatus(nextExpectedRole)}
+                      {t("orders.nextRole", {
+                        role: humanizeStatus(nextExpectedRole)
+                      })}
                     </Badge>
                   ) : null}
                 </div>
@@ -233,18 +250,18 @@ export function CashierOrderDetailPanel({
             <section className="grid gap-3">
               <h3 className="flex items-center gap-2 text-sm font-semibold text-foreground">
                 <ListChecks className="size-4 text-primary" aria-hidden="true" />
-                Items
+                {t("orders.items")}
               </h3>
               {items.length === 0 ? (
                 <p className="rounded-card border border-dashed bg-surface/70 p-4 text-sm text-muted-foreground">
-                  No item rows were returned for this order.
+                  {t("orders.emptyItems")}
                 </p>
               ) : null}
               {items.map((item, index) => {
                 const modifiers = getRecordArray(item.modifierOptions);
                 const itemName =
                   getRecordString(item, "itemNameSnapshot") ||
-                  `Item ${index + 1}`;
+                  t("orders.itemFallback", { index: index + 1 });
 
                 return (
                   <div
@@ -257,7 +274,9 @@ export function CashierOrderDetailPanel({
                           {itemName}
                         </p>
                         <p className="mt-1 text-xs text-muted-foreground">
-                          Qty {getRecordNumber(item, "quantity", 1)}
+                          {t("orders.qty", {
+                            count: getRecordNumber(item, "quantity", 1)
+                          })}
                         </p>
                       </div>
                       <p className="text-sm font-semibold text-foreground">
@@ -285,7 +304,7 @@ export function CashierOrderDetailPanel({
                             {getRecordString(
                               modifier,
                               "modifierOptionNameSnapshot",
-                              "Modifier"
+                              t("orders.modifierFallback")
                             )}
                             {getRecordNumber(
                               modifier,
@@ -311,7 +330,7 @@ export function CashierOrderDetailPanel({
             <section className="grid gap-3">
               <h3 className="flex items-center gap-2 text-sm font-semibold text-foreground">
                 <ClipboardList className="size-4 text-primary" aria-hidden="true" />
-                Kitchen tickets
+                {t("orders.kitchenTickets")}
               </h3>
               {needsKdsRoutingAttention ? (
                 <div className="rounded-card border border-warning/45 bg-warning/10 p-4 text-sm text-warning">
@@ -322,11 +341,10 @@ export function CashierOrderDetailPanel({
                     />
                     <div>
                       <p className="font-semibold">
-                        Order accepted, but kitchen routing needs attention.
+                        {t("orders.kdsAttentionTitle")}
                       </p>
                       <p className="mt-1 text-xs">
-                        Refresh the branch. If no ticket appears, ask a manager
-                        to review KDS routing for this order.
+                        {t("orders.kdsAttentionDescription")}
                       </p>
                     </div>
                   </div>
@@ -334,8 +352,7 @@ export function CashierOrderDetailPanel({
               ) : null}
               {kitchenTickets.length === 0 ? (
                 <p className="rounded-card border border-dashed bg-surface/70 p-4 text-sm text-muted-foreground">
-                  Ticket rows appear here after the order is accepted and routed
-                  to barista, kitchen, or dessert stations.
+                  {t("orders.ticketsEmpty")}
                 </p>
               ) : null}
               {kitchenTickets.map((ticket, index) => {
@@ -362,14 +379,18 @@ export function CashierOrderDetailPanel({
                           {humanizeStatus(ticketStatus)}
                         </Badge>
                         <Badge variant={printSummary.variant}>
-                          <Printer className="mr-1 size-3" aria-hidden="true" />
-                          {printSummary.label}
+                          <Printer className="me-1 size-3" aria-hidden="true" />
+                          {t(printSummary.labelKey)}
                         </Badge>
                       </div>
                     </div>
                     <p className="mt-3 text-xs text-muted-foreground">
-                      {getTicketItems(ticket).length} ticket item
-                      {getTicketItems(ticket).length === 1 ? "" : "s"}
+                      {t(
+                        getTicketItems(ticket).length === 1
+                          ? "orders.ticketItemsOne"
+                          : "orders.ticketItems",
+                        { count: getTicketItems(ticket).length }
+                      )}
                     </p>
                   </div>
                 );
@@ -400,11 +421,11 @@ export function CashierOrderDetailPanel({
             <section className="grid gap-3">
               <h3 className="flex items-center gap-2 text-sm font-semibold text-foreground">
                 <AlertTriangle className="size-4 text-primary" aria-hidden="true" />
-                Timeline
+                {t("orders.timeline")}
               </h3>
               {events.length === 0 ? (
                 <p className="rounded-card border border-dashed bg-surface/70 p-4 text-sm text-muted-foreground">
-                  No order events were returned yet.
+                  {t("orders.emptyTimeline")}
                 </p>
               ) : null}
               {events.map((event, index) => (
@@ -414,10 +435,16 @@ export function CashierOrderDetailPanel({
                 >
                   <div>
                     <p className="text-sm font-medium text-foreground">
-                      {humanizeStatus(getRecordString(event, "type", "event"))}
+                      {humanizeStatus(
+                        getRecordString(event, "type", t("orders.eventTypeFallback"))
+                      )}
                     </p>
                     <p className="mt-1 text-xs text-muted-foreground">
-                      {getRecordString(event, "actorType", "system")}
+                      {getRecordString(
+                        event,
+                        "actorType",
+                        t("orders.eventActorFallback")
+                      )}
                     </p>
                   </div>
                   <p className="text-xs text-muted-foreground">

@@ -22,6 +22,7 @@ import {
   humanizeStatus,
   shortId
 } from "@/features/staff/staff-format";
+import { useTranslations } from "@/lib/i18n/i18n-provider";
 import { cn } from "@/lib/utils/cn";
 import { KitchenTaskStatusPill } from "./kitchen-task-status-pill";
 
@@ -36,6 +37,7 @@ export function KitchenTaskCard({
   selected,
   onSelect
 }: KitchenTaskCardProps) {
+  const t = useTranslations("staff");
   const taskId = getTaskId(task);
   const modifiers = getTaskModifierOptions(task);
   const notes = getTaskNotes(task);
@@ -47,7 +49,7 @@ export function KitchenTaskCard({
       aria-pressed={selected}
       onClick={() => taskId && onSelect(taskId)}
       className={cn(
-        "w-full rounded-card border bg-surface/75 p-4 text-left shadow-card transition hover:border-primary/55 hover:bg-surface",
+        "w-full rounded-card border bg-surface/75 p-4 text-start shadow-card transition hover:border-primary/55 hover:bg-surface",
         selected ? "border-primary/70 bg-primary/10" : "border-border"
       )}
     >
@@ -68,13 +70,13 @@ export function KitchenTaskCard({
 
       <dl className="mt-4 grid grid-cols-2 gap-3 text-xs">
         <div>
-          <dt className="text-muted-foreground">Station</dt>
+          <dt className="text-muted-foreground">{t("tasks.station")}</dt>
           <dd className="mt-1 font-semibold text-foreground">
             {humanizeStatus(getTaskStation(task))}
           </dd>
         </div>
         <div>
-          <dt className="text-muted-foreground">Quantity</dt>
+          <dt className="text-muted-foreground">{t("tasks.quantity")}</dt>
           <dd className="mt-1 font-semibold text-foreground">
             {getTaskQuantity(task)}
           </dd>
@@ -92,7 +94,7 @@ export function KitchenTaskCard({
             {orderNumber}
           </span>
         ) : (
-          <span>Task {shortId(taskId)}</span>
+          <span>{t("tasks.taskFallback", { taskId: shortId(taskId) })}</span>
         )}
       </div>
 
@@ -106,7 +108,7 @@ export function KitchenTaskCard({
               {getRecordString(
                 modifier,
                 "modifierOptionNameSnapshot",
-                "Modifier"
+                t("tasks.modifierFallback")
               )}
             </Badge>
           ))}

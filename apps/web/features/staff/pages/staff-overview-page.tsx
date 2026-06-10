@@ -29,6 +29,7 @@ import {
 import { EmptyState } from "@/components/ui/empty-state";
 import { MetricCard } from "@/components/ui/metric-card";
 import { StaffPageShell } from "@/features/staff/staff-page-shell";
+import { useTranslations } from "@/lib/i18n/i18n-provider";
 import { canAccessStaffRoute } from "@/lib/staff/staff-access";
 import { useStaffAuthStore } from "@/lib/staff/staff-auth-store";
 import { StaffAuthGate } from "../components/staff-auth-gate";
@@ -36,80 +37,81 @@ import { StaffBranchSelector } from "../components/staff-branch-selector";
 
 const staffAreas = [
   {
-    title: "Cashier",
+    titleKey: "overview.areaCashierTitle",
     href: "/staff/cashier",
-    description: "Live order intake, bill requests, and cashier decisions.",
+    descriptionKey: "overview.areaCashierDescription",
     icon: <Receipt className="size-5" aria-hidden="true" />,
-    state: "Live",
+    stateKey: "overview.live",
     requiredPermissions: ["orders.cashier_review"]
   },
   {
-    title: "Menu",
+    titleKey: "overview.areaMenuTitle",
     href: "/staff/menu",
-    description: "Branch menu availability, item setup, and modifier readiness.",
+    descriptionKey: "overview.areaMenuDescription",
     icon: <BookOpenText className="size-5" aria-hidden="true" />,
-    state: "Live",
+    stateKey: "overview.live",
     requiredPermissions: ["menu.read"]
   },
   {
-    title: "Inventory",
+    titleKey: "overview.areaInventoryTitle",
     href: "/staff/inventory",
-    description: "Branch stock levels, movement history, and menu stock gates.",
+    descriptionKey: "overview.areaInventoryDescription",
     icon: <Boxes className="size-5" aria-hidden="true" />,
-    state: "Live",
+    stateKey: "overview.live",
     requiredPermissions: ["inventory.read"]
   },
   {
-    title: "Setup",
+    titleKey: "overview.areaSetupTitle",
     href: "/staff/setup",
-    description: "Tenant onboarding, branch launch checks, tables, QR, and staff readiness.",
+    descriptionKey: "overview.areaSetupDescription",
     icon: <Rocket className="size-5" aria-hidden="true" />,
-    state: "Live",
+    stateKey: "overview.live",
     requiredPermissions: ["tenant_onboarding.read"]
   },
   {
-    title: "Billing",
+    titleKey: "overview.areaBillingTitle",
     href: "/staff/billing",
-    description: "Plan status, feature entitlements, and tenant usage limits.",
+    descriptionKey: "overview.areaBillingDescription",
     icon: <CreditCard className="size-5" aria-hidden="true" />,
-    state: "New",
+    stateKey: "overview.new",
     requiredPermissions: ["saas.read"]
   },
   {
-    title: "Branches",
+    titleKey: "overview.areaBranchesTitle",
     href: "/staff/branches",
-    description: "Branch setup, floor grouping, tables, QR links, and sessions.",
+    descriptionKey: "overview.areaBranchesDescription",
     icon: <Building2 className="size-5" aria-hidden="true" />,
-    state: "Live",
+    stateKey: "overview.live",
     requiredPermissions: ["settings.manage"]
   },
   {
-    title: "Kitchen",
+    titleKey: "overview.areaKitchenTitle",
     href: "/staff/kitchen",
-    description: "Live station tasks for kitchen, barista, and dessert work.",
+    descriptionKey: "overview.areaKitchenDescription",
     icon: <ChefHat className="size-5" aria-hidden="true" />,
-    state: "Live",
+    stateKey: "overview.live",
     requiredPermissions: ["preparation.read"]
   },
   {
-    title: "Waiter",
+    titleKey: "overview.areaWaiterTitle",
     href: "/staff/waiter",
-    description: "Live waiter calls, table attention, and floor recovery.",
+    descriptionKey: "overview.areaWaiterDescription",
     icon: <Bell className="size-5" aria-hidden="true" />,
-    state: "Live",
+    stateKey: "overview.live",
     requiredPermissions: ["waiter_calls.read"]
   },
   {
-    title: "Owner",
+    titleKey: "overview.areaOwnerTitle",
     href: "/staff/owner",
-    description: "Owner analytics for revenue, orders, shifts, and operations.",
+    descriptionKey: "overview.areaOwnerDescription",
     icon: <UsersRound className="size-5" aria-hidden="true" />,
-    state: "Live",
+    stateKey: "overview.live",
     requiredPermissions: ["owner_analytics.read"]
   }
 ];
 
 function StaffOverviewContent() {
+  const t = useTranslations("staff");
   const accessToken = useStaffAuthStore((state) => state.accessToken);
   const staffUser = useStaffAuthStore((state) => state.staffUser);
   const effectiveAccess = useStaffAuthStore((state) => state.effectiveAccess);
@@ -132,20 +134,20 @@ function StaffOverviewContent() {
   if (!accessToken) {
     return (
       <EmptyState
-        title="Staff session is not active"
-        description="Sign in to select a branch and open the cashier dashboard."
+        title={t("overview.notActiveTitle")}
+        description={t("overview.notActiveDescription")}
         action={
           <div className="flex flex-wrap justify-center gap-3">
             <Link href="/staff/login" className={buttonVariants()}>
               <LogIn className="size-4" aria-hidden="true" />
-              Staff login
+              {t("actions.staffLogin")}
             </Link>
             <Link
               href="/demo/balkona"
               className={buttonVariants({ variant: "secondary" })}
             >
               <MonitorPlay className="size-4" aria-hidden="true" />
-              Demo launcher
+              {t("actions.demoLauncher")}
             </Link>
           </div>
         }
@@ -158,28 +160,28 @@ function StaffOverviewContent() {
       <div className="grid gap-5">
         <section className="grid gap-4 md:grid-cols-4">
           <MetricCard
-            label="Staff"
-            value={staffUser?.name ? "Active" : "Signed in"}
-            description={staffUser?.email ?? "Session restored"}
+            label={t("overview.staff")}
+            value={staffUser?.name ? t("overview.active") : t("overview.signedIn")}
+            description={staffUser?.email ?? t("overview.sessionRestored")}
             icon={<ShieldCheck className="size-4" aria-hidden="true" />}
             tone="success"
           />
           <MetricCard
-            label="Branch"
-            value={selectedBranch?.name ?? "Select"}
-            description="Default cashier scope"
+            label={t("selectors.branch")}
+            value={selectedBranch?.name ?? t("overview.select")}
+            description={t("overview.defaultCashierScope")}
             icon={<LayoutDashboard className="size-4" aria-hidden="true" />}
           />
           <MetricCard
-            label="Operations"
-            value="Ready"
-            description="Orders, prep, floor, and owner connected"
+            label={t("overview.operations")}
+            value={t("overview.ready")}
+            description={t("overview.operationsDescription")}
             icon={<ClipboardCheck className="size-4" aria-hidden="true" />}
           />
           <MetricCard
-            label="Demo"
-            value="Open"
-            description="Presentation launcher"
+            label={t("overview.demo")}
+            value={t("overview.demoOpen")}
+            description={t("overview.demoDescription")}
             icon={<MonitorPlay className="size-4" aria-hidden="true" />}
             tone="accent"
           />
@@ -189,13 +191,10 @@ function StaffOverviewContent() {
           <CardHeader className="gap-4 md:flex md:flex-row md:items-start md:justify-between md:space-y-0">
             <div>
               <Badge variant="muted" className="mb-3">
-                Branch context
+                {t("overview.branchContext")}
               </Badge>
-              <CardTitle>{selectedBranch?.name ?? "Choose a branch"}</CardTitle>
-              <CardDescription>
-                The selected branch drives cashier orders, preparation tasks,
-                waiter calls, attention, and branch realtime refresh.
-              </CardDescription>
+              <CardTitle>{selectedBranch?.name ?? t("overview.chooseBranch")}</CardTitle>
+              <CardDescription>{t("overview.branchDescription")}</CardDescription>
             </div>
             <StaffBranchSelector
               access={effectiveAccess}
@@ -233,22 +232,29 @@ function StaffOverviewContent() {
                   <div className="flex size-11 items-center justify-center rounded-button bg-primary/15 text-primary">
                     {area.icon}
                   </div>
-                  <Badge variant={area.state === "Live" ? "success" : "muted"}>
-                    {area.state}
+                  <Badge
+                    variant={
+                      area.stateKey === "overview.live" ? "success" : "muted"
+                    }
+                  >
+                    {t(area.stateKey)}
                   </Badge>
                 </div>
-                <CardTitle>{area.title}</CardTitle>
-                <CardDescription>{area.description}</CardDescription>
+                <CardTitle>{t(area.titleKey)}</CardTitle>
+                <CardDescription>{t(area.descriptionKey)}</CardDescription>
               </CardHeader>
               <CardFooter>
                 <Link
                   href={area.href}
                   className={buttonVariants({
-                    variant: area.state === "Live" ? "primary" : "secondary",
+                    variant:
+                      area.stateKey === "overview.live"
+                        ? "primary"
+                        : "secondary",
                     size: "sm"
                   })}
                 >
-                  Open surface
+                  {t("actions.openSurface")}
                 </Link>
               </CardFooter>
             </Card>
@@ -260,19 +266,21 @@ function StaffOverviewContent() {
 }
 
 export function StaffOverviewPage() {
+  const t = useTranslations("staff");
+
   return (
     <StaffPageShell
-      title="Staff command surface"
-      description="Branch-aware staff operations with cashier, kitchen, waiter, and owner dashboards connected to live backend workflows."
+      title={t("overview.commandTitle")}
+      description={t("overview.commandDescription")}
       actions={
         <div className="flex flex-wrap gap-3">
           <Link href="/staff/login" className={buttonVariants({ variant: "secondary" })}>
             <LogIn className="size-4" aria-hidden="true" />
-            Staff login
+            {t("actions.staffLogin")}
           </Link>
           <Link href="/demo/balkona" className={buttonVariants({ variant: "secondary" })}>
             <MonitorPlay className="size-4" aria-hidden="true" />
-            Demo launcher
+            {t("actions.demoLauncher")}
           </Link>
         </div>
       }

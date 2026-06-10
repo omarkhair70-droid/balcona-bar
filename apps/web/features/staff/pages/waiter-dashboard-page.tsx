@@ -55,6 +55,7 @@ import {
   humanizeStatus,
   shortId
 } from "@/features/staff/staff-format";
+import { useTranslations } from "@/lib/i18n/i18n-provider";
 import {
   getWaiterCallId,
   getWaiterCallStatus,
@@ -187,6 +188,7 @@ function NoticeBanner({ notice }: { notice?: Notice }) {
 }
 
 function WaiterDashboardActions() {
+  const t = useTranslations("staff");
   const router = useRouter();
   const accessToken = useStaffAuthStore((state) => state.accessToken);
   const effectiveAccess = useStaffAuthStore((state) => state.effectiveAccess);
@@ -208,7 +210,7 @@ function WaiterDashboardActions() {
     return (
       <Link href="/staff/login" className={buttonVariants()}>
         <LogIn className="size-4" aria-hidden="true" />
-        Staff login
+        {t("actions.staffLogin")}
       </Link>
     );
   }
@@ -217,21 +219,21 @@ function WaiterDashboardActions() {
     <>
       <Link href="/staff" className={buttonVariants({ variant: "ghost" })}>
         <LayoutDashboard className="size-4" aria-hidden="true" />
-        Overview
+        {t("actions.overview")}
       </Link>
       <Link
         href="/staff/cashier"
         className={buttonVariants({ variant: "ghost" })}
       >
         <Receipt className="size-4" aria-hidden="true" />
-        Cashier
+        {t("actions.cashier")}
       </Link>
       <Link
         href="/staff/kitchen"
         className={buttonVariants({ variant: "ghost" })}
       >
         <ChefHat className="size-4" aria-hidden="true" />
-        Kitchen
+        {t("actions.kitchen")}
       </Link>
       <StaffBranchSelector
         access={effectiveAccess}
@@ -244,13 +246,14 @@ function WaiterDashboardActions() {
         disabled={logoutMutation.isPending}
       >
         <LogOut className="size-4" aria-hidden="true" />
-        Logout
+        {t("actions.logout")}
       </Button>
     </>
   );
 }
 
 function WaiterDashboardContent() {
+  const t = useTranslations("staff");
   const queryClient = useQueryClient();
   const accessToken = useStaffAuthStore((state) => state.accessToken);
   const staffUser = useStaffAuthStore((state) => state.staffUser);
@@ -485,7 +488,7 @@ function WaiterDashboardContent() {
         accessToken
       ),
     onSuccess: (result, waiterCallId) => {
-      setNotice({ tone: "success", message: "Waiter call acknowledged." });
+      setNotice({ tone: "success", message: t("waiter.acknowledged") });
       invalidateWaiterState(
         waiterCallId,
         getRecordString(getWaiterCallTableSession(result), "id")
@@ -494,20 +497,20 @@ function WaiterDashboardContent() {
     onError: (error: Error) => {
       setNotice({
         tone: "error",
-        message: `Waiter call could not be acknowledged. ${error.message}`
+        message: t("waiter.acknowledgeError", { message: error.message })
       });
     }
   });
   const serveOrderMutation = useMutation({
     mutationFn: (orderId: string) => serveOrder(orderId, {}, accessToken),
     onSuccess: (_, orderId) => {
-      setNotice({ tone: "success", message: "Order marked served." });
+      setNotice({ tone: "success", message: t("waiter.orderMarkedServed") });
       invalidateOrderState(orderId);
     },
     onError: (error: Error) => {
       setNotice({
         tone: "error",
-        message: `Order could not be served. ${error.message}`
+        message: t("waiter.orderServeError", { message: error.message })
       });
     }
   });
@@ -519,7 +522,7 @@ function WaiterDashboardContent() {
         accessToken
       ),
     onSuccess: (result, variables) => {
-      setNotice({ tone: "success", message: "Waiter call resolved." });
+      setNotice({ tone: "success", message: t("waiter.callResolved") });
       invalidateWaiterState(
         variables.waiterCallId,
         getRecordString(getWaiterCallTableSession(result), "id")
@@ -528,7 +531,7 @@ function WaiterDashboardContent() {
     onError: (error: Error) => {
       setNotice({
         tone: "error",
-        message: `Waiter call could not be resolved. ${error.message}`
+        message: t("waiter.callResolveError", { message: error.message })
       });
     }
   });
@@ -536,7 +539,7 @@ function WaiterDashboardContent() {
     mutationFn: ({ waiterCallId, reason }: CancelWaiterCallAction) =>
       cancelWaiterCall(waiterCallId, { reason }, accessToken),
     onSuccess: (result, variables) => {
-      setNotice({ tone: "success", message: "Waiter call cancelled." });
+      setNotice({ tone: "success", message: t("waiter.callCancelled") });
       invalidateWaiterState(
         variables.waiterCallId,
         getRecordString(getWaiterCallTableSession(result), "id")
@@ -545,7 +548,7 @@ function WaiterDashboardContent() {
     onError: (error: Error) => {
       setNotice({
         tone: "error",
-        message: `Waiter call could not be cancelled. ${error.message}`
+        message: t("waiter.callCancelError", { message: error.message })
       });
     }
   });
@@ -557,13 +560,13 @@ function WaiterDashboardContent() {
         accessToken
       ),
     onSuccess: (_, variables) => {
-      setNotice({ tone: "success", message: "Table attention resolved." });
+      setNotice({ tone: "success", message: t("attention.resolved") });
       invalidateAttentionState(variables.sessionId);
     },
     onError: (error: Error) => {
       setNotice({
         tone: "error",
-        message: `Attention could not be resolved. ${error.message}`
+        message: t("attention.resolveError", { message: error.message })
       });
     }
   });
@@ -577,14 +580,14 @@ function WaiterDashboardContent() {
     onSuccess: (_, variables) => {
       setNotice({
         tone: "success",
-        message: `Table attention muted for ${variables.minutes} minutes.`
+        message: t("attention.mutedFor", { minutes: variables.minutes })
       });
       invalidateAttentionState(variables.sessionId);
     },
     onError: (error: Error) => {
       setNotice({
         tone: "error",
-        message: `Attention could not be muted. ${error.message}`
+        message: t("attention.muteError", { message: error.message })
       });
     }
   });
@@ -596,26 +599,26 @@ function WaiterDashboardContent() {
         accessToken
       ),
     onSuccess: (_, sessionId) => {
-      setNotice({ tone: "success", message: "Attention recalculated." });
+      setNotice({ tone: "success", message: t("attention.recalculated") });
       invalidateAttentionState(sessionId);
     },
     onError: (error: Error) => {
       setNotice({
         tone: "error",
-        message: `Attention could not be recalculated. ${error.message}`
+        message: t("attention.recalculateError", { message: error.message })
       });
     }
   });
   const rebuildAttentionMutation = useMutation({
     mutationFn: (branchId: string) => rebuildBranchAttention(branchId, accessToken),
     onSuccess: () => {
-      setNotice({ tone: "success", message: "Branch attention rebuilt." });
+      setNotice({ tone: "success", message: t("attention.branchRebuilt") });
       invalidateAttentionState(selectedSessionId);
     },
     onError: (error: Error) => {
       setNotice({
         tone: "error",
-        message: `Branch attention could not be rebuilt. ${error.message}`
+        message: t("attention.branchRebuildError", { message: error.message })
       });
     }
   });
@@ -623,8 +626,8 @@ function WaiterDashboardContent() {
   if (!selectedBranchId || !selectedBranch) {
     return (
       <EmptyState
-        title="No accessible branch"
-        description="This staff account does not expose a branch for waiter operations yet."
+        title={t("waiter.emptyBranchTitle")}
+        description={t("waiter.emptyBranchDescription")}
       />
     );
   }
@@ -633,67 +636,71 @@ function WaiterDashboardContent() {
     <div className="grid gap-5">
       <section className="grid gap-4 md:grid-cols-3 xl:grid-cols-6">
         <MetricCard
-          label="Open calls"
+          label={t("waiter.openCallsLabel")}
           value={String(
             countWaiterCallsByStatus(
               allWaiterCalls,
               (status) => status === "open"
             )
           )}
-          description="Waiting for staff"
+          description={t("waiter.openCallsDescription")}
           icon={<BellRing className="size-4" aria-hidden="true" />}
           tone="warning"
         />
         <MetricCard
-          label="Acknowledged"
+          label={t("waiter.acknowledgedLabel")}
           value={String(
             countWaiterCallsByStatus(
               allWaiterCalls,
               (status) => status === "acknowledged"
             )
           )}
-          description="Staff is handling"
+          description={t("waiter.acknowledgedDescription")}
           icon={<CheckCircle2 className="size-4" aria-hidden="true" />}
           tone="primary"
         />
         <MetricCard
-          label="Urgent"
+          label={t("attention.immediateAttentionLabel")}
           value={String(
             countAttentionByStatus(
               allAttentionQueue,
               (status, priority) => status === "urgent" || priority === "urgent"
             )
           )}
-          description="Immediate attention"
+          description={t("attention.immediateAttentionDescription")}
           icon={<AlertTriangle className="size-4" aria-hidden="true" />}
           tone="warning"
         />
         <MetricCard
-          label="Needs attention"
+          label={t("attention.needsAttentionLabel")}
           value={String(
             countAttentionByStatus(
               allAttentionQueue,
               (status) => status === "needs_attention"
             )
           )}
-          description="Active floor signals"
+          description={t("attention.needsAttentionDescription")}
           icon={<Footprints className="size-4" aria-hidden="true" />}
           tone="accent"
         />
         <MetricCard
-          label="Closed signals"
+          label={t("attention.closedSignalsLabel")}
           value={String(
             countAttentionByStatus(allAttentionQueue, (status) =>
               terminalWaiterCallStatuses.has(status) || status === "muted"
             )
           )}
-          description="Muted or resolved"
+          description={t("attention.closedSignalsDescription")}
           icon={<HandPlatter className="size-4" aria-hidden="true" />}
           tone="muted"
         />
         <MetricCard
-          label="Realtime"
-          value={realtime.state === "connected" ? "Live" : "Watch"}
+          label={t("realtime.metricLabel")}
+          value={
+            realtime.state === "connected"
+              ? t("cashier.realtimeValueLive")
+              : t("cashier.realtimeValueWatch")
+          }
           description={humanizeStatus(realtime.state)}
           icon={<Radio className="size-4" aria-hidden="true" />}
           tone={realtime.state === "connected" ? "success" : "warning"}
@@ -704,7 +711,7 @@ function WaiterDashboardContent() {
         <CardHeader className="gap-4 md:flex md:flex-row md:items-start md:justify-between md:space-y-0">
           <div>
             <div className="flex flex-wrap items-center gap-2">
-              <Badge variant="muted">Waiter / Floor</Badge>
+              <Badge variant="muted">{t("waiter.badge")}</Badge>
               <StaffRealtimeStatus
                 state={realtime.state}
                 lastEventType={realtime.lastEventType}
@@ -712,14 +719,18 @@ function WaiterDashboardContent() {
             </div>
             <CardTitle className="mt-3">{selectedBranch.name}</CardTitle>
             <CardDescription>
-              {staffUser?.name || staffUser?.email || "Staff user"} is viewing
-              live waiter calls and table attention for the selected branch.
+              {t("waiter.viewingDescription", {
+                name:
+                  staffUser?.name ||
+                  staffUser?.email ||
+                  t("cashier.staffUserFallback"),
+              })}
             </CardDescription>
           </div>
           <div className="flex flex-wrap gap-3">
             <Button variant="secondary" onClick={refreshBranch}>
               <RefreshCw className="size-4" aria-hidden="true" />
-              Refresh branch
+              {t("actions.refreshBranch")}
             </Button>
             <Button
               variant="secondary"
@@ -735,8 +746,8 @@ function WaiterDashboardContent() {
                 aria-hidden="true"
               />
               {rebuildAttentionMutation.isPending
-                ? "Rebuilding..."
-                : "Rebuild attention"}
+                ? t("actions.rebuilding")
+                : t("actions.rebuildAttention")}
             </Button>
           </div>
         </CardHeader>
@@ -746,16 +757,13 @@ function WaiterDashboardContent() {
 
       <Card variant="quiet">
         <CardHeader>
-          <CardTitle>Ready orders</CardTitle>
-          <CardDescription>
-            Serve only orders the backend has moved to ready. Accepted or
-            preparing orders stay with kitchen/barista until ready.
-          </CardDescription>
+          <CardTitle>{t("waiter.readyOrdersTitle")}</CardTitle>
+          <CardDescription>{t("waiter.readyOrdersDescription")}</CardDescription>
         </CardHeader>
         <CardContent className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
           {readyOrders.length === 0 ? (
             <p className="rounded-card border border-dashed bg-surface/70 p-4 text-sm text-muted-foreground">
-              Waiting on kitchen/barista. Ready orders will appear here.
+              {t("waiter.readyOrdersEmpty")}
             </p>
           ) : null}
           {readyOrders.map((order, index) => {
@@ -787,7 +795,7 @@ function WaiterDashboardContent() {
                     }
                   >
                     <HandPlatter className="size-4" aria-hidden="true" />
-                    Serve
+                    {t("actions.serve")}
                   </Button>
                 </div>
                 {kitchenTickets.length > 0 ? (
@@ -805,7 +813,7 @@ function WaiterDashboardContent() {
                           }
                         >
                           <ClipboardList
-                            className="mr-1 size-3"
+                            className="me-1 size-3"
                             aria-hidden="true"
                           />
                           {humanizeStatus(getTicketStation(ticket))}:{" "}
@@ -816,8 +824,7 @@ function WaiterDashboardContent() {
                   </div>
                 ) : (
                   <p className="mt-4 text-xs text-muted-foreground">
-                    Backend marked this order ready. No station ticket rows were
-                    returned for the ready list.
+                    {t("waiter.readyOrdersNoTickets")}
                   </p>
                 )}
               </div>
@@ -914,23 +921,19 @@ function WaiterDashboardContent() {
 
       <Card variant="quiet">
         <CardHeader>
-          <CardTitle>Activity</CardTitle>
-          <CardDescription>
-            Recent branch realtime events for waiter calls, bills, preparation,
-            and attention updates.
-          </CardDescription>
+          <CardTitle>{t("waiter.activityTitle")}</CardTitle>
+          <CardDescription>{t("waiter.activityDescription")}</CardDescription>
         </CardHeader>
         <CardContent className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
           {realtimeEventsQuery.isError ? (
             <div className="rounded-card border border-warning bg-warning/10 p-3 text-sm text-warning">
-              <AlertTriangle className="mr-2 inline size-4" aria-hidden="true" />
+              <AlertTriangle className="me-2 inline size-4" aria-hidden="true" />
               {realtimeEventsQuery.error.message}
             </div>
           ) : null}
           {(realtimeEventsQuery.data?.events ?? []).length === 0 ? (
             <p className="rounded-card border border-dashed bg-surface/70 p-4 text-sm text-muted-foreground">
-              Activity will appear here after service requests, attention
-              changes, or branch workflow events reach the stream.
+              {t("waiter.activityEmpty")}
             </p>
           ) : null}
           {(realtimeEventsQuery.data?.events ?? []).map((event, index) => (
@@ -947,12 +950,16 @@ function WaiterDashboardContent() {
               </p>
               {getRecordString(event, "waiterCallId") ? (
                 <p className="mt-2 text-xs text-muted-foreground">
-                  Call {shortId(getRecordString(event, "waiterCallId"))}
+                  {t("waiter.callFallback", {
+                    callId: shortId(getRecordString(event, "waiterCallId")),
+                  })}
                 </p>
               ) : null}
               {getRecordString(event, "tableSessionId") ? (
                 <p className="mt-1 text-xs text-muted-foreground">
-                  Session {shortId(getRecordString(event, "tableSessionId"))}
+                  {t("attention.sessionFallback", {
+                    sessionId: shortId(getRecordString(event, "tableSessionId")),
+                  })}
                 </p>
               ) : null}
             </div>
@@ -964,10 +971,12 @@ function WaiterDashboardContent() {
 }
 
 export function WaiterDashboardPage() {
+  const t = useTranslations("staff");
+
   return (
     <StaffPageShell
-      title="Waiter dashboard"
-      description="Live floor operations for waiter calls, table attention, realtime refresh, and service recovery actions."
+      title={t("waiter.dashboardTitle")}
+      description={t("waiter.dashboardDescription")}
       actions={<WaiterDashboardActions />}
     >
       <StaffAuthGate requiredPermissions={["waiter_calls.read"]} branchScoped>

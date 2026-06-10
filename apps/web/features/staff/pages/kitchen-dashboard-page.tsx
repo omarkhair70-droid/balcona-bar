@@ -69,6 +69,7 @@ import {
   shortId
 } from "@/features/staff/staff-format";
 import { useStaffBranchRealtime } from "@/features/staff/use-staff-branch-realtime";
+import { useTranslations } from "@/lib/i18n/i18n-provider";
 import {
   cancelPreparationTask,
   getBranchKitchenTickets,
@@ -150,10 +151,11 @@ function KdsModeTabs({
   mode: KdsMode;
   onChange: (mode: KdsMode) => void;
 }) {
-  const modes: Array<{ value: KdsMode; label: string; icon: typeof ChefHat }> = [
-    { value: "tasks", label: "Tasks", icon: ChefHat },
-    { value: "tickets", label: "Tickets", icon: ClipboardList },
-    { value: "print", label: "Print Queue", icon: Printer }
+  const t = useTranslations("staff");
+  const modes: Array<{ value: KdsMode; labelKey: string; icon: typeof ChefHat }> = [
+    { value: "tasks", labelKey: "kitchen.modeTasks", icon: ChefHat },
+    { value: "tickets", labelKey: "kitchen.modeTickets", icon: ClipboardList },
+    { value: "print", labelKey: "kitchen.modePrint", icon: Printer }
   ];
 
   return (
@@ -170,7 +172,7 @@ function KdsModeTabs({
             onClick={() => onChange(entry.value)}
           >
             <Icon className="size-4" aria-hidden="true" />
-            {entry.label}
+            {t(entry.labelKey)}
           </Button>
         );
       })}
@@ -187,6 +189,7 @@ function KdsTicketCard({
   reprintPending?: boolean;
   onReprint: (ticketId: string) => void;
 }) {
+  const t = useTranslations("staff");
   const ticketId = getTicketId(ticket);
   const items = getTicketItems(ticket);
   const printJobs = getTicketPrintJobs(ticket);
@@ -206,14 +209,14 @@ function KdsTicketCard({
               <Badge variant="muted">{getTicketDisplayCode(ticket)}</Badge>
               <Badge variant={printFailed ? "danger" : "muted"}>
                 {printFailed
-                  ? "Print failed"
+                  ? t("kitchen.printFailed")
                   : printPending
-                    ? "Print pending"
-                    : "Print tracked"}
+                    ? t("kitchen.printPending")
+                    : t("kitchen.printTracked")}
               </Badge>
             </div>
             <CardTitle className="mt-3 text-base">
-              {getTicketOrderNumber(ticket) || "Station ticket"}
+              {getTicketOrderNumber(ticket) || t("kitchen.stationTicket")}
             </CardTitle>
             <CardDescription>
               {humanizeStatus(getTicketStation(ticket))} /{" "}
@@ -255,7 +258,11 @@ function KdsTicketCard({
                         }
                         variant="muted"
                       >
-                        {getRecordString(modifier, "optionName", "Modifier")}
+                        {getRecordString(
+                          modifier,
+                          "optionName",
+                          t("tasks.modifierFallback")
+                        )}
                       </Badge>
                     ))}
                   </div>
@@ -281,7 +288,7 @@ function KdsTicketCard({
           onClick={() => ticketId && onReprint(ticketId)}
         >
           <RotateCcw className="size-4" aria-hidden="true" />
-          Reprint
+          {t("actions.reprint")}
         </Button>
       </CardContent>
     </Card>
@@ -301,6 +308,7 @@ function PrintJobCard({
   onMarkFailed: (printJobId: string) => void;
   onRetry: (printJobId: string) => void;
 }) {
+  const t = useTranslations("staff");
   const printJobId = getPrintJobId(printJob);
   const status = getPrintJobStatus(printJob);
   const printableText = getPrintJobPrintableText(printJob);
@@ -336,10 +344,10 @@ function PrintJobCard({
         ) : null}
         <details className="rounded-card border bg-surface/75 p-3 text-xs text-muted-foreground">
           <summary className="cursor-pointer font-semibold text-foreground">
-            Printable payload
+            {t("kitchen.printablePayload")}
           </summary>
           <pre className="mt-3 whitespace-pre-wrap font-mono text-[0.7rem] leading-relaxed">
-            {printableText || "No printable text returned yet."}
+            {printableText || t("kitchen.printablePayloadEmpty")}
           </pre>
         </details>
         <div className="flex flex-wrap gap-2">
@@ -350,7 +358,7 @@ function PrintJobCard({
             onClick={() => printJobId && onMarkPrinted(printJobId)}
           >
             <CheckCircle2 className="size-4" aria-hidden="true" />
-            Printed
+            {t("actions.printed")}
           </Button>
           <Button
             type="button"
@@ -360,7 +368,7 @@ function PrintJobCard({
             onClick={() => printJobId && onMarkFailed(printJobId)}
           >
             <XCircle className="size-4" aria-hidden="true" />
-            Failed
+            {t("actions.failed")}
           </Button>
           <Button
             type="button"
@@ -370,7 +378,7 @@ function PrintJobCard({
             onClick={() => printJobId && onRetry(printJobId)}
           >
             <RefreshCw className="size-4" aria-hidden="true" />
-            Retry
+            {t("actions.retry")}
           </Button>
         </div>
       </CardContent>
@@ -457,6 +465,7 @@ function NoticeBanner({ notice }: { notice?: Notice }) {
 }
 
 function KitchenDashboardActions() {
+  const t = useTranslations("staff");
   const router = useRouter();
   const accessToken = useStaffAuthStore((state) => state.accessToken);
   const effectiveAccess = useStaffAuthStore((state) => state.effectiveAccess);
@@ -478,7 +487,7 @@ function KitchenDashboardActions() {
     return (
       <Link href="/staff/login" className={buttonVariants()}>
         <LogIn className="size-4" aria-hidden="true" />
-        Staff login
+        {t("actions.staffLogin")}
       </Link>
     );
   }
@@ -487,14 +496,14 @@ function KitchenDashboardActions() {
     <>
       <Link href="/staff" className={buttonVariants({ variant: "ghost" })}>
         <LayoutDashboard className="size-4" aria-hidden="true" />
-        Overview
+        {t("actions.overview")}
       </Link>
       <Link
         href="/staff/cashier"
         className={buttonVariants({ variant: "ghost" })}
       >
         <Receipt className="size-4" aria-hidden="true" />
-        Cashier
+        {t("actions.cashier")}
       </Link>
       <StaffBranchSelector
         access={effectiveAccess}
@@ -507,13 +516,14 @@ function KitchenDashboardActions() {
         disabled={logoutMutation.isPending}
       >
         <LogOut className="size-4" aria-hidden="true" />
-        Logout
+        {t("actions.logout")}
       </Button>
     </>
   );
 }
 
 function KitchenDashboardContent() {
+  const t = useTranslations("staff");
   const queryClient = useQueryClient();
   const accessToken = useStaffAuthStore((state) => state.accessToken);
   const staffUser = useStaffAuthStore((state) => state.staffUser);
@@ -716,13 +726,13 @@ function KitchenDashboardContent() {
     mutationFn: ({ taskId }: TaskAction) =>
       startPreparationTask(taskId, { staffUserId: staffUser?.id }, accessToken),
     onSuccess: (result, variables) => {
-      setNotice({ tone: "success", message: "Preparation task started." });
+      setNotice({ tone: "success", message: t("kitchen.taskStarted") });
       invalidateTaskState(variables.taskId, getTaskOrderId(result));
     },
     onError: (error: Error, variables) => {
       setNotice({
         tone: "error",
-        message: `Task could not be started. ${error.message}`,
+        message: t("kitchen.taskStartedError", { message: error.message }),
         debug: {
           action: "preparation_task_start",
           flow: "staff_kds",
@@ -740,13 +750,13 @@ function KitchenDashboardContent() {
         accessToken
       ),
     onSuccess: (result, variables) => {
-      setNotice({ tone: "success", message: "Preparation task marked ready." });
+      setNotice({ tone: "success", message: t("kitchen.taskMarkedReady") });
       invalidateTaskState(variables.taskId, getTaskOrderId(result));
     },
     onError: (error: Error, variables) => {
       setNotice({
         tone: "error",
-        message: `Task could not be marked ready. ${error.message}`,
+        message: t("kitchen.taskReadyError", { message: error.message }),
         debug: {
           action: "preparation_task_ready",
           flow: "staff_kds",
@@ -764,13 +774,13 @@ function KitchenDashboardContent() {
         accessToken
       ),
     onSuccess: (result, variables) => {
-      setNotice({ tone: "success", message: "Preparation task cancelled." });
+      setNotice({ tone: "success", message: t("kitchen.taskCancelled") });
       invalidateTaskState(variables.taskId, getTaskOrderId(result));
     },
     onError: (error: Error, variables) => {
       setNotice({
         tone: "error",
-        message: `Task could not be cancelled. ${error.message}`,
+        message: t("kitchen.taskCancelledError", { message: error.message }),
         debug: {
           action: "preparation_task_cancel",
           flow: "staff_kds",
@@ -784,13 +794,13 @@ function KitchenDashboardContent() {
     mutationFn: ({ ticketId, reason }: ReprintTicketAction) =>
       reprintKitchenTicket(ticketId, { reason }, accessToken),
     onSuccess: () => {
-      setNotice({ tone: "success", message: "Ticket reprint queued." });
+      setNotice({ tone: "success", message: t("kitchen.ticketReprintQueued") });
       refreshBranch();
     },
     onError: (error: Error) => {
       setNotice({
         tone: "error",
-        message: `Ticket could not be reprinted. ${error.message}`
+        message: t("kitchen.ticketReprintError", { message: error.message })
       });
     }
   });
@@ -798,13 +808,13 @@ function KitchenDashboardContent() {
     mutationFn: ({ printJobId }: PrintJobAction) =>
       markPrintJobPrinted(printJobId, accessToken),
     onSuccess: () => {
-      setNotice({ tone: "success", message: "Print job marked printed." });
+      setNotice({ tone: "success", message: t("kitchen.printJobPrinted") });
       refreshBranch();
     },
     onError: (error: Error) => {
       setNotice({
         tone: "error",
-        message: `Print job could not be marked printed. ${error.message}`
+        message: t("kitchen.printJobPrintedError", { message: error.message })
       });
     }
   });
@@ -812,13 +822,13 @@ function KitchenDashboardContent() {
     mutationFn: ({ printJobId, errorMessage }: PrintJobFailedAction) =>
       markPrintJobFailed(printJobId, { errorMessage }, accessToken),
     onSuccess: () => {
-      setNotice({ tone: "success", message: "Print job marked failed." });
+      setNotice({ tone: "success", message: t("kitchen.printJobFailed") });
       refreshBranch();
     },
     onError: (error: Error) => {
       setNotice({
         tone: "error",
-        message: `Print job could not be marked failed. ${error.message}`
+        message: t("kitchen.printJobFailedError", { message: error.message })
       });
     }
   });
@@ -826,13 +836,13 @@ function KitchenDashboardContent() {
     mutationFn: ({ printJobId }: PrintJobAction) =>
       retryPrintJob(printJobId, accessToken),
     onSuccess: () => {
-      setNotice({ tone: "success", message: "Print job returned to pending." });
+      setNotice({ tone: "success", message: t("kitchen.printJobRetry") });
       refreshBranch();
     },
     onError: (error: Error) => {
       setNotice({
         tone: "error",
-        message: `Print job could not be retried. ${error.message}`
+        message: t("kitchen.printJobRetryError", { message: error.message })
       });
     }
   });
@@ -840,8 +850,8 @@ function KitchenDashboardContent() {
   if (!selectedBranchId || !selectedBranch) {
     return (
       <EmptyState
-        title="No accessible branch"
-        description="This staff account does not expose a branch for kitchen operations yet."
+        title={t("kitchen.emptyBranchTitle")}
+        description={t("kitchen.emptyBranchDescription")}
       />
     );
   }
@@ -850,28 +860,28 @@ function KitchenDashboardContent() {
     <div className="grid gap-5">
       <section className="grid gap-4 md:grid-cols-5">
         <MetricCard
-          label="Pending"
+          label={t("kitchen.pendingLabel")}
           value={String(
             countTasksByStatus(allTasks, (taskStatus) => taskStatus === "pending")
           )}
-          description="Waiting to start"
+          description={t("kitchen.pendingDescription")}
           icon={<ChefHat className="size-4" aria-hidden="true" />}
           tone="warning"
         />
         <MetricCard
-          label="Preparing"
+          label={t("kitchen.preparingLabel")}
           value={String(
             countTasksByStatus(
               allTasks,
               (taskStatus) => taskStatus === "preparing"
             )
           )}
-          description="Currently active"
+          description={t("kitchen.preparingDescription")}
           icon={<Flame className="size-4" aria-hidden="true" />}
           tone="primary"
         />
         <MetricCard
-          label="Ready tickets"
+          label={t("kitchen.readyTicketsLabel")}
           value={String(
             countRecordsByStatus(
               allTickets,
@@ -879,12 +889,12 @@ function KitchenDashboardContent() {
               (ticketStatusValue) => ticketStatusValue === "ready"
             )
           )}
-          description="Station tickets ready"
+          description={t("kitchen.readyTicketsDescription")}
           icon={<CheckCircle2 className="size-4" aria-hidden="true" />}
           tone="success"
         />
         <MetricCard
-          label="Print failures"
+          label={t("kitchen.failedPrintLabel")}
           value={String(
             countRecordsByStatus(
               allPrintJobs,
@@ -892,13 +902,17 @@ function KitchenDashboardContent() {
               (printJobStatusValue) => printJobStatusValue === "failed"
             )
           )}
-          description="Needs retry or reprint"
+          description={t("kitchen.failedPrintDescription")}
           icon={<Printer className="size-4" aria-hidden="true" />}
           tone="warning"
         />
         <MetricCard
-          label="Realtime"
-          value={realtime.state === "connected" ? "Live" : "Watch"}
+          label={t("realtime.metricLabel")}
+          value={
+            realtime.state === "connected"
+              ? t("kitchen.realtimeLive")
+              : t("kitchen.realtimeWatch")
+          }
           description={humanizeStatus(realtime.state)}
           icon={<Gauge className="size-4" aria-hidden="true" />}
           tone={realtime.state === "connected" ? "success" : "warning"}
@@ -909,7 +923,7 @@ function KitchenDashboardContent() {
         <CardHeader className="gap-4 md:flex md:flex-row md:items-start md:justify-between md:space-y-0">
           <div>
             <div className="flex flex-wrap items-center gap-2">
-              <Badge variant="muted">Kitchen / Barista</Badge>
+              <Badge variant="muted">{t("kitchen.badge")}</Badge>
               <StaffRealtimeStatus
                 state={realtime.state}
                 lastEventType={realtime.lastEventType}
@@ -917,16 +931,19 @@ function KitchenDashboardContent() {
             </div>
             <CardTitle className="mt-3">{selectedBranch.name}</CardTitle>
             <CardDescription>
-              {staffUser?.name || staffUser?.email || "Staff user"} is viewing
-              station tasks, KDS tickets, and mock printer jobs created from
-              cashier-accepted orders.
+              {t("kitchen.viewingDescription", {
+                name:
+                  staffUser?.name ||
+                  staffUser?.email ||
+                  t("cashier.staffUserFallback"),
+              })}
             </CardDescription>
           </div>
           <div className="flex flex-wrap gap-2">
             <KdsModeTabs mode={mode} onChange={setMode} />
             <Button variant="secondary" onClick={refreshBranch}>
               <RefreshCw className="size-4" aria-hidden="true" />
-              Refresh branch
+              {t("actions.refreshBranch")}
             </Button>
           </div>
         </CardHeader>
@@ -992,7 +1009,7 @@ function KitchenDashboardContent() {
           />
           {ticketsQuery.isError ? (
             <EmptyState
-              title="Tickets could not load"
+              title={t("kitchen.ticketsError")}
               description={ticketsQuery.error.message}
               debug={{
                 action: "kitchen_ticket_list",
@@ -1003,8 +1020,8 @@ function KitchenDashboardContent() {
           ) : null}
           {!ticketsQuery.isPending && tickets.length === 0 ? (
             <EmptyState
-              title="No station tickets"
-              description="Accepted orders with barista, kitchen, or dessert items will create station tickets here."
+              title={t("kitchen.ticketsEmptyTitle")}
+              description={t("kitchen.acceptedEmpty")}
             />
           ) : null}
           <div className="grid gap-4 lg:grid-cols-2 xl:grid-cols-3">
@@ -1043,7 +1060,7 @@ function KitchenDashboardContent() {
           />
           {printJobsQuery.isError ? (
             <EmptyState
-              title="Print queue could not load"
+              title={t("kitchen.printQueueError")}
               description={printJobsQuery.error.message}
               debug={{
                 action: "print_job_list",
@@ -1054,8 +1071,8 @@ function KitchenDashboardContent() {
           ) : null}
           {!printJobsQuery.isPending && printJobs.length === 0 ? (
             <EmptyState
-              title="No print jobs"
-              description="New station tickets queue mock print jobs here. Jobs stay pending until staff marks them printed or failed."
+              title={t("kitchen.printQueueEmptyTitle")}
+              description={t("kitchen.printQueueEmpty")}
             />
           ) : null}
           <div className="grid gap-4 lg:grid-cols-2 xl:grid-cols-3">
@@ -1088,22 +1105,19 @@ function KitchenDashboardContent() {
 
       <Card variant="quiet">
         <CardHeader>
-          <CardTitle>Activity</CardTitle>
-          <CardDescription>
-            Recent branch realtime events for orders and preparation.
-          </CardDescription>
+          <CardTitle>{t("kitchen.activityTitle")}</CardTitle>
+          <CardDescription>{t("kitchen.activityDescription")}</CardDescription>
         </CardHeader>
         <CardContent className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
           {realtimeEventsQuery.isError ? (
             <div className="rounded-card border border-warning bg-warning/10 p-3 text-sm text-warning">
-              <AlertTriangle className="mr-2 inline size-4" aria-hidden="true" />
+              <AlertTriangle className="me-2 inline size-4" aria-hidden="true" />
               {realtimeEventsQuery.error.message}
             </div>
           ) : null}
           {(realtimeEventsQuery.data?.events ?? []).length === 0 ? (
             <p className="rounded-card border border-dashed bg-surface/70 p-4 text-sm text-muted-foreground">
-              Activity will appear here after preparation or order events reach
-              the branch stream.
+              {t("kitchen.activityEmpty")}
             </p>
           ) : null}
           {(realtimeEventsQuery.data?.events ?? []).map((event, index) => (
@@ -1137,10 +1151,12 @@ function KitchenDashboardContent() {
 }
 
 export function KitchenDashboardPage() {
+  const t = useTranslations("staff");
+
   return (
     <StaffPageShell
-      title="Kitchen Display System"
-      description="Station tasks, kitchen tickets, and mock printer jobs for accepted cafe orders."
+      title={t("kitchen.dashboardTitle")}
+      description={t("kitchen.dashboardDescription")}
       actions={<KitchenDashboardActions />}
     >
       <StaffAuthGate requiredPermissions={["preparation.read"]} branchScoped>

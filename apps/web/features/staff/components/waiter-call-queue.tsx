@@ -13,6 +13,7 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { LoadingState } from "@/components/ui/loading-state";
 import { getWaiterCallId } from "@/features/staff/waiter-data";
 import type { WaiterCallStatus, WaiterCallType } from "@/lib/api/types";
+import { useTranslations } from "@/lib/i18n/i18n-provider";
 import { WaiterCallCard } from "./waiter-call-card";
 import { WaiterCallTypeFilter } from "./waiter-call-type-filter";
 
@@ -41,18 +42,18 @@ export function WaiterCallQueue({
   onSelectWaiterCall,
   onRefresh
 }: WaiterCallQueueProps) {
+  const t = useTranslations("staff");
+
   return (
     <Card variant="glass" padding="lg" className="min-h-[34rem]">
       <CardHeader className="gap-4 sm:flex sm:flex-row sm:items-start sm:justify-between sm:space-y-0">
         <div>
-          <CardTitle>Waiter calls</CardTitle>
-          <CardDescription>
-            Customer service requests owned by the branch waiter-call workflow.
-          </CardDescription>
+          <CardTitle>{t("waiter.callsTitle")}</CardTitle>
+          <CardDescription>{t("waiter.callsDescription")}</CardDescription>
         </div>
         <Button variant="secondary" size="sm" onClick={onRefresh}>
           <RefreshCw className="size-4" aria-hidden="true" />
-          Refresh
+          {t("actions.refresh")}
         </Button>
       </CardHeader>
       <CardContent>
@@ -65,17 +66,17 @@ export function WaiterCallQueue({
           />
         </div>
 
-        {isLoading ? <LoadingState label="Loading waiter calls" /> : null}
+        {isLoading ? <LoadingState label={t("waiter.loadingCalls")} /> : null}
         {error ? (
           <EmptyState
-            title="Waiter calls could not load"
+            title={t("waiter.callsLoadError")}
             description={error.message}
           />
         ) : null}
         {!isLoading && !error && waiterCalls.length === 0 ? (
           <EmptyState
-            title="No waiter calls in this lane"
-            description="Customer requests, bill help, and service issues will appear here when tables ask for staff."
+            title={t("waiter.callsEmptyTitle")}
+            description={t("waiter.callsEmptyDescription")}
           />
         ) : null}
         {!isLoading && !error && waiterCalls.length > 0 ? (

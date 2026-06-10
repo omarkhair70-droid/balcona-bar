@@ -19,6 +19,7 @@ import {
 } from "@/lib/staff/staff-access";
 
 export type StaffNavItem = AppShellNavItem & {
+  labelKey?: string;
   requiredPermissions?: StaffPermission[];
   branchScoped?: boolean;
   authOnly?: boolean;
@@ -28,11 +29,13 @@ export const staffNavItems: StaffNavItem[] = [
   {
     href: "/staff",
     label: "Overview",
+    labelKey: "navigation.overview",
     icon: <LayoutDashboard className="size-4" aria-hidden="true" />
   },
   {
     href: "/staff/cashier",
     label: "Cashier",
+    labelKey: "navigation.cashier",
     icon: <Receipt className="size-4" aria-hidden="true" />,
     authOnly: true,
     branchScoped: true,
@@ -41,6 +44,7 @@ export const staffNavItems: StaffNavItem[] = [
   {
     href: "/staff/menu",
     label: "Menu",
+    labelKey: "navigation.menu",
     icon: <BookOpenText className="size-4" aria-hidden="true" />,
     authOnly: true,
     branchScoped: true,
@@ -49,6 +53,7 @@ export const staffNavItems: StaffNavItem[] = [
   {
     href: "/staff/inventory",
     label: "Inventory",
+    labelKey: "navigation.inventory",
     icon: <Boxes className="size-4" aria-hidden="true" />,
     authOnly: true,
     branchScoped: true,
@@ -57,6 +62,7 @@ export const staffNavItems: StaffNavItem[] = [
   {
     href: "/staff/setup",
     label: "Setup",
+    labelKey: "navigation.setup",
     icon: <Rocket className="size-4" aria-hidden="true" />,
     authOnly: true,
     branchScoped: true,
@@ -65,6 +71,7 @@ export const staffNavItems: StaffNavItem[] = [
   {
     href: "/staff/billing",
     label: "Billing",
+    labelKey: "navigation.billing",
     icon: <CreditCard className="size-4" aria-hidden="true" />,
     authOnly: true,
     branchScoped: true,
@@ -73,6 +80,7 @@ export const staffNavItems: StaffNavItem[] = [
   {
     href: "/staff/branches",
     label: "Branches",
+    labelKey: "navigation.branches",
     icon: <Building2 className="size-4" aria-hidden="true" />,
     authOnly: true,
     branchScoped: true,
@@ -81,11 +89,13 @@ export const staffNavItems: StaffNavItem[] = [
   {
     href: "/staff/login",
     label: "Login",
+    labelKey: "navigation.login",
     icon: <LogIn className="size-4" aria-hidden="true" />
   },
   {
     href: "/staff/kitchen",
     label: "Kitchen",
+    labelKey: "navigation.kitchen",
     icon: <ChefHat className="size-4" aria-hidden="true" />,
     authOnly: true,
     branchScoped: true,
@@ -94,6 +104,7 @@ export const staffNavItems: StaffNavItem[] = [
   {
     href: "/staff/waiter",
     label: "Waiter",
+    labelKey: "navigation.waiter",
     icon: <Bell className="size-4" aria-hidden="true" />,
     authOnly: true,
     branchScoped: true,
@@ -102,6 +113,7 @@ export const staffNavItems: StaffNavItem[] = [
   {
     href: "/staff/owner",
     label: "Owner",
+    labelKey: "navigation.owner",
     icon: <ChartNoAxesCombined className="size-4" aria-hidden="true" />,
     authOnly: true,
     branchScoped: true,
@@ -113,7 +125,7 @@ export function getVisibleStaffNavItems(input: {
   access?: StaffEffectiveAccess;
   selectedBranchId?: string;
   isAuthenticated?: boolean;
-}): AppShellNavItem[] {
+}): StaffNavItem[] {
   return staffNavItems.filter((item) => {
     if (item.href === "/staff/login") {
       return !input.isAuthenticated;

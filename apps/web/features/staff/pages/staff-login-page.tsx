@@ -17,11 +17,9 @@ import {
 import { Input } from "@/components/ui/input";
 import { StaffPageShell } from "@/features/staff/staff-page-shell";
 import { staffLogin } from "@/lib/api/endpoints";
+import { useTranslations } from "@/lib/i18n/i18n-provider";
 import { getDefaultStaffRoute } from "@/lib/staff/staff-access";
 import { useStaffAuthStore } from "@/lib/staff/staff-auth-store";
-
-const loginErrorFallback =
-  "Login failed. Check credentials and local password bootstrap.";
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -57,7 +55,7 @@ function getDetailsMessage(details: unknown) {
   return isReadableMessage(details.error) ? details.error : undefined;
 }
 
-function getLoginErrorMessage(error: unknown) {
+function getLoginErrorMessage(error: unknown, fallback: string) {
   if (error instanceof Error && isReadableMessage(error.message)) {
     return error.message;
   }
@@ -74,10 +72,11 @@ function getLoginErrorMessage(error: unknown) {
     }
   }
 
-  return loginErrorFallback;
+  return fallback;
 }
 
 export function StaffLoginPage() {
+  const t = useTranslations("staff");
   const router = useRouter();
   const setFromLogin = useStaffAuthStore((state) => state.setFromLogin);
   const [email, setEmail] = useState("");
@@ -104,12 +103,12 @@ export function StaffLoginPage() {
 
   return (
     <StaffPageShell
-      title="Staff login"
-      description="Sign in to open branch operations. The session is restored locally and validated through the staff auth API."
+      title={t("auth.title")}
+      description={t("auth.loginDescription")}
       actions={
         <Link href="/staff" className={buttonVariants({ variant: "ghost" })}>
           <ArrowLeft className="size-4" aria-hidden="true" />
-          Staff overview
+          {t("actions.overview")}
         </Link>
       }
     >
@@ -119,42 +118,39 @@ export function StaffLoginPage() {
             <div className="flex size-11 items-center justify-center rounded-button bg-primary/15 text-primary">
               <ShieldCheck className="size-5" aria-hidden="true" />
             </div>
-            <CardTitle>Open staff session</CardTitle>
-            <CardDescription>
-              Use a staff account with branch access. Branch ID is optional and
-              the dashboard can use the default branch returned by the backend.
-            </CardDescription>
+            <CardTitle>{t("auth.openSessionTitle")}</CardTitle>
+            <CardDescription>{t("auth.openSessionDescription")}</CardDescription>
           </CardHeader>
           <form onSubmit={submitLogin}>
             <CardContent className="grid gap-4">
               <label className="grid gap-2 text-sm font-medium text-foreground">
-                Email
+                {t("auth.emailLabel")}
                 <Input
                   value={email}
                   onChange={(event) => setEmail(event.target.value)}
                   type="email"
                   autoComplete="email"
-                  placeholder="staff@example.com"
+                  placeholder={t("auth.emailPlaceholder")}
                   required
                 />
               </label>
               <label className="grid gap-2 text-sm font-medium text-foreground">
-                Password
+                {t("auth.passwordLabel")}
                 <Input
                   value={password}
                   onChange={(event) => setPassword(event.target.value)}
                   type="password"
                   autoComplete="current-password"
-                  placeholder="Password"
+                  placeholder={t("auth.passwordPlaceholder")}
                   required
                 />
               </label>
               <label className="grid gap-2 text-sm font-medium text-foreground">
-                Branch ID
+                {t("auth.branchIdLabel")}
                 <Input
                   value={branchId}
                   onChange={(event) => setBranchId(event.target.value)}
-                  placeholder="Optional"
+                  placeholder={t("auth.branchIdPlaceholder")}
                 />
               </label>
               {loginMutation.isError ? (
@@ -162,14 +158,19 @@ export function StaffLoginPage() {
                   role="alert"
                   className="rounded-card border border-danger bg-danger/10 p-3 text-sm text-danger"
                 >
-                  {getLoginErrorMessage(loginMutation.error)}
+                  {getLoginErrorMessage(
+                    loginMutation.error,
+                    t("auth.loginFallback")
+                  )}
                 </div>
               ) : null}
             </CardContent>
             <CardFooter>
               <Button type="submit" disabled={loginMutation.isPending}>
                 <LogIn className="size-4" aria-hidden="true" />
-                {loginMutation.isPending ? "Signing in..." : "Sign in"}
+                {loginMutation.isPending
+                  ? t("actions.signingIn")
+                  : t("actions.signIn")}
               </Button>
             </CardFooter>
           </form>
@@ -177,11 +178,8 @@ export function StaffLoginPage() {
 
         <Card variant="quiet" padding="lg" className="h-fit">
           <CardHeader>
-            <CardTitle>Session rules</CardTitle>
-            <CardDescription>
-              Staff tokens are stored locally, sent as bearer tokens for staff
-              endpoints, and cleared on logout or failed restoration.
-            </CardDescription>
+            <CardTitle>{t("auth.sessionRulesTitle")}</CardTitle>
+            <CardDescription>{t("auth.sessionRulesDescription")}</CardDescription>
           </CardHeader>
         </Card>
       </section>

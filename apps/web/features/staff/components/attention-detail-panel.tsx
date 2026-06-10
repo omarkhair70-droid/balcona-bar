@@ -48,6 +48,7 @@ import {
   shortId
 } from "@/features/staff/staff-format";
 import type { TableSessionAttentionResult } from "@/lib/api/types";
+import { useTranslations } from "@/lib/i18n/i18n-provider";
 import { cn } from "@/lib/utils/cn";
 import { AttentionPriorityPill } from "./attention-priority-pill";
 import { AttentionStatusPill } from "./attention-status-pill";
@@ -77,6 +78,7 @@ export function AttentionDetailPanel({
   onMute,
   onRecalculate
 }: AttentionDetailPanelProps) {
+  const t = useTranslations("staff");
   const [note, setNote] = useState("");
   const [muteMinutes, setMuteMinutes] = useState(30);
   const status = attention ? getAttentionStatus(attention) : undefined;
@@ -97,10 +99,8 @@ export function AttentionDetailPanel({
       <CardHeader>
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
-            <CardTitle>Attention detail</CardTitle>
-            <CardDescription>
-              Review table signals, reasons, and recommended floor actions.
-            </CardDescription>
+            <CardTitle>{t("attention.detailTitle")}</CardTitle>
+            <CardDescription>{t("attention.detailDescription")}</CardDescription>
           </div>
           <div className="flex flex-wrap justify-end gap-2">
             {status ? <AttentionStatusPill status={status} /> : null}
@@ -111,14 +111,14 @@ export function AttentionDetailPanel({
       <CardContent className="grid gap-4">
         {!attention && !isLoading && !error ? (
           <EmptyState
-            title="Select an attention item"
-            description="Choose a table signal to resolve, mute, or recalculate the backend attention state."
+            title={t("attention.selectTitle")}
+            description={t("attention.selectDescription")}
           />
         ) : null}
-        {isLoading ? <LoadingState label="Loading attention detail" /> : null}
+        {isLoading ? <LoadingState label={t("attention.loading")} /> : null}
         {error ? (
           <EmptyState
-            title="Attention detail could not load"
+            title={t("attention.detailLoadError")}
             description={error.message}
           />
         ) : null}
@@ -134,14 +134,18 @@ export function AttentionDetailPanel({
                     )}
                   </p>
                   <p className="mt-1 text-sm text-muted-foreground">
-                    Session {shortId(getAttentionSessionId(attention))} /{" "}
-                    {humanizeStatus(getRecordString(tableSession, "status"))}
+                    {t("attention.cardSession", {
+                      sessionId: shortId(getAttentionSessionId(attention)),
+                      status: humanizeStatus(
+                        getRecordString(tableSession, "status")
+                      ),
+                    })}
                   </p>
                 </div>
-                <div className="text-right">
+                <div className="text-end">
                   <p className="inline-flex items-center gap-1.5 text-sm font-semibold text-foreground">
                     <Gauge className="size-4 text-primary" aria-hidden="true" />
-                    Score {getAttentionScore(attention)}
+                    {t("attention.score")} {getAttentionScore(attention)}
                   </p>
                   <p className="mt-1 text-xs text-muted-foreground">
                     {humanizeStatus(priority)}
@@ -152,22 +156,38 @@ export function AttentionDetailPanel({
               <div className="mt-4 grid gap-2 text-xs text-muted-foreground sm:grid-cols-2">
                 <span className="inline-flex items-center gap-1.5">
                   <Clock3 className="size-3.5" aria-hidden="true" />
-                  Evaluated {formatDateTime(getAttentionLastEvaluatedAt(attention))}
+                  {t("attention.evaluatedAt", {
+                    date: formatDateTime(getAttentionLastEvaluatedAt(attention)),
+                  })}
                 </span>
-                <span>Muted until {formatDateTime(getAttentionMutedUntil(attention))}</span>
-                <span>Resolved {formatDateTime(getAttentionResolvedAt(attention))}</span>
-                <span>Party size {getRecordNumber(tableSession, "partySize") || "unknown"}</span>
+                <span>
+                  {t("attention.mutedUntil", {
+                    date: formatDateTime(getAttentionMutedUntil(attention)),
+                  })}
+                </span>
+                <span>
+                  {t("attention.resolvedAt", {
+                    date: formatDateTime(getAttentionResolvedAt(attention)),
+                  })}
+                </span>
+                <span>
+                  {t("attention.partySize", {
+                    count:
+                      getRecordNumber(tableSession, "partySize") ||
+                      t("attention.partySizeUnknown"),
+                  })}
+                </span>
               </div>
             </div>
 
             <section className="grid gap-3">
               <h3 className="flex items-center gap-2 text-sm font-semibold text-foreground">
                 <AlertTriangle className="size-4 text-primary" aria-hidden="true" />
-                Reasons
+                {t("attention.reasonsTitle")}
               </h3>
               {reasons.length === 0 ? (
                 <p className="rounded-card border border-dashed bg-surface/70 p-4 text-sm text-muted-foreground">
-                  No reason records were returned for this snapshot.
+                  {t("attention.emptyReasons")}
                 </p>
               ) : null}
               {reasons.map((reason, index) => {
@@ -189,7 +209,9 @@ export function AttentionDetailPanel({
                       </div>
                       {reasonRecord ? (
                         <Badge variant="muted">
-                          +{getRecordNumber(reasonRecord, "scoreDelta")} score
+                          {t("attention.scoreDelta", {
+                            count: getRecordNumber(reasonRecord, "scoreDelta"),
+                          })}
                         </Badge>
                       ) : null}
                     </div>
@@ -200,11 +222,11 @@ export function AttentionDetailPanel({
 
             <section className="grid gap-3">
               <h3 className="text-sm font-semibold text-foreground">
-                Recommended actions
+                {t("attention.actionsTitle")}
               </h3>
               {actions.length === 0 ? (
                 <p className="rounded-card border border-dashed bg-surface/70 p-4 text-sm text-muted-foreground">
-                  No recommended actions were returned for this table.
+                  {t("attention.emptyActions")}
                 </p>
               ) : null}
               {actions.length > 0 ? (
@@ -228,7 +250,7 @@ export function AttentionDetailPanel({
                   disabled={!canResolve || resolvePending}
                 >
                   <Check className="size-4" aria-hidden="true" />
-                  {resolvePending ? "Resolving..." : "Resolve"}
+                  {resolvePending ? t("actions.resolving") : t("actions.resolve")}
                 </Button>
                 <Button
                   variant="secondary"
@@ -236,7 +258,7 @@ export function AttentionDetailPanel({
                   disabled={!canMute || mutePending}
                 >
                   <VolumeX className="size-4" aria-hidden="true" />
-                  {mutePending ? "Muting..." : "Mute"}
+                  {mutePending ? t("actions.muting") : t("actions.mute")}
                 </Button>
                 <Button
                   variant="secondary"
@@ -250,7 +272,9 @@ export function AttentionDetailPanel({
                     )}
                     aria-hidden="true"
                   />
-                  {recalculatePending ? "Recalculating..." : "Recalculate"}
+                  {recalculatePending
+                    ? t("actions.recalculating")
+                    : t("actions.recalculate")}
                 </Button>
               </div>
               <div className="mt-4 flex flex-wrap gap-2">
@@ -266,17 +290,17 @@ export function AttentionDetailPanel({
                         : "border-border bg-muted text-muted-foreground hover:text-foreground"
                     )}
                   >
-                    {minutes} min
+                    {t("attention.minutesShort", { minutes })}
                   </button>
                 ))}
               </div>
               <label className="mt-4 grid gap-2 text-sm font-medium text-foreground">
-                Staff note
+                {t("attention.noteLabel")}
                 <textarea
                   value={note}
                   onChange={(event) => setNote(event.target.value)}
                   rows={3}
-                  placeholder="Optional note for resolve or mute"
+                  placeholder={t("attention.notePlaceholder")}
                   className="w-full resize-none rounded-button border bg-surface px-3 py-2 text-sm text-foreground outline-none transition placeholder:text-muted-foreground focus:border-primary focus:ring-2 focus:ring-primary/35 disabled:cursor-not-allowed disabled:opacity-60"
                   disabled={resolvePending || mutePending}
                 />
@@ -286,7 +310,7 @@ export function AttentionDetailPanel({
             {metadata && Object.keys(metadata).length > 0 ? (
               <section className="rounded-card border bg-surface/75 p-4">
                 <h3 className="text-sm font-semibold text-foreground">
-                  Metadata
+                  {t("attention.metadata")}
                 </h3>
                 <pre className="mt-3 overflow-auto whitespace-pre-wrap text-xs text-muted-foreground">
                   {JSON.stringify(metadata, null, 2)}

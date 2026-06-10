@@ -44,6 +44,7 @@ import {
   shortId
 } from "@/features/staff/staff-format";
 import type { WaiterCallDetailResult } from "@/lib/api/types";
+import { useTranslations } from "@/lib/i18n/i18n-provider";
 import { WaiterCallStatusPill } from "./waiter-call-status-pill";
 
 type WaiterCallDetailPanelProps = {
@@ -69,6 +70,7 @@ export function WaiterCallDetailPanel({
   onResolve,
   onCancel
 }: WaiterCallDetailPanelProps) {
+  const t = useTranslations("staff");
   const [resolutionNote, setResolutionNote] = useState("");
   const [cancelReason, setCancelReason] = useState("");
   const status = waiterCall ? getWaiterCallStatus(waiterCall) : undefined;
@@ -82,11 +84,8 @@ export function WaiterCallDetailPanel({
       <CardHeader>
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
-            <CardTitle>Call detail</CardTitle>
-            <CardDescription>
-              Inspect table, session, order context, and staff timeline before
-              changing service state.
-            </CardDescription>
+            <CardTitle>{t("waiter.callDetailTitle")}</CardTitle>
+            <CardDescription>{t("waiter.callDetailDescription")}</CardDescription>
           </div>
           {status ? <WaiterCallStatusPill status={status} /> : null}
         </div>
@@ -94,14 +93,14 @@ export function WaiterCallDetailPanel({
       <CardContent className="grid gap-4">
         {!waiterCall && !isLoading && !error ? (
           <EmptyState
-            title="Select a waiter call"
-            description="Choose a request from the queue to acknowledge, resolve, or review its timeline."
+            title={t("waiter.selectCallTitle")}
+            description={t("waiter.selectCallDescription")}
           />
         ) : null}
-        {isLoading ? <LoadingState label="Loading waiter call detail" /> : null}
+        {isLoading ? <LoadingState label={t("waiter.loadingDetail")} /> : null}
         {error ? (
           <EmptyState
-            title="Waiter call detail could not load"
+            title={t("waiter.callDetailLoadError")}
             description={error.message}
           />
         ) : null}
@@ -117,16 +116,24 @@ export function WaiterCallDetailPanel({
                     )}
                   </p>
                   <p className="mt-1 text-sm text-muted-foreground">
-                    {humanizeStatus(getWaiterCallType(waiterCall))} / Session{" "}
-                    {humanizeStatus(getWaiterCallSessionStatus(waiterCall))}
+                    {humanizeStatus(getWaiterCallType(waiterCall))} /{" "}
+                    {t("waiter.sessionStatus", {
+                      status: humanizeStatus(
+                        getWaiterCallSessionStatus(waiterCall)
+                      ),
+                    })}
                   </p>
                 </div>
-                <div className="text-right">
+                <div className="text-end">
                   <p className="text-sm font-semibold text-foreground">
-                    Priority {getWaiterCallPriority(waiterCall) || "standard"}
+                    {t("waiter.priority")}{" "}
+                    {getWaiterCallPriority(waiterCall) ||
+                      t("waiter.priorityStandard")}
                   </p>
                   <p className="mt-1 text-xs text-muted-foreground">
-                    Call {shortId(getWaiterCallId(waiterCall))}
+                    {t("waiter.callFallback", {
+                      callId: shortId(getWaiterCallId(waiterCall)),
+                    })}
                   </p>
                 </div>
               </div>
@@ -134,25 +141,42 @@ export function WaiterCallDetailPanel({
               <div className="mt-4 grid gap-2 text-xs text-muted-foreground sm:grid-cols-2">
                 <span className="inline-flex items-center gap-1.5">
                   <Clock3 className="size-3.5" aria-hidden="true" />
-                  Created {formatDateTime(getWaiterCallCreatedAt(waiterCall))}
+                  {t("tasks.createdAt", {
+                    date: formatDateTime(getWaiterCallCreatedAt(waiterCall)),
+                  })}
                 </span>
-                <span>Acknowledged {formatDateTime(getWaiterCallAcknowledgedAt(waiterCall))}</span>
-                <span>Resolved {formatDateTime(getWaiterCallResolvedAt(waiterCall))}</span>
-                <span>Cancelled {formatDateTime(getWaiterCallCancelledAt(waiterCall))}</span>
+                <span>
+                  {t("waiter.acknowledgedAt", {
+                    date: formatDateTime(getWaiterCallAcknowledgedAt(waiterCall)),
+                  })}
+                </span>
+                <span>
+                  {t("attention.resolvedAt", {
+                    date: formatDateTime(getWaiterCallResolvedAt(waiterCall)),
+                  })}
+                </span>
+                <span>
+                  {t("waiter.cancelledAt", {
+                    date: formatDateTime(getWaiterCallCancelledAt(waiterCall)),
+                  })}
+                </span>
               </div>
 
               {getWaiterCallOrderNumber(waiterCall) ? (
                 <p className="mt-4 inline-flex items-center gap-1.5 text-xs text-muted-foreground">
                   <Hash className="size-3.5" aria-hidden="true" />
-                  Order {getWaiterCallOrderNumber(waiterCall)} /{" "}
-                  {humanizeStatus(getWaiterCallOrderStatus(waiterCall))}
+                  {t("tasks.orderStatus", {
+                    status: `${getWaiterCallOrderNumber(waiterCall)} / ${humanizeStatus(
+                      getWaiterCallOrderStatus(waiterCall)
+                    )}`,
+                  })}
                 </p>
               ) : null}
 
               {getWaiterCallMessage(waiterCall) ? (
                 <div className="mt-4 rounded-card border border-primary/30 bg-primary/10 p-3 text-sm text-foreground">
                   <MessageSquareText
-                    className="mr-2 inline size-4 text-primary"
+                    className="me-2 inline size-4 text-primary"
                     aria-hidden="true"
                   />
                   {getWaiterCallMessage(waiterCall)}
@@ -167,7 +191,9 @@ export function WaiterCallDetailPanel({
                   disabled={!canAcknowledge || acknowledgePending}
                 >
                   <Check className="size-4" aria-hidden="true" />
-                  {acknowledgePending ? "Acknowledging..." : "Acknowledge"}
+                  {acknowledgePending
+                    ? t("actions.acknowledging")
+                    : t("actions.acknowledge")}
                 </Button>
                 <Button
                   variant="secondary"
@@ -175,7 +201,7 @@ export function WaiterCallDetailPanel({
                   disabled={!canResolve || resolvePending}
                 >
                   <Send className="size-4" aria-hidden="true" />
-                  {resolvePending ? "Resolving..." : "Resolve"}
+                  {resolvePending ? t("actions.resolving") : t("actions.resolve")}
                 </Button>
                 <Button
                   variant="danger"
@@ -183,33 +209,32 @@ export function WaiterCallDetailPanel({
                   disabled={!canCancel || cancelPending}
                 >
                   <X className="size-4" aria-hidden="true" />
-                  {cancelPending ? "Cancelling..." : "Cancel"}
+                  {cancelPending ? t("actions.cancelling") : t("actions.cancel")}
                 </Button>
               </div>
               {!canAcknowledge && !canResolve && !canCancel ? (
                 <p className="mt-3 text-xs text-muted-foreground">
-                  Resolved and cancelled waiter calls are locked by the backend
-                  workflow.
+                  {t("waiter.closedWorkflow")}
                 </p>
               ) : null}
               <label className="mt-4 grid gap-2 text-sm font-medium text-foreground">
-                Resolution note
+                {t("waiter.resolutionNote")}
                 <textarea
                   value={resolutionNote}
                   onChange={(event) => setResolutionNote(event.target.value)}
                   rows={3}
-                  placeholder="Optional note after speaking with the table"
+                  placeholder={t("waiter.resolutionNotePlaceholder")}
                   className="w-full resize-none rounded-button border bg-surface px-3 py-2 text-sm text-foreground outline-none transition placeholder:text-muted-foreground focus:border-primary focus:ring-2 focus:ring-primary/35 disabled:cursor-not-allowed disabled:opacity-60"
                   disabled={!canResolve || resolvePending}
                 />
               </label>
               <label className="mt-4 grid gap-2 text-sm font-medium text-foreground">
-                Cancel reason
+                {t("waiter.cancelReason")}
                 <textarea
                   value={cancelReason}
                   onChange={(event) => setCancelReason(event.target.value)}
                   rows={2}
-                  placeholder="Optional reason if the request is no longer needed"
+                  placeholder={t("waiter.cancelReasonPlaceholder")}
                   className="w-full resize-none rounded-button border bg-surface px-3 py-2 text-sm text-foreground outline-none transition placeholder:text-muted-foreground focus:border-primary focus:ring-2 focus:ring-primary/35 disabled:cursor-not-allowed disabled:opacity-60"
                   disabled={!canCancel || cancelPending}
                 />
@@ -218,11 +243,11 @@ export function WaiterCallDetailPanel({
 
             <section className="grid gap-3">
               <h3 className="text-sm font-semibold text-foreground">
-                Timeline
+                {t("orders.timeline")}
               </h3>
               {events.length === 0 ? (
                 <p className="rounded-card border border-dashed bg-surface/70 p-4 text-sm text-muted-foreground">
-                  No waiter call events were returned yet.
+                  {t("waiter.emptyEvents")}
                 </p>
               ) : null}
               {events.map((event, index) => (

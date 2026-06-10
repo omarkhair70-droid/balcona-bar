@@ -15,6 +15,7 @@ import type { CashierOrderStatus } from "@/lib/api/types";
 import { cn } from "@/lib/utils/cn";
 import { getOrderId } from "@/features/staff/cashier-data";
 import { humanizeStatus } from "@/features/staff/staff-format";
+import { useTranslations } from "@/lib/i18n/i18n-provider";
 import { CashierOrderCard } from "./cashier-order-card";
 
 type CashierOrderQueueProps = {
@@ -46,18 +47,18 @@ export function CashierOrderQueue({
   onSelectOrder,
   onRefresh
 }: CashierOrderQueueProps) {
+  const t = useTranslations("staff");
+
   return (
     <Card variant="glass" padding="lg" className="min-h-[34rem]">
       <CardHeader className="gap-4 sm:flex sm:flex-row sm:items-start sm:justify-between sm:space-y-0">
         <div>
-          <CardTitle>Incoming orders</CardTitle>
-          <CardDescription>
-            Submitted orders are ready for cashier acceptance or rejection.
-          </CardDescription>
+          <CardTitle>{t("orders.queueTitle")}</CardTitle>
+          <CardDescription>{t("orders.queueDescription")}</CardDescription>
         </div>
         <Button variant="secondary" size="sm" onClick={onRefresh}>
           <RefreshCw className="size-4" aria-hidden="true" />
-          Refresh
+          {t("actions.refresh")}
         </Button>
       </CardHeader>
       <CardContent>
@@ -79,10 +80,10 @@ export function CashierOrderQueue({
           ))}
         </div>
 
-        {isLoading ? <LoadingState label="Loading cashier orders" /> : null}
+        {isLoading ? <LoadingState label={t("orders.loading")} /> : null}
         {error ? (
           <EmptyState
-            title="Orders could not load"
+            title={t("orders.ordersError")}
             description={error.message}
             debug={{
               action: "cashier_orders_list",
@@ -93,8 +94,8 @@ export function CashierOrderQueue({
         ) : null}
         {!isLoading && !error && orders.length === 0 ? (
           <EmptyState
-            title="No orders in this lane"
-            description="New submitted orders will appear here when customers send carts."
+            title={t("orders.queueEmptyTitle")}
+            description={t("orders.queueEmptyDescription")}
           />
         ) : null}
         {!isLoading && !error && orders.length > 0 ? (

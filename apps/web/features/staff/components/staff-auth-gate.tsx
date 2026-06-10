@@ -10,6 +10,7 @@ import { LoadingState } from "@/components/ui/loading-state";
 import { ApiError } from "@/lib/api/client";
 import { staffMe } from "@/lib/api/endpoints";
 import { staffQueryKeys } from "@/lib/api/query-keys";
+import { useTranslations } from "@/lib/i18n/i18n-provider";
 import {
   isStaffSessionExpired,
   useStaffAuthStore
@@ -32,9 +33,10 @@ export function StaffAuthGate({
   children,
   requiredPermissions,
   branchScoped,
-  deniedTitle = "Access denied",
-  deniedDescription = "This staff account does not have permission for the selected branch."
+  deniedTitle,
+  deniedDescription
 }: StaffAuthGateProps) {
+  const t = useTranslations("staff");
   const accessToken = useStaffAuthStore((state) => state.accessToken);
   const expiresAt = useStaffAuthStore((state) => state.expiresAt);
   const effectiveAccess = useStaffAuthStore((state) => state.effectiveAccess);
@@ -74,12 +76,12 @@ export function StaffAuthGate({
   if (!accessToken || isExpired) {
     return (
       <EmptyState
-        title="Staff login required"
-        description="Sign in with a staff account before opening cashier operations."
+        title={t("access.staffLoginRequired")}
+        description={t("access.staffLoginRequiredDescription")}
         action={
           <Link href="/staff/login" className={buttonVariants()}>
             <LogIn className="size-4" aria-hidden="true" />
-            Staff login
+            {t("actions.staffLogin")}
           </Link>
         }
       />
@@ -87,18 +89,18 @@ export function StaffAuthGate({
   }
 
   if (staffQuery.isPending) {
-    return <LoadingState label="Restoring staff session" />;
+    return <LoadingState label={t("auth.restoreSession")} />;
   }
 
   if (staffQuery.isError) {
     return (
       <EmptyState
-        title="Staff session could not be restored"
+        title={t("access.sessionRestoreFailed")}
         description={staffQuery.error.message}
         action={
           <Button onClick={clearSession} variant="secondary">
             <AlertTriangle className="size-4" aria-hidden="true" />
-            Clear session
+            {t("access.clearSession")}
           </Button>
         }
       />
@@ -116,15 +118,15 @@ export function StaffAuthGate({
   if (!canAccess) {
     return (
       <EmptyState
-        title={deniedTitle}
-        description={deniedDescription}
+        title={deniedTitle ?? t("access.deniedTitle")}
+        description={deniedDescription ?? t("access.deniedDescription")}
         action={
           <Link
             href={getDefaultStaffRoute(restoredAccess, selectedBranchId)}
             className={buttonVariants({ variant: "secondary" })}
           >
             <ShieldAlert className="size-4" aria-hidden="true" />
-            Open allowed surface
+            {t("access.openAllowedSurface")}
           </Link>
         }
       />

@@ -21,6 +21,7 @@ import {
   humanizeStatus,
   shortId
 } from "@/features/staff/staff-format";
+import { useTranslations } from "@/lib/i18n/i18n-provider";
 import { cn } from "@/lib/utils/cn";
 import { AttentionPriorityPill } from "./attention-priority-pill";
 import { AttentionStatusPill } from "./attention-status-pill";
@@ -36,6 +37,7 @@ export function AttentionCard({
   selected,
   onSelect
 }: AttentionCardProps) {
+  const t = useTranslations("staff");
   const sessionId = getAttentionSessionId(attention);
   const status = getAttentionStatus(attention);
   const priority = getAttentionPriority(attention);
@@ -50,7 +52,7 @@ export function AttentionCard({
       aria-pressed={selected}
       onClick={() => sessionId && onSelect(sessionId)}
       className={cn(
-        "w-full rounded-card border bg-surface/75 p-4 text-left shadow-card transition hover:border-primary/55 hover:bg-surface",
+        "w-full rounded-card border bg-surface/75 p-4 text-start shadow-card transition hover:border-primary/55 hover:bg-surface",
         selected ? "border-primary/70 bg-primary/10" : "border-border",
         isUrgent && !selected ? "border-danger/70 bg-danger/10" : ""
       )}
@@ -73,7 +75,10 @@ export function AttentionCard({
             </p>
           </div>
           <p className="mt-2 text-xs text-muted-foreground">
-            Session {shortId(sessionId)} / {humanizeStatus(status)}
+            {t("attention.cardSession", {
+              sessionId: shortId(sessionId),
+              status: humanizeStatus(status),
+            })}
           </p>
         </div>
         <div className="flex flex-wrap justify-end gap-2">
@@ -84,14 +89,14 @@ export function AttentionCard({
 
       <dl className="mt-4 grid grid-cols-2 gap-3 text-xs">
         <div>
-          <dt className="text-muted-foreground">Score</dt>
+          <dt className="text-muted-foreground">{t("attention.score")}</dt>
           <dd className="mt-1 inline-flex items-center gap-1.5 font-semibold text-foreground">
             <Gauge className="size-3.5" aria-hidden="true" />
             {score}
           </dd>
         </div>
         <div>
-          <dt className="text-muted-foreground">Updated</dt>
+          <dt className="text-muted-foreground">{t("attention.updated")}</dt>
           <dd className="mt-1 inline-flex items-center gap-1.5 font-semibold text-foreground">
             <Clock3 className="size-3.5" aria-hidden="true" />
             {formatDateTime(getAttentionLastEvaluatedAt(attention))}

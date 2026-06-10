@@ -31,7 +31,10 @@ export function StaffShellFrame({
     access: effectiveAccess,
     selectedBranchId,
     isAuthenticated: Boolean(accessToken)
-  });
+  }).map((item) => ({
+    ...item,
+    label: item.labelKey ? t(item.labelKey) : item.label
+  }));
 
   return (
     <DashboardShell
@@ -46,21 +49,21 @@ export function StaffShellFrame({
         supporting ?? (
           <div className="grid gap-3">
             <MetricCard
-              label="Signal"
-              value="SSE"
-              description="Realtime channel surface"
+              label={t("shell.signalLabel")}
+              value={t("shell.signalValue")}
+              description={t("shell.signalDescription")}
               icon={<Radio className="size-4" aria-hidden="true" />}
             />
             <MetricCard
-              label="Access"
-              value="RBAC"
-              description="Permission-aware routes"
+              label={t("shell.accessLabel")}
+              value={t("shell.accessValue")}
+              description={t("shell.accessDescription")}
               icon={<ShieldCheck className="size-4" aria-hidden="true" />}
             />
             <MetricCard
-              label="Mode"
-              value="Staff"
-              description="Operational surfaces"
+              label={t("shell.modeLabel")}
+              value={t("shell.modeValue")}
+              description={t("shell.modeDescription")}
               icon={<Activity className="size-4" aria-hidden="true" />}
             />
           </div>

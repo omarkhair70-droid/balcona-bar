@@ -32,6 +32,7 @@ import {
 } from "@/features/staff/staff-format";
 import { formatErrorMessage } from "@/lib/api/error-message";
 import type { RecordManualPaymentPayload } from "@/lib/api/types";
+import { useTranslations } from "@/lib/i18n/i18n-provider";
 
 type BillRequestCardProps = {
   billRequest: Record<string, unknown>;
@@ -49,12 +50,12 @@ type BillRequestCardProps = {
 
 const paymentMethods: Array<{
   value: RecordManualPaymentPayload["method"];
-  label: string;
+  labelKey: string;
 }> = [
-  { value: "cash", label: "Cash" },
-  { value: "card_pos", label: "Card POS" },
-  { value: "wallet_manual", label: "Wallet" },
-  { value: "other", label: "Other" },
+  { value: "cash", labelKey: "billRequests.cash" },
+  { value: "card_pos", labelKey: "billRequests.cardPos" },
+  { value: "wallet_manual", labelKey: "billRequests.wallet" },
+  { value: "other", labelKey: "billRequests.other" },
 ];
 
 function statusVariant(status?: string) {
@@ -102,6 +103,7 @@ export function BillRequestCard({
   onPresent,
   onRecordManualPayment,
 }: BillRequestCardProps) {
+  const t = useTranslations("staff");
   const request = getBillRequestRecord(billRequest);
   const billRequestId = getBillRequestId(billRequest);
   const billId = getBillId(billRequest);
@@ -161,30 +163,36 @@ export function BillRequestCard({
   ).length;
   const onlinePaymentBadge =
     succeededOnlinePaymentCount > 0
-      ? "Online paid"
+      ? t("billRequests.onlinePaid")
       : activeOnlinePaymentCount > 0
-        ? "Online pending"
-        : "Manual only";
+        ? t("billRequests.onlinePending")
+        : t("billRequests.manualOnly");
   const acknowledgeDisabledReason = !billRequestId
-    ? "Acknowledge is unavailable because this request is missing an id."
+    ? t("billRequests.acknowledgeMissingId")
     : requestStatus !== "open"
-      ? `Acknowledge is only available for open requests. Current request: ${humanizeStatus(requestStatus)}.`
+      ? t("billRequests.acknowledgeStatus", {
+          status: humanizeStatus(requestStatus),
+        })
       : "";
   const presentDisabledReason = !billRequestId
-    ? "Present is unavailable because this request is missing an id."
+    ? t("billRequests.presentMissingId")
     : requestStatus !== "open" && requestStatus !== "acknowledged"
-      ? `Present is available after open or acknowledged. Current request: ${humanizeStatus(requestStatus)}.`
+      ? t("billRequests.presentStatus", {
+          status: humanizeStatus(requestStatus),
+        })
       : "";
   const paymentDisabledReason = !billId
-    ? "Payment is unavailable until the backend creates the bill."
+    ? t("billRequests.paymentCreatedRequired")
     : paymentBlockedReason
       ? paymentBlockedReason
       : billStatus !== "presented" && billStatus !== "payment_pending"
-        ? `Present the bill before recording payment. Current bill: ${humanizeStatus(billStatus)}.`
+        ? t("billRequests.paymentPresentRequired", {
+            status: humanizeStatus(billStatus),
+          })
         : balanceDueMinor <= 0
-          ? "Payment is already settled for this bill."
+          ? t("billRequests.paymentAlreadySettled")
           : !paymentAmountMatchesBalance
-            ? "Enter the exact balance due to record payment."
+            ? t("billRequests.paymentExactBalanceRequired")
             : "";
 
   return (
@@ -195,8 +203,12 @@ export function BillRequestCard({
             <ReceiptText className="size-4 text-primary" aria-hidden="true" />
             <p className="text-sm font-semibold text-foreground">
               {billId
-                ? `Bill ${getBillNumber(billRequest)}`
-                : `Bill request ${shortId(billRequestId)}`}
+                ? t("billRequests.billFallback", {
+                    billNumber: getBillNumber(billRequest),
+                  })
+                : t("billRequests.requestFallback", {
+                    requestId: shortId(billRequestId),
+                  })}
             </p>
           </div>
           <p className="mt-2 text-xs text-muted-foreground">
@@ -210,25 +222,25 @@ export function BillRequestCard({
 
       <dl className="mt-4 grid grid-cols-2 gap-3 text-xs md:grid-cols-4">
         <div>
-          <dt className="text-muted-foreground">Subtotal</dt>
+          <dt className="text-muted-foreground">{t("billRequests.subtotal")}</dt>
           <dd className="mt-1 font-semibold text-foreground">
             {formatMoney(subtotalMinor, currency)}
           </dd>
         </div>
         <div>
-          <dt className="text-muted-foreground">Total</dt>
+          <dt className="text-muted-foreground">{t("billRequests.total")}</dt>
           <dd className="mt-1 font-semibold text-foreground">
             {formatMoney(totalMinor, currency)}
           </dd>
         </div>
         <div>
-          <dt className="text-muted-foreground">Paid</dt>
+          <dt className="text-muted-foreground">{t("billRequests.paid")}</dt>
           <dd className="mt-1 font-semibold text-foreground">
             {formatMoney(paidMinor, currency)}
           </dd>
         </div>
         <div>
-          <dt className="text-muted-foreground">Balance</dt>
+          <dt className="text-muted-foreground">{t("billRequests.balance")}</dt>
           <dd className="mt-1 font-semibold text-foreground">
             {formatMoney(balanceDueMinor, currency)}
           </dd>
@@ -236,14 +248,16 @@ export function BillRequestCard({
       </dl>
 
       <p className="mt-4 text-xs text-muted-foreground">
-        Requested {formatDateTime(getBillRequestCreatedAt(billRequest))} ·{" "}
-        {orderCount} order{orderCount === 1 ? "" : "s"}
+        {t(orderCount === 1 ? "billRequests.requestedAtOne" : "billRequests.requestedAt", {
+          date: formatDateTime(getBillRequestCreatedAt(billRequest)),
+          count: orderCount,
+        })}
       </p>
 
       {lines.length > 0 ? (
         <div className="mt-4 rounded-card border bg-background/40 p-3">
           <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-            Bill lines
+            {t("billRequests.billLines")}
           </p>
           <div className="mt-3 grid gap-2">
             {lines.map((line, index) => (
@@ -254,15 +268,20 @@ export function BillRequestCard({
                 <div>
                   <p className="font-medium text-foreground">
                     {getRecordNumber(line, "quantity", 1)} x{" "}
-                    {getRecordString(line, "itemNameSnapshot", "Menu item")}
+                    {getRecordString(
+                      line,
+                      "itemNameSnapshot",
+                      t("billRequests.menuItemFallback"),
+                    )}
                   </p>
                   {getRecordNumber(line, "modifiersTotalMinor") > 0 ? (
                     <p className="mt-1 text-xs text-muted-foreground">
-                      Includes modifiers{" "}
-                      {formatMoney(
-                        getRecordNumber(line, "modifiersTotalMinor"),
-                        getRecordString(line, "currency", currency),
-                      )}
+                      {t("billRequests.includesModifiers", {
+                        price: formatMoney(
+                          getRecordNumber(line, "modifiersTotalMinor"),
+                          getRecordString(line, "currency", currency),
+                        ),
+                      })}
                     </p>
                   ) : null}
                 </div>
@@ -280,33 +299,46 @@ export function BillRequestCard({
 
       {receipt ? (
         <div className="mt-4 rounded-card border border-success bg-success/10 p-3 text-sm text-success">
-          Receipt {getRecordString(receipt, "receiptNumber", "generated")} is
-          ready.{" "}
+          {t("billRequests.receiptReady", {
+            receiptNumber: getRecordString(
+              receipt,
+              "receiptNumber",
+              t("billRequests.receiptGeneratedFallback"),
+            ),
+          })}{" "}
           {succeededOnlinePaymentCount > 0
-            ? "Online payment has been confirmed."
-            : "Manual payment has been recorded by the cashier."}
+            ? t("billRequests.onlinePaymentConfirmed")
+            : t("billRequests.manualPaymentRecordedByCashier")}
         </div>
       ) : null}
 
       {manualPayments.length > 0 ? (
         <div className="mt-3 text-xs text-muted-foreground">
-          {manualPayments.length} manual payment
-          {manualPayments.length === 1 ? "" : "s"} recorded.
+          {t(
+            manualPayments.length === 1
+              ? "billRequests.manualPaymentsRecordedOne"
+              : "billRequests.manualPaymentsRecorded",
+            { count: manualPayments.length },
+          )}
         </div>
       ) : null}
 
       {onlinePaymentIntents.length > 0 ? (
         <div className="mt-3 rounded-card border bg-background/40 p-3 text-xs text-muted-foreground">
-          <p className="font-semibold text-foreground">Online payments</p>
+          <p className="font-semibold text-foreground">
+            {t("billRequests.onlinePayments")}
+          </p>
           <div className="mt-2 grid gap-1">
             {onlinePaymentIntents.slice(-3).map((payment, index) => (
               <p key={getRecordString(payment, "id", `online-${index}`)}>
-                {humanizeStatus(getRecordString(payment, "status"))} via{" "}
-                {getRecordString(payment, "provider", "mock")} ·{" "}
-                {formatMoney(
-                  getRecordNumber(payment, "amountMinor"),
-                  getRecordString(payment, "currency", currency),
-                )}
+                {t("billRequests.onlinePaymentRow", {
+                  status: humanizeStatus(getRecordString(payment, "status")),
+                  provider: getRecordString(payment, "provider", "mock"),
+                  price: formatMoney(
+                    getRecordNumber(payment, "amountMinor"),
+                    getRecordString(payment, "currency", currency),
+                  ),
+                })}
               </p>
             ))}
           </div>
@@ -321,7 +353,7 @@ export function BillRequestCard({
           onClick={() => onAcknowledge(billRequestId)}
         >
           <CheckCircle2 className="size-4" aria-hidden="true" />
-          Acknowledge
+          {t("actions.acknowledge")}
         </Button>
         <Button
           size="sm"
@@ -330,7 +362,7 @@ export function BillRequestCard({
           onClick={() => onPresent(billRequestId)}
         >
           <HandCoins className="size-4" aria-hidden="true" />
-          Present
+          {t("actions.present")}
         </Button>
       </div>
       {acknowledgeDisabledReason || presentDisabledReason ? (
@@ -368,7 +400,7 @@ export function BillRequestCard({
         >
           <div className="flex flex-wrap items-center justify-between gap-2">
             <p className="text-sm font-semibold text-foreground">
-              Manual payment
+              {t("billRequests.manualPayment")}
             </p>
             <Badge
               variant={
@@ -384,7 +416,7 @@ export function BillRequestCard({
           </div>
           <div className="grid gap-3 md:grid-cols-3">
             <label className="grid gap-1 text-xs font-medium text-muted-foreground">
-              Method
+              {t("billRequests.method")}
               <select
                 value={paymentMethod}
                 onChange={(event) =>
@@ -396,13 +428,13 @@ export function BillRequestCard({
               >
                 {paymentMethods.map((method) => (
                   <option key={method.value} value={method.value}>
-                    {method.label}
+                    {t(method.labelKey)}
                   </option>
                 ))}
               </select>
             </label>
             <label className="grid gap-1 text-xs font-medium text-muted-foreground">
-              Amount
+              {t("billRequests.amount")}
               <Input
                 inputMode="decimal"
                 value={paymentAmount}
@@ -411,25 +443,25 @@ export function BillRequestCard({
               />
             </label>
             <label className="grid gap-1 text-xs font-medium text-muted-foreground">
-              Reference
+              {t("billRequests.reference")}
               <Input
                 value={reference}
                 onChange={(event) => setReference(event.target.value)}
-                placeholder="Optional"
+                placeholder={t("billRequests.optional")}
               />
             </label>
           </div>
           <label className="grid gap-1 text-xs font-medium text-muted-foreground">
-            Note
+            {t("billRequests.note")}
             <Input
               value={note}
               onChange={(event) => setNote(event.target.value)}
-              placeholder="Optional cashier note"
+              placeholder={t("billRequests.optionalCashierNote")}
             />
           </label>
           {!paymentAmountMatchesBalance ? (
             <div className="rounded-card border border-warning bg-warning/10 p-3 text-xs text-warning">
-              Manual payment must exactly match the balance due for this phase.
+              {t("billRequests.exactBalanceWarning")}
             </div>
           ) : null}
           {paymentError && isPaymentPending ? (
@@ -450,7 +482,7 @@ export function BillRequestCard({
             }
           >
             <CreditCard className="size-4" aria-hidden="true" />
-            Record payment
+            {t("actions.recordPayment")}
           </Button>
         </form>
       ) : null}

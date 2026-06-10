@@ -39,6 +39,7 @@ import {
   shortId
 } from "@/features/staff/staff-format";
 import type { PreparationTaskDetailResult } from "@/lib/api/types";
+import { useTranslations } from "@/lib/i18n/i18n-provider";
 import { KitchenActionBar } from "./kitchen-action-bar";
 import { KitchenTaskStatusPill } from "./kitchen-task-status-pill";
 
@@ -65,6 +66,7 @@ export function KitchenTaskDetailPanel({
   onReady,
   onCancel
 }: KitchenTaskDetailPanelProps) {
+  const t = useTranslations("staff");
   const [cancelReason, setCancelReason] = useState("");
   const status = task ? getTaskStatus(task) : undefined;
   const orderStatus = task ? getTaskOrderStatus(task) : undefined;
@@ -86,11 +88,8 @@ export function KitchenTaskDetailPanel({
       <CardHeader>
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
-            <CardTitle>Task detail</CardTitle>
-            <CardDescription>
-              Inspect item, order, table, modifiers, and timeline before
-              changing preparation state.
-            </CardDescription>
+            <CardTitle>{t("tasks.detailTitle")}</CardTitle>
+            <CardDescription>{t("tasks.detailDescription")}</CardDescription>
           </div>
           {status ? <KitchenTaskStatusPill status={status} /> : null}
         </div>
@@ -98,14 +97,14 @@ export function KitchenTaskDetailPanel({
       <CardContent className="grid gap-4">
         {!task && !isLoading && !error ? (
           <EmptyState
-            title="Select a preparation task"
-            description="Choose a task from the board to start, mark ready, or cancel it."
+            title={t("tasks.selectTitle")}
+            description={t("tasks.selectDescription")}
           />
         ) : null}
-        {isLoading ? <LoadingState label="Loading task detail" /> : null}
+        {isLoading ? <LoadingState label={t("tasks.loadingDetail")} /> : null}
         {error ? (
           <EmptyState
-            title="Task detail could not load"
+            title={t("tasks.detailLoadError")}
             description={error.message}
           />
         ) : null}
@@ -121,12 +120,12 @@ export function KitchenTaskDetailPanel({
                     {getTableLabel(getTaskTable(task), getTaskFloor(task))}
                   </p>
                 </div>
-                <div className="text-right">
+                <div className="text-end">
                   <p className="text-sm font-semibold text-foreground">
                     {humanizeStatus(getTaskStation(task))}
                   </p>
                   <p className="mt-1 text-xs text-muted-foreground">
-                    Qty {getTaskQuantity(task)}
+                    {t("tasks.qty", { count: getTaskQuantity(task) })}
                   </p>
                 </div>
               </div>
@@ -134,15 +133,25 @@ export function KitchenTaskDetailPanel({
                 <span className="inline-flex items-center gap-1.5">
                   <Hash className="size-3.5" aria-hidden="true" />
                   {getTaskOrderNumber(task) ||
-                    `Task ${shortId(getTaskId(task))}`}
+                    t("tasks.taskFallback", {
+                      taskId: shortId(getTaskId(task)),
+                    })}
                 </span>
                 <span className="inline-flex items-center gap-1.5">
                   <Clock3 className="size-3.5" aria-hidden="true" />
-                  Created {formatDateTime(getTaskCreatedAt(task))}
+                  {t("tasks.createdAt", {
+                    date: formatDateTime(getTaskCreatedAt(task)),
+                  })}
                 </span>
-                <span>Order {humanizeStatus(getTaskOrderStatus(task))}</span>
                 <span>
-                  Submitted {formatDateTime(getTaskOrderSubmittedAt(task))}
+                  {t("tasks.orderStatus", {
+                    status: humanizeStatus(getTaskOrderStatus(task)),
+                  })}
+                </span>
+                <span>
+                  {t("tasks.submittedAt", {
+                    date: formatDateTime(getTaskOrderSubmittedAt(task)),
+                  })}
                 </span>
               </div>
               {getTaskNotes(task) ? (
@@ -155,11 +164,11 @@ export function KitchenTaskDetailPanel({
             <section className="grid gap-3">
               <h3 className="flex items-center gap-2 text-sm font-semibold text-foreground">
                 <ListChecks className="size-4 text-primary" aria-hidden="true" />
-                Modifiers
+                {t("tasks.modifiers")}
               </h3>
               {modifiers.length === 0 ? (
                 <p className="rounded-card border border-dashed bg-surface/70 p-4 text-sm text-muted-foreground">
-                  No modifier options were returned for this item.
+                  {t("tasks.emptyModifiers")}
                 </p>
               ) : null}
               {modifiers.map((modifier, index) => (
@@ -172,14 +181,14 @@ export function KitchenTaskDetailPanel({
                       {getRecordString(
                         modifier,
                         "modifierOptionNameSnapshot",
-                        "Modifier"
+                        t("tasks.modifierFallback")
                       )}
                     </p>
                     <p className="mt-1 text-xs text-muted-foreground">
                       {getRecordString(
                         modifier,
                         "modifierGroupNameSnapshot",
-                        "Group"
+                        t("tasks.groupFallback")
                       )}
                     </p>
                   </div>
@@ -208,7 +217,7 @@ export function KitchenTaskDetailPanel({
 
             <section className="grid gap-3">
               <h3 className="text-sm font-semibold text-foreground">
-                Timeline
+                {t("tasks.timeline")}
               </h3>
               <div className="grid gap-2 text-xs text-muted-foreground sm:grid-cols-2">
                 <span>Started {formatDateTime(getTaskStartedAt(task))}</span>
@@ -219,7 +228,7 @@ export function KitchenTaskDetailPanel({
               </div>
               {events.length === 0 ? (
                 <p className="rounded-card border border-dashed bg-surface/70 p-4 text-sm text-muted-foreground">
-                  No preparation events were returned yet.
+                  {t("tasks.emptyEvents")}
                 </p>
               ) : null}
               {events.map((event, index) => (

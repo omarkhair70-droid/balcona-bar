@@ -68,6 +68,7 @@ import {
 } from "@/lib/api/endpoints";
 import { formatErrorMessage } from "@/lib/api/error-message";
 import { customerQueryKeys, staffQueryKeys } from "@/lib/api/query-keys";
+import { useTranslations } from "@/lib/i18n/i18n-provider";
 import type {
   BranchBillRequestStatusFilter,
   CashierShiftReportSnapshot,
@@ -333,6 +334,7 @@ function CashierShiftPanel({
   onClose: (payload: CloseCashierShiftPayload) => void;
   onClearReport: () => void;
 }) {
+  const t = useTranslations("staff");
   const shift = data?.shift ?? null;
   const summary = data?.summary ?? null;
   const [openingFloat, setOpeningFloat] = useState("0.00");
@@ -383,7 +385,7 @@ function CashierShiftPanel({
           </div>
           <CardTitle className="mt-3">Cashier shift</CardTitle>
           <CardDescription>
-            Manual payments require an open cashier shift for this branch.
+            {t("cashier.shiftManualPaymentsRequireOpen")}
           </CardDescription>
         </div>
         {shift ? (
@@ -622,6 +624,7 @@ function CashierShiftPanel({
 }
 
 function CashierDashboardActions() {
+  const t = useTranslations("staff");
   const router = useRouter();
   const accessToken = useStaffAuthStore((state) => state.accessToken);
   const effectiveAccess = useStaffAuthStore((state) => state.effectiveAccess);
@@ -643,7 +646,7 @@ function CashierDashboardActions() {
     return (
       <Link href="/staff/login" className={buttonVariants()}>
         <LogIn className="size-4" aria-hidden="true" />
-        Staff login
+        {t("actions.staffLogin")}
       </Link>
     );
   }
@@ -661,13 +664,14 @@ function CashierDashboardActions() {
         disabled={logoutMutation.isPending}
       >
         <LogOut className="size-4" aria-hidden="true" />
-        Logout
+        {t("actions.logout")}
       </Button>
     </>
   );
 }
 
 function CashierDashboardContent() {
+  const t = useTranslations("staff");
   const queryClient = useQueryClient();
   const accessToken = useStaffAuthStore((state) => state.accessToken);
   const staffUser = useStaffAuthStore((state) => state.staffUser);
@@ -761,12 +765,12 @@ function CashierDashboardContent() {
   );
   const currentShift = currentShiftQuery.data?.shift ?? null;
   const paymentBlockedReason = currentShiftQuery.isPending
-    ? "Checking cashier shift before recording payment."
+    ? t("cashier.paymentBlockedChecking")
     : currentShiftQuery.isError
-      ? "Cashier shift could not be loaded. Refresh the branch before recording payment."
+      ? t("cashier.paymentBlockedLoadFailed")
       : currentShift
         ? undefined
-        : "Open a cashier shift before recording payment.";
+        : t("cashier.paymentBlockedShiftRequired");
   const selectedOrderStillVisible = useMemo(
     () => orders.some((order) => getOrderId(order) === userSelectedOrderId),
     [orders, userSelectedOrderId],
@@ -850,8 +854,11 @@ function CashierDashboardContent() {
     refreshOrderActionState(orderId);
     setNotice({
       tone: "error",
-      message: `Order could not be ${action}. ${formatErrorMessage(error)}`,
-      actionLabel: "Refresh now",
+      message: t("errors.orderActionFailed", {
+        action,
+        message: formatErrorMessage(error),
+      }),
+      actionLabel: t("actions.refreshNow"),
       onAction: refreshBranch,
       debug: {
         action:
@@ -962,7 +969,7 @@ function CashierDashboardContent() {
   const acceptMutation = useMutation({
     mutationFn: (orderId: string) => acceptOrder(orderId, {}, accessToken),
     onSuccess: (result, orderId) => {
-      showOrderActionSuccess("Order accepted.", orderId, result);
+      showOrderActionSuccess(t("orders.orderAccepted"), orderId, result);
     },
     onError: (error: Error, orderId) => {
       showOrderActionError("accepted", error, orderId);
@@ -977,7 +984,7 @@ function CashierDashboardContent() {
       reason?: string | null;
     }) => rejectOrder(orderId, { reason }, accessToken),
     onSuccess: (result, variables) => {
-      showOrderActionSuccess("Order rejected.", variables.orderId, result);
+      showOrderActionSuccess(t("orders.orderRejected"), variables.orderId, result);
     },
     onError: (error: Error, variables) => {
       showOrderActionError("rejected", error, variables.orderId);
@@ -986,7 +993,7 @@ function CashierDashboardContent() {
   const completeOrderMutation = useMutation({
     mutationFn: (orderId: string) => completeOrder(orderId, {}, accessToken),
     onSuccess: (result, orderId) => {
-      showOrderActionSuccess("Order completed.", orderId, result);
+      showOrderActionSuccess(t("orders.orderCompleted"), orderId, result);
     },
     onError: (error: Error, orderId) => {
       showOrderActionError("completed", error, orderId);
@@ -996,7 +1003,7 @@ function CashierDashboardContent() {
     mutationFn: ({ orderId, reason }: { orderId: string; reason: string }) =>
       cancelOrder(orderId, { reason }, accessToken),
     onSuccess: (result, variables) => {
-      showOrderActionSuccess("Order cancelled.", variables.orderId, result);
+      showOrderActionSuccess(t("orders.orderCancelled"), variables.orderId, result);
     },
     onError: (error: Error, variables) => {
       showOrderActionError("cancelled", error, variables.orderId);
@@ -1019,7 +1026,9 @@ function CashierDashboardContent() {
     onSuccess: (_, variables) => {
       setNotice({
         tone: "success",
-        message: `Bill request ${humanizeStatus(variables.action)} complete.`,
+        message: t("billRequests.requestActionComplete", {
+          action: humanizeStatus(variables.action),
+        }),
       });
       void queryClient.invalidateQueries({
         queryKey: staffQueryKeys.branchBillRequests(selectedBranchId),
@@ -1037,7 +1046,9 @@ function CashierDashboardContent() {
     onError: (error: Error) => {
       setNotice({
         tone: "error",
-        message: `Bill request action failed. ${formatErrorMessage(error)}`,
+        message: t("billRequests.requestActionFailed", {
+          message: formatErrorMessage(error),
+        }),
         debug: {
           action: "bill_request_action",
           flow: "staff_cashier",
@@ -1052,7 +1063,7 @@ function CashierDashboardContent() {
     onSuccess: (_, variables) => {
       setNotice({
         tone: "success",
-        message: "Manual payment recorded and receipt generated.",
+        message: t("billRequests.manualPaymentRecorded"),
       });
       void queryClient.invalidateQueries({
         queryKey: staffQueryKeys.branchBillRequests(selectedBranchId),
@@ -1077,7 +1088,9 @@ function CashierDashboardContent() {
     onError: (error: Error) => {
       setNotice({
         tone: "error",
-        message: `Manual payment could not be recorded. ${formatErrorMessage(error)}`,
+        message: t("billRequests.manualPaymentError", {
+          message: formatErrorMessage(error),
+        }),
         debug: {
           action: "manual_payment_record",
           flow: "staff_cashier",
@@ -1095,8 +1108,8 @@ function CashierDashboardContent() {
   if (!selectedBranchId || !selectedBranch) {
     return (
       <EmptyState
-        title="No accessible branch"
-        description="This staff account does not expose a branch for cashier operations yet."
+        title={t("cashier.emptyBranchTitle")}
+        description={t("cashier.emptyBranchDescription")}
       />
     );
   }
@@ -1105,50 +1118,54 @@ function CashierDashboardContent() {
     <div className="grid gap-5">
       <section className="grid gap-4 md:grid-cols-5">
         <MetricCard
-          label="Submitted"
+          label={t("cashier.submittedLabel")}
           value={String(
             countOrdersByStatus(allOrders, (status) => status === "submitted"),
           )}
-          description="Needs cashier decision"
+          description={t("cashier.submittedDescription")}
           icon={<Receipt className="size-4" aria-hidden="true" />}
           tone="warning"
         />
         <MetricCard
-          label="In service"
+          label={t("cashier.inServiceLabel")}
           value={String(
             countOrdersByStatus(allOrders, (status) =>
               activeOrderStatuses.has(status),
             ),
           )}
-          description="Accepted, preparing, or ready"
+          description={t("cashier.inServiceDescription")}
           icon={<CheckCircle2 className="size-4" aria-hidden="true" />}
           tone="success"
         />
         <MetricCard
-          label="Bill requests"
+          label={t("cashier.billRequestsLabel")}
           value={String(
             countBillsByStatus(activeBillRequests, (status) =>
               activeBillStatuses.has(status),
             ),
           )}
-          description="Open cashier bill flow"
+          description={t("cashier.billRequestsDescription")}
           icon={<BellRing className="size-4" aria-hidden="true" />}
           tone="primary"
         />
         <MetricCard
-          label="Rejected"
+          label={t("cashier.rejectedLabel")}
           value={String(
             countOrdersByStatus(allOrders, (status) =>
               terminalOrderStatuses.has(status),
             ),
           )}
-          description="Rejected or cancelled"
+          description={t("cashier.rejectedDescription")}
           icon={<XCircle className="size-4" aria-hidden="true" />}
           tone="muted"
         />
         <MetricCard
-          label="Realtime"
-          value={realtime.state === "connected" ? "Live" : "Watch"}
+          label={t("realtime.metricLabel")}
+          value={
+            realtime.state === "connected"
+              ? t("cashier.realtimeValueLive")
+              : t("cashier.realtimeValueWatch")
+          }
           description={humanizeStatus(realtime.state)}
           icon={<RefreshCw className="size-4" aria-hidden="true" />}
           tone={realtime.state === "connected" ? "success" : "warning"}
@@ -1159,7 +1176,7 @@ function CashierDashboardContent() {
         <CardHeader className="gap-4 md:flex md:flex-row md:items-start md:justify-between md:space-y-0">
           <div>
             <div className="flex flex-wrap items-center gap-2">
-              <Badge variant="muted">Cashier</Badge>
+              <Badge variant="muted">{t("cashier.badge")}</Badge>
               <StaffRealtimeStatus
                 state={realtime.state}
                 lastEventType={realtime.lastEventType}
@@ -1167,13 +1184,17 @@ function CashierDashboardContent() {
             </div>
             <CardTitle className="mt-3">{selectedBranch.name}</CardTitle>
             <CardDescription>
-              {staffUser?.name || staffUser?.email || "Staff user"} is viewing
-              branch orders and active bill requests.
+              {t("cashier.branchDescription", {
+                name:
+                  staffUser?.name ||
+                  staffUser?.email ||
+                  t("cashier.staffUserFallback"),
+              })}
             </CardDescription>
           </div>
           <Button variant="secondary" onClick={refreshBranch}>
             <RefreshCw className="size-4" aria-hidden="true" />
-            Refresh branch
+            {t("actions.refreshBranch")}
           </Button>
         </CardHeader>
       </Card>
@@ -1295,16 +1316,14 @@ function CashierDashboardContent() {
 
         <Card variant="quiet">
           <CardHeader>
-            <CardTitle>Activity</CardTitle>
-            <CardDescription>
-              Latest branch realtime events returned by the API.
-            </CardDescription>
+            <CardTitle>{t("cashier.activityTitle")}</CardTitle>
+            <CardDescription>{t("cashier.activityDescription")}</CardDescription>
           </CardHeader>
           <CardContent className="grid gap-3">
             {realtimeEventsQuery.isError ? (
               <div className="rounded-card border border-warning bg-warning/10 p-3 text-sm text-warning">
                 <AlertTriangle
-                  className="mr-2 inline size-4"
+                  className="me-2 inline size-4"
                   aria-hidden="true"
                 />
                 {formatErrorMessage(realtimeEventsQuery.error)}
@@ -1312,8 +1331,7 @@ function CashierDashboardContent() {
             ) : null}
             {(realtimeEventsQuery.data?.events ?? []).length === 0 ? (
               <p className="rounded-card border border-dashed bg-surface/70 p-4 text-sm text-muted-foreground">
-                Activity will appear here after orders, bills, or service events
-                reach the branch stream.
+                {t("cashier.activityEmpty")}
               </p>
             ) : null}
             {(realtimeEventsQuery.data?.events ?? []).map((event, index) => (
@@ -1343,10 +1361,12 @@ function CashierDashboardContent() {
 }
 
 export function CashierDashboardPage() {
+  const t = useTranslations("staff");
+
   return (
     <StaffPageShell
-      title="Cashier dashboard"
-      description="Live branch order intake, cashier decisions, bill request handling, and branch realtime refresh for staff operations."
+      title={t("cashier.dashboardTitle")}
+      description={t("cashier.dashboardDescription")}
       actions={<CashierDashboardActions />}
     >
       <StaffAuthGate

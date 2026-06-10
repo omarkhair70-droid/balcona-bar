@@ -2,6 +2,7 @@
 
 import { Check, Play, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { useTranslations } from "@/lib/i18n/i18n-provider";
 
 type KitchenActionBarProps = {
   canStart: boolean;
@@ -30,12 +31,14 @@ export function KitchenActionBar({
   onReady,
   onCancel
 }: KitchenActionBarProps) {
+  const t = useTranslations("staff");
+
   return (
     <div className="rounded-card border bg-surface/75 p-4">
       <div className="flex flex-wrap items-center gap-3">
         <Button onClick={onStart} disabled={!canStart || startPending}>
           <Play className="size-4" aria-hidden="true" />
-          {startPending ? "Starting..." : "Start"}
+          {startPending ? t("actions.starting") : t("actions.start")}
         </Button>
         <Button
           variant="secondary"
@@ -43,7 +46,7 @@ export function KitchenActionBar({
           disabled={!canReady || readyPending}
         >
           <Check className="size-4" aria-hidden="true" />
-          {readyPending ? "Marking ready..." : "Mark ready"}
+          {readyPending ? t("actions.markingReady") : t("actions.markReady")}
         </Button>
         <Button
           variant="danger"
@@ -51,21 +54,21 @@ export function KitchenActionBar({
           disabled={!canCancel || cancelPending}
         >
           <X className="size-4" aria-hidden="true" />
-          {cancelPending ? "Cancelling..." : "Cancel"}
+          {cancelPending ? t("actions.cancelling") : t("actions.cancel")}
         </Button>
       </div>
       {!canStart && !canReady && !canCancel ? (
         <p className="mt-3 text-xs text-muted-foreground">
-          Ready and cancelled tasks are locked by the backend workflow.
+          {t("tasks.locked")}
         </p>
       ) : null}
       <label className="mt-4 grid gap-2 text-sm font-medium text-foreground">
-        Cancel reason
+        {t("tasks.cancelReason")}
         <textarea
           value={cancelReason}
           onChange={(event) => onCancelReasonChange(event.target.value)}
           rows={3}
-          placeholder="Optional reason for station handoff"
+          placeholder={t("tasks.cancelReasonPlaceholder")}
           className="w-full resize-none rounded-button border bg-surface px-3 py-2 text-sm text-foreground outline-none transition placeholder:text-muted-foreground focus:border-primary focus:ring-2 focus:ring-primary/35 disabled:cursor-not-allowed disabled:opacity-60"
           disabled={!canCancel || cancelPending}
         />

@@ -15,6 +15,7 @@ import { getAttentionSessionId } from "@/features/staff/attention-data";
 import { humanizeStatus } from "@/features/staff/staff-format";
 import { cn } from "@/lib/utils/cn";
 import type { TableAttentionPriority, TableAttentionStatus } from "@/lib/api/types";
+import { useTranslations } from "@/lib/i18n/i18n-provider";
 import { AttentionCard } from "./attention-card";
 
 export type AttentionStatusFilter = "active" | TableAttentionStatus;
@@ -87,18 +88,18 @@ export function AttentionQueue({
   onSelectAttention,
   onRefresh
 }: AttentionQueueProps) {
+  const t = useTranslations("staff");
+
   return (
     <Card variant="glass" padding="lg" className="min-h-[34rem]">
       <CardHeader className="gap-4 sm:flex sm:flex-row sm:items-start sm:justify-between sm:space-y-0">
         <div>
-          <CardTitle>Attention queue</CardTitle>
-          <CardDescription>
-            Autopilot table signals for service recovery and floor follow-up.
-          </CardDescription>
+          <CardTitle>{t("attention.queueTitle")}</CardTitle>
+          <CardDescription>{t("attention.queueDescription")}</CardDescription>
         </div>
         <Button variant="secondary" size="sm" onClick={onRefresh}>
           <RefreshCw className="size-4" aria-hidden="true" />
-          Refresh
+          {t("actions.refresh")}
         </Button>
       </CardHeader>
       <CardContent>
@@ -108,7 +109,11 @@ export function AttentionQueue({
               <FilterButton
                 key={option}
                 active={status === option}
-                label={option === "active" ? "Active" : humanizeStatus(option)}
+                label={
+                  option === "active"
+                    ? t("attention.active")
+                    : humanizeStatus(option)
+                }
                 onClick={() => onStatusChange(option)}
               />
             ))}
@@ -125,17 +130,17 @@ export function AttentionQueue({
           </div>
         </div>
 
-        {isLoading ? <LoadingState label="Loading table attention" /> : null}
+        {isLoading ? <LoadingState label={t("attention.loading")} /> : null}
         {error ? (
           <EmptyState
-            title="Attention queue could not load"
+            title={t("attention.loadError")}
             description={error.message}
           />
         ) : null}
         {!isLoading && !error && attentionQueue.length === 0 ? (
           <EmptyState
-            title="No tables need attention"
-            description="Active waiter calls, bill requests, ready orders, delays, and AI escalations will appear here when the backend flags them."
+            title={t("attention.emptyTitle")}
+            description={t("attention.emptyDescription")}
           />
         ) : null}
         {!isLoading && !error && attentionQueue.length > 0 ? (

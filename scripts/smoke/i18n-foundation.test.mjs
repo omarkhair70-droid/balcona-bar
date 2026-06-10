@@ -112,6 +112,34 @@ describe("i18n Crowdin foundation", () => {
     }
   });
 
+  it("includes the staff workflow namespaces required for Crowdin", async () => {
+    const enMessages = await readJson("../../apps/web/messages/en.json");
+    const staff = enMessages.staff;
+
+    for (const namespace of [
+      "access",
+      "actions",
+      "attention",
+      "auth",
+      "barista",
+      "billRequests",
+      "cashier",
+      "errors",
+      "kitchen",
+      "navigation",
+      "orders",
+      "overview",
+      "realtime",
+      "selectors",
+      "shell",
+      "tasks",
+      "tickets",
+      "waiter"
+    ]) {
+      assert.ok(staff[namespace], `missing staff.${namespace}`);
+    }
+  });
+
   it("keeps extracted customer ordering strings out of targeted source files", async () => {
     const files = [
       "../../apps/web/features/customer/pages/customer-entry-page.tsx",
@@ -146,6 +174,62 @@ describe("i18n Crowdin foundation", () => {
       "Prepared for this table experience.",
       "Cart is ready",
       "Your table timeline will appear"
+    ];
+    const combinedSource = (
+      await Promise.all(files.map((file) => readText(file)))
+    ).join("\n");
+
+    for (const phrase of extractedPhrases) {
+      assert.doesNotMatch(combinedSource, new RegExp(phrase.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
+    }
+  });
+
+  it("keeps extracted staff workflow strings out of targeted source files", async () => {
+    const files = [
+      "../../apps/web/features/staff/staff-shell-frame.tsx",
+      "../../apps/web/features/staff/components/staff-auth-gate.tsx",
+      "../../apps/web/features/staff/components/staff-branch-selector.tsx",
+      "../../apps/web/features/staff/components/staff-realtime-status.tsx",
+      "../../apps/web/features/staff/pages/staff-login-page.tsx",
+      "../../apps/web/features/staff/pages/staff-overview-page.tsx",
+      "../../apps/web/features/staff/pages/cashier-dashboard-page.tsx",
+      "../../apps/web/features/staff/components/cashier-order-queue.tsx",
+      "../../apps/web/features/staff/components/cashier-order-card.tsx",
+      "../../apps/web/features/staff/components/cashier-order-detail-panel.tsx",
+      "../../apps/web/features/staff/components/cashier-action-bar.tsx",
+      "../../apps/web/features/staff/components/bill-request-queue.tsx",
+      "../../apps/web/features/staff/components/bill-request-card.tsx",
+      "../../apps/web/features/staff/pages/kitchen-dashboard-page.tsx",
+      "../../apps/web/features/staff/components/kitchen-task-board.tsx",
+      "../../apps/web/features/staff/components/kitchen-task-card.tsx",
+      "../../apps/web/features/staff/components/kitchen-task-detail-panel.tsx",
+      "../../apps/web/features/staff/components/kitchen-action-bar.tsx",
+      "../../apps/web/features/staff/components/kitchen-station-filter.tsx",
+      "../../apps/web/features/staff/pages/waiter-dashboard-page.tsx",
+      "../../apps/web/features/staff/components/waiter-call-queue.tsx",
+      "../../apps/web/features/staff/components/waiter-call-card.tsx",
+      "../../apps/web/features/staff/components/waiter-call-detail-panel.tsx",
+      "../../apps/web/features/staff/components/attention-queue.tsx",
+      "../../apps/web/features/staff/components/attention-card.tsx",
+      "../../apps/web/features/staff/components/attention-detail-panel.tsx"
+    ];
+    const extractedPhrases = [
+      "Open staff session",
+      "Staff login required",
+      "Incoming orders",
+      "Order detail",
+      "Bill requests",
+      "Manual payment",
+      "Cashier dashboard",
+      "Preparation board",
+      "Task detail",
+      "Kitchen Display System",
+      "Waiter calls",
+      "Call detail",
+      "Attention queue",
+      "Ready orders",
+      "Waiter dashboard",
+      "Staff command surface"
     ];
     const combinedSource = (
       await Promise.all(files.map((file) => readText(file)))

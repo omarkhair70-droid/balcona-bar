@@ -21,6 +21,7 @@ import {
   getTableLabel,
   shortId
 } from "@/features/staff/staff-format";
+import { useTranslations } from "@/lib/i18n/i18n-provider";
 import { cn } from "@/lib/utils/cn";
 import { CashierOrderStatusPill } from "./cashier-order-status-pill";
 
@@ -35,6 +36,7 @@ export function CashierOrderCard({
   selected,
   onSelect
 }: CashierOrderCardProps) {
+  const t = useTranslations("staff");
   const orderId = getOrderId(order);
   const totals = getOrderTotals(order);
   const table = getOrderTable(order);
@@ -50,7 +52,7 @@ export function CashierOrderCard({
       aria-pressed={selected}
       onClick={() => orderId && onSelect(orderId)}
       className={cn(
-        "w-full rounded-card border bg-surface/75 p-4 text-left shadow-card transition hover:border-primary/55 hover:bg-surface",
+        "w-full rounded-card border bg-surface/75 p-4 text-start shadow-card transition hover:border-primary/55 hover:bg-surface",
         selected ? "border-primary/70 bg-primary/10" : "border-border"
       )}
     >
@@ -59,7 +61,10 @@ export function CashierOrderCard({
           <div className="flex flex-wrap items-center gap-2">
             <ReceiptText className="size-4 text-primary" aria-hidden="true" />
             <p className="text-sm font-semibold text-foreground">
-              {getOrderNumber(order) || `Order ${shortId(orderId)}`}
+              {getOrderNumber(order) ||
+                t("orders.orderFallback", {
+                  orderNumber: shortId(orderId)
+                })}
             </p>
           </div>
           <p className="mt-2 text-xs text-muted-foreground">
@@ -71,13 +76,13 @@ export function CashierOrderCard({
 
       <dl className="mt-4 grid grid-cols-2 gap-3 text-xs">
         <div>
-          <dt className="text-muted-foreground">Items</dt>
+          <dt className="text-muted-foreground">{t("orders.items")}</dt>
           <dd className="mt-1 font-semibold text-foreground">
-            {itemCount} items / {quantity} qty
+            {t("orders.itemsQuantity", { count: itemCount, quantity })}
           </dd>
         </div>
         <div>
-          <dt className="text-muted-foreground">Total</dt>
+          <dt className="text-muted-foreground">{t("orders.total")}</dt>
           <dd className="mt-1 font-semibold text-foreground">
             {formatMoney(getMinorTotal(totals), getCurrency(totals))}
           </dd>
