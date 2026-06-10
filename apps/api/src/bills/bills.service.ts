@@ -120,12 +120,38 @@ export class BillsService {
     options: { actorType?: string; metadata?: Record<string, unknown> } = {},
     tx: Prisma.TransactionClient,
   ): Promise<BillRequestBillMutationResult> {
-    return this.createOrGetBillForBillRequestInternal(
-      billRequestId,
-      options,
-      tx,
-      { hydrateResponse: false, recordRealtimeEvents: false },
-    ) as Promise<BillRequestBillMutationResult>;
+    return this.ensureBillForBillRequestCompact(billRequestId, options, tx);
+  }
+
+  async ensureBillForBillRequestCompact(
+    billRequestId: string,
+    options: { actorType?: string; metadata?: Record<string, unknown> } = {},
+    tx?: Prisma.TransactionClient,
+  ): Promise<BillRequestBillMutationResult> {
+    const run = (client: Prisma.TransactionClient) =>
+      this.createOrGetBillForBillRequestInternal(
+        billRequestId,
+        options,
+        client,
+        { hydrateResponse: false, recordRealtimeEvents: false },
+      ) as Promise<BillRequestBillMutationResult>;
+
+    if (tx) {
+      return run(tx);
+    }
+
+    return this.prisma.$transaction(run, {
+      maxWait: 10_000,
+      timeout: 30_000,
+    });
+  }
+
+  async presentExistingBillCompact(
+    billId: string,
+    body: BillActionDto & { billCreated?: boolean; billRequestId?: string },
+    tx: Prisma.TransactionClient,
+  ): Promise<BillRequestBillPresentMutationResult> {
+    return this.presentBillCompact(billId, body, tx);
   }
 
   async findForBranch(branchId: string, query: BranchBillsQueryDto = {}) {
@@ -1247,7 +1273,15 @@ export class BillsService {
   ) {
     await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`bill-number:${branchId}`})::bigint)`;
 
-    let sequence = (await tx.bill.count({ where: { branchId } })) + 1;
+    const latestBill = await tx.bill.findFirst({
+      where: {
+        branchId,
+        billNumber: { startsWith: BILL_NUMBER_PREFIX },
+      },
+      orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+      select: { billNumber: true },
+    });
+    let sequence = this.sequenceFromBillNumber(latestBill?.billNumber) + 1;
 
     while (true) {
       const billNumber = `${BILL_NUMBER_PREFIX}${String(sequence).padStart(
@@ -1270,6 +1304,12 @@ export class BillsService {
 
       sequence += 1;
     }
+  }
+
+  private sequenceFromBillNumber(billNumber: string | null | undefined) {
+    const match = billNumber?.match(/^BILL-(\d+)$/);
+
+    return match ? Number.parseInt(match[1], 10) : 0;
   }
 
   private async generateReceiptNumber(
