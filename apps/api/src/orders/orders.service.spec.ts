@@ -1296,7 +1296,7 @@ describe("OrdersService lifecycle hardening", () => {
     ).toHaveBeenCalledWith(["ticket-1"], "staff-1");
   });
 
-  it("hydrates accept responses without full KDS print job or task event includes", async () => {
+  it("hydrates accept responses without order history, full KDS print job, or task event includes", async () => {
     const { service, prisma } = buildService({
       transitionOrder: { status: OrderStatus.submitted },
       responseOrder: spanishLatteAcceptedOrderResponse(),
@@ -1312,13 +1312,14 @@ describe("OrdersService lifecycle hardening", () => {
         branch: expect.anything(),
         tableSession: expect.anything(),
         items: expect.anything(),
-        events: expect.anything(),
         preparationTasks: expect.anything(),
         kitchenTickets: expect.anything(),
       }),
     });
     const include = prisma.order.findUnique.mock.calls[0][0].include;
 
+    expect(include.events).toBeUndefined();
+    expect(result.events).toEqual([]);
     expect(include.kitchenTickets.include.printJobs).toBeUndefined();
     expect(include.preparationTasks.include).toBeUndefined();
   });

@@ -1,3 +1,4 @@
+import { Logger } from "@nestjs/common";
 import {
   OrderEventType,
   OrderStatus,
@@ -589,6 +590,105 @@ describe("PreparationTasksService lifecycle hardening", () => {
     );
   });
 
+  it("logs safe preparation ready timing diagnostics", async () => {
+    const logSpy = jest.spyOn(Logger.prototype, "log").mockImplementation();
+    const { service } = buildService({
+      taskStatusRecord: taskStatus(
+        PreparationTaskStatus.preparing,
+        OrderStatus.preparing,
+      ),
+      taskEnvelopeRecord: taskEnvelope(
+        PreparationTaskStatus.ready,
+        OrderStatus.ready,
+      ),
+      orderForReadySync: {
+        id: "order-1",
+        status: OrderStatus.preparing,
+        preparationTasks: [
+          { id: "task-1", status: PreparationTaskStatus.ready },
+        ],
+      },
+    });
+
+    await service.markReady("task-1", { staffUserId: "staff-1" });
+
+    const responseLog = logSpy.mock.calls
+      .map(([payload]) => payload)
+      .find(
+        (payload) =>
+          typeof payload === "object" &&
+          payload !== null &&
+          (payload as { message?: string }).message ===
+            "preparation_task.ready.response_ready",
+      ) as { timings?: Record<string, number>; slowStage?: string } | undefined;
+
+    expect(responseLog).toMatchObject({
+      timings: expect.objectContaining({
+        taskLookupMs: expect.any(Number),
+        statusUpdateMs: expect.any(Number),
+        eventCreateMs: expect.any(Number),
+        orderLifecycleMs: expect.any(Number),
+        kdsSyncMs: expect.any(Number),
+        transactionMs: expect.any(Number),
+        responseMappingMs: expect.any(Number),
+      }),
+    });
+    expect(JSON.stringify(logSpy.mock.calls)).not.toContain("token=secret");
+  });
+
+  it("maps preparation ready transaction timeouts with safe stage details", async () => {
+    jest.spyOn(Logger.prototype, "error").mockImplementation();
+    const timeout = Object.assign(
+      new Error("Transaction already closed. Timeout 5000ms. token=secret"),
+      { code: "P2028" },
+    );
+    const { service, kitchenTicketsService } = buildService({
+      taskStatusRecord: taskStatus(
+        PreparationTaskStatus.preparing,
+        OrderStatus.preparing,
+      ),
+      orderForReadySync: {
+        id: "order-1",
+        status: OrderStatus.preparing,
+        preparationTasks: [
+          { id: "task-1", status: PreparationTaskStatus.ready },
+        ],
+      },
+    });
+    kitchenTicketsService.syncTicketsForTaskReady.mockRejectedValueOnce(timeout);
+
+    await expect(
+      service.markReady("task-1", { staffUserId: "staff-1" }),
+    ).rejects.toMatchObject({
+      response: expect.objectContaining({
+        code: "DB_TRANSACTION_TIMEOUT",
+        message: "The operation timed out while saving. Please retry.",
+        details: expect.objectContaining({
+          flow: "preparation_task_ready",
+          action: "ready",
+          taskId: "task-1",
+          orderId: "order-1",
+          branchId: "branch-1",
+          tableSessionId: "session-1",
+          staffUserId: "staff-1",
+          failureStage: "kds_sync",
+          slowStage: expect.any(String),
+          timings: expect.objectContaining({
+            taskLookupMs: expect.any(Number),
+            statusUpdateMs: expect.any(Number),
+            eventCreateMs: expect.any(Number),
+            orderLifecycleMs: expect.any(Number),
+            kdsSyncMs: expect.any(Number),
+          }),
+          exception: expect.objectContaining({
+            code: "P2028",
+            message: expect.stringContaining("token=[redacted]"),
+          }),
+        }),
+      }),
+    });
+  });
+
   it("marking the last active task ready syncs the order to ready", async () => {
     const {
       service,
@@ -648,6 +748,9 @@ describe("PreparationTasksService lifecycle hardening", () => {
     expect(prisma.preparationTask.findUnique).toHaveBeenCalledWith(
       expect.objectContaining({ include: expect.anything() }),
     );
+    expect(
+      prisma.preparationTask.findUnique.mock.calls[0][0].include.events,
+    ).toBeUndefined();
   });
 
   it.each([
