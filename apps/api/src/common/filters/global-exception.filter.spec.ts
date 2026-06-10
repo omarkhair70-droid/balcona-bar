@@ -1,4 +1,9 @@
-import { ArgumentsHost, BadRequestException, Logger } from "@nestjs/common";
+import {
+  ArgumentsHost,
+  BadRequestException,
+  InternalServerErrorException,
+  Logger,
+} from "@nestjs/common";
 import { GlobalExceptionFilter } from "./global-exception.filter";
 
 function createHttpHost({
@@ -254,6 +259,54 @@ describe("GlobalExceptionFilter", () => {
           sanitizedExceptionMessage:
             "Transaction already closed: token=[redacted]",
           prismaCode: "P2028",
+        }),
+      }),
+    );
+    expect(JSON.stringify(response.json.mock.calls[0][0])).not.toContain(
+      "token=secret",
+    );
+  });
+
+  it("preserves safe stage details for wrapped transaction timeout errors", () => {
+    jest.spyOn(Logger.prototype, "error").mockImplementation();
+    const filter = new GlobalExceptionFilter("staging");
+    const { host, response } = createHttpHost({
+      method: "POST",
+      path: "/table-sessions/session-1/bill/request",
+      url: "/table-sessions/session-1/bill/request",
+      requestId: "req-bill-timeout",
+    });
+    const error = new InternalServerErrorException({
+      message: "The operation timed out while saving. Please retry.",
+      code: "DB_TRANSACTION_TIMEOUT",
+      details: {
+        flow: "bill_request",
+        action: "request_bill",
+        sessionId: "session-1",
+        failureStage: "billable_orders_lookup",
+        exception: {
+          name: "PrismaClientKnownRequestError",
+          message: "Transaction already closed: token=[redacted]",
+          code: "P2028",
+        },
+      },
+    });
+
+    filter.catch(error, host);
+
+    expect(response.status).toHaveBeenCalledWith(500);
+    expect(response.json).toHaveBeenCalledWith(
+      expect.objectContaining({
+        error: expect.objectContaining({
+          code: "DB_TRANSACTION_TIMEOUT",
+          requestId: "req-bill-timeout",
+          failureStage: "billable_orders_lookup",
+          details: expect.objectContaining({
+            flow: "bill_request",
+            action: "request_bill",
+            sessionId: "session-1",
+            failureStage: "billable_orders_lookup",
+          }),
         }),
       }),
     );

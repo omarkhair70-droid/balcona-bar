@@ -1003,9 +1003,6 @@ export class SmokeRun {
         this.steps.filter((step) => step.status === status).length
       ])
     );
-    const criticalFailures = this.steps.filter(
-      (step) => step.status === "failed" && step.critical
-    );
     const slowRequestsCount = this.steps.filter((step) =>
       step.notes?.some((note) => String(note).includes("slow_request"))
     ).length;
@@ -1015,7 +1012,7 @@ export class SmokeRun {
       (step) => step.status === "skipped" && !step.critical
     );
     const overallResult =
-      criticalFailures.length > 0
+      counts.failed > 0
         ? "FAIL"
         : warnings > 0 || counts.skipped > 0 || hasOptionalSkips
           ? "PASS_WITH_WARNINGS"

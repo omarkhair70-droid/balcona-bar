@@ -147,6 +147,7 @@ export class GlobalExceptionFilter implements ExceptionFilter {
     return (
       code === "kds_routing_failed" ||
       code === "KDS_ROUTING_FAILED" ||
+      code === "DB_TRANSACTION_TIMEOUT" ||
       code === "item_out_of_stock" ||
       message === "Item is out of stock"
     );

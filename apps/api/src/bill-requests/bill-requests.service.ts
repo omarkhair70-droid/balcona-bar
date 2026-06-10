@@ -1,6 +1,8 @@
 import {
   BadRequestException,
+  HttpException,
   Injectable,
+  InternalServerErrorException,
   Logger,
   NotFoundException,
 } from "@nestjs/common";
@@ -16,7 +18,6 @@ import {
 } from "@prisma/client";
 import { TableAttentionService } from "../autopilot/table-attention.service";
 import {
-  BillRequestBillMutationResult,
   BillRequestBillPresentMutationResult,
   BillsService,
 } from "../bills/bills.service";
@@ -43,11 +44,28 @@ const BILLABLE_ORDER_STATUSES: OrderStatus[] = [
 const DEFAULT_BRANCH_BILL_REQUEST_LIMIT = 50;
 
 type PrismaExecutor = PrismaService | Prisma.TransactionClient;
+type RequestBillFailureStage =
+  | "validation"
+  | "billable_orders_lookup"
+  | "bill_request_create"
+  | "order_events"
+  | "bill_compact_create"
+  | "post_commit"
+  | "response_mapping";
+type RequestBillLogContext = {
+  action: "request_bill";
+  sessionId: string;
+  companyId?: string;
+  branchId?: string;
+  billRequestId?: string;
+  failureStage?: RequestBillFailureStage;
+};
 type RequestBillTransactionResult = {
   billRequestId: string;
-  billId?: string;
-  billCreated?: boolean;
   tableSessionId: string;
+  companyId: string;
+  branchId: string;
+  billableOrderIds: string[];
   shouldRunPostCommitSideEffects: boolean;
 };
 type BillStaffActionPostCommitAction = "acknowledged" | "presented";
@@ -73,111 +91,133 @@ export class BillRequestsService {
   ) {}
 
   async requestBill(sessionId: string, body: RequestBillDto = {}) {
-    const transactionResult = await this.prisma.$transaction(async (tx) => {
-      const tableSession = await this.findTableSessionOrThrow(sessionId, tx);
+    const context: RequestBillLogContext = {
+      action: "request_bill",
+      sessionId,
+    };
+    let stage: RequestBillFailureStage = "validation";
+    let transactionResult: RequestBillTransactionResult;
 
-      this.assertBillRequestableSession(tableSession.status);
+    try {
+      transactionResult = await this.prisma.$transaction(async (tx) => {
+        stage = "validation";
+        const tableSession = await this.findTableSessionOrThrow(sessionId, tx);
 
-      const activeBillRequest = await this.findActiveBillRequest(sessionId, tx);
+        context.companyId = tableSession.companyId;
+        context.branchId = tableSession.branchId;
+        this.assertBillRequestableSession(tableSession.status);
 
-      if (activeBillRequest) {
-        const bill: BillRequestBillMutationResult =
-          await this.billsService.createOrGetBillForBillRequestCompact(
-            activeBillRequest.id,
-            {
-              actorType: "customer",
-              metadata: { source: "active_bill_request" },
-            },
-            tx,
-          );
-
-        return {
-          billRequestId: activeBillRequest.id,
-          billId: bill.billId,
-          billCreated: bill.created,
-          tableSessionId: tableSession.id,
-          shouldRunPostCommitSideEffects: false,
-        } satisfies RequestBillTransactionResult;
-      }
-
-      const billableOrders = await this.findBillableOrders(sessionId, tx);
-      const totals = this.getBillableTotals(billableOrders);
-
-      if (totals.orderCount === 0) {
-        throw new BadRequestException(
-          "Table session has no accepted, preparing, ready, served, or completed orders to bill",
-        );
-      }
-
-      const note = this.normalizeOptionalText(body.note);
-      const billRequest = await tx.billRequest.create({
-        data: {
-          companyId: tableSession.companyId,
-          branchId: tableSession.branchId,
-          tableSessionId: tableSession.id,
-          status: BillRequestStatus.open,
-          currency: totals.currency,
-          subtotalMinor: totals.subtotalMinor,
-          orderCount: totals.orderCount,
-          requestedByActorType: BillRequestActorType.customer,
-          note,
-          events: {
-            create: {
-              type: BillRequestEventType.created,
-              actorType: BillRequestActorType.customer,
-              metadata: {
-                subtotalMinor: totals.subtotalMinor,
-                orderCount: totals.orderCount,
-                currency: totals.currency,
-                ...(note ? { note } : {}),
-              },
-            },
-          },
-        },
-        select: { id: true },
-      });
-
-      for (const order of billableOrders) {
-        await tx.orderEvent.create({
-          data: {
-            orderId: order.id,
-            type: OrderEventType.bill_requested,
-            actorType: OrderEventActorType.customer,
-            metadata: {
-              billRequestId: billRequest.id,
-              tableSessionId: tableSession.id,
-            },
-          },
-        });
-      }
-
-      const bill: BillRequestBillMutationResult =
-        await this.billsService.createOrGetBillForBillRequestCompact(
-          billRequest.id,
-          { actorType: "customer" },
+        const activeBillRequest = await this.findActiveBillRequest(
+          sessionId,
           tx,
         );
 
-      return {
-        billRequestId: billRequest.id,
-        billId: bill.billId,
-        billCreated: bill.created,
-        tableSessionId: tableSession.id,
-        shouldRunPostCommitSideEffects: true,
-      } satisfies RequestBillTransactionResult;
-    });
+        if (activeBillRequest) {
+          context.billRequestId = activeBillRequest.id;
 
-    if (
-      transactionResult.shouldRunPostCommitSideEffects ||
-      transactionResult.billCreated
-    ) {
+          return {
+            billRequestId: activeBillRequest.id,
+            tableSessionId: tableSession.id,
+            companyId: tableSession.companyId,
+            branchId: tableSession.branchId,
+            billableOrderIds: [],
+            shouldRunPostCommitSideEffects: false,
+          } satisfies RequestBillTransactionResult;
+        }
+
+        stage = "billable_orders_lookup";
+        const billableOrders = await this.findBillableOrders(sessionId, tx);
+        const totals = this.getBillableTotals(billableOrders);
+
+        if (totals.orderCount === 0) {
+          throw new BadRequestException(
+            "Table session has no accepted, preparing, ready, served, or completed orders to bill",
+          );
+        }
+
+        const note = this.normalizeOptionalText(body.note);
+        stage = "bill_request_create";
+        const billRequest = await tx.billRequest.create({
+          data: {
+            companyId: tableSession.companyId,
+            branchId: tableSession.branchId,
+            tableSessionId: tableSession.id,
+            status: BillRequestStatus.open,
+            currency: totals.currency,
+            subtotalMinor: totals.subtotalMinor,
+            orderCount: totals.orderCount,
+            requestedByActorType: BillRequestActorType.customer,
+            note,
+            events: {
+              create: {
+                type: BillRequestEventType.created,
+                actorType: BillRequestActorType.customer,
+                metadata: {
+                  subtotalMinor: totals.subtotalMinor,
+                  orderCount: totals.orderCount,
+                  currency: totals.currency,
+                  ...(note ? { note } : {}),
+                },
+              },
+            },
+          },
+          select: { id: true },
+        });
+
+        context.billRequestId = billRequest.id;
+
+        return {
+          billRequestId: billRequest.id,
+          tableSessionId: tableSession.id,
+          companyId: tableSession.companyId,
+          branchId: tableSession.branchId,
+          billableOrderIds: billableOrders.map((order) => order.id),
+          shouldRunPostCommitSideEffects: true,
+        } satisfies RequestBillTransactionResult;
+      });
+    } catch (error) {
+      throw this.toRequestBillError(error, {
+        ...context,
+        failureStage: stage,
+      });
+    }
+
+    if (transactionResult.shouldRunPostCommitSideEffects) {
       this.scheduleBillRequestedPostCommitSideEffects(transactionResult);
     }
 
-    return this.getBillRequestResponse(
-      transactionResult.billRequestId,
-      this.prisma,
-    );
+    try {
+      return await this.getBillRequestResponse(
+        transactionResult.billRequestId,
+        this.prisma,
+      );
+    } catch (error) {
+      throw this.toRequestBillError(error, {
+        ...context,
+        billRequestId: transactionResult.billRequestId,
+        companyId: transactionResult.companyId,
+        branchId: transactionResult.branchId,
+        failureStage: "response_mapping",
+      });
+    }
+  }
+
+  private async createOrderBillRequestedEvents(
+    input: RequestBillTransactionResult,
+  ) {
+    for (const orderId of input.billableOrderIds) {
+      await this.prisma.orderEvent.create({
+        data: {
+          orderId,
+          type: OrderEventType.bill_requested,
+          actorType: OrderEventActorType.customer,
+          metadata: {
+            billRequestId: input.billRequestId,
+            tableSessionId: input.tableSessionId,
+          },
+        },
+      });
+    }
   }
 
   async findForTableSession(sessionId: string) {
@@ -474,6 +514,10 @@ export class BillRequestsService {
       input.shouldRunPostCommitSideEffects
         ? [
             {
+              stage: "order_events",
+              run: () => this.createOrderBillRequestedEvents(input),
+            },
+            {
               stage: "presence_notification",
               run: () =>
                 this.presenceNotificationsService.createBillRequestedNotification(
@@ -504,18 +548,6 @@ export class BillRequestsService {
           ]
         : [];
     const steps: Array<{ stage: string; run: () => Promise<unknown> }> = [
-      ...(input.billCreated && input.billId
-        ? [
-            {
-              stage: "bill_created_realtime",
-              run: () =>
-                this.realtimeEventsService.recordBillCreated(
-                  input.billId as string,
-                  this.prisma,
-                ),
-            },
-          ]
-        : []),
       ...billRequestedSteps,
     ];
 
@@ -533,6 +565,51 @@ export class BillRequestsService {
         });
       }
     }
+  }
+
+  private toRequestBillError(
+    error: unknown,
+    context: RequestBillLogContext,
+  ) {
+    const statusCode =
+      error instanceof HttpException ? error.getStatus() : undefined;
+    const exception = this.safeExceptionSummary(error);
+    const payload = {
+      message: "Bill request failed",
+      ...context,
+      statusCode,
+      exception,
+    };
+
+    if (error instanceof HttpException && statusCode && statusCode < 500) {
+      this.logger.warn(payload);
+
+      return error;
+    }
+
+    this.logger.error(payload);
+
+    if (
+      exception.code === "P2028" ||
+      exception.message?.includes("Transaction already closed")
+    ) {
+      return new InternalServerErrorException({
+        message: "The operation timed out while saving. Please retry.",
+        code: "DB_TRANSACTION_TIMEOUT",
+        details: {
+          flow: "bill_request",
+          action: context.action,
+          sessionId: context.sessionId,
+          companyId: context.companyId,
+          branchId: context.branchId,
+          billRequestId: context.billRequestId,
+          failureStage: context.failureStage,
+          exception,
+        },
+      });
+    }
+
+    return error;
   }
 
   private scheduleBillStaffActionPostCommitSideEffects(
