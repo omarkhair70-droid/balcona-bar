@@ -1,5 +1,8 @@
+"use client";
+
 import Link from "next/link";
 import { type ReactNode } from "react";
+import { LanguageSwitcher } from "@/components/i18n/language-switcher";
 import { Badge } from "./badge";
 import type { AppShellNavItem } from "./app-shell";
 import { cn } from "@/lib/utils/cn";
@@ -8,6 +11,7 @@ type DashboardShellProps = {
   productLabel: string;
   title: string;
   description: string;
+  productSubtitle?: string;
   eyebrow?: string;
   navItems?: AppShellNavItem[];
   actions?: ReactNode;
@@ -20,6 +24,7 @@ export function DashboardShell({
   productLabel,
   title,
   description,
+  productSubtitle = "Smart cafe OS",
   eyebrow,
   navItems = [],
   actions,
@@ -43,7 +48,7 @@ export function DashboardShell({
             <p className="text-sm font-semibold text-foreground">
               {productLabel}
             </p>
-            <p className="text-xs text-muted-foreground">Smart cafe OS</p>
+            <p className="text-xs text-muted-foreground">{productSubtitle}</p>
           </div>
         </div>
         {navItems.length > 0 ? (
@@ -79,9 +84,10 @@ export function DashboardShell({
                 {description}
               </p>
             </div>
-            {actions ? (
-              <div className="flex flex-wrap items-center gap-3">{actions}</div>
-            ) : null}
+            <div className="flex flex-wrap items-center gap-3">
+              {actions}
+              <LanguageSwitcher />
+            </div>
           </div>
 
           {navItems.length > 0 ? (

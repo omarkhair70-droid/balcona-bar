@@ -1,4 +1,5 @@
 import { getDebugBreadcrumbs, type DebugBreadcrumb } from "./breadcrumbs";
+import { getClientLocaleSnapshot } from "@/lib/i18n/config";
 import { getWebDebugMetadata, type WebDebugMetadata } from "./metadata";
 
 const SENSITIVE_KEY_PATTERN =
@@ -182,9 +183,7 @@ export function buildDebugReport(input: DebugReportInput = {}): DebugReport {
     route,
     environment: getWebDebugMetadata().environment,
     build: getWebDebugMetadata(),
-    locale:
-      input.locale ??
-      (typeof navigator !== "undefined" ? navigator.language : undefined),
+    locale: input.locale ?? getClientLocaleSnapshot(),
     userAgent:
       typeof navigator !== "undefined" ? navigator.userAgent : undefined,
     viewport:

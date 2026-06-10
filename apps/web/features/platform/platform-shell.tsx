@@ -4,6 +4,7 @@ import { Building2, KeyRound, ShieldCheck } from "lucide-react";
 import { type ReactNode } from "react";
 import { DashboardShell } from "@/components/ui/dashboard-shell";
 import { MetricCard } from "@/components/ui/metric-card";
+import { useTranslations } from "@/lib/i18n/i18n-provider";
 import { usePlatformAuthStore } from "@/lib/platform/platform-auth-store";
 import { getPlatformNavItems } from "./platform-navigation";
 
@@ -22,13 +23,15 @@ export function PlatformShell({
   supporting,
   children
 }: PlatformShellProps) {
+  const t = useTranslations("platform");
   const accessToken = usePlatformAuthStore((state) => state.accessToken);
   const navItems = getPlatformNavItems(Boolean(accessToken));
 
   return (
     <DashboardShell
-      productLabel="Balcona Platform"
-      eyebrow="Internal onboarding"
+      productLabel={t("productLabel")}
+      productSubtitle={t("platformConsole")}
+      eyebrow={t("internalOnboarding")}
       title={title}
       description={description}
       navItems={navItems}

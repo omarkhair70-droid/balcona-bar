@@ -19,9 +19,7 @@ export function EmptyState({
   debug,
   className
 }: EmptyStateProps) {
-  const debugAction = debug ? (
-    <CopyDebugReportButton {...debug} label="Copy debug report" />
-  ) : null;
+  const debugAction = debug ? <CopyDebugReportButton {...debug} /> : null;
 
   return (
     <section

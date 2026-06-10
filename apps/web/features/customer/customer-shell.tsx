@@ -1,9 +1,13 @@
+"use client";
+
 import Link from "next/link";
 import { type ReactNode } from "react";
 import { BellRing, Coffee, ConciergeBell, QrCode, Sparkles } from "lucide-react";
+import { LanguageSwitcher } from "@/components/i18n/language-switcher";
 import { Badge } from "@/components/ui/badge";
 import { buttonVariants } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { useTranslations } from "@/lib/i18n/i18n-provider";
 import { cn } from "@/lib/utils/cn";
 
 type CustomerShellProps = {
@@ -41,6 +45,8 @@ export function CustomerShell({
   children,
   className
 }: CustomerShellProps) {
+  const t = useTranslations("customer");
+
   return (
     <main
       className={cn(
@@ -58,11 +64,14 @@ export function CustomerShell({
               Balkona
             </span>
             <span className="block text-xs text-muted-foreground">
-              Smart table
+              {t("smartTable")}
             </span>
           </span>
         </Link>
-        <Badge variant="muted">Preview service</Badge>
+        <div className="flex items-center gap-2">
+          <Badge variant="muted">{t("previewService")}</Badge>
+          <LanguageSwitcher />
+        </div>
       </header>
 
       <section className="grid flex-1 items-center gap-6 py-8 lg:grid-cols-[1fr_22rem]">
@@ -84,7 +93,7 @@ export function CustomerShell({
                 href="/staff"
                 className={buttonVariants({ variant: "secondary" })}
               >
-                Staff view
+                {t("staffView")}
               </Link>
             </div>
           )}

@@ -1,4 +1,7 @@
+"use client";
+
 import { LoaderCircle } from "lucide-react";
+import { useTranslations } from "@/lib/i18n/i18n-provider";
 import { cn } from "@/lib/utils/cn";
 
 type LoadingStateProps = {
@@ -7,9 +10,11 @@ type LoadingStateProps = {
 };
 
 export function LoadingState({
-  label = "Loading",
+  label,
   className
 }: LoadingStateProps) {
+  const t = useTranslations("common");
+
   return (
     <div
       className={cn(
@@ -20,7 +25,7 @@ export function LoadingState({
       aria-live="polite"
     >
       <LoaderCircle className="size-4 animate-spin" aria-hidden="true" />
-      <span>{label}</span>
+      <span>{label ?? t("loading")}</span>
     </div>
   );
 }
