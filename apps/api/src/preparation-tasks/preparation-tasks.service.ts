@@ -2,6 +2,7 @@ import {
   BadRequestException,
   HttpException,
   Injectable,
+  InternalServerErrorException,
   Logger,
   NotFoundException,
 } from "@nestjs/common";
@@ -63,6 +64,37 @@ type CreateTasksForAcceptedOrderOptions = {
 };
 
 type PreparationTaskActionName = "start" | "ready" | "cancel";
+type PreparationTaskReadyFailureStage =
+  | "staff_assert"
+  | "task_lookup"
+  | "status_update"
+  | "event_create"
+  | "order_lifecycle"
+  | "kds_sync"
+  | "response_mapping";
+type PreparationTaskReadyTimings = {
+  staffAssertMs: number;
+  taskLookupMs: number;
+  statusUpdateMs: number;
+  eventCreateMs: number;
+  orderLifecycleMs: number;
+  kdsSyncMs: number;
+  transactionMs: number;
+  responseMappingMs: number;
+};
+type PreparationTaskReadyLogContext = {
+  flow: "preparation_task_ready";
+  action: "ready";
+  taskId: string;
+  orderId?: string;
+  branchId?: string;
+  tableSessionId?: string;
+  staffUserId?: string;
+  failureStage?: PreparationTaskReadyFailureStage;
+  slowStage?: string;
+  durationMs?: number;
+  timings?: PreparationTaskReadyTimings;
+};
 
 export type PreparationTaskActionResult = {
   action: PreparationTaskActionName;
@@ -542,90 +574,117 @@ export class PreparationTasksService {
 
   async markReady(taskId: string, body: PreparationTaskActionDto = {}) {
     const startedAt = Date.now();
-    const timings = {
+    const timings: PreparationTaskReadyTimings = {
       staffAssertMs: 0,
       taskLookupMs: 0,
-      taskUpdateMs: 0,
-      taskEventMs: 0,
-      orderSyncMs: 0,
-      ticketSyncMs: 0,
+      statusUpdateMs: 0,
+      eventCreateMs: 0,
+      orderLifecycleMs: 0,
+      kdsSyncMs: 0,
       transactionMs: 0,
-      responseHydrationMs: 0,
+      responseMappingMs: 0,
     };
+    const context: PreparationTaskReadyLogContext = {
+      flow: "preparation_task_ready",
+      action: "ready",
+      taskId,
+      staffUserId: body.staffUserId,
+    };
+    let stage: PreparationTaskReadyFailureStage = "staff_assert";
+    let transactionResult: PreparationTaskActionResult;
 
-    const transactionStartedAt = Date.now();
-    const transactionResult = await this.prisma.$transaction(async (tx) => {
-      let stageStartedAt = Date.now();
-      await this.assertStaffUserExists(body.staffUserId, tx);
-      timings.staffAssertMs += Date.now() - stageStartedAt;
+    try {
+      const transactionStartedAt = Date.now();
+      transactionResult = await this.prisma.$transaction(async (tx) => {
+        stage = "staff_assert";
+        let stageStartedAt = Date.now();
+        await this.assertStaffUserExists(body.staffUserId, tx);
+        timings.staffAssertMs += Date.now() - stageStartedAt;
 
-      stageStartedAt = Date.now();
-      const task = await this.findTaskStatus(taskId, tx);
-      timings.taskLookupMs += Date.now() - stageStartedAt;
+        stage = "task_lookup";
+        stageStartedAt = Date.now();
+        const task = await this.findTaskStatus(taskId, tx);
+        timings.taskLookupMs += Date.now() - stageStartedAt;
+        context.orderId = task.orderId;
+        context.branchId = task.order.branchId;
+        context.tableSessionId = task.order.tableSessionId;
 
-      this.assertParentOrderActionable(task.order.status, "ready");
+        this.assertParentOrderActionable(task.order.status, "ready");
 
-      if (
-        task.status !== PreparationTaskStatus.pending &&
-        task.status !== PreparationTaskStatus.preparing
-      ) {
-        throw this.preparationBadRequest(
-          task.status === PreparationTaskStatus.ready
-            ? "task_already_ready"
-            : task.status === PreparationTaskStatus.cancelled
-              ? "task_already_cancelled"
-              : "task_not_actionable",
-        );
-      }
+        if (
+          task.status !== PreparationTaskStatus.pending &&
+          task.status !== PreparationTaskStatus.preparing
+        ) {
+          throw this.preparationBadRequest(
+            task.status === PreparationTaskStatus.ready
+              ? "task_already_ready"
+              : task.status === PreparationTaskStatus.cancelled
+                ? "task_already_cancelled"
+                : "task_not_actionable",
+          );
+        }
 
-      stageStartedAt = Date.now();
-      await tx.preparationTask.update({
-        where: { id: task.id },
-        data: {
-          status: PreparationTaskStatus.ready,
-          readyAt: new Date(),
-        },
-      });
-      timings.taskUpdateMs += Date.now() - stageStartedAt;
-
-      stageStartedAt = Date.now();
-      await tx.preparationTaskEvent.create({
-        data: {
-          preparationTaskId: task.id,
-          type: PreparationTaskEventType.marked_ready,
-          actorStaffUserId: body.staffUserId,
-        },
-      });
-      timings.taskEventMs += Date.now() - stageStartedAt;
-
-      stageStartedAt = Date.now();
-      const orderRealtimeEvent = await this.syncOrderPreparationReady(
-        task.orderId,
-        body.staffUserId,
-        tx,
-      );
-      timings.orderSyncMs += Date.now() - stageStartedAt;
-
-      stageStartedAt = Date.now();
-      const ticketSync =
-        await this.kitchenTicketsService.syncTicketsForTaskReady(task.id, tx, {
-          recordRealtimeEvents: false,
+        stage = "status_update";
+        stageStartedAt = Date.now();
+        await tx.preparationTask.update({
+          where: { id: task.id },
+          data: {
+            status: PreparationTaskStatus.ready,
+            readyAt: new Date(),
+          },
         });
-      timings.ticketSyncMs += Date.now() - stageStartedAt;
-      timings.transactionMs = Date.now() - transactionStartedAt;
+        timings.statusUpdateMs += Date.now() - stageStartedAt;
 
-      return {
-        action: "ready" as const,
-        taskId: task.id,
-        orderId: task.orderId,
-        branchId: task.order.branchId,
-        tableSessionId: task.order.tableSessionId,
-        staffUserId: body.staffUserId,
-        orderRealtimeEvent,
-        ticketSync,
-        timings: { ...timings },
-      };
-    });
+        stage = "event_create";
+        stageStartedAt = Date.now();
+        await tx.preparationTaskEvent.create({
+          data: {
+            preparationTaskId: task.id,
+            type: PreparationTaskEventType.marked_ready,
+            actorStaffUserId: body.staffUserId,
+          },
+        });
+        timings.eventCreateMs += Date.now() - stageStartedAt;
+
+        stage = "order_lifecycle";
+        stageStartedAt = Date.now();
+        const orderRealtimeEvent = await this.syncOrderPreparationReady(
+          task.orderId,
+          body.staffUserId,
+          tx,
+        );
+        timings.orderLifecycleMs += Date.now() - stageStartedAt;
+
+        stage = "kds_sync";
+        stageStartedAt = Date.now();
+        const ticketSync =
+          await this.kitchenTicketsService.syncTicketsForTaskReady(task.id, tx, {
+            recordRealtimeEvents: false,
+          });
+        timings.kdsSyncMs += Date.now() - stageStartedAt;
+        timings.transactionMs = Date.now() - transactionStartedAt;
+
+        return {
+          action: "ready" as const,
+          taskId: task.id,
+          orderId: task.orderId,
+          branchId: task.order.branchId,
+          tableSessionId: task.order.tableSessionId,
+          staffUserId: body.staffUserId,
+          orderRealtimeEvent,
+          ticketSync,
+          timings: { ...timings },
+        };
+      });
+    } catch (error) {
+      throw this.toPreparationTaskReadyError(error, {
+        ...context,
+        failureStage: stage,
+        slowStage: this.slowestTimingStage(timings),
+        durationMs: Date.now() - startedAt,
+        timings,
+      });
+    }
 
     this.logger.log({
       message: "preparation_task.ready.critical_transaction",
@@ -639,20 +698,36 @@ export class PreparationTasksService {
 
     this.schedulePreparationTaskPostCommit(transactionResult);
 
-    const responseStartedAt = Date.now();
-    const response = await this.getTaskResponse(taskId, this.prisma);
-    timings.responseHydrationMs = Date.now() - responseStartedAt;
-    this.logger.log({
-      message: "preparation_task.ready.response_ready",
-      taskId: transactionResult.taskId,
-      orderId: transactionResult.orderId,
-      branchId: transactionResult.branchId,
-      tableSessionId: transactionResult.tableSessionId,
-      durationMs: Date.now() - startedAt,
-      timings,
-    });
+    try {
+      const responseStartedAt = Date.now();
+      const response = await this.getTaskResponse(taskId, this.prisma, {
+        includeEvents: false,
+      });
+      timings.responseMappingMs = Date.now() - responseStartedAt;
+      this.logger.log({
+        message: "preparation_task.ready.response_ready",
+        taskId: transactionResult.taskId,
+        orderId: transactionResult.orderId,
+        branchId: transactionResult.branchId,
+        tableSessionId: transactionResult.tableSessionId,
+        durationMs: Date.now() - startedAt,
+        slowStage: this.slowestTimingStage(timings),
+        timings,
+      });
 
-    return response;
+      return response;
+    } catch (error) {
+      throw this.toPreparationTaskReadyError(error, {
+        ...context,
+        orderId: transactionResult.orderId,
+        branchId: transactionResult.branchId,
+        tableSessionId: transactionResult.tableSessionId,
+        failureStage: "response_mapping",
+        slowStage: this.slowestTimingStage(timings),
+        durationMs: Date.now() - startedAt,
+        timings,
+      });
+    }
   }
 
   async cancel(taskId: string, body: CancelPreparationTaskDto = {}) {
@@ -1029,10 +1104,14 @@ export class PreparationTasksService {
     return "preparation_ready" as const;
   }
 
-  private async getTaskResponse(taskId: string, tx: PrismaExecutor) {
+  private async getTaskResponse(
+    taskId: string,
+    tx: PrismaExecutor,
+    options: { includeEvents?: boolean } = {},
+  ) {
     const task = await tx.preparationTask.findUnique({
       where: { id: taskId },
-      include: this.taskInclude(),
+      include: this.taskInclude({ includeEvents: options.includeEvents }),
     });
 
     if (!task) {
@@ -1327,6 +1406,79 @@ export class PreparationTasksService {
     };
   }
 
+  private slowestTimingStage(timings: object) {
+    const [stage, durationMs] = Object.entries(timings).reduce<
+      [string, number]
+    >(
+      (slowest, [currentStage, currentDuration]) =>
+        (typeof currentDuration === "number" ? currentDuration : 0) >
+        slowest[1]
+          ? [
+              currentStage,
+              typeof currentDuration === "number" ? currentDuration : 0,
+            ]
+          : slowest,
+      ["unknown", 0],
+    );
+
+    return durationMs > 0 ? stage : undefined;
+  }
+
+  private toPreparationTaskReadyError(
+    error: unknown,
+    context: PreparationTaskReadyLogContext,
+  ) {
+    const statusCode =
+      error instanceof HttpException ? error.getStatus() : undefined;
+    const exception = this.safeRoutingExceptionSummary(error);
+    const payload = {
+      message: "Preparation task ready failed",
+      ...context,
+      statusCode,
+      exception,
+    };
+
+    if (error instanceof HttpException && statusCode && statusCode < 500) {
+      this.logger.warn(payload);
+
+      return error;
+    }
+
+    this.logger.error(payload);
+
+    if (this.isTransactionTimeout(exception)) {
+      return new InternalServerErrorException({
+        message: "The operation timed out while saving. Please retry.",
+        code: "DB_TRANSACTION_TIMEOUT",
+        details: {
+          flow: context.flow,
+          action: context.action,
+          taskId: context.taskId,
+          orderId: context.orderId,
+          branchId: context.branchId,
+          tableSessionId: context.tableSessionId,
+          staffUserId: context.staffUserId,
+          failureStage: context.failureStage,
+          slowStage: context.slowStage ?? context.failureStage,
+          durationMs: context.durationMs,
+          timings: context.timings,
+          exception,
+        },
+      });
+    }
+
+    return error;
+  }
+
+  private isTransactionTimeout(exception: { code?: string; message?: string }) {
+    return (
+      exception.code === "P2028" ||
+      /transaction already closed|timeout|timed out/i.test(
+        exception.message ?? "",
+      )
+    );
+  }
+
   private safeRoutingExceptionSummary(error: unknown) {
     const record = error as {
       name?: unknown;
@@ -1421,7 +1573,7 @@ export class PreparationTasksService {
         priceDeltaMinorSnapshot: option.priceDeltaMinorSnapshot,
         createdAt: option.createdAt,
       })),
-      events: events.map((event: any) => ({
+      events: (events ?? []).map((event: any) => ({
         id: event.id,
         preparationTaskId: event.preparationTaskId,
         type: event.type,
@@ -1447,8 +1599,8 @@ export class PreparationTasksService {
     };
   }
 
-  private taskInclude() {
-    return {
+  private taskInclude(options: { includeEvents?: boolean } = {}) {
+    const include: Prisma.PreparationTaskInclude = {
       company: { select: this.companySelect() },
       branch: { select: this.branchSelect() },
       order: {
@@ -1461,10 +1613,15 @@ export class PreparationTasksService {
           },
         },
       },
-      events: {
+    };
+
+    if (options.includeEvents !== false) {
+      include.events = {
         orderBy: [{ createdAt: "asc" as const }],
-      },
-    } satisfies Prisma.PreparationTaskInclude;
+      };
+    }
+
+    return include;
   }
 
   private orderContextSelect() {

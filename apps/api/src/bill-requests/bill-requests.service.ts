@@ -84,6 +84,17 @@ type BillPresentFailureStage =
   | "bill_present"
   | "post_commit"
   | "response_mapping";
+type BillPresentTimings = {
+  billEnsureMs: number;
+  staffAssertMs: number;
+  requestLookupMs: number;
+  requestUpdateMs: number;
+  requestEventMs: number;
+  billPresentMs: number;
+  presentTransactionMs: number;
+  postCommitScheduledMs: number;
+  responseMappingMs: number;
+};
 type BillPresentLogContext = {
   flow: "bill_request_present";
   action: "present";
@@ -91,6 +102,9 @@ type BillPresentLogContext = {
   billId?: string;
   tableSessionId?: string;
   failureStage?: BillPresentFailureStage;
+  slowStage?: string;
+  durationMs?: number;
+  timings?: BillPresentTimings;
 };
 
 @Injectable()
@@ -359,7 +373,19 @@ export class BillRequestsService {
   }
 
   async present(billRequestId: string, body: BillStaffActionDto = {}) {
+    const startedAt = Date.now();
     const note = this.normalizeOptionalText(body.note);
+    const timings: BillPresentTimings = {
+      billEnsureMs: 0,
+      staffAssertMs: 0,
+      requestLookupMs: 0,
+      requestUpdateMs: 0,
+      requestEventMs: 0,
+      billPresentMs: 0,
+      presentTransactionMs: 0,
+      postCommitScheduledMs: 0,
+      responseMappingMs: 0,
+    };
     const context: BillPresentLogContext = {
       flow: "bill_request_present",
       action: "present",
@@ -370,16 +396,29 @@ export class BillRequestsService {
     >;
 
     try {
+      const billEnsureStartedAt = Date.now();
       ensuredBill = await this.billsService.ensureBillForBillRequestCompact(
         billRequestId,
         { actorType: "staff" },
       );
+      timings.billEnsureMs = Date.now() - billEnsureStartedAt;
       context.billId = ensuredBill.billId;
       context.tableSessionId = ensuredBill.tableSessionId;
+      this.logger.log({
+        message: "bill_request.present.bill_ensure",
+        billRequestId,
+        billId: ensuredBill.billId,
+        tableSessionId: ensuredBill.tableSessionId,
+        created: ensuredBill.created,
+        durationMs: timings.billEnsureMs,
+      });
     } catch (error) {
       throw this.toBillPresentError(error, {
         ...context,
         failureStage: "bill_ensure",
+        slowStage: this.slowestTimingStage(timings),
+        durationMs: Date.now() - startedAt,
+        timings,
       });
     }
 
@@ -387,14 +426,19 @@ export class BillRequestsService {
     let transactionResult: BillStaffActionTransactionResult;
 
     try {
+      const transactionStartedAt = Date.now();
       transactionResult = await this.prisma.$transaction(async (tx) => {
         stage = "validation";
+        let stageStartedAt = Date.now();
         await this.assertStaffUserExists(body.staffUserId, tx);
+        timings.staffAssertMs += Date.now() - stageStartedAt;
 
+        stageStartedAt = Date.now();
         const billRequest = await this.findBillRequestStatusOrThrow(
           billRequestId,
           tx,
         );
+        timings.requestLookupMs += Date.now() - stageStartedAt;
 
         context.tableSessionId = billRequest.tableSessionId;
 
@@ -410,6 +454,7 @@ export class BillRequestsService {
         const now = new Date();
 
         stage = "bill_request_present";
+        stageStartedAt = Date.now();
         await tx.billRequest.update({
           where: { id: billRequest.id },
           data: {
@@ -418,6 +463,9 @@ export class BillRequestsService {
             presentedByStaffUserId: body.staffUserId,
           },
         });
+        timings.requestUpdateMs += Date.now() - stageStartedAt;
+
+        stageStartedAt = Date.now();
         await this.createBillRequestEvent(
           billRequest.id,
           BillRequestEventType.presented,
@@ -425,8 +473,10 @@ export class BillRequestsService {
           note ? { note } : undefined,
           tx,
         );
+        timings.requestEventMs += Date.now() - stageStartedAt;
 
         stage = "bill_present";
+        stageStartedAt = Date.now();
         const bill: BillRequestBillPresentMutationResult =
           await this.billsService.presentExistingBillCompact(
             ensuredBill.billId,
@@ -438,6 +488,8 @@ export class BillRequestsService {
             },
             tx,
           );
+        timings.billPresentMs += Date.now() - stageStartedAt;
+        timings.presentTransactionMs = Date.now() - transactionStartedAt;
 
         return {
           billRequestId: billRequest.id,
@@ -448,27 +500,61 @@ export class BillRequestsService {
           postCommitAction: "presented",
         } satisfies BillStaffActionTransactionResult;
       });
+      timings.presentTransactionMs = Date.now() - transactionStartedAt;
     } catch (error) {
       throw this.toBillPresentError(error, {
         ...context,
         billId: ensuredBill.billId,
         failureStage: stage,
+        slowStage: this.slowestTimingStage(timings),
+        durationMs: Date.now() - startedAt,
+        timings,
       });
     }
 
+    this.logger.log({
+      message: "bill_request.present.critical_transaction",
+      billRequestId: transactionResult.billRequestId,
+      billId: transactionResult.billId,
+      tableSessionId: transactionResult.tableSessionId,
+      billCreated: transactionResult.billCreated,
+      billPresented: transactionResult.billPresented,
+      durationMs: timings.presentTransactionMs,
+      slowStage: this.slowestTimingStage(timings),
+      timings,
+    });
+
+    const postCommitStartedAt = Date.now();
     this.scheduleBillStaffActionPostCommitSideEffects(transactionResult);
+    timings.postCommitScheduledMs = Date.now() - postCommitStartedAt;
 
     try {
-      return await this.getBillRequestResponse(
+      const responseStartedAt = Date.now();
+      const response = await this.getBillRequestResponse(
         transactionResult.billRequestId,
         this.prisma,
       );
+      timings.responseMappingMs = Date.now() - responseStartedAt;
+      this.logger.log({
+        message: "bill_request.present.response_ready",
+        billRequestId: transactionResult.billRequestId,
+        billId: transactionResult.billId,
+        tableSessionId: transactionResult.tableSessionId,
+        durationMs: Date.now() - startedAt,
+        slowStage: this.slowestTimingStage(timings),
+        timings,
+      });
+
+      return response;
     } catch (error) {
       throw this.toBillPresentError(error, {
         ...context,
         billId: transactionResult.billId,
         tableSessionId: transactionResult.tableSessionId,
         failureStage: "response_mapping",
+        slowStage: this.slowestTimingStage(timings),
+        durationMs: Date.now() - startedAt,
+        timings,
       });
     }
   }
@@ -716,12 +802,33 @@ export class BillRequestsService {
           billId: context.billId,
           tableSessionId: context.tableSessionId,
           failureStage: context.failureStage,
+          slowStage: context.slowStage ?? context.failureStage,
+          durationMs: context.durationMs,
+          timings: context.timings,
           exception,
         },
       });
     }
 
     return error;
+  }
+
+  private slowestTimingStage(timings: object) {
+    const [stage, durationMs] = Object.entries(timings).reduce<
+      [string, number]
+    >(
+      (slowest, [currentStage, currentDuration]) =>
+        (typeof currentDuration === "number" ? currentDuration : 0) >
+        slowest[1]
+          ? [
+              currentStage,
+              typeof currentDuration === "number" ? currentDuration : 0,
+            ]
+          : slowest,
+      ["unknown", 0],
+    );
+
+    return durationMs > 0 ? stage : undefined;
   }
 
   private scheduleBillStaffActionPostCommitSideEffects(

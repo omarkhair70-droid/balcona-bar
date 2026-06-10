@@ -1936,7 +1936,7 @@ export class OrdersService {
           createdAt: option.createdAt,
         })),
       })),
-      events: events.map((event: any) => ({
+      events: (events ?? []).map((event: any) => ({
         id: event.id,
         orderId: event.orderId,
         type: event.type,
@@ -2140,9 +2140,6 @@ export class OrdersService {
             orderBy: [{ createdAt: "asc" as const }],
           },
         },
-      },
-      events: {
-        orderBy: [{ createdAt: "asc" as const }],
       },
       preparationTasks: {
         orderBy: [{ createdAt: "asc" as const }],

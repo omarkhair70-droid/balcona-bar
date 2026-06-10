@@ -848,6 +848,69 @@ describe('BillRequestsService', () => {
     expect(result.bill?.status).toBe(BillStatus.presented);
   });
 
+  it('logs safe bill present timing diagnostics', async () => {
+    const logSpy = jest.spyOn(Logger.prototype, 'log').mockImplementation();
+    const tx = {
+      staffUser: {
+        findUnique: jest.fn().mockResolvedValue({ id: 'staff-1' }),
+      },
+      billRequest: {
+        findUnique: jest
+          .fn()
+          .mockResolvedValueOnce({
+            id: 'bill-request-1',
+            tableSessionId: 'session-1',
+            status: BillRequestStatus.acknowledged,
+          })
+          .mockResolvedValueOnce(
+            billRequestRecord({
+              status: BillRequestStatus.presented,
+              presentedAt: now,
+              presentedByStaffUserId: 'staff-1',
+              bill: billSummary({ status: BillStatus.presented }),
+            }),
+          ),
+        update: jest.fn().mockResolvedValue({ id: 'bill-request-1' }),
+      },
+      billRequestEvent: {
+        create: jest.fn().mockResolvedValue({ id: 'event-2' }),
+      },
+      order: {
+        findMany: jest.fn().mockResolvedValue([billableOrder()]),
+      },
+    };
+    const { service } = buildService(tx);
+
+    const result = await service.present('bill-request-1', {
+      staffUserId: 'staff-1',
+    });
+
+    const responseLog = logSpy.mock.calls
+      .map(([payload]) => payload)
+      .find(
+        (payload) =>
+          typeof payload === 'object' &&
+          payload !== null &&
+          (payload as { message?: string }).message ===
+            'bill_request.present.response_ready',
+      ) as { timings?: Record<string, number>; slowStage?: string } | undefined;
+
+    expect(result.bill?.status).toBe(BillStatus.presented);
+    expect(responseLog).toMatchObject({
+      timings: expect.objectContaining({
+        billEnsureMs: expect.any(Number),
+        requestLookupMs: expect.any(Number),
+        requestUpdateMs: expect.any(Number),
+        requestEventMs: expect.any(Number),
+        billPresentMs: expect.any(Number),
+        presentTransactionMs: expect.any(Number),
+        postCommitScheduledMs: expect.any(Number),
+        responseMappingMs: expect.any(Number),
+      }),
+    });
+    expect(JSON.stringify(logSpy.mock.calls)).not.toContain('token=secret');
+  });
+
   it('keeps bill present successful when post-commit side effects fail', async () => {
     const loggerSpy = jest.spyOn(Logger.prototype, 'warn').mockImplementation();
     const tx = {
@@ -1081,11 +1144,17 @@ describe('BillRequestsService', () => {
         action: 'present',
         billRequestId: 'bill-request-1',
         billId: 'bill-1',
-        tableSessionId: 'session-1',
-        failureStage: 'bill_present',
-        exception: {
-          code: 'P2028',
-          message: 'Transaction already closed token=[redacted]',
+          tableSessionId: 'session-1',
+          failureStage: 'bill_present',
+          slowStage: expect.any(String),
+          timings: expect.objectContaining({
+            billEnsureMs: expect.any(Number),
+            billPresentMs: expect.any(Number),
+            presentTransactionMs: expect.any(Number),
+          }),
+          exception: {
+            code: 'P2028',
+            message: 'Transaction already closed token=[redacted]',
         },
       },
     });
