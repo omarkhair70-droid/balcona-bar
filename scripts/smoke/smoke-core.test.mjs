@@ -206,6 +206,88 @@ describe("smoke core", () => {
     }
   });
 
+  it("preserves safe API timing diagnostics in failed smoke reports", async () => {
+    const server = createServer((_request, response) => {
+      response.statusCode = 500;
+      response.setHeader("Content-Type", "application/json");
+      response.setHeader("X-Request-Id", "req-timeout");
+      response.end(
+        JSON.stringify({
+          error: {
+            code: "DB_TRANSACTION_TIMEOUT",
+            message: "The operation timed out while saving. Please retry.",
+            details: {
+              failureStage: "order_create",
+              slowStage: "orderCreateMs",
+              durationMs: 5010,
+              transactionMs: 5001,
+              responseMappingMs: 0,
+              timings: {
+                submitLockMs: 1,
+                orderCreateMs: 5001,
+                transactionMs: 5001,
+                responseMappingMs: 0
+              },
+              token: "secret-value",
+              nested: {
+                authorization: "Bearer abc.def.ghi"
+              }
+            }
+          }
+        })
+      );
+    });
+    await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
+    const address = server.address();
+
+    try {
+      const config = readSmokeConfig({
+        env: {
+          SMOKE_RUN_ID: "run-diagnostics",
+          SMOKE_WEB_BASE_URL: "https://web.example.com",
+          SMOKE_API_BASE_URL: `http://127.0.0.1:${address.port}/api/v1`
+        },
+        argv: [],
+        envFile: "missing-smoke-env-file"
+      });
+      const run = new SmokeRun(config);
+
+      const step = await run.step(
+        {
+          stepName: "customer submit cart",
+          group: "customer",
+          role: "customer",
+          method: "POST",
+          pageOrEndpoint: "/table-sessions/session-1/cart/submit",
+          critical: true
+        },
+        ({ http }) =>
+          http.request({
+            method: "POST",
+            path: "/table-sessions/session-1/cart/submit",
+            role: "customer",
+            action: "submit_cart"
+          })
+      );
+      const report = run.finish();
+      const serialized = JSON.stringify(report);
+      const markdown = renderMarkdownReport(report);
+
+      assert.equal(step.status, "failed");
+      assert.equal(step.error.code, "DB_TRANSACTION_TIMEOUT");
+      assert.equal(step.failureStage, "order_create");
+      assert.equal(step.slowStage, "orderCreateMs");
+      assert.equal(step.timings.orderCreateMs, 5001);
+      assert.equal(step.transactionMs, 5001);
+      assert.match(markdown, /failureStage=order_create/);
+      assert.match(markdown, /slowStage=orderCreateMs/);
+      assert.doesNotMatch(serialized, /secret-value/);
+      assert.doesNotMatch(serialized, /Bearer abc/);
+    } finally {
+      await new Promise((resolve) => server.close(resolve));
+    }
+  });
+
   it("uses the generated runId in submit cart idempotency keys", async () => {
     let receivedIdempotencyKey = "";
     const server = createServer((request, response) => {

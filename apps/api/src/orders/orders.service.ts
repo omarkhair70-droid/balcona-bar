@@ -2,6 +2,7 @@ import {
   BadRequestException,
   HttpException,
   Injectable,
+  InternalServerErrorException,
   Logger,
   NotFoundException,
 } from "@nestjs/common";
@@ -41,6 +42,7 @@ import { SubmitCartDto } from "./dto/submit-cart.dto";
 
 const IDEMPOTENCY_KEY_MAX_LENGTH = 128;
 const ORDER_NUMBER_PREFIX = "B";
+const SUBMIT_CART_TRANSACTION_TIMEOUT_MS = 10_000;
 const CASHIER_ACCEPT_TRANSACTION_TIMEOUT_MS = 15_000;
 const SUBMITTED_SESSION_ORDER_STATUSES: OrderStatus[] = [
   OrderStatus.submitted,
@@ -90,6 +92,17 @@ type SubmitCartTimings = {
   responseMappingMs: number;
 };
 
+type OrderActionTimings = {
+  staffResolveMs?: number;
+  orderLookupMs?: number;
+  statusUpdateMs?: number;
+  stockConsumptionMs?: number;
+  preparationTasksMs?: number;
+  orderEventMs?: number;
+  transactionMs?: number;
+  responseMappingMs?: number;
+};
+
 type SubmitCartTransactionResult =
   | {
       replayed: true;
@@ -108,6 +121,7 @@ type OrderActionFailureStage =
   | "inventory_consumption"
   | "preparation_tasks"
   | "kds_ticket_sync"
+  | "order_event"
   | "preparation_realtime"
   | "kds_realtime"
   | "print_jobs"
@@ -125,6 +139,9 @@ type OrderActionLogContext = {
   previousStatus?: OrderStatus;
   targetStatus?: OrderStatus;
   failureStage?: OrderActionFailureStage;
+  slowStage?: string;
+  durationMs?: number;
+  timings?: OrderActionTimings;
 };
 
 type OrderActionTransactionResult = {
@@ -180,135 +197,144 @@ export class OrdersService {
 
     try {
       const transactionStartedAt = Date.now();
-      transactionResult = await this.prisma.$transaction(async (tx) => {
-        stage = "submit_lock";
-        let stageStartedAt = Date.now();
-        await this.lockSubmitForSession(sessionId, tx);
-        timings.submitLockMs += Date.now() - stageStartedAt;
+      transactionResult = await this.prisma.$transaction(
+        async (tx) => {
+          stage = "submit_lock";
+          let stageStartedAt = Date.now();
+          await this.lockSubmitForSession(sessionId, tx);
+          timings.submitLockMs += Date.now() - stageStartedAt;
 
-        if (idempotencyKey) {
-          stage = "idempotency_lookup";
+          if (idempotencyKey) {
+            stage = "idempotency_lookup";
+            stageStartedAt = Date.now();
+            const existingOrder = await this.findByIdempotencyKey(
+              sessionId,
+              idempotencyKey,
+              tx,
+            );
+            timings.idempotencyLookupMs += Date.now() - stageStartedAt;
+
+            if (existingOrder) {
+              return {
+                replayed: true,
+                response: this.toOrderResponse(existingOrder, {
+                  replayed: true,
+                  key: idempotencyKey,
+                }),
+              };
+            }
+          }
+
+          stage = "cart_validation";
           stageStartedAt = Date.now();
-          const existingOrder = await this.findByIdempotencyKey(
-            sessionId,
-            idempotencyKey,
+          const { session, cart, totals } =
+            await this.cartService.getValidatedDraftCartForSubmit(
+              sessionId,
+              tx,
+            );
+          timings.cartValidationMs += Date.now() - stageStartedAt;
+
+          stage = "order_number";
+          stageStartedAt = Date.now();
+          const orderNumber = await this.generateOrderNumber(
+            session.branchId,
             tx,
           );
-          timings.idempotencyLookupMs += Date.now() - stageStartedAt;
-
-          if (existingOrder) {
-            return {
-              replayed: true,
-              response: this.toOrderResponse(existingOrder, {
-                replayed: true,
-                key: idempotencyKey,
-              }),
-            };
-          }
-        }
-
-        stage = "cart_validation";
-        stageStartedAt = Date.now();
-        const { session, cart, totals } =
-          await this.cartService.getValidatedDraftCartForSubmit(sessionId, tx);
-        timings.cartValidationMs += Date.now() - stageStartedAt;
-
-        stage = "order_number";
-        stageStartedAt = Date.now();
-        const orderNumber = await this.generateOrderNumber(
-          session.branchId,
-          tx,
-        );
-        timings.orderNumberMs += Date.now() - stageStartedAt;
-        const submittedAt = new Date();
-        const submittedMetadata: Record<string, string> = {
-          cartId: cart.id,
-          action: "submit",
-          nextStatus: OrderStatus.submitted,
-          source: "customer",
-        };
-
-        if (idempotencyKey) {
-          submittedMetadata.idempotencyKey = idempotencyKey;
-        }
-
-        stage = "order_create";
-        stageStartedAt = Date.now();
-        const order = await tx.order.create({
-          data: {
-            companyId: session.companyId,
-            branchId: session.branchId,
-            tableSessionId: session.id,
+          timings.orderNumberMs += Date.now() - stageStartedAt;
+          const submittedAt = new Date();
+          const submittedMetadata: Record<string, string> = {
             cartId: cart.id,
-            orderNumber,
-            status: OrderStatus.submitted,
-            source: OrderSource.customer_qr,
-            currency: cart.currency,
-            subtotalMinor: totals.subtotalMinor,
-            totalQuantity: totals.totalQuantity,
-            itemCount: totals.itemCount,
-            customerNote,
-            idempotencyKey,
-            submittedAt,
-            items: {
-              create: cart.items.map((item: any) => ({
-                menuItemId: item.menuItemId,
-                quantity: item.quantity,
-                notes: item.notes,
-                itemNameSnapshot: item.itemNameSnapshot,
-                itemSlugSnapshot: item.itemSlugSnapshot,
-                basePriceMinorSnapshot: item.basePriceMinorSnapshot,
-                effectiveBasePriceMinorSnapshot:
-                  item.effectiveBasePriceMinorSnapshot,
-                modifiersTotalMinorSnapshot: item.modifiersTotalMinorSnapshot,
-                unitPriceMinorSnapshot: item.unitPriceMinorSnapshot,
-                lineTotalMinorSnapshot: item.lineTotalMinorSnapshot,
-                currency: item.currency,
-                modifierOptions: {
-                  create: item.modifierOptions.map((option: any) => ({
-                    modifierGroupId: option.modifierGroupId,
-                    modifierOptionId: option.modifierOptionId,
-                    modifierGroupNameSnapshot: option.modifierGroupNameSnapshot,
-                    modifierGroupSlugSnapshot: option.modifierGroupSlugSnapshot,
-                    modifierOptionNameSnapshot:
-                      option.modifierOptionNameSnapshot,
-                    modifierOptionSlugSnapshot:
-                      option.modifierOptionSlugSnapshot,
-                    priceDeltaMinorSnapshot: option.priceDeltaMinorSnapshot,
-                  })),
+            action: "submit",
+            nextStatus: OrderStatus.submitted,
+            source: "customer",
+          };
+
+          if (idempotencyKey) {
+            submittedMetadata.idempotencyKey = idempotencyKey;
+          }
+
+          stage = "order_create";
+          stageStartedAt = Date.now();
+          const order = await tx.order.create({
+            data: {
+              companyId: session.companyId,
+              branchId: session.branchId,
+              tableSessionId: session.id,
+              cartId: cart.id,
+              orderNumber,
+              status: OrderStatus.submitted,
+              source: OrderSource.customer_qr,
+              currency: cart.currency,
+              subtotalMinor: totals.subtotalMinor,
+              totalQuantity: totals.totalQuantity,
+              itemCount: totals.itemCount,
+              customerNote,
+              idempotencyKey,
+              submittedAt,
+              items: {
+                create: cart.items.map((item: any) => ({
+                  menuItemId: item.menuItemId,
+                  quantity: item.quantity,
+                  notes: item.notes,
+                  itemNameSnapshot: item.itemNameSnapshot,
+                  itemSlugSnapshot: item.itemSlugSnapshot,
+                  basePriceMinorSnapshot: item.basePriceMinorSnapshot,
+                  effectiveBasePriceMinorSnapshot:
+                    item.effectiveBasePriceMinorSnapshot,
+                  modifiersTotalMinorSnapshot:
+                    item.modifiersTotalMinorSnapshot,
+                  unitPriceMinorSnapshot: item.unitPriceMinorSnapshot,
+                  lineTotalMinorSnapshot: item.lineTotalMinorSnapshot,
+                  currency: item.currency,
+                  modifierOptions: {
+                    create: item.modifierOptions.map((option: any) => ({
+                      modifierGroupId: option.modifierGroupId,
+                      modifierOptionId: option.modifierOptionId,
+                      modifierGroupNameSnapshot:
+                        option.modifierGroupNameSnapshot,
+                      modifierGroupSlugSnapshot:
+                        option.modifierGroupSlugSnapshot,
+                      modifierOptionNameSnapshot:
+                        option.modifierOptionNameSnapshot,
+                      modifierOptionSlugSnapshot:
+                        option.modifierOptionSlugSnapshot,
+                      priceDeltaMinorSnapshot: option.priceDeltaMinorSnapshot,
+                    })),
+                  },
+                })),
+              },
+              events: {
+                create: {
+                  type: OrderEventType.submitted,
+                  actorType: OrderEventActorType.customer,
+                  metadata: submittedMetadata,
                 },
-              })),
-            },
-            events: {
-              create: {
-                type: OrderEventType.submitted,
-                actorType: OrderEventActorType.customer,
-                metadata: submittedMetadata,
               },
             },
-          },
-          select: { id: true },
-        });
-        timings.orderCreateMs += Date.now() - stageStartedAt;
+            select: { id: true },
+          });
+          timings.orderCreateMs += Date.now() - stageStartedAt;
 
-        stage = "cart_conversion";
-        stageStartedAt = Date.now();
-        await tx.cart.update({
-          where: { id: cart.id },
-          data: { status: CartStatus.converted },
-        });
-        timings.cartConversionMs += Date.now() - stageStartedAt;
+          stage = "cart_conversion";
+          stageStartedAt = Date.now();
+          await tx.cart.update({
+            where: { id: cart.id },
+            data: { status: CartStatus.converted },
+          });
+          timings.cartConversionMs += Date.now() - stageStartedAt;
 
-        return {
-          replayed: false,
-          orderId: order.id,
-          sessionId: session.id,
-          idempotency: {
+          return {
             replayed: false,
-            key: idempotencyKey,
-          },
-        };
-      });
+            orderId: order.id,
+            sessionId: session.id,
+            idempotency: {
+              replayed: false,
+              key: idempotencyKey,
+            },
+          };
+        },
+        { timeout: SUBMIT_CART_TRANSACTION_TIMEOUT_MS },
+      );
       timings.transactionMs = Date.now() - transactionStartedAt;
     } catch (error) {
       throw this.toSubmitCartError(error, {
@@ -444,24 +470,33 @@ export class OrdersService {
     };
     let stage: OrderActionFailureStage = "validation";
     let transactionResult: OrderActionTransactionResult;
-    const timings = {
+    const timings: OrderActionTimings = {
+      staffResolveMs: 0,
+      orderLookupMs: 0,
       statusUpdateMs: 0,
       stockConsumptionMs: 0,
       preparationTasksMs: 0,
       orderEventMs: 0,
+      transactionMs: 0,
+      responseMappingMs: 0,
     };
     const startedAt = Date.now();
 
     try {
+      const transactionStartedAt = Date.now();
       transactionResult = await this.prisma.$transaction(
         async (tx) => {
           stage = "validation";
+          let stageStartedAt = Date.now();
           const actorStaffUserId = await this.resolveStaffActor(
             authenticatedStaffUserId,
             body.staffUserId,
             tx,
           );
+          timings.staffResolveMs =
+            (timings.staffResolveMs ?? 0) + Date.now() - stageStartedAt;
 
+          stageStartedAt = Date.now();
           const order = await tx.order.findUnique({
             where: { id: orderId },
             select: {
@@ -471,6 +506,8 @@ export class OrdersService {
               status: true,
             },
           });
+          timings.orderLookupMs =
+            (timings.orderLookupMs ?? 0) + Date.now() - stageStartedAt;
 
           if (!order) {
             throw new NotFoundException("Order not found");
@@ -484,7 +521,7 @@ export class OrdersService {
           const now = new Date();
 
           stage = "status_update";
-          let stageStartedAt = Date.now();
+          stageStartedAt = Date.now();
           const updatedOrder = await tx.order.updateMany({
             where: { id: order.id, status: order.status },
             data: {
@@ -492,7 +529,8 @@ export class OrdersService {
               cashierAcceptedAt: now,
             },
           });
-          timings.statusUpdateMs += Date.now() - stageStartedAt;
+          timings.statusUpdateMs =
+            (timings.statusUpdateMs ?? 0) + Date.now() - stageStartedAt;
 
           this.assertFreshTransition(updatedOrder.count);
 
@@ -503,7 +541,8 @@ export class OrdersService {
             actorStaffUserId,
             tx,
           );
-          timings.stockConsumptionMs += Date.now() - stageStartedAt;
+          timings.stockConsumptionMs =
+            (timings.stockConsumptionMs ?? 0) + Date.now() - stageStartedAt;
 
           stage = "preparation_tasks";
           stageStartedAt = Date.now();
@@ -514,7 +553,8 @@ export class OrdersService {
               tx,
               { createPrintJobs: false, recordRealtimeEvents: false },
             );
-          timings.preparationTasksMs += Date.now() - stageStartedAt;
+          timings.preparationTasksMs =
+            (timings.preparationTasksMs ?? 0) + Date.now() - stageStartedAt;
           this.logger.log({
             message: "accept.preparation_tasks",
             requestId,
@@ -532,7 +572,7 @@ export class OrdersService {
             durationMs: timings.preparationTasksMs,
           });
 
-          stage = "status_update";
+          stage = "order_event";
           stageStartedAt = Date.now();
           await tx.orderEvent.create({
             data: {
@@ -548,7 +588,8 @@ export class OrdersService {
               ),
             },
           });
-          timings.orderEventMs += Date.now() - stageStartedAt;
+          timings.orderEventMs =
+            (timings.orderEventMs ?? 0) + Date.now() - stageStartedAt;
 
           this.logger.log({
             message: "accept.critical_transaction",
@@ -556,6 +597,7 @@ export class OrdersService {
             orderId: order.id,
             branchId: order.branchId,
             durationMs: Date.now() - startedAt,
+            slowStage: this.slowestTimingStage(timings),
             timings,
           });
 
@@ -571,10 +613,14 @@ export class OrdersService {
         },
         { timeout: CASHIER_ACCEPT_TRANSACTION_TIMEOUT_MS },
       );
+      timings.transactionMs = Date.now() - transactionStartedAt;
     } catch (error) {
       throw this.toOrderActionError(error, {
         ...logContext,
         failureStage: stage,
+        slowStage: this.slowestTimingStage(timings),
+        durationMs: Date.now() - startedAt,
+        timings,
       });
     }
 
@@ -636,10 +682,25 @@ export class OrdersService {
     );
 
     try {
-      return await this.getOrderResponse(
+      const responseStartedAt = Date.now();
+      const response = await this.getAcceptedOrderResponse(
         transactionResult.orderId,
         this.prisma,
       );
+      timings.responseMappingMs = Date.now() - responseStartedAt;
+
+      this.logger.log({
+        message: "accept.response_ready",
+        requestId,
+        orderId: transactionResult.orderId,
+        branchId: transactionResult.branchId,
+        sessionId: transactionResult.sessionId,
+        durationMs: Date.now() - startedAt,
+        slowStage: this.slowestTimingStage(timings),
+        timings,
+      });
+
+      return response;
     } catch (error) {
       throw this.toOrderActionError(error, {
         ...logContext,
@@ -647,6 +708,9 @@ export class OrdersService {
         previousStatus: transactionResult.previousStatus,
         targetStatus: transactionResult.targetStatus,
         failureStage: "response_mapping",
+        slowStage: this.slowestTimingStage(timings),
+        durationMs: Date.now() - startedAt,
+        timings,
       });
     }
   }
@@ -1361,6 +1425,19 @@ export class OrdersService {
     return this.toOrderResponse(order, idempotency);
   }
 
+  private async getAcceptedOrderResponse(orderId: string, tx: PrismaExecutor) {
+    const order = await tx.order.findUnique({
+      where: { id: orderId },
+      include: this.acceptedOrderInclude(),
+    });
+
+    if (!order) {
+      throw new NotFoundException("Order not found");
+    }
+
+    return this.toOrderResponse(order);
+  }
+
   private async assertStaffUserExists(
     staffUserId: string | undefined,
     tx: PrismaExecutor,
@@ -1598,11 +1675,13 @@ export class OrdersService {
   }
 
   private toSubmitCartError(error: unknown, context: SubmitCartLogContext) {
+    const exception = this.safeExceptionSummary(error);
+
     if (error instanceof NotFoundException) {
       this.logger.warn({
         message: "Cart submit rejected because table session is invalid",
         ...context,
-        exception: this.safeExceptionSummary(error),
+        exception,
       });
 
       return new BadRequestException("Table session is invalid or unavailable");
@@ -1612,18 +1691,44 @@ export class OrdersService {
       this.logger.error({
         message: "Cart submit failed before order creation completed",
         ...context,
-        exception: this.safeExceptionSummary(error),
+        exception,
       });
+
+      if (this.isTransactionTimeout(exception)) {
+        return new InternalServerErrorException({
+          message: "The operation timed out while saving. Please retry.",
+          code: "DB_TRANSACTION_TIMEOUT",
+          details: {
+            flow: "customer_submit_cart",
+            action: "cart_submit",
+            requestId: context.requestId,
+            sessionId: context.sessionId,
+            orderId: context.orderId,
+            failureStage: context.failureStage,
+            slowStage: context.slowStage ?? context.failureStage,
+            durationMs: context.durationMs,
+            timings: context.timings,
+            exception,
+          },
+        });
+      }
     }
 
     return error;
   }
 
-  private slowestTimingStage(timings: SubmitCartTimings) {
+  private slowestTimingStage(timings: object) {
     const [stage, durationMs] = Object.entries(timings).reduce<
       [string, number]
     >(
-      (slowest, current) => (current[1] > slowest[1] ? current : slowest),
+      (slowest, [currentStage, currentDuration]) =>
+        (typeof currentDuration === "number" ? currentDuration : 0) >
+        slowest[1]
+          ? [
+              currentStage,
+              typeof currentDuration === "number" ? currentDuration : 0,
+            ]
+          : slowest,
       ["unknown", 0],
     );
 
@@ -1633,11 +1738,12 @@ export class OrdersService {
   private toOrderActionError(error: unknown, context: OrderActionLogContext) {
     const statusCode =
       error instanceof HttpException ? error.getStatus() : undefined;
+    const exception = this.safeExceptionSummary(error);
     const payload = {
       message: "Order action failed",
       ...context,
       statusCode,
-      exception: this.safeExceptionSummary(error),
+      exception,
     };
 
     if (error instanceof HttpException && statusCode && statusCode < 500) {
@@ -1664,12 +1770,47 @@ export class OrdersService {
           createdTaskCount: 0,
           createdTicketCount: 0,
           skippedItems: { count: 0, reasons: [] },
-          exception: this.safeExceptionSummary(error),
+          exception,
+        },
+      });
+    }
+
+    if (
+      context.action === "accept" &&
+      !(error instanceof HttpException) &&
+      this.isTransactionTimeout(exception)
+    ) {
+      return new InternalServerErrorException({
+        message: "The operation timed out while saving. Please retry.",
+        code: "DB_TRANSACTION_TIMEOUT",
+        details: {
+          flow: "cashier_accept",
+          action: context.action,
+          requestId: context.requestId,
+          orderId: context.orderId,
+          branchId: context.branchId,
+          sessionId: context.sessionId,
+          previousStatus: context.previousStatus,
+          targetStatus: context.targetStatus,
+          failureStage: context.failureStage,
+          slowStage: context.slowStage ?? context.failureStage,
+          durationMs: context.durationMs,
+          timings: context.timings,
+          exception,
         },
       });
     }
 
     return error;
+  }
+
+  private isTransactionTimeout(exception: { code?: string; message?: string }) {
+    return (
+      exception.code === "P2028" ||
+      /transaction already closed|timeout|timed out/i.test(
+        exception.message ?? "",
+      )
+    );
   }
 
   private safeExceptionSummary(error: unknown) {
@@ -1821,7 +1962,7 @@ export class OrdersService {
         cancelledAt: task.cancelledAt,
         createdAt: task.createdAt,
         updatedAt: task.updatedAt,
-        events: task.events.map((event: any) => ({
+        events: (task.events ?? []).map((event: any) => ({
           id: event.id,
           preparationTaskId: event.preparationTaskId,
           type: event.type,
@@ -1867,7 +2008,7 @@ export class OrdersService {
           createdAt: item.createdAt,
           updatedAt: item.updatedAt,
         })),
-        printJobs: ticket.printJobs.map((printJob: any) => ({
+        printJobs: (ticket.printJobs ?? []).map((printJob: any) => ({
           id: printJob.id,
           printerStationId: printJob.printerStationId,
           kitchenTicketId: printJob.kitchenTicketId,
@@ -1976,6 +2117,43 @@ export class OrdersService {
       },
       events: {
         orderBy: [{ createdAt: "asc" as const }],
+      },
+    } satisfies Prisma.OrderInclude;
+  }
+
+  private acceptedOrderInclude() {
+    return {
+      company: { select: this.companySelect() },
+      branch: { select: this.branchSelect() },
+      tableSession: {
+        select: this.tableSessionContextSelect(),
+      },
+      items: {
+        orderBy: [{ createdAt: "asc" as const }],
+        include: {
+          menuItem: {
+            select: {
+              station: true,
+            },
+          },
+          modifierOptions: {
+            orderBy: [{ createdAt: "asc" as const }],
+          },
+        },
+      },
+      events: {
+        orderBy: [{ createdAt: "asc" as const }],
+      },
+      preparationTasks: {
+        orderBy: [{ createdAt: "asc" as const }],
+      },
+      kitchenTickets: {
+        orderBy: [{ createdAt: "asc" as const }],
+        include: {
+          items: {
+            orderBy: [{ createdAt: "asc" as const }],
+          },
+        },
       },
     } satisfies Prisma.OrderInclude;
   }
