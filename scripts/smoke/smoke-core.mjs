@@ -12,6 +12,14 @@ export const STEP_STATUSES = [
 
 const DEFAULT_TIMEOUT_MS = 30_000;
 const SLOW_API_THRESHOLD_MS = 2_000;
+const PERFORMANCE_CATEGORY_BUDGETS_MS = {
+  criticalRead: 2_000,
+  criticalWrite: 3_000,
+  aiOptional: 10_000,
+  publicPage: 2_000,
+  ownerPlatform: 5_000,
+  system: 5_000
+};
 const SENSITIVE_KEY_PATTERN =
   /(password|secret|token|cookie|authorization|api[_-]?key|access[_-]?key|private|credential|database_url|redis_url|customerAccessToken)/i;
 const SENSITIVE_TEXT_PATTERNS = [
@@ -836,16 +844,23 @@ export class SmokeRun {
     const httpResult = result?.http ?? result;
     const totalDurationMs = durationMs(stepStartedAtMs, stepFinishedAtMs);
     const thresholdMs = definition.thresholdMs;
+    const performanceCategory = getPerformanceCategory(definition);
+    const performanceBudgetMs = getPerformanceBudgetMs(
+      performanceCategory,
+      definition.method ?? httpResult?.method ?? "GET"
+    );
     const resultWarning = result?.status === "warning";
     const isSlowApi =
       httpResult?.durationMs !== undefined &&
       httpResult.durationMs > SLOW_API_THRESHOLD_MS;
     const isSlowStep = thresholdMs !== undefined && totalDurationMs > thresholdMs;
+    const isSlowBudget =
+      performanceBudgetMs !== undefined && totalDurationMs > performanceBudgetMs;
     const retryCount = Math.max(0, retryAttempts.length - 1);
     const status =
       retryCount > 0
         ? "passed_with_retry"
-        : resultWarning || isSlowApi || isSlowStep
+        : resultWarning || isSlowApi || isSlowStep || isSlowBudget
           ? "warning"
           : "passed";
     const notes = [
@@ -853,6 +868,9 @@ export class SmokeRun {
       isSlowApi ? `slow_request: API request > ${SLOW_API_THRESHOLD_MS}ms` : null,
       isSlowStep && thresholdMs
         ? `slow_step: exceeded ${thresholdMs}ms threshold`
+        : null,
+      isSlowBudget && performanceBudgetMs
+        ? `slow_budget: ${performanceCategory} > ${performanceBudgetMs}ms`
         : null,
       retryCount > 0 ? `first failure: ${firstFailureReason}` : null
     ].filter(Boolean);
@@ -869,6 +887,7 @@ export class SmokeRun {
       finishedAt: toIso(stepFinishedAtMs),
       durationMs: totalDurationMs,
       status,
+      performanceCategory,
       critical: Boolean(definition.critical),
       retryCount,
       retryAttempts,
@@ -906,6 +925,7 @@ export class SmokeRun {
       finishedAt: toIso(),
       durationMs: 0,
       status: "skipped",
+      performanceCategory: getPerformanceCategory(definition),
       critical: Boolean(definition.critical),
       retryCount: 0,
       retryAttempts: [],
@@ -937,6 +957,7 @@ export class SmokeRun {
       finishedAt: toIso(finishedAtMs),
       durationMs: durationMs(stepStartedAtMs, finishedAtMs),
       status: "failed",
+      performanceCategory: getPerformanceCategory(definition),
       critical: Boolean(definition.critical),
       retryCount: Math.max(0, retryAttempts.length - 1),
       retryAttempts,
@@ -1018,6 +1039,8 @@ export class SmokeRun {
           ? "PASS_WITH_WARNINGS"
           : "PASS";
 
+    const performance = buildPerformanceSummary(this.steps);
+
     return sanitizeValue({
       runId: this.config.runId,
       environment: this.config.environment,
@@ -1044,6 +1067,7 @@ export class SmokeRun {
         totalDurationMs: durationMs(this.startedAtMs, finishedAtMs),
         overallResult
       },
+      performance,
       entityIds: this.entityIds,
       steps: this.steps,
       coverage: this.coverage,
@@ -1067,6 +1091,126 @@ function errorToStepError(error) {
     pageOrEndpoint: error?.pageOrEndpoint,
     method: error?.method,
     role: error?.role
+  });
+}
+
+function getPerformanceCategory(definition = {}) {
+  if (definition.performanceCategory) {
+    return definition.performanceCategory;
+  }
+
+  const stepName = String(definition.stepName ?? "").toLowerCase();
+
+  if (stepName.startsWith("ai ") || stepName.includes("ai waiter")) {
+    return "ai_optional";
+  }
+
+  if (definition.role === "public") {
+    return "public_page";
+  }
+
+  if (definition.group === "owner" || definition.group === "platform") {
+    return "owner_platform";
+  }
+
+  if (definition.group === "customer") {
+    return "critical_customer";
+  }
+
+  if (["cashier", "kitchen", "waiter", "bill"].includes(definition.group)) {
+    return "critical_staff";
+  }
+
+  return "system";
+}
+
+function getPerformanceBudgetMs(category, method = "GET") {
+  if (category === "ai_optional") {
+    return PERFORMANCE_CATEGORY_BUDGETS_MS.aiOptional;
+  }
+
+  if (category === "public_page") {
+    return PERFORMANCE_CATEGORY_BUDGETS_MS.publicPage;
+  }
+
+  if (category === "owner_platform") {
+    return PERFORMANCE_CATEGORY_BUDGETS_MS.ownerPlatform;
+  }
+
+  if (category === "critical_customer" || category === "critical_staff") {
+    return ["GET", "HEAD"].includes(String(method).toUpperCase())
+      ? PERFORMANCE_CATEGORY_BUDGETS_MS.criticalRead
+      : PERFORMANCE_CATEGORY_BUDGETS_MS.criticalWrite;
+  }
+
+  return PERFORMANCE_CATEGORY_BUDGETS_MS.system;
+}
+
+function buildPerformanceSummary(steps = []) {
+  const completedSteps = steps.filter((step) => step.status !== "skipped");
+  const topSlowestSteps = [...completedSteps]
+    .sort((left, right) => (right.durationMs ?? 0) - (left.durationMs ?? 0))
+    .slice(0, 10)
+    .map((step) => ({
+      stepName: step.stepName,
+      role: step.role,
+      method: step.method,
+      pageOrEndpoint: step.pageOrEndpoint,
+      status: step.status,
+      performanceCategory: step.performanceCategory ?? "system",
+      durationMs: step.durationMs,
+      requestId: step.requestId,
+      retryCount: step.retryCount ?? 0,
+      firstFailureReason: step.firstFailureReason,
+      notes: step.notes ?? []
+    }));
+  const criticalNonAiDurationMs = completedSteps
+    .filter((step) =>
+      ["critical_customer", "critical_staff"].includes(
+        step.performanceCategory
+      )
+    )
+    .reduce((sum, step) => sum + (step.durationMs ?? 0), 0);
+  const aiDurationMs = completedSteps
+    .filter((step) => step.performanceCategory === "ai_optional")
+    .reduce((sum, step) => sum + (step.durationMs ?? 0), 0);
+  const retrySummary = completedSteps
+    .filter((step) => (step.retryCount ?? 0) > 0)
+    .map((step) => ({
+      stepName: step.stepName,
+      status: step.status,
+      retryCount: step.retryCount,
+      firstFailureReason: step.firstFailureReason,
+      durationMs: step.durationMs,
+      finalRequestId: step.requestId,
+      retryAttempts: step.retryAttempts ?? []
+    }));
+  const slowStepCategories = completedSteps.reduce((counts, step) => {
+    const isSlow = (step.notes ?? []).some((note) =>
+      String(note).includes("slow_")
+    );
+
+    if (isSlow) {
+      const category = step.performanceCategory ?? "system";
+      counts[category] = (counts[category] ?? 0) + 1;
+    }
+
+    return counts;
+  }, {});
+
+  return sanitizeValue({
+    topSlowestSteps,
+    criticalNonAiDurationMs,
+    aiDurationMs,
+    retrySummary,
+    slowStepCategories,
+    budgetsMs: {
+      criticalWrite: PERFORMANCE_CATEGORY_BUDGETS_MS.criticalWrite,
+      criticalRead: PERFORMANCE_CATEGORY_BUDGETS_MS.criticalRead,
+      aiOptional: PERFORMANCE_CATEGORY_BUDGETS_MS.aiOptional,
+      publicPage: PERFORMANCE_CATEGORY_BUDGETS_MS.publicPage,
+      ownerPlatform: PERFORMANCE_CATEGORY_BUDGETS_MS.ownerPlatform
+    }
   });
 }
 
@@ -1116,7 +1260,9 @@ export async function writeSmokeArtifacts(report, outputDir = "smoke-results") {
 }
 
 export function renderSummary(report) {
-  return [
+  const topSlowest = report.performance?.topSlowestSteps ?? [];
+  const retrySummary = report.performance?.retrySummary ?? [];
+  const lines = [
     `Smoke run ${report.runId}`,
     `Environment: ${report.environment}`,
     `Overall result: ${report.score.overallResult}`,
@@ -1127,8 +1273,30 @@ export function renderSummary(report) {
     `Skipped: ${report.score.skipped}`,
     `Failed: ${report.score.failed}`,
     `Slow requests: ${report.score.slowRequestsCount}`,
-    `Total duration: ${report.score.totalDurationMs}ms`
-  ].join("\n");
+    `Total duration: ${report.score.totalDurationMs}ms`,
+    `Critical non-AI duration: ${report.performance?.criticalNonAiDurationMs ?? 0}ms`,
+    `AI duration: ${report.performance?.aiDurationMs ?? 0}ms`
+  ];
+
+  if (retrySummary.length > 0) {
+    lines.push("Retries:");
+    for (const retry of retrySummary) {
+      lines.push(
+        `- ${retry.stepName}: ${retry.status}, retryCount=${retry.retryCount}, firstFailure=${retry.firstFailureReason ?? ""}, finalRequestId=${retry.finalRequestId ?? ""}`
+      );
+    }
+  }
+
+  if (topSlowest.length > 0) {
+    lines.push("Top slowest steps:");
+    for (const step of topSlowest.slice(0, 5)) {
+      lines.push(
+        `- ${step.stepName}: ${step.durationMs}ms, category=${step.performanceCategory}, status=${step.status}, requestId=${step.requestId ?? ""}`
+      );
+    }
+  }
+
+  return lines.join("\n");
 }
 
 export function renderMarkdownReport(report) {
@@ -1152,6 +1320,37 @@ export function renderMarkdownReport(report) {
     `| Skipped | ${report.score.skipped} |`,
     `| Failed | ${report.score.failed} |`,
     `| Slow requests | ${report.score.slowRequestsCount} |`,
+    `| Critical non-AI duration | ${report.performance?.criticalNonAiDurationMs ?? 0}ms |`,
+    `| AI duration | ${report.performance?.aiDurationMs ?? 0}ms |`,
+    "",
+    "## Performance Summary",
+    "",
+    "| Budget | Duration |",
+    "| --- | ---: |",
+    `| Critical write warn budget | ${report.performance?.budgetsMs?.criticalWrite ?? ""}ms |`,
+    `| Critical read warn budget | ${report.performance?.budgetsMs?.criticalRead ?? ""}ms |`,
+    `| AI warn budget | ${report.performance?.budgetsMs?.aiOptional ?? ""}ms |`,
+    `| Public page warn budget | ${report.performance?.budgetsMs?.publicPage ?? ""}ms |`,
+    "",
+    "### Top 10 Slowest Steps",
+    "",
+    "| Rank | Step | Category | Status | Duration | Request ID | Notes |",
+    "| ---: | --- | --- | --- | ---: | --- | --- |",
+    ...(report.performance?.topSlowestSteps ?? []).map(
+      (step, index) =>
+        `| ${index + 1} | ${escapePipe(step.stepName)} | ${escapePipe(step.performanceCategory)} | ${step.status} | ${step.durationMs}ms | ${escapePipe(step.requestId ?? "")} | ${escapePipe((step.notes ?? []).join("; "))} |`
+    ),
+    "",
+    "### Retry Summary",
+    "",
+    "| Step | Status | Retry Count | First Failure | Total Duration | Final Request ID |",
+    "| --- | --- | ---: | --- | ---: | --- |",
+    ...((report.performance?.retrySummary?.length ?? 0) > 0
+      ? report.performance.retrySummary.map(
+          (retry) =>
+            `| ${escapePipe(retry.stepName)} | ${retry.status} | ${retry.retryCount} | ${escapePipe(retry.firstFailureReason ?? "")} | ${retry.durationMs}ms | ${escapePipe(retry.finalRequestId ?? "")} |`
+        )
+      : ["| None |  | 0 |  |  |  |"]),
     "",
     "## Flow Timings",
     "",
@@ -1163,11 +1362,11 @@ export function renderMarkdownReport(report) {
     "",
     "## Steps",
     "",
-    "| Step | Role | Method | Page/Endpoint | Status | Duration | Request ID | Notes |",
-    "| --- | --- | --- | --- | --- | ---: | --- | --- |",
+    "| Step | Category | Role | Method | Page/Endpoint | Status | Duration | Request ID | Notes |",
+    "| --- | --- | --- | --- | --- | --- | ---: | --- | --- |",
     ...report.steps.map(
       (step) =>
-        `| ${escapePipe(step.stepName)} | ${escapePipe(step.role)} | ${escapePipe(step.method)} | ${escapePipe(step.pageOrEndpoint ?? "")} | ${step.status} | ${step.durationMs}ms | ${escapePipe(step.requestId ?? "")} | ${escapePipe((step.notes ?? []).join("; "))} |`
+        `| ${escapePipe(step.stepName)} | ${escapePipe(step.performanceCategory ?? "")} | ${escapePipe(step.role)} | ${escapePipe(step.method)} | ${escapePipe(step.pageOrEndpoint ?? "")} | ${step.status} | ${step.durationMs}ms | ${escapePipe(step.requestId ?? "")} | ${escapePipe((step.notes ?? []).join("; "))} |`
     ),
     "",
     "## Coverage Matrix",

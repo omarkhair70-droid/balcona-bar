@@ -847,6 +847,7 @@ function buildSubmitService(
 
         return Promise.resolve(null);
       }),
+      findFirst: jest.fn().mockResolvedValue(null),
       create: jest.fn().mockResolvedValue({ id: "order-1" }),
     },
     cart: {
@@ -997,6 +998,41 @@ describe("OrdersService submit cart", () => {
     expect(smartCashierService.attemptAutoAcceptOrder).toHaveBeenCalledWith(
       "order-1",
     );
+    expect(tx.order.count).not.toHaveBeenCalled();
+    expect(tx.order.findFirst).toHaveBeenCalledWith({
+      where: {
+        branchId: "branch-1",
+        orderNumber: { startsWith: "B" },
+      },
+      orderBy: [{ submittedAt: "desc" }, { createdAt: "desc" }, { id: "desc" }],
+      select: { orderNumber: true },
+    });
+  });
+
+  it("hydrates submit cart responses without operational KDS includes", async () => {
+    const { service, prisma } = buildSubmitService({
+      responseStatus: OrderStatus.submitted,
+    });
+
+    const result = await service.submitCart("session-1", {}, "submit-key-lite");
+
+    expect(result.order.status).toBe(OrderStatus.submitted);
+    expect(prisma.order.findUnique).toHaveBeenCalledWith({
+      where: { id: "order-1" },
+      include: expect.objectContaining({
+        company: expect.anything(),
+        branch: expect.anything(),
+        tableSession: expect.anything(),
+        items: expect.anything(),
+        events: expect.anything(),
+      }),
+    });
+    expect(
+      prisma.order.findUnique.mock.calls[0][0].include.preparationTasks,
+    ).toBeUndefined();
+    expect(
+      prisma.order.findUnique.mock.calls[0][0].include.kitchenTickets,
+    ).toBeUndefined();
   });
 
   it("returns success and leaves manual review available when auto-accept throws", async () => {
@@ -1016,6 +1052,59 @@ describe("OrdersService submit cart", () => {
     );
     expect(result.order.status).toBe(OrderStatus.submitted);
     expect(result.lifecycle.allowedActions).toContain("accept");
+  });
+
+  it("returns success even when all post-submit side effects fail", async () => {
+    const {
+      service,
+      presenceNotificationsService,
+      realtimeEventsService,
+      smartCashierService,
+      tableAttentionService,
+    } = buildSubmitService({
+      responseStatus: OrderStatus.submitted,
+    });
+    const warnSpy = jest.spyOn(Logger.prototype, "warn").mockImplementation();
+
+    presenceNotificationsService.createOrderSubmittedNotification.mockRejectedValue(
+      new Error("notification token=secret failed"),
+    );
+    realtimeEventsService.recordOrderSubmitted.mockRejectedValue(
+      new Error("realtime token=secret failed"),
+    );
+    smartCashierService.attemptAutoAcceptOrder.mockRejectedValue(
+      new Error("auto accept token=secret failed"),
+    );
+    tableAttentionService.recalculateForTableSession.mockRejectedValue(
+      new Error("attention token=secret failed"),
+    );
+
+    const result = await service.submitCart(
+      "session-1",
+      {},
+      "submit-key-side-effects",
+      "req-submit",
+    );
+    await flushAsyncWork();
+
+    expect(result.order.status).toBe(OrderStatus.submitted);
+    expect(warnSpy).toHaveBeenCalledWith(
+      expect.objectContaining({
+        message:
+          "Post-submit automation failed; order remains submitted for manual review",
+        requestId: "req-submit",
+        sessionId: "session-1",
+        orderId: "order-1",
+      }),
+    );
+    const logged = JSON.stringify(warnSpy.mock.calls);
+
+    expect(logged).toContain("order_submitted_notification");
+    expect(logged).toContain("order_submitted_realtime");
+    expect(logged).toContain("smart_cashier_auto_accept");
+    expect(tableAttentionService.recalculateForTableSession).toHaveBeenCalled();
+    expect(logged).toContain("token=[redacted]");
+    expect(logged).not.toContain("token=secret");
   });
 
   it("returns before post-submit automation settles", async () => {
