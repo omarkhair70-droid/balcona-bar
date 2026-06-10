@@ -6,12 +6,19 @@ import { join } from "node:path";
 import { describe, it } from "node:test";
 import {
   SmokeHttpClient,
+  SmokeRun,
   readSmokeConfig,
   safePublicConfig,
   sanitizeValue,
   validateSmokeConfig,
   writeSmokeArtifacts
 } from "./smoke-core.mjs";
+import {
+  assertRecordMatchesCurrentFlow,
+  extractSubmittedOrder,
+  selectCurrentCashierOrder,
+  summarizeOrderCandidates
+} from "./staging-smoke.mjs";
 
 describe("smoke core", () => {
   it("reports missing base env vars clearly", () => {
@@ -226,5 +233,165 @@ describe("smoke core", () => {
     assert.ok(readyBlock);
     assert.doesNotMatch(startBlock[0], /\bnote\b/);
     assert.doesNotMatch(readyBlock[0], /\bnote\b/);
+  });
+
+  it("extracts the current submit cart order from the submit response", () => {
+    const order = extractSubmittedOrder(
+      {
+        order: {
+          id: "order-current",
+          tableSessionId: "session-current",
+          orderNumber: "S-001",
+          status: "submitted",
+          submittedAt: "2026-06-10T00:00:00.000Z"
+        }
+      },
+      "session-current"
+    );
+
+    assert.equal(order.id, "order-current");
+    assert.equal(order.tableSessionId, "session-current");
+    assert.equal(order.status, "submitted");
+  });
+
+  it("captures the final successful orderId when submit passes after retry", async () => {
+    const run = new SmokeRun({
+      runId: "run-retry",
+      retryTransient: true,
+      timeoutMs: 5_000,
+      clientTraceId: "client-retry"
+    });
+    let attempts = 0;
+
+    const step = await run.step(
+      {
+        stepName: "customer submit cart",
+        role: "customer",
+        pageOrEndpoint: "/table-sessions/session-current/cart/submit",
+        method: "POST",
+        group: "customer",
+        retryable: true
+      },
+      async () => {
+        attempts += 1;
+
+        if (attempts === 1) {
+          throw new Error("transient timeout");
+        }
+
+        const body = {
+          order: {
+            id: "order-after-retry",
+            tableSessionId: "session-current",
+            status: "submitted"
+          }
+        };
+        const order = extractSubmittedOrder(body, "session-current");
+
+        return {
+          http: {
+            body,
+            requestId: "req-success",
+            durationMs: 100,
+            flowId: "flow-submit",
+            clientTraceId: "client-retry"
+          },
+          entityIds: {
+            orderId: order.id,
+            submittedOrderId: order.id,
+            tableSessionId: order.tableSessionId,
+            orderStatus: order.status
+          }
+        };
+      }
+    );
+
+    assert.equal(step.status, "passed_with_retry");
+    assert.equal(run.entityIds.orderId, "order-after-retry");
+    assert.equal(run.entityIds.submittedOrderId, "order-after-retry");
+  });
+
+  it("selects the current cashier order instead of stale branch orders", () => {
+    const selected = selectCurrentCashierOrder(
+      {
+        orders: [
+          {
+            id: "stale-order",
+            tableSessionId: "old-session",
+            status: "submitted"
+          },
+          {
+            id: "current-order",
+            tableSessionId: "current-session",
+            status: "submitted"
+          }
+        ]
+      },
+      { orderId: "current-order", tableSessionId: "current-session" }
+    );
+
+    assert.equal(selected.id, "current-order");
+  });
+
+  it("refuses a non-submitted stale cashier order before accept", () => {
+    const selected = selectCurrentCashierOrder(
+      {
+        orders: [
+          {
+            id: "current-order",
+            tableSessionId: "current-session",
+            status: "cashier_accepted"
+          }
+        ]
+      },
+      { orderId: "current-order", tableSessionId: "current-session" }
+    );
+
+    assert.equal(selected, null);
+  });
+
+  it("detects downstream order and session mismatches", () => {
+    assert.throws(
+      () =>
+        assertRecordMatchesCurrentFlow(
+          { id: "task-1", orderId: "other-order", tableSessionId: "session-1" },
+          { kind: "preparation task", orderId: "order-1", tableSessionId: "session-1" }
+        ),
+      /different order/
+    );
+    assert.throws(
+      () =>
+        assertRecordMatchesCurrentFlow(
+          { id: "ticket-1", orderId: "order-1", tableSessionId: "other-session" },
+          { kind: "kitchen ticket", orderId: "order-1", tableSessionId: "session-1" }
+        ),
+      /different table session/
+    );
+  });
+
+  it("includes safe candidate summaries when current order selection fails", () => {
+    const summary = summarizeOrderCandidates({
+      orders: [
+        { id: "stale-order", tableSessionId: "old-session", status: "submitted" }
+      ]
+    });
+
+    assert.match(summary, /stale-order/);
+    assert.match(summary, /old-session/);
+  });
+
+  it("documents the clean full smoke command flow", async () => {
+    const packageJson = JSON.parse(
+      await readFile(new URL("../../package.json", import.meta.url), "utf8")
+    );
+    const docs = await readFile(
+      new URL("../../docs/operations/staging-smoke-runner.md", import.meta.url),
+      "utf8"
+    );
+
+    assert.match(packageJson.scripts["smoke:staging:clean-full"], /smoke:reset:staging/);
+    assert.match(docs, /pnpm smoke:reset:staging/);
+    assert.match(docs, /pnpm smoke:bootstrap:staging/);
+    assert.match(docs, /pnpm smoke:staging:full/);
   });
 });
