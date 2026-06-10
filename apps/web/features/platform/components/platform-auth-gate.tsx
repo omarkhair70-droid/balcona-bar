@@ -10,6 +10,7 @@ import { LoadingState } from "@/components/ui/loading-state";
 import { ApiError } from "@/lib/api/client";
 import { getPlatformMe } from "@/lib/api/endpoints";
 import { platformQueryKeys } from "@/lib/api/query-keys";
+import { useTranslations } from "@/lib/i18n/i18n-provider";
 import {
   isPlatformSessionExpired,
   usePlatformAuthStore
@@ -20,6 +21,7 @@ type PlatformAuthGateProps = {
 };
 
 export function PlatformAuthGate({ children }: PlatformAuthGateProps) {
+  const t = useTranslations("platform");
   const accessToken = usePlatformAuthStore((state) => state.accessToken);
   const expiresAt = usePlatformAuthStore((state) => state.expiresAt);
   const setFromContext = usePlatformAuthStore((state) => state.setFromContext);
@@ -57,12 +59,12 @@ export function PlatformAuthGate({ children }: PlatformAuthGateProps) {
   if (!accessToken || isExpired) {
     return (
       <EmptyState
-        title="Platform login required"
-        description="Sign in with a platform admin account before onboarding cafes."
+        title={t("auth.loginRequiredTitle")}
+        description={t("auth.loginRequiredDescription")}
         action={
           <Link href="/platform/login" className={buttonVariants()}>
             <LogIn className="size-4" aria-hidden="true" />
-            Platform login
+            {t("auth.platformLogin")}
           </Link>
         }
       />
@@ -70,18 +72,18 @@ export function PlatformAuthGate({ children }: PlatformAuthGateProps) {
   }
 
   if (platformQuery.isPending) {
-    return <LoadingState label="Restoring platform session" />;
+    return <LoadingState label={t("auth.restoringSession")} />;
   }
 
   if (platformQuery.isError) {
     return (
       <EmptyState
-        title="Platform session could not be restored"
+        title={t("auth.restoreFailedTitle")}
         description={platformQuery.error.message}
         action={
           <Button onClick={clearSession} variant="secondary">
             <AlertTriangle className="size-4" aria-hidden="true" />
-            Clear session
+            {t("auth.clearSession")}
           </Button>
         }
       />

@@ -24,12 +24,17 @@ export type OwnerHealthLevel =
   | "needs_manager_attention"
   | "critical";
 
+export type OwnerLocalizedText = {
+  key: string;
+  values?: Record<string, string | number>;
+};
+
 export type OwnerHealthSummary = {
   level: OwnerHealthLevel;
-  label: string;
-  description: string;
-  reasons: string[];
-  recommendedActions: string[];
+  labelKey: string;
+  descriptionKey: string;
+  reasons: OwnerLocalizedText[];
+  recommendedActions: OwnerLocalizedText[];
 };
 
 export type OwnerHealthInput = {
@@ -120,37 +125,52 @@ export function formatVisibleValue(
 export function buildOwnerHealthSummary(
   input: OwnerHealthInput
 ): OwnerHealthSummary {
-  const reasons: string[] = [];
-  const recommendedActions: string[] = [];
+  const reasons: OwnerLocalizedText[] = [];
+  const recommendedActions: OwnerLocalizedText[] = [];
 
   if (input.urgentAttention > 0) {
-    reasons.push(`${input.urgentAttention} urgent attention signal(s)`);
-    recommendedActions.push("Open waiter dashboard and recover the table");
+    reasons.push({
+      key: "health.reasons.urgentAttention",
+      values: { count: input.urgentAttention }
+    });
+    recommendedActions.push({ key: "health.actions.openWaiterDashboard" });
   }
 
   if (input.urgentWaiterCalls > 0) {
-    reasons.push(`${input.urgentWaiterCalls} high-priority waiter call(s)`);
-    recommendedActions.push("Assign floor staff to open calls");
+    reasons.push({
+      key: "health.reasons.urgentWaiterCalls",
+      values: { count: input.urgentWaiterCalls }
+    });
+    recommendedActions.push({ key: "health.actions.assignFloorStaff" });
   }
 
   if (input.submittedOrders > 0) {
-    reasons.push(`${input.submittedOrders} submitted order(s) awaiting cashier`);
-    recommendedActions.push("Review cashier intake");
+    reasons.push({
+      key: "health.reasons.submittedOrders",
+      values: { count: input.submittedOrders }
+    });
+    recommendedActions.push({ key: "health.actions.reviewCashierIntake" });
   }
 
   if (input.readyOrders > 0) {
-    reasons.push(`${input.readyOrders} ready order(s) may need serving`);
-    recommendedActions.push("Send waiter to serve ready orders");
+    reasons.push({
+      key: "health.reasons.readyOrders",
+      values: { count: input.readyOrders }
+    });
+    recommendedActions.push({ key: "health.actions.serveReadyOrders" });
   }
 
   if (input.pendingTasks + input.preparingTasks >= 6) {
-    reasons.push("Preparation load is building");
-    recommendedActions.push("Check kitchen and barista lanes");
+    reasons.push({ key: "health.reasons.preparationLoad" });
+    recommendedActions.push({ key: "health.actions.checkKitchenBarista" });
   }
 
   if (input.openBillRequests > 0) {
-    reasons.push(`${input.openBillRequests} bill request(s) need follow-up`);
-    recommendedActions.push("Review cashier bill requests");
+    reasons.push({
+      key: "health.reasons.openBillRequests",
+      values: { count: input.openBillRequests }
+    });
+    recommendedActions.push({ key: "health.actions.reviewBillRequests" });
   }
 
   if (
@@ -160,8 +180,8 @@ export function buildOwnerHealthSummary(
   ) {
     return {
       level: "critical",
-      label: "Critical",
-      description: "Multiple urgent signals need manager intervention.",
+      labelKey: "health.levels.critical",
+      descriptionKey: "health.descriptions.critical",
       reasons,
       recommendedActions
     };
@@ -177,8 +197,8 @@ export function buildOwnerHealthSummary(
   ) {
     return {
       level: "needs_manager_attention",
-      label: "Needs manager attention",
-      description: "The branch has signals that should be actively managed.",
+      labelKey: "health.levels.needsManagerAttention",
+      descriptionKey: "health.descriptions.needsManagerAttention",
       reasons,
       recommendedActions
     };
@@ -193,21 +213,24 @@ export function buildOwnerHealthSummary(
   ) {
     return {
       level: "busy",
-      label: "Busy",
-      description: "Operations are moving, but no critical pattern is visible.",
-      reasons: reasons.length > 0 ? reasons : ["Branch activity is elevated"],
+      labelKey: "health.levels.busy",
+      descriptionKey: "health.descriptions.busy",
+      reasons:
+        reasons.length > 0
+          ? reasons
+          : [{ key: "health.reasons.branchActivityElevated" }],
       recommendedActions:
         recommendedActions.length > 0
           ? recommendedActions
-          : ["Keep scanning active lanes"]
+          : [{ key: "health.actions.keepScanning" }]
     };
   }
 
   return {
     level: "calm",
-    label: "Calm",
-    description: "No active bottleneck is visible from the returned endpoints.",
-    reasons: ["No urgent attention, open calls, or order intake pressure"],
-    recommendedActions: ["Keep the branch pulse open for realtime changes"]
+    labelKey: "health.levels.calm",
+    descriptionKey: "health.descriptions.calm",
+    reasons: [{ key: "health.reasons.noUrgentPressure" }],
+    recommendedActions: [{ key: "health.actions.keepPulseOpen" }]
   };
 }

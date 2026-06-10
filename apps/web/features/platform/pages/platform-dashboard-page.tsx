@@ -28,6 +28,7 @@ import { formatErrorMessage } from "@/lib/api/error-message";
 import { getPlatformCompanies } from "@/lib/api/endpoints";
 import { platformQueryKeys } from "@/lib/api/query-keys";
 import type { PlatformCompanySummary } from "@/lib/api/types";
+import { useTranslations } from "@/lib/i18n/i18n-provider";
 import { usePlatformAuthStore } from "@/lib/platform/platform-auth-store";
 import { formatDateTime, formatMoney, humanizeStatus } from "@/features/staff/staff-format";
 
@@ -49,21 +50,27 @@ function subscriptionBadgeVariant(
   return "muted";
 }
 
-function planPrice(company: PlatformCompanySummary) {
+function planPrice(
+  company: PlatformCompanySummary,
+  t: ReturnType<typeof useTranslations>
+) {
   const plan = company.subscription?.plan;
 
   if (!plan) {
-    return "No plan";
+    return t("companies.noPlan");
   }
 
   if (plan.monthlyPriceMinor === null || plan.monthlyPriceMinor === undefined) {
-    return "Custom";
+    return t("companies.customPrice");
   }
 
-  return `${formatMoney(plan.monthlyPriceMinor, plan.currency)}/mo`;
+  return t("companies.pricePerMonth", {
+    price: formatMoney(plan.monthlyPriceMinor, plan.currency)
+  });
 }
 
 function CompanyCard({ company }: { company: PlatformCompanySummary }) {
+  const t = useTranslations("platform");
   const subscriptionStatus = company.subscription?.status ?? "unconfigured";
   const plan = company.subscription?.plan;
 
@@ -80,32 +87,40 @@ function CompanyCard({ company }: { company: PlatformCompanySummary }) {
         </div>
         <CardTitle>{company.name}</CardTitle>
         <CardDescription>
-          {company.slug} · {plan?.name ?? "Plan pending"} · {planPrice(company)}
+          {t("companies.cardDescription", {
+            slug: company.slug,
+            plan: plan?.name ?? t("companies.planPending"),
+            price: planPrice(company, t)
+          })}
         </CardDescription>
       </CardHeader>
       <CardContent className="grid gap-3 text-sm text-muted-foreground">
         <div className="grid grid-cols-2 gap-3">
           <div className="rounded-button border bg-surface/70 p-3">
-            <p className="text-xs uppercase text-muted-foreground">Branches</p>
+            <p className="text-xs uppercase text-muted-foreground">
+              {t("companies.branches")}
+            </p>
             <p className="mt-1 text-xl font-semibold text-foreground">
               {company.branchCount}
             </p>
           </div>
           <div className="rounded-button border bg-surface/70 p-3">
-            <p className="text-xs uppercase text-muted-foreground">Staff</p>
+            <p className="text-xs uppercase text-muted-foreground">
+              {t("companies.staff")}
+            </p>
             <p className="mt-1 text-xl font-semibold text-foreground">
               {company.staffMembershipCount}
             </p>
           </div>
         </div>
-        <p>Created {formatDateTime(company.createdAt)}</p>
+        <p>{t("companies.createdAt", { date: formatDateTime(company.createdAt) })}</p>
       </CardContent>
       <CardFooter>
         <Link
           href={`/platform/companies/${company.id}`}
           className={buttonVariants({ variant: "secondary", size: "sm" })}
         >
-          Open company
+          {t("actions.openCompany")}
         </Link>
       </CardFooter>
     </Card>
@@ -113,6 +128,7 @@ function CompanyCard({ company }: { company: PlatformCompanySummary }) {
 }
 
 function PlatformDashboardContent() {
+  const t = useTranslations("platform");
   const accessToken = usePlatformAuthStore((state) => state.accessToken);
   const companiesQuery = useQuery({
     queryKey: platformQueryKeys.companies(),
@@ -121,18 +137,18 @@ function PlatformDashboardContent() {
   });
 
   if (companiesQuery.isPending) {
-    return <LoadingState label="Loading platform companies" />;
+    return <LoadingState label={t("companies.loading")} />;
   }
 
   if (companiesQuery.isError) {
     return (
       <EmptyState
-        title="Platform companies could not be loaded"
+        title={t("errors.companiesLoadTitle")}
         description={formatErrorMessage(companiesQuery.error)}
         action={
           <Button onClick={() => companiesQuery.refetch()} variant="secondary">
             <RefreshCw className="size-4" aria-hidden="true" />
-            Retry
+            {t("actions.retry")}
           </Button>
         }
       />
@@ -146,29 +162,29 @@ function PlatformDashboardContent() {
     <div className="grid gap-5">
       <section className="grid gap-4 md:grid-cols-4">
         <MetricCard
-          label="Companies"
+          label={t("companies.metricCompanies")}
           value={String(data.summary.totalCompanies)}
-          description="Total tenant workspaces"
+          description={t("companies.metricCompaniesDescription")}
           icon={<Building2 className="size-4" aria-hidden="true" />}
         />
         <MetricCard
-          label="Active"
+          label={t("companies.metricActive")}
           value={String(data.summary.activeSubscriptions)}
-          description="Active subscriptions"
+          description={t("companies.metricActiveDescription")}
           tone="success"
           icon={<ShieldCheck className="size-4" aria-hidden="true" />}
         />
         <MetricCard
-          label="Trialing"
+          label={t("companies.metricTrialing")}
           value={String(data.summary.trialingSubscriptions)}
-          description="Sales-led trials"
+          description={t("companies.metricTrialingDescription")}
           tone="warning"
           icon={<CreditCard className="size-4" aria-hidden="true" />}
         />
         <MetricCard
-          label="Suspended"
+          label={t("companies.metricSuspended")}
           value={String(data.summary.suspendedSubscriptions)}
-          description="Blocked plan writes"
+          description={t("companies.metricSuspendedDescription")}
           tone="muted"
           icon={<CreditCard className="size-4" aria-hidden="true" />}
         />
@@ -176,12 +192,12 @@ function PlatformDashboardContent() {
 
       {recentCompanies.length === 0 ? (
         <EmptyState
-          title="No cafe workspaces yet"
-          description="Create the first company, branch, owner, plan assignment, and starter QR tables from the Add Cafe flow."
+          title={t("empty.noCompaniesTitle")}
+          description={t("empty.noCompaniesDescription")}
           action={
             <Link href="/platform/companies/new" className={buttonVariants()}>
               <PlusCircle className="size-4" aria-hidden="true" />
-              Add Cafe
+              {t("actions.addCafe")}
             </Link>
           }
         />
@@ -197,14 +213,16 @@ function PlatformDashboardContent() {
 }
 
 export function PlatformDashboardPage() {
+  const t = useTranslations("platform");
+
   return (
     <PlatformShell
-      title="Platform companies"
-      description="Sales-led tenant bootstrap for cafe workspaces, plan assignment, owner handoff, and starter QR setup."
+      title={t("companies.title")}
+      description={t("companies.description")}
       actions={
         <Link href="/platform/companies/new" className={buttonVariants()}>
           <PlusCircle className="size-4" aria-hidden="true" />
-          Add Cafe
+          {t("actions.addCafe")}
         </Link>
       }
     >

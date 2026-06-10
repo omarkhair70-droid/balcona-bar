@@ -35,6 +35,7 @@ import type {
   BootstrapCompanyInput,
   BootstrapCompanyResult
 } from "@/lib/api/types";
+import { useTranslations } from "@/lib/i18n/i18n-provider";
 import { usePlatformAuthStore } from "@/lib/platform/platform-auth-store";
 import { formatMoney } from "@/features/staff/staff-format";
 
@@ -57,34 +58,43 @@ function planLabel(planCode: string) {
 }
 
 function SuccessPanel({ result }: { result: BootstrapCompanyResult }) {
+  const t = useTranslations("platform");
+
   return (
     <Card variant="accent">
       <CardHeader>
         <div className="flex size-11 items-center justify-center rounded-button bg-success/20 text-success">
           <BadgeCheck className="size-5" aria-hidden="true" />
         </div>
-        <CardTitle>Company workspace created</CardTitle>
+        <CardTitle>{t("onboarding.createdTitle")}</CardTitle>
         <CardDescription>
-          {result.company.name} is ready for owner password setup, launch
-          readiness, billing review, and QR handoff.
+          {t("onboarding.createdDescription", {
+            companyName: result.company.name
+          })}
         </CardDescription>
       </CardHeader>
       <CardContent className="grid gap-4">
         <div className="grid gap-3 md:grid-cols-3">
           <div className="rounded-button border bg-surface/70 p-3">
-            <p className="text-xs uppercase text-muted-foreground">Owner</p>
+            <p className="text-xs uppercase text-muted-foreground">
+              {t("onboarding.owner")}
+            </p>
             <p className="mt-1 font-semibold text-foreground">
               {result.passwordSetup.ownerEmail}
             </p>
           </div>
           <div className="rounded-button border bg-surface/70 p-3">
-            <p className="text-xs uppercase text-muted-foreground">Plan</p>
+            <p className="text-xs uppercase text-muted-foreground">
+              {t("onboarding.plan")}
+            </p>
             <p className="mt-1 font-semibold text-foreground">
               {result.plan.name}
             </p>
           </div>
           <div className="rounded-button border bg-surface/70 p-3">
-            <p className="text-xs uppercase text-muted-foreground">Branch</p>
+            <p className="text-xs uppercase text-muted-foreground">
+              {t("onboarding.branch")}
+            </p>
             <p className="mt-1 font-semibold text-foreground">
               {result.branch.name}
             </p>
@@ -94,24 +104,26 @@ function SuccessPanel({ result }: { result: BootstrapCompanyResult }) {
         <div className="grid gap-3 md:grid-cols-3">
           <Link href={result.setupUrl} className={buttonVariants()}>
             <CopyCheck className="size-4" aria-hidden="true" />
-            Staff setup
+            {t("actions.staffSetup")}
           </Link>
           <Link
             href={result.billingUrl}
             className={buttonVariants({ variant: "secondary" })}
           >
-            Billing
+            {t("actions.billing")}
           </Link>
           <Link
             href={`/platform/companies/${result.companyId}`}
             className={buttonVariants({ variant: "secondary" })}
           >
-            Company detail
+            {t("actions.companyDetail")}
           </Link>
         </div>
 
         <div className="rounded-card border bg-surface/70 p-4">
-          <p className="font-semibold text-foreground">Password handoff</p>
+          <p className="font-semibold text-foreground">
+            {t("onboarding.passwordHandoff")}
+          </p>
           <p className="mt-2 text-sm leading-6 text-muted-foreground">
             {result.passwordSetup.instructions}
           </p>
@@ -121,7 +133,9 @@ function SuccessPanel({ result }: { result: BootstrapCompanyResult }) {
           <div className="grid gap-3">
             <div className="flex items-center gap-2">
               <QrCode className="size-4 text-primary" aria-hidden="true" />
-              <p className="font-semibold text-foreground">QR examples</p>
+              <p className="font-semibold text-foreground">
+                {t("onboarding.qrExamples")}
+              </p>
             </div>
             <div className="grid gap-2 md:grid-cols-3">
               {result.customerQrExamples.map((example) => (
@@ -147,6 +161,7 @@ function SuccessPanel({ result }: { result: BootstrapCompanyResult }) {
 }
 
 function PlatformNewCompanyContent() {
+  const t = useTranslations("platform");
   const queryClient = useQueryClient();
   const accessToken = usePlatformAuthStore((state) => state.accessToken);
   const [createdResult, setCreatedResult] =
@@ -165,7 +180,9 @@ function PlatformNewCompanyContent() {
       "trialing"
     );
   const [starterEnabled, setStarterEnabled] = useState(true);
-  const [floorLabel, setFloorLabel] = useState("Ground Floor");
+  const [floorLabel, setFloorLabel] = useState(
+    t("onboarding.defaultFloorLabel")
+  );
   const [tablePrefix, setTablePrefix] = useState("T");
   const [startNumber, setStartNumber] = useState(1);
   const [tableCount, setTableCount] = useState(6);
@@ -227,32 +244,31 @@ function PlatformNewCompanyContent() {
           <div className="grid gap-5">
             <Card variant="glass" padding="lg">
               <CardHeader>
-                <Badge variant="muted">Cafe workspace</Badge>
-                <CardTitle>Company</CardTitle>
+                <Badge variant="muted">{t("onboarding.workspaceBadge")}</Badge>
+                <CardTitle>{t("onboarding.companyTitle")}</CardTitle>
                 <CardDescription>
-                  This creates the active tenant company record and unique
-                  platform slug.
+                  {t("onboarding.companyDescription")}
                 </CardDescription>
               </CardHeader>
               <CardContent className="grid gap-4 md:grid-cols-2">
                 <label className="grid gap-2 text-sm font-medium text-foreground">
-                  Company name
+                  {t("onboarding.companyName")}
                   <Input
                     value={companyName}
                     onChange={(event) => setCompanyName(event.target.value)}
                     onBlur={() =>
                       setCompanySlug((value) => value || slugify(companyName))
                     }
-                    placeholder="Cafe Nile"
+                    placeholder={t("onboarding.companyNamePlaceholder")}
                     required
                   />
                 </label>
                 <label className="grid gap-2 text-sm font-medium text-foreground">
-                  Company slug
+                  {t("onboarding.companySlug")}
                   <Input
                     value={companySlug}
                     onChange={(event) => setCompanySlug(event.target.value)}
-                    placeholder="cafe-nile"
+                    placeholder={t("onboarding.companySlugPlaceholder")}
                   />
                 </label>
               </CardContent>
@@ -260,30 +276,29 @@ function PlatformNewCompanyContent() {
 
             <Card variant="quiet" padding="lg">
               <CardHeader>
-                <Badge variant="muted">Owner handoff</Badge>
-                <CardTitle>Owner account</CardTitle>
+                <Badge variant="muted">{t("onboarding.ownerHandoffBadge")}</Badge>
+                <CardTitle>{t("onboarding.ownerAccountTitle")}</CardTitle>
                 <CardDescription>
-                  Creates or reuses a tenant staff user, then assigns an owner
-                  company-level membership.
+                  {t("onboarding.ownerAccountDescription")}
                 </CardDescription>
               </CardHeader>
               <CardContent className="grid gap-4 md:grid-cols-2">
                 <label className="grid gap-2 text-sm font-medium text-foreground">
-                  Owner name
+                  {t("onboarding.ownerName")}
                   <Input
                     value={ownerName}
                     onChange={(event) => setOwnerName(event.target.value)}
-                    placeholder="Mona Hassan"
+                    placeholder={t("onboarding.ownerNamePlaceholder")}
                     required
                   />
                 </label>
                 <label className="grid gap-2 text-sm font-medium text-foreground">
-                  Owner email
+                  {t("onboarding.ownerEmail")}
                   <Input
                     value={ownerEmail}
                     onChange={(event) => setOwnerEmail(event.target.value)}
                     type="email"
-                    placeholder="owner@example.com"
+                    placeholder={t("onboarding.ownerEmailPlaceholder")}
                     required
                   />
                 </label>
@@ -292,40 +307,39 @@ function PlatformNewCompanyContent() {
 
             <Card variant="quiet" padding="lg">
               <CardHeader>
-                <Badge variant="muted">First branch</Badge>
-                <CardTitle>Branch</CardTitle>
+                <Badge variant="muted">{t("onboarding.firstBranchBadge")}</Badge>
+                <CardTitle>{t("onboarding.branchTitle")}</CardTitle>
                 <CardDescription>
-                  Creates the first active branch used by staff setup, billing,
-                  tables, QR, and customer routes.
+                  {t("onboarding.branchDescription")}
                 </CardDescription>
               </CardHeader>
               <CardContent className="grid gap-4 md:grid-cols-2">
                 <label className="grid gap-2 text-sm font-medium text-foreground">
-                  Branch name
+                  {t("onboarding.branchName")}
                   <Input
                     value={branchName}
                     onChange={(event) => setBranchName(event.target.value)}
                     onBlur={() =>
                       setBranchSlug((value) => value || slugify(branchName))
                     }
-                    placeholder="Main Branch"
+                    placeholder={t("onboarding.branchNamePlaceholder")}
                     required
                   />
                 </label>
                 <label className="grid gap-2 text-sm font-medium text-foreground">
-                  Branch slug
+                  {t("onboarding.branchSlug")}
                   <Input
                     value={branchSlug}
                     onChange={(event) => setBranchSlug(event.target.value)}
-                    placeholder="main"
+                    placeholder={t("onboarding.branchSlugPlaceholder")}
                   />
                 </label>
                 <label className="grid gap-2 text-sm font-medium text-foreground md:col-span-2">
-                  Address
+                  {t("onboarding.address")}
                   <Input
                     value={branchAddress}
                     onChange={(event) => setBranchAddress(event.target.value)}
-                    placeholder="Street, city, country"
+                    placeholder={t("onboarding.addressPlaceholder")}
                   />
                 </label>
               </CardContent>
@@ -338,16 +352,14 @@ function PlatformNewCompanyContent() {
                 <div className="flex size-11 items-center justify-center rounded-button bg-primary text-primary-foreground">
                   <Building2 className="size-5" aria-hidden="true" />
                 </div>
-                <CardTitle>Create Cafe Workspace</CardTitle>
+                <CardTitle>{t("onboarding.createWorkspaceTitle")}</CardTitle>
                 <CardDescription>
-                  The backend transaction is the source of truth for slugs,
-                  plan limits, owner membership, starter tables, and audit
-                  events.
+                  {t("onboarding.createWorkspaceDescription")}
                 </CardDescription>
               </CardHeader>
               <CardContent className="grid gap-4">
                 <label className="grid gap-2 text-sm font-medium text-foreground">
-                  Plan
+                  {t("onboarding.plan")}
                   <select
                     value={planCode}
                     onChange={(event) =>
@@ -364,11 +376,13 @@ function PlatformNewCompanyContent() {
                             {plan.name} ·{" "}
                             {plan.monthlyPriceMinor === null ||
                             plan.monthlyPriceMinor === undefined
-                              ? "Custom"
-                              : `${formatMoney(
-                                  plan.monthlyPriceMinor,
-                                  plan.currency
-                                )}/mo`}
+                              ? t("company.customPrice")
+                              : t("company.pricePerMonth", {
+                                  price: formatMoney(
+                                    plan.monthlyPriceMinor,
+                                    plan.currency
+                                  )
+                                })}
                           </option>
                         ))
                       : ["pilot", "starter", "growth", "enterprise"].map(
@@ -381,7 +395,7 @@ function PlatformNewCompanyContent() {
                   </select>
                 </label>
                 <label className="grid gap-2 text-sm font-medium text-foreground">
-                  Subscription status
+                  {t("onboarding.subscriptionStatus")}
                   <select
                     value={subscriptionStatus}
                     onChange={(event) =>
@@ -394,8 +408,8 @@ function PlatformNewCompanyContent() {
                     }
                     className={selectClassName}
                   >
-                    <option value="trialing">Trialing</option>
-                    <option value="active">Active</option>
+                    <option value="trialing">{t("onboarding.trialing")}</option>
+                    <option value="active">{t("onboarding.active")}</option>
                   </select>
                 </label>
                 <label className="flex items-center gap-3 rounded-button border bg-surface/70 p-3 text-sm font-medium text-foreground">
@@ -407,7 +421,7 @@ function PlatformNewCompanyContent() {
                     type="checkbox"
                     className="size-4 accent-[var(--primary)]"
                   />
-                  Create starter floor, tables, and QR tokens
+                  {t("onboarding.createStarterTables")}
                 </label>
                 {createMutation.isError ? (
                   <div
@@ -422,24 +436,23 @@ function PlatformNewCompanyContent() {
                 <Button type="submit" disabled={createMutation.isPending}>
                   <PlusCircle className="size-4" aria-hidden="true" />
                   {createMutation.isPending
-                    ? "Creating workspace..."
-                    : "Create Cafe Workspace"}
+                    ? t("onboarding.creatingWorkspace")
+                    : t("onboarding.createWorkspace")}
                 </Button>
               </CardFooter>
             </Card>
 
             <Card variant="quiet" padding="lg">
               <CardHeader>
-                <Badge variant="muted">Starter QR</Badge>
-                <CardTitle>Tables</CardTitle>
+                <Badge variant="muted">{t("onboarding.starterQrBadge")}</Badge>
+                <CardTitle>{t("onboarding.tablesTitle")}</CardTitle>
                 <CardDescription>
-                  Deterministic codes are skipped if they already exist, so the
-                  same setup can be rerun safely.
+                  {t("onboarding.tablesDescription")}
                 </CardDescription>
               </CardHeader>
               <CardContent className="grid gap-3">
                 <label className="grid gap-2 text-sm font-medium text-foreground">
-                  Floor label
+                  {t("onboarding.floorLabel")}
                   <Input
                     value={floorLabel}
                     onChange={(event) => setFloorLabel(event.target.value)}
@@ -448,7 +461,7 @@ function PlatformNewCompanyContent() {
                 </label>
                 <div className="grid grid-cols-2 gap-3">
                   <label className="grid gap-2 text-sm font-medium text-foreground">
-                    Prefix
+                    {t("onboarding.prefix")}
                     <Input
                       value={tablePrefix}
                       onChange={(event) => setTablePrefix(event.target.value)}
@@ -456,7 +469,7 @@ function PlatformNewCompanyContent() {
                     />
                   </label>
                   <label className="grid gap-2 text-sm font-medium text-foreground">
-                    Start
+                    {t("onboarding.start")}
                     <Input
                       value={startNumber}
                       onChange={(event) =>
@@ -468,7 +481,7 @@ function PlatformNewCompanyContent() {
                     />
                   </label>
                   <label className="grid gap-2 text-sm font-medium text-foreground">
-                    Count
+                    {t("onboarding.count")}
                     <Input
                       value={tableCount}
                       onChange={(event) =>
@@ -481,7 +494,7 @@ function PlatformNewCompanyContent() {
                     />
                   </label>
                   <label className="grid gap-2 text-sm font-medium text-foreground">
-                    Seats
+                    {t("onboarding.seats")}
                     <Input
                       value={seats}
                       onChange={(event) => setSeats(Number(event.target.value))}
@@ -500,10 +513,9 @@ function PlatformNewCompanyContent() {
                 <div className="flex size-10 items-center justify-center rounded-button bg-muted text-primary">
                   <KeyRound className="size-4" aria-hidden="true" />
                 </div>
-                <CardTitle>Boundaries</CardTitle>
+                <CardTitle>{t("onboarding.boundariesTitle")}</CardTitle>
                 <CardDescription>
-                  No public signup, billing checkout, or email delivery is
-                  triggered from this internal bootstrap.
+                  {t("onboarding.boundariesDescription")}
                 </CardDescription>
               </CardHeader>
             </Card>
@@ -515,14 +527,16 @@ function PlatformNewCompanyContent() {
 }
 
 export function PlatformNewCompanyPage() {
+  const t = useTranslations("platform");
+
   return (
     <PlatformShell
-      title="Add Cafe"
-      description="Create a tenant workspace, first branch, owner access, plan assignment, and optional starter QR tables in one platform-admin transaction."
+      title={t("onboarding.title")}
+      description={t("onboarding.description")}
       actions={
         <Link href="/platform" className={buttonVariants({ variant: "ghost" })}>
           <ArrowLeft className="size-4" aria-hidden="true" />
-          Platform dashboard
+          {t("actions.platformDashboard")}
         </Link>
       }
     >
