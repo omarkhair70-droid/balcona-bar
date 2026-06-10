@@ -126,6 +126,7 @@ function buildService(tx: any) {
   const realtimeEventsService = {
     recordBillCreated: jest.fn().mockResolvedValue(undefined),
     recordBillPaymentRecorded: jest.fn().mockResolvedValue(undefined),
+    recordBillPresentedForBill: jest.fn().mockResolvedValue(undefined),
     recordBillPaid: jest.fn().mockResolvedValue(undefined),
     recordReceiptGenerated: jest.fn().mockResolvedValue(undefined),
     recordBillClosed: jest.fn().mockResolvedValue(undefined),
@@ -149,6 +150,7 @@ function buildService(tx: any) {
     prisma,
     cashierShiftsService,
     realtimeEventsService,
+    tableAttentionService,
   };
 }
 
@@ -317,6 +319,68 @@ describe('BillsService', () => {
       ),
     ).rejects.toBeInstanceOf(BadRequestException);
     expect(tx.manualPayment.create).not.toHaveBeenCalled();
+  });
+
+  it('presents a bill request through the compact path without hydration or side effects', async () => {
+    const tx = {
+      bill: {
+        findUnique: jest
+          .fn()
+          .mockResolvedValueOnce({
+            id: 'bill-1',
+            billRequestId: 'bill-request-1',
+            tableSessionId: 'session-1',
+          })
+          .mockResolvedValueOnce({
+            id: 'bill-1',
+            tableSessionId: 'session-1',
+            billRequestId: 'bill-request-1',
+            status: BillStatus.requested,
+            presentedAt: null,
+          }),
+        update: jest.fn().mockResolvedValue({ id: 'bill-1' }),
+      },
+      billEvent: {
+        create: jest.fn().mockResolvedValue({ id: 'bill-event-1' }),
+      },
+    };
+    const { service, realtimeEventsService, tableAttentionService } =
+      buildService(tx);
+
+    const result = await service.presentBillForBillRequestCompact(
+      'bill-request-1',
+      'staff-1',
+      'Presented at table',
+      tx as never,
+    );
+
+    expect(result).toEqual({
+      billId: 'bill-1',
+      billRequestId: 'bill-request-1',
+      tableSessionId: 'session-1',
+      created: false,
+      status: BillStatus.presented,
+      presented: true,
+    });
+    expect(tx.bill.update).toHaveBeenCalledWith({
+      where: { id: 'bill-1' },
+      data: expect.objectContaining({
+        status: BillStatus.presented,
+        presentedByStaffUserId: 'staff-1',
+      }),
+    });
+    expect(tx.billEvent.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        billId: 'bill-1',
+        type: 'presented',
+        actorStaffUserId: 'staff-1',
+      }),
+    });
+    expect(
+      tx.bill.findUnique.mock.calls.some(([call]) => Boolean(call.include)),
+    ).toBe(false);
+    expect(realtimeEventsService.recordBillPresentedForBill).not.toHaveBeenCalled();
+    expect(tableAttentionService.recalculateForTableSession).not.toHaveBeenCalled();
   });
 
   it('rejects manual payment when no cashier shift is open', async () => {

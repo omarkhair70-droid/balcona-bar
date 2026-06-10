@@ -83,6 +83,7 @@ type OrderActionFailureStage =
   | "status_update"
   | "inventory_consumption"
   | "preparation_tasks"
+  | "kds_ticket_sync"
   | "preparation_realtime"
   | "kds_realtime"
   | "print_jobs"
@@ -735,80 +736,165 @@ export class OrdersService {
     orderId: string,
     body: OrderLifecycleActionDto = {},
     authenticatedStaffUserId?: string,
+    requestId?: string,
   ) {
-    return this.prisma.$transaction(async (tx) => {
-      const actorStaffUserId = await this.resolveStaffActor(
-        authenticatedStaffUserId,
-        body.staffUserId,
-        tx,
-      );
+    const note = this.normalizeOptionalText(body.note);
+    const logContext: OrderActionLogContext = {
+      requestId,
+      action: "serve",
+      orderId,
+      targetStatus: OrderStatus.served,
+    };
+    let stage: OrderActionFailureStage = "validation";
+    let transactionResult: OrderActionTransactionResult;
 
-      const order = await tx.order.findUnique({
-        where: { id: orderId },
-        select: {
-          id: true,
-          tableSessionId: true,
-          status: true,
-          preparationTasks: {
-            where: { status: { not: PreparationTaskStatus.cancelled } },
-            select: { id: true, status: true },
+    try {
+      transactionResult = await this.prisma.$transaction(async (tx) => {
+        stage = "validation";
+        const actorStaffUserId = await this.resolveStaffActor(
+          authenticatedStaffUserId,
+          body.staffUserId,
+          tx,
+        );
+
+        const order = await tx.order.findUnique({
+          where: { id: orderId },
+          select: {
+            id: true,
+            branchId: true,
+            tableSessionId: true,
+            status: true,
+            preparationTasks: {
+              where: { status: { not: PreparationTaskStatus.cancelled } },
+              select: { id: true, status: true },
+            },
           },
-        },
-      });
+        });
 
-      if (!order) {
-        throw new NotFoundException("Order not found");
-      }
+        if (!order) {
+          throw new NotFoundException("Order not found");
+        }
 
-      this.assertLifecycleTransition(order, "serve");
+        logContext.branchId = order.branchId;
+        logContext.sessionId = order.tableSessionId;
+        logContext.previousStatus = order.status;
+        this.assertLifecycleTransition(order, "serve");
 
-      const note = this.normalizeOptionalText(body.note);
-      const now = new Date();
+        const now = new Date();
 
-      const updatedOrder = await tx.order.updateMany({
-        where: { id: order.id, status: order.status },
-        data: {
-          status: OrderStatus.served,
-          servedAt: now,
-          servedByStaffUserId: actorStaffUserId,
-        },
-      });
+        stage = "status_update";
+        const updatedOrder = await tx.order.updateMany({
+          where: { id: order.id, status: order.status },
+          data: {
+            status: OrderStatus.served,
+            servedAt: now,
+            servedByStaffUserId: actorStaffUserId,
+          },
+        });
 
-      this.assertFreshTransition(updatedOrder.count);
+        this.assertFreshTransition(updatedOrder.count);
 
-      await tx.orderEvent.create({
-        data: {
+        await tx.orderEvent.create({
+          data: {
+            orderId: order.id,
+            type: OrderEventType.served,
+            actorType: OrderEventActorType.staff,
+            actorStaffUserId,
+            metadata: this.transitionMetadata(
+              order.status,
+              OrderStatus.served,
+              "serve",
+              "waiter",
+              note ? { note } : undefined,
+            ),
+          },
+        });
+
+        stage = "kds_ticket_sync";
+        const kdsSync = await this.kitchenTicketsService.syncTicketsForOrderServed(
+          order.id,
+          tx,
+          { recordRealtimeEvents: false },
+        );
+
+        return {
           orderId: order.id,
-          type: OrderEventType.served,
-          actorType: OrderEventActorType.staff,
+          branchId: order.branchId,
+          sessionId: order.tableSessionId,
           actorStaffUserId,
-          metadata: this.transitionMetadata(
-            order.status,
-            OrderStatus.served,
-            "serve",
-            "waiter",
-            note ? { note } : undefined,
-          ),
-        },
+          previousStatus: order.status,
+          targetStatus: OrderStatus.served,
+          kdsTicketIds: kdsSync.ticketIds,
+        };
       });
+    } catch (error) {
+      throw this.toOrderActionError(error, {
+        ...logContext,
+        failureStage: stage,
+      });
+    }
 
-      await this.presenceNotificationsService.createOrderServedNotification(
-        order.id,
-        tx,
-      );
-      await this.kitchenTicketsService.syncTicketsForOrderServed(order.id, tx);
-      await this.realtimeEventsService.recordOrderServed(order.id, tx);
-      await this.recalculateAttention(
-        order.tableSessionId,
-        tx,
-        "order_served",
+    this.schedulePostOrderActionAutomation(
+      {
+        ...logContext,
+        branchId: transactionResult.branchId,
+        sessionId: transactionResult.sessionId,
+        previousStatus: transactionResult.previousStatus,
+        targetStatus: transactionResult.targetStatus,
+      },
+      [
         {
-          orderId: order.id,
+          stage: "notification",
+          run: () =>
+            this.presenceNotificationsService.createOrderServedNotification(
+              transactionResult.orderId,
+            ),
         },
-      );
+        {
+          stage: "kds_realtime",
+          run: () =>
+            this.kitchenTicketsService.recordUpdatedRealtimeEventsForTickets(
+              transactionResult.kdsTicketIds ?? [],
+            ),
+        },
+        {
+          stage: "realtime",
+          run: () =>
+            this.realtimeEventsService.recordOrderServed(
+              transactionResult.orderId,
+              this.prisma,
+            ),
+        },
+        {
+          stage: "table_attention_recalculate",
+          run: () =>
+            this.recalculateAttention(
+              transactionResult.sessionId,
+              this.prisma,
+              "order_served",
+              {
+                orderId: transactionResult.orderId,
+              },
+            ),
+        },
+      ],
+    );
 
-      return this.getOrderResponse(order.id, tx);
-    });
+    try {
+      return await this.getOrderResponse(
+        transactionResult.orderId,
+        this.prisma,
+      );
+    } catch (error) {
+      throw this.toOrderActionError(error, {
+        ...logContext,
+        branchId: transactionResult.branchId,
+        sessionId: transactionResult.sessionId,
+        previousStatus: transactionResult.previousStatus,
+        targetStatus: transactionResult.targetStatus,
+        failureStage: "response_mapping",
+      });
+    }
   }
 
   async complete(

@@ -78,6 +78,18 @@ export interface OnlinePaymentSettlementResult {
   billResponse?: unknown;
 }
 
+export type BillRequestBillMutationResult = {
+  billId: string;
+  billRequestId: string;
+  tableSessionId: string;
+  created: boolean;
+};
+export type BillRequestBillPresentMutationResult =
+  BillRequestBillMutationResult & {
+    status: BillStatus;
+    presented: boolean;
+  };
+
 @Injectable()
 export class BillsService {
   constructor(
@@ -92,7 +104,7 @@ export class BillsService {
     billRequestId: string,
     options: { actorType?: string; metadata?: Record<string, unknown> } = {},
     tx?: Prisma.TransactionClient,
-  ) {
+  ): Promise<any> {
     const run = (client: Prisma.TransactionClient) =>
       this.createOrGetBillForBillRequestInternal(
         billRequestId,
@@ -101,6 +113,19 @@ export class BillsService {
       );
 
     return tx ? run(tx) : this.prisma.$transaction(run);
+  }
+
+  async createOrGetBillForBillRequestCompact(
+    billRequestId: string,
+    options: { actorType?: string; metadata?: Record<string, unknown> } = {},
+    tx: Prisma.TransactionClient,
+  ): Promise<BillRequestBillMutationResult> {
+    return this.createOrGetBillForBillRequestInternal(
+      billRequestId,
+      options,
+      tx,
+      { hydrateResponse: false, recordRealtimeEvents: false },
+    ) as Promise<BillRequestBillMutationResult>;
   }
 
   async findForBranch(branchId: string, query: BranchBillsQueryDto = {}) {
@@ -200,6 +225,30 @@ export class BillsService {
     return this.presentInternal(
       response.bill.id,
       { staffUserId, note: note ?? undefined },
+      tx,
+    );
+  }
+
+  async presentBillForBillRequestCompact(
+    billRequestId: string,
+    staffUserId: string | undefined,
+    note: string | null,
+    tx: Prisma.TransactionClient,
+  ): Promise<BillRequestBillPresentMutationResult> {
+    const bill = await this.createOrGetBillForBillRequestCompact(
+      billRequestId,
+      { actorType: "staff" },
+      tx,
+    );
+
+    return this.presentBillCompact(
+      bill.billId,
+      {
+        staffUserId,
+        note: note ?? undefined,
+        billCreated: bill.created,
+        billRequestId: bill.billRequestId,
+      },
       tx,
     );
   }
@@ -643,14 +692,33 @@ export class BillsService {
     billRequestId: string,
     options: { actorType?: string; metadata?: Record<string, unknown> },
     tx: Prisma.TransactionClient,
-  ) {
-    const existingBill = await tx.bill.findUnique({
-      where: { billRequestId },
-      include: this.billDetailInclude(),
-    });
+    behavior: { hydrateResponse?: boolean; recordRealtimeEvents?: boolean } = {},
+  ): Promise<any> {
+    const hydrateResponse = behavior.hydrateResponse ?? true;
+    const recordRealtimeEvents = behavior.recordRealtimeEvents ?? true;
+    const existingBill = hydrateResponse
+      ? await tx.bill.findUnique({
+          where: { billRequestId },
+          include: this.billDetailInclude(),
+        })
+      : await tx.bill.findUnique({
+          where: { billRequestId },
+          select: {
+            id: true,
+            billRequestId: true,
+            tableSessionId: true,
+          },
+        });
 
     if (existingBill) {
-      return this.toBillResponse(existingBill);
+      return hydrateResponse
+        ? this.toBillResponse(existingBill)
+        : {
+            billId: existingBill.id,
+            billRequestId: existingBill.billRequestId ?? billRequestId,
+            tableSessionId: existingBill.tableSessionId,
+            created: false,
+          };
     }
 
     const billRequest = await tx.billRequest.findUnique({
@@ -754,9 +822,18 @@ export class BillsService {
       select: { id: true },
     });
 
-    await this.realtimeEventsService.recordBillCreated(bill.id, tx);
+    if (recordRealtimeEvents) {
+      await this.realtimeEventsService.recordBillCreated(bill.id, tx);
+    }
 
-    return this.getBillResponse(bill.id, tx);
+    return hydrateResponse
+      ? this.getBillResponse(bill.id, tx)
+      : {
+          billId: bill.id,
+          billRequestId: billRequest.id,
+          tableSessionId: billRequest.tableSessionId,
+          created: true,
+        };
   }
 
   private async presentInternal(
@@ -817,6 +894,74 @@ export class BillsService {
     });
 
     return this.getBillResponse(bill.id, tx);
+  }
+
+  private async presentBillCompact(
+    billId: string,
+    body: BillActionDto & { billCreated?: boolean; billRequestId?: string },
+    tx: Prisma.TransactionClient,
+  ): Promise<BillRequestBillPresentMutationResult> {
+    const bill = await tx.bill.findUnique({
+      where: { id: billId },
+      select: {
+        id: true,
+        tableSessionId: true,
+        billRequestId: true,
+        status: true,
+        presentedAt: true,
+      },
+    });
+
+    if (!bill) {
+      throw new NotFoundException("Bill not found");
+    }
+
+    if (bill.status === BillStatus.cancelled) {
+      throw new BadRequestException("Cancelled bills cannot be presented");
+    }
+
+    if (bill.status === BillStatus.paid || bill.status === BillStatus.closed) {
+      return {
+        billId: bill.id,
+        billRequestId: body.billRequestId ?? bill.billRequestId ?? "",
+        tableSessionId: bill.tableSessionId,
+        created: body.billCreated ?? false,
+        status: bill.status,
+        presented: false,
+      };
+    }
+
+    const note = this.normalizeOptionalText(body.note);
+    const now = new Date();
+    const status =
+      bill.status === BillStatus.payment_pending
+        ? BillStatus.payment_pending
+        : BillStatus.presented;
+
+    await tx.bill.update({
+      where: { id: bill.id },
+      data: {
+        status,
+        presentedAt: bill.presentedAt ?? now,
+        presentedByStaffUserId: body.staffUserId,
+      },
+    });
+    await this.createBillEvent(
+      bill.id,
+      BillEventType.presented,
+      body.staffUserId,
+      note ? { note } : undefined,
+      tx,
+    );
+
+    return {
+      billId: bill.id,
+      billRequestId: body.billRequestId ?? bill.billRequestId ?? "",
+      tableSessionId: bill.tableSessionId,
+      created: body.billCreated ?? false,
+      status,
+      presented: true,
+    };
   }
 
   private async cancelInternal(

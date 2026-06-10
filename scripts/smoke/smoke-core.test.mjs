@@ -52,6 +52,22 @@ describe("smoke core", () => {
     assert.doesNotMatch(serialized, /super-secret/);
   });
 
+  it("generates a runId when SMOKE_RUN_ID is blank", () => {
+    const config = readSmokeConfig({
+      env: {
+        SMOKE_RUN_ID: "   ",
+        SMOKE_WEB_BASE_URL: "https://web.example.com",
+        SMOKE_API_BASE_URL: "https://api.example.com/api/v1"
+      },
+      argv: [],
+      envFile: "missing-smoke-env-file"
+    });
+
+    assert.match(config.runId, /^smoke-/);
+    assert.notEqual(config.runId.trim(), "");
+    assert.equal(safePublicConfig(config).runId, config.runId);
+  });
+
   it("sanitizes tokens, cookies, passwords, and bearer credentials", () => {
     const sanitized = sanitizeValue({
       password: "pw",
@@ -183,6 +199,47 @@ describe("smoke core", () => {
       assert.equal(error?.requestId, "req-error");
       assert.doesNotMatch(JSON.stringify(error), /customer-secret-token/);
       assert.doesNotMatch(JSON.stringify(error), /Bearer/);
+    } finally {
+      await new Promise((resolve) => server.close(resolve));
+    }
+  });
+
+  it("uses the generated runId in submit cart idempotency keys", async () => {
+    let receivedIdempotencyKey = "";
+    const server = createServer((request, response) => {
+      receivedIdempotencyKey = request.headers["idempotency-key"] ?? "";
+      response.statusCode = 200;
+      response.setHeader("Content-Type", "application/json");
+      response.end(JSON.stringify({ ok: true }));
+    });
+    await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
+    const address = server.address();
+    const config = readSmokeConfig({
+      env: {
+        SMOKE_RUN_ID: "",
+        SMOKE_WEB_BASE_URL: "https://web.example.com",
+        SMOKE_API_BASE_URL: `http://127.0.0.1:${address.port}/api/v1`
+      },
+      argv: [],
+      envFile: "missing-smoke-env-file"
+    });
+    const client = new SmokeHttpClient(config, {
+      clientTraceId: config.clientTraceId
+    });
+
+    try {
+      await client.request({
+        path: "/table-sessions/session-1/cart/submit",
+        method: "POST",
+        role: "customer",
+        action: "cart_submit",
+        idempotencyKey: `${config.runId}:submit-cart`,
+        body: {}
+      });
+
+      assert.equal(receivedIdempotencyKey, `${config.runId}:submit-cart`);
+      assert.match(receivedIdempotencyKey, /^smoke-/);
+      assert.doesNotMatch(receivedIdempotencyKey, /^:/);
     } finally {
       await new Promise((resolve) => server.close(resolve));
     }
@@ -378,6 +435,25 @@ describe("smoke core", () => {
 
     assert.match(summary, /stale-order/);
     assert.match(summary, /old-session/);
+  });
+
+  it("excludes branch and company status records from order candidates", () => {
+    const summary = summarizeOrderCandidates({
+      company: { id: "company-1", slug: "balcona-smoke", status: "active" },
+      branch: { id: "branch-1", slug: "balcona-smoke", status: "active" },
+      orders: [
+        {
+          id: "order-1",
+          tableSessionId: "session-1",
+          status: "submitted",
+          submittedAt: "2026-06-10T00:00:00.000Z"
+        }
+      ]
+    });
+
+    assert.match(summary, /order-1/);
+    assert.doesNotMatch(summary, /company-1/);
+    assert.doesNotMatch(summary, /branch-1/);
   });
 
   it("documents the clean full smoke command flow", async () => {

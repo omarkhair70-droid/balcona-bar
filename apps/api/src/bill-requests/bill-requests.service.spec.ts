@@ -189,9 +189,11 @@ function buildService(tx: any, overrides: Record<string, any> = {}) {
     ...overrides.presenceNotificationsService,
   };
   const realtimeEventsService = {
+    recordBillCreated: jest.fn().mockResolvedValue(undefined),
     recordBillRequested: jest.fn().mockResolvedValue(undefined),
     recordBillAcknowledged: jest.fn().mockResolvedValue(undefined),
     recordBillPresented: jest.fn().mockResolvedValue(undefined),
+    recordBillPresentedForBill: jest.fn().mockResolvedValue(undefined),
     ...overrides.realtimeEventsService,
   };
   const tableAttentionService = {
@@ -202,6 +204,12 @@ function buildService(tx: any, overrides: Record<string, any> = {}) {
     createOrGetBillForBillRequest: jest
       .fn()
       .mockResolvedValue({ bill: billSummary() }),
+    createOrGetBillForBillRequestCompact: jest.fn().mockResolvedValue({
+      billId: 'bill-1',
+      billRequestId: 'bill-request-1',
+      tableSessionId: 'session-1',
+      created: true,
+    }),
     findForTableSession: jest.fn().mockResolvedValue({
       activeBill: { bill: billSummary() },
       latestBills: [{ bill: billSummary() }],
@@ -210,6 +218,14 @@ function buildService(tx: any, overrides: Record<string, any> = {}) {
     presentBillForBillRequest: jest
       .fn()
       .mockResolvedValue({ bill: billSummary({ status: BillStatus.presented }) }),
+    presentBillForBillRequestCompact: jest.fn().mockResolvedValue({
+      billId: 'bill-1',
+      billRequestId: 'bill-request-1',
+      tableSessionId: 'session-1',
+      created: false,
+      status: BillStatus.presented,
+      presented: true,
+    }),
     ...overrides.billsService,
   };
 
@@ -269,10 +285,15 @@ describe('BillRequestsService', () => {
         }),
       }),
     );
-    expect(billsService.createOrGetBillForBillRequest).toHaveBeenCalledWith(
+    expect(billsService.createOrGetBillForBillRequestCompact).toHaveBeenCalledWith(
       'bill-request-1',
       { actorType: 'customer' },
       tx,
+    );
+    expect(billsService.createOrGetBillForBillRequest).not.toHaveBeenCalled();
+    expect(realtimeEventsService.recordBillCreated).toHaveBeenCalledWith(
+      'bill-1',
+      prisma,
     );
     expect(presenceNotificationsService.createBillRequestedNotification).toHaveBeenCalledWith(
       'bill-request-1',
@@ -571,11 +592,16 @@ describe('BillRequestsService', () => {
         }),
       }),
     );
-    expect(billsService.presentBillForBillRequest).toHaveBeenCalledWith(
+    expect(billsService.presentBillForBillRequestCompact).toHaveBeenCalledWith(
       'bill-request-1',
       'staff-1',
       null,
       tx,
+    );
+    expect(billsService.presentBillForBillRequest).not.toHaveBeenCalled();
+    expect(realtimeEventsService.recordBillPresentedForBill).toHaveBeenCalledWith(
+      'bill-1',
+      prisma,
     );
     expect(presenceNotificationsService.createBillPresentedNotification).toHaveBeenCalledWith(
       'bill-request-1',
@@ -642,6 +668,9 @@ describe('BillRequestsService', () => {
           .mockRejectedValue(new Error('notification token=secret failed')),
       },
       realtimeEventsService: {
+        recordBillPresentedForBill: jest
+          .fn()
+          .mockRejectedValue(new Error('bill realtime token=secret failed')),
         recordBillPresented: jest
           .fn()
           .mockRejectedValue(new Error('realtime token=secret failed')),
@@ -660,11 +689,13 @@ describe('BillRequestsService', () => {
 
     expect(result.billRequest.status).toBe(BillRequestStatus.presented);
     expect(presenceNotificationsService.createBillPresentedNotification).toHaveBeenCalled();
+    expect(realtimeEventsService.recordBillPresentedForBill).toHaveBeenCalled();
     expect(realtimeEventsService.recordBillPresented).toHaveBeenCalled();
     expect(tableAttentionService.recalculateForTableSession).toHaveBeenCalled();
 
     const loggedPayload = JSON.stringify(loggerSpy.mock.calls);
 
+    expect(loggedPayload).toContain('bill_realtime_event');
     expect(loggedPayload).toContain('presence_notification');
     expect(loggedPayload).toContain('realtime_event');
     expect(loggedPayload).toContain('table_attention');
@@ -712,6 +743,18 @@ describe('BillRequestsService', () => {
 
       return [billableOrder()];
     });
+    const presentBillForBillRequestCompact = jest.fn(async () => {
+      expect(inTransaction).toBe(true);
+
+      return {
+        billId: 'bill-1',
+        billRequestId: 'bill-request-1',
+        tableSessionId: 'session-1',
+        created: false,
+        status: BillStatus.presented,
+        presented: true,
+      };
+    });
     const { service } = buildService(tx, {
       prisma: {
         $transaction: jest.fn(async (callback) => {
@@ -730,6 +773,9 @@ describe('BillRequestsService', () => {
           findMany: responseFindMany,
         },
       },
+      billsService: {
+        presentBillForBillRequestCompact,
+      },
     });
 
     const result = await service.present('bill-request-1', {
@@ -739,6 +785,7 @@ describe('BillRequestsService', () => {
 
     expect(responseFindUnique).toHaveBeenCalled();
     expect(responseFindMany).toHaveBeenCalled();
+    expect(presentBillForBillRequestCompact).toHaveBeenCalled();
     expect(result.bill?.status).toBe(BillStatus.presented);
   });
 
