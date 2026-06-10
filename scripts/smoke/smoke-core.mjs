@@ -388,6 +388,12 @@ export class SmokeHttpClient {
           ...metadata,
           code: safeError.code,
           errorMessage: safeError.message,
+          details: safeError.details,
+          failureStage: safeError.failureStage,
+          slowStage: safeError.slowStage,
+          timings: safeError.timings,
+          transactionMs: safeError.transactionMs,
+          responseMappingMs: safeError.responseMappingMs,
           responseBody: sanitizeValue(json ?? responseText)
         });
       }
@@ -458,15 +464,41 @@ export function extractSafeError(value) {
   const message = Array.isArray(messageValue)
     ? messageValue.join("; ")
     : String(messageValue);
+  const details = sanitizeValue(error.details ?? record.details);
+  const timings = objectOrUndefined(details?.timings);
+  const transactionMs = numberOrUndefined(
+    details?.transactionMs ?? timings?.transactionMs
+  );
+  const responseMappingMs = numberOrUndefined(
+    details?.responseMappingMs ?? timings?.responseMappingMs
+  );
 
-  return {
+  return sanitizeValue({
     code,
-    message: redactSensitiveText(message)
-  };
+    message: redactSensitiveText(message),
+    details,
+    failureStage: stringOrUndefined(details?.failureStage),
+    slowStage: stringOrUndefined(details?.slowStage),
+    timings,
+    transactionMs,
+    responseMappingMs
+  });
 }
 
 function stringOrUndefined(value) {
   return typeof value === "string" && value ? value : undefined;
+}
+
+function numberOrUndefined(value) {
+  return typeof value === "number" && Number.isFinite(value)
+    ? value
+    : undefined;
+}
+
+function objectOrUndefined(value) {
+  return value && typeof value === "object" && !Array.isArray(value)
+    ? value
+    : undefined;
 }
 
 export function getNestedString(value, path) {
@@ -812,7 +844,10 @@ export class SmokeRun {
           status: "failed",
           requestId: safeError.requestId,
           errorCode: safeError.code,
-          errorMessage: safeError.message
+          errorMessage: safeError.message,
+          failureStage: safeError.failureStage,
+          slowStage: safeError.slowStage,
+          timings: safeError.timings
         });
 
         if (attempt === maxAttempts) {
@@ -969,9 +1004,17 @@ export class SmokeRun {
       error: {
         code: safeError.code,
         message: safeError.message,
-        statusCode: safeError.statusCode
+        statusCode: safeError.statusCode,
+        details: safeError.details
       },
-      notes: [safeError.message]
+      failureStage: safeError.failureStage,
+      slowStage: safeError.slowStage,
+      timings: safeError.timings,
+      transactionMs: safeError.transactionMs,
+      responseMappingMs: safeError.responseMappingMs,
+      notes: [safeError.message, formatStageDiagnosticNote(safeError)].filter(
+        Boolean
+      )
     });
   }
 
@@ -1083,6 +1126,12 @@ function errorToStepError(error) {
   return sanitizeValue({
     code: error?.code ?? "SMOKE_STEP_FAILED",
     message: error?.errorMessage ?? error?.message ?? "Smoke step failed",
+    details: error?.details,
+    failureStage: error?.failureStage,
+    slowStage: error?.slowStage,
+    timings: error?.timings,
+    transactionMs: error?.transactionMs,
+    responseMappingMs: error?.responseMappingMs,
     requestId: error?.requestId,
     flowId: error?.flowId,
     clientTraceId: error?.clientTraceId,
@@ -1092,6 +1141,21 @@ function errorToStepError(error) {
     method: error?.method,
     role: error?.role
   });
+}
+
+function formatStageDiagnosticNote(error = {}) {
+  const parts = [
+    error.failureStage ? `failureStage=${error.failureStage}` : null,
+    error.slowStage ? `slowStage=${error.slowStage}` : null,
+    typeof error.transactionMs === "number"
+      ? `transactionMs=${error.transactionMs}`
+      : null,
+    typeof error.responseMappingMs === "number"
+      ? `responseMappingMs=${error.responseMappingMs}`
+      : null
+  ].filter(Boolean);
+
+  return parts.length > 0 ? parts.join(" ") : undefined;
 }
 
 function getPerformanceCategory(definition = {}) {
@@ -1162,6 +1226,11 @@ function buildPerformanceSummary(steps = []) {
       requestId: step.requestId,
       retryCount: step.retryCount ?? 0,
       firstFailureReason: step.firstFailureReason,
+      failureStage: step.failureStage,
+      slowStage: step.slowStage,
+      timings: step.timings,
+      transactionMs: step.transactionMs,
+      responseMappingMs: step.responseMappingMs,
       notes: step.notes ?? []
     }));
   const criticalNonAiDurationMs = completedSteps
@@ -1238,6 +1307,8 @@ export function buildFailureBundle(config, step, breadcrumbs = []) {
     `Entity IDs: ${entityIds}`,
     `Error Code: ${step.error?.code ?? ""}`,
     `Error Message: ${step.error?.message ?? ""}`,
+    `Failure Stage: ${step.failureStage ?? ""}`,
+    `Slow Stage: ${step.slowStage ?? ""}`,
     `Retry Count: ${step.retryCount ?? 0}`,
     `Last 5 Breadcrumbs: ${lastBreadcrumbs}`,
     `Suggested Log Search: ${searchParts.join(" OR ")}`

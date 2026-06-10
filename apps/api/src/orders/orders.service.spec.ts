@@ -243,6 +243,7 @@ function buildService(input: {
   updateCount?: number;
   inventoryRejects?: boolean;
   preparationRejects?: boolean;
+  statusUpdateRejects?: Error;
 }) {
   const tx = {
     staffUser: {
@@ -269,9 +270,11 @@ function buildService(input: {
               : null,
         ),
       ),
-      updateMany: jest
-        .fn()
-        .mockResolvedValue({ count: input.updateCount ?? 1 }),
+      updateMany: jest.fn().mockImplementation(() =>
+        input.statusUpdateRejects
+          ? Promise.reject(input.statusUpdateRejects)
+          : Promise.resolve({ count: input.updateCount ?? 1 }),
+      ),
     },
     orderEvent: {
       create: jest.fn().mockResolvedValue({ id: "event-1" }),
@@ -834,6 +837,7 @@ function buildSubmitService(
     smartCashierRejects?: boolean;
     responseStatus?: OrderStatus;
     submittedNotificationNeverResolves?: boolean;
+    orderCreateRejects?: Error;
   } = {},
 ) {
   const tx = {
@@ -848,7 +852,9 @@ function buildSubmitService(
         return Promise.resolve(null);
       }),
       findFirst: jest.fn().mockResolvedValue(null),
-      create: jest.fn().mockResolvedValue({ id: "order-1" }),
+      create: input.orderCreateRejects
+        ? jest.fn().mockRejectedValue(input.orderCreateRejects)
+        : jest.fn().mockResolvedValue({ id: "order-1" }),
     },
     cart: {
       update: jest.fn().mockResolvedValue({ id: "cart-1" }),
@@ -1017,6 +1023,9 @@ describe("OrdersService submit cart", () => {
     const result = await service.submitCart("session-1", {}, "submit-key-lite");
 
     expect(result.order.status).toBe(OrderStatus.submitted);
+    expect(prisma.$transaction).toHaveBeenCalledWith(expect.any(Function), {
+      timeout: 10_000,
+    });
     expect(prisma.order.findUnique).toHaveBeenCalledWith({
       where: { id: "order-1" },
       include: expect.objectContaining({
@@ -1145,6 +1154,54 @@ describe("OrdersService submit cart", () => {
     expect(tx.order.create).not.toHaveBeenCalled();
   });
 
+  it("exposes safe timing diagnostics when submit cart hits a transaction timeout", async () => {
+    const timeout = Object.assign(
+      new Error(
+        "Transaction already closed. Timeout 5000ms. token=secret password=supersecret",
+      ),
+      { code: "P2028" },
+    );
+    const loggerSpy = jest.spyOn(Logger.prototype, "error").mockImplementation();
+    const { service } = buildSubmitService({
+      orderCreateRejects: timeout,
+    });
+
+    await expect(
+      service.submitCart("session-1", {}, "submit-timeout", "req-submit"),
+    ).rejects.toMatchObject({
+      response: expect.objectContaining({
+        code: "DB_TRANSACTION_TIMEOUT",
+        message: "The operation timed out while saving. Please retry.",
+        details: expect.objectContaining({
+          flow: "customer_submit_cart",
+          action: "cart_submit",
+          requestId: "req-submit",
+          sessionId: "session-1",
+          failureStage: "order_create",
+          slowStage: expect.any(String),
+          durationMs: expect.any(Number),
+          timings: expect.objectContaining({
+            submitLockMs: expect.any(Number),
+            cartValidationMs: expect.any(Number),
+            orderCreateMs: expect.any(Number),
+            transactionMs: expect.any(Number),
+          }),
+          exception: expect.objectContaining({
+            code: "P2028",
+            message: expect.stringContaining("token=[redacted]"),
+          }),
+        }),
+      }),
+    });
+
+    const logged = JSON.stringify(loggerSpy.mock.calls);
+
+    expect(logged).toContain("order_create");
+    expect(logged).toContain("token=[redacted]");
+    expect(logged).not.toContain("token=secret");
+    expect(logged).not.toContain("password=supersecret");
+  });
+
   it("replays idempotent submissions without rerunning automation", async () => {
     const existingOrder = orderResponse(OrderStatus.submitted);
     const { service, tx, cartService, smartCashierService } =
@@ -1237,6 +1294,33 @@ describe("OrdersService lifecycle hardening", () => {
     expect(
       kitchenTicketsService.createPrintJobsForTickets,
     ).toHaveBeenCalledWith(["ticket-1"], "staff-1");
+  });
+
+  it("hydrates accept responses without full KDS print job or task event includes", async () => {
+    const { service, prisma } = buildService({
+      transitionOrder: { status: OrderStatus.submitted },
+      responseOrder: spanishLatteAcceptedOrderResponse(),
+    });
+
+    const result = await service.accept("order-1", {}, "staff-1");
+
+    expect(result.order.status).toBe(OrderStatus.cashier_accepted);
+    expect(prisma.order.findUnique).toHaveBeenCalledWith({
+      where: { id: "order-1" },
+      include: expect.objectContaining({
+        company: expect.anything(),
+        branch: expect.anything(),
+        tableSession: expect.anything(),
+        items: expect.anything(),
+        events: expect.anything(),
+        preparationTasks: expect.anything(),
+        kitchenTickets: expect.anything(),
+      }),
+    });
+    const include = prisma.order.findUnique.mock.calls[0][0].include;
+
+    expect(include.kitchenTickets.include.printJobs).toBeUndefined();
+    expect(include.preparationTasks.include).toBeUndefined();
   });
 
   it("accepts a Spanish Latte through real preparation task and KDS ticket routing", async () => {
@@ -1405,6 +1489,54 @@ describe("OrdersService lifecycle hardening", () => {
     expect(
       preparationTasksService.createTasksForAcceptedOrder,
     ).not.toHaveBeenCalled();
+  });
+
+  it("returns safe cashier accept timing diagnostics for transaction timeouts", async () => {
+    const timeout = Object.assign(
+      new Error("Transaction already closed. Timeout 5000ms. token=secret"),
+      { code: "P2028" },
+    );
+    const loggerSpy = jest.spyOn(Logger.prototype, "error").mockImplementation();
+    const { service } = buildService({
+      transitionOrder: { status: OrderStatus.submitted },
+      statusUpdateRejects: timeout,
+    });
+
+    await expect(
+      service.accept("order-1", {}, "staff-1", "req-accept-timeout"),
+    ).rejects.toMatchObject({
+      response: expect.objectContaining({
+        code: "DB_TRANSACTION_TIMEOUT",
+        message: "The operation timed out while saving. Please retry.",
+        details: expect.objectContaining({
+          flow: "cashier_accept",
+          action: "accept",
+          requestId: "req-accept-timeout",
+          orderId: "order-1",
+          branchId: "branch-1",
+          sessionId: "session-1",
+          previousStatus: OrderStatus.submitted,
+          targetStatus: OrderStatus.cashier_accepted,
+          failureStage: "status_update",
+          slowStage: expect.any(String),
+          timings: expect.objectContaining({
+            staffResolveMs: expect.any(Number),
+            orderLookupMs: expect.any(Number),
+            statusUpdateMs: expect.any(Number),
+          }),
+          exception: expect.objectContaining({
+            code: "P2028",
+            message: expect.stringContaining("token=[redacted]"),
+          }),
+        }),
+      }),
+    });
+
+    const logged = JSON.stringify(loggerSpy.mock.calls);
+
+    expect(logged).toContain("status_update");
+    expect(logged).toContain("token=[redacted]");
+    expect(logged).not.toContain("token=secret");
   });
 
   it("rejects accept with a readable KDS routing error when task creation fails", async () => {
