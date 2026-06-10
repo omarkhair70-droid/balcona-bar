@@ -26,9 +26,11 @@ export class SmokeController {
   reset(
     @Headers("x-smoke-bootstrap-token") smokeBootstrapToken: string | undefined,
     @Headers("authorization") authorization: string | undefined,
+    @Headers("x-request-id") requestId: string | undefined,
   ) {
     return this.smokeResetService.reset(
       this.extractToken(smokeBootstrapToken, authorization),
+      requestId,
     );
   }
 
