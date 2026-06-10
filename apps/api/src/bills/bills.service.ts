@@ -84,6 +84,11 @@ export type BillRequestBillMutationResult = {
   tableSessionId: string;
   created: boolean;
 };
+export type BillRequestBillPresentMutationResult =
+  BillRequestBillMutationResult & {
+    status: BillStatus;
+    presented: boolean;
+  };
 
 @Injectable()
 export class BillsService {
@@ -220,6 +225,30 @@ export class BillsService {
     return this.presentInternal(
       response.bill.id,
       { staffUserId, note: note ?? undefined },
+      tx,
+    );
+  }
+
+  async presentBillForBillRequestCompact(
+    billRequestId: string,
+    staffUserId: string | undefined,
+    note: string | null,
+    tx: Prisma.TransactionClient,
+  ): Promise<BillRequestBillPresentMutationResult> {
+    const bill = await this.createOrGetBillForBillRequestCompact(
+      billRequestId,
+      { actorType: "staff" },
+      tx,
+    );
+
+    return this.presentBillCompact(
+      bill.billId,
+      {
+        staffUserId,
+        note: note ?? undefined,
+        billCreated: bill.created,
+        billRequestId: bill.billRequestId,
+      },
       tx,
     );
   }
@@ -865,6 +894,74 @@ export class BillsService {
     });
 
     return this.getBillResponse(bill.id, tx);
+  }
+
+  private async presentBillCompact(
+    billId: string,
+    body: BillActionDto & { billCreated?: boolean; billRequestId?: string },
+    tx: Prisma.TransactionClient,
+  ): Promise<BillRequestBillPresentMutationResult> {
+    const bill = await tx.bill.findUnique({
+      where: { id: billId },
+      select: {
+        id: true,
+        tableSessionId: true,
+        billRequestId: true,
+        status: true,
+        presentedAt: true,
+      },
+    });
+
+    if (!bill) {
+      throw new NotFoundException("Bill not found");
+    }
+
+    if (bill.status === BillStatus.cancelled) {
+      throw new BadRequestException("Cancelled bills cannot be presented");
+    }
+
+    if (bill.status === BillStatus.paid || bill.status === BillStatus.closed) {
+      return {
+        billId: bill.id,
+        billRequestId: body.billRequestId ?? bill.billRequestId ?? "",
+        tableSessionId: bill.tableSessionId,
+        created: body.billCreated ?? false,
+        status: bill.status,
+        presented: false,
+      };
+    }
+
+    const note = this.normalizeOptionalText(body.note);
+    const now = new Date();
+    const status =
+      bill.status === BillStatus.payment_pending
+        ? BillStatus.payment_pending
+        : BillStatus.presented;
+
+    await tx.bill.update({
+      where: { id: bill.id },
+      data: {
+        status,
+        presentedAt: bill.presentedAt ?? now,
+        presentedByStaffUserId: body.staffUserId,
+      },
+    });
+    await this.createBillEvent(
+      bill.id,
+      BillEventType.presented,
+      body.staffUserId,
+      note ? { note } : undefined,
+      tx,
+    );
+
+    return {
+      billId: bill.id,
+      billRequestId: body.billRequestId ?? bill.billRequestId ?? "",
+      tableSessionId: bill.tableSessionId,
+      created: body.billCreated ?? false,
+      status,
+      presented: true,
+    };
   }
 
   private async cancelInternal(

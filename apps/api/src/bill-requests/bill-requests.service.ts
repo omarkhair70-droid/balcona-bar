@@ -17,6 +17,7 @@ import {
 import { TableAttentionService } from "../autopilot/table-attention.service";
 import {
   BillRequestBillMutationResult,
+  BillRequestBillPresentMutationResult,
   BillsService,
 } from "../bills/bills.service";
 import { PresenceNotificationsService } from "../presence-notifications/presence-notifications.service";
@@ -52,6 +53,9 @@ type RequestBillTransactionResult = {
 type BillStaffActionPostCommitAction = "acknowledged" | "presented";
 type BillStaffActionTransactionResult = {
   billRequestId: string;
+  billId?: string;
+  billCreated?: boolean;
+  billPresented?: boolean;
   tableSessionId: string;
   postCommitAction: BillStaffActionPostCommitAction;
 };
@@ -335,15 +339,19 @@ export class BillRequestsService {
         note ? { note } : undefined,
         tx,
       );
-      await this.billsService.presentBillForBillRequest(
-        billRequest.id,
-        body.staffUserId,
-        note,
-        tx,
-      );
+      const bill: BillRequestBillPresentMutationResult =
+        await this.billsService.presentBillForBillRequestCompact(
+          billRequest.id,
+          body.staffUserId,
+          note,
+          tx,
+        );
 
       return {
         billRequestId: billRequest.id,
+        billId: bill.billId,
+        billCreated: bill.created,
+        billPresented: bill.presented,
         tableSessionId: billRequest.tableSessionId,
         postCommitAction: "presented",
       } satisfies BillStaffActionTransactionResult;
@@ -572,6 +580,28 @@ export class BillRequestsService {
     const steps: Array<{ stage: string; run: () => Promise<unknown> }> = [];
 
     if (input.postCommitAction === "presented") {
+      if (input.billCreated && input.billId) {
+        steps.push({
+          stage: "bill_created_realtime",
+          run: () =>
+            this.realtimeEventsService.recordBillCreated(
+              input.billId as string,
+              this.prisma,
+            ),
+        });
+      }
+
+      if (input.billPresented && input.billId) {
+        steps.push({
+          stage: "bill_realtime_event",
+          run: () =>
+            this.realtimeEventsService.recordBillPresentedForBill(
+              input.billId as string,
+              this.prisma,
+            ),
+        });
+      }
+
       steps.push({
         stage: "presence_notification",
         run: () =>
