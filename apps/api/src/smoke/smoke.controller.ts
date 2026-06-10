@@ -1,10 +1,14 @@
 import { Body, Controller, Headers, Post } from "@nestjs/common";
 import { SmokeBootstrapDto } from "./dto/smoke-bootstrap.dto";
 import { SmokeBootstrapService } from "./smoke-bootstrap.service";
+import { SmokeResetService } from "./smoke-reset.service";
 
 @Controller("smoke")
 export class SmokeController {
-  constructor(private readonly smokeBootstrapService: SmokeBootstrapService) {}
+  constructor(
+    private readonly smokeBootstrapService: SmokeBootstrapService,
+    private readonly smokeResetService: SmokeResetService,
+  ) {}
 
   @Post("bootstrap")
   bootstrap(
@@ -14,6 +18,16 @@ export class SmokeController {
   ) {
     return this.smokeBootstrapService.bootstrap(
       body,
+      this.extractToken(smokeBootstrapToken, authorization),
+    );
+  }
+
+  @Post("reset")
+  reset(
+    @Headers("x-smoke-bootstrap-token") smokeBootstrapToken: string | undefined,
+    @Headers("authorization") authorization: string | undefined,
+  ) {
+    return this.smokeResetService.reset(
       this.extractToken(smokeBootstrapToken, authorization),
     );
   }

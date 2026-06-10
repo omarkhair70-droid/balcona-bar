@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { fileURLToPath } from "node:url";
 import {
   SmokeHttpError,
   SmokeRun,
@@ -585,19 +586,34 @@ async function runCustomerCartAndOrderSmoke(run) {
           customerNote: `Smoke order ${run.config.runId}`
         }
       });
-      const order = findFirstRecord(
-        httpResult.body,
-        (record) =>
-          typeof record.id === "string" &&
-          (record.status || record.orderNumber || record.orderNumberDisplay)
-      );
+      const order = extractSubmittedOrder(httpResult.body, sessionId);
+
+      if (!order?.id) {
+        throw new SmokeHttpError("Submit cart did not return a current orderId", {
+          code: "SMOKE_SUBMIT_ORDER_ID_MISSING",
+          requestId: httpResult.requestId,
+          flowId: httpResult.flowId,
+          clientTraceId: httpResult.clientTraceId,
+          endpoint: `/table-sessions/${sessionId}/cart/submit`,
+          method: "POST",
+          role: "customer",
+          responseBody: httpResult.body
+        });
+      }
+
+      run.currentOrder = order;
 
       return {
         http: httpResult,
         entityIds: {
-          orderId: httpResult.body?.order?.id ?? order?.id,
-          orderNumber: httpResult.body?.order?.orderNumber ?? order?.orderNumber
-        }
+          orderId: order.id,
+          submittedOrderId: order.id,
+          tableSessionId: order.tableSessionId ?? sessionId,
+          orderNumber: order.orderNumber,
+          orderStatus: order.status,
+          submittedAt: order.submittedAt
+        },
+        notes: [`submitted order: ${order.id} (${order.status ?? "unknown"})`]
       };
     }
   );
@@ -616,15 +632,46 @@ async function runCustomerCartAndOrderSmoke(run) {
       skipReason: missingCustomerToken ?? (sessionId ? null : "Missing sessionId"),
       coverage: { category: "Customer", name: "order status" }
     },
-    async ({ http }) => ({
-      http: await http.request({
+    async ({ http }) => {
+      const httpResult = await http.request({
         path: `/table-sessions/${sessionId}/orders`,
         role: "customer",
         token: customerToken,
         action: "order_status",
         flowId: `${run.config.runId}:customer:${sessionId}`
-      })
-    })
+      });
+      const order = findCurrentOrderInBody(httpResult.body, {
+        orderId: run.entityIds.orderId,
+        tableSessionId: sessionId
+      });
+
+      if (!order) {
+        throw new SmokeHttpError(
+          `Current submitted order not found in customer order status. candidates=${summarizeOrderCandidates(httpResult.body)}`,
+          {
+            code: "SMOKE_CURRENT_ORDER_STATUS_NOT_FOUND",
+            requestId: httpResult.requestId,
+            flowId: httpResult.flowId,
+            clientTraceId: httpResult.clientTraceId,
+            endpoint: `/table-sessions/${sessionId}/orders`,
+            method: "GET",
+            role: "customer",
+            responseBody: httpResult.body
+          }
+        );
+      }
+
+      assertRecordMatchesCurrentFlow(order, {
+        kind: "customer order status",
+        orderId: run.entityIds.orderId,
+        tableSessionId: sessionId
+      });
+
+      return {
+        http: httpResult,
+        notes: [`current order status: ${order.status ?? "unknown"}`]
+      };
+    }
   );
 }
 
@@ -895,15 +942,49 @@ async function runCashierSmoke(run) {
         token && branchId ? null : "Missing cashier token or branchId",
       coverage: { category: "Staff", name: "cashier order list" }
     },
-    async ({ http }) => ({
-      http: await http.request({
+    async ({ http }) => {
+      const httpResult = await http.request({
         path: `/branches/${branchId}/cashier/orders`,
         role: "cashier",
         token,
         action: "cashier_order_list",
         query: { status: "submitted" }
-      })
-    })
+      });
+      const selectedOrder = selectCurrentCashierOrder(httpResult.body, {
+        orderId,
+        tableSessionId: run.entityIds.sessionId
+      });
+
+      if (!selectedOrder) {
+        throw new SmokeHttpError(
+          `Current submitted order was not found in cashier list. candidates=${summarizeOrderCandidates(httpResult.body)}`,
+          {
+            code: "SMOKE_CURRENT_SUBMITTED_ORDER_NOT_FOUND",
+            requestId: httpResult.requestId,
+            flowId: httpResult.flowId,
+            clientTraceId: httpResult.clientTraceId,
+            endpoint: `/branches/${branchId}/cashier/orders`,
+            method: "GET",
+            role: "cashier",
+            responseBody: httpResult.body
+          }
+        );
+      }
+
+      run.currentCashierOrder = selectedOrder;
+
+      return {
+        http: httpResult,
+        entityIds: {
+          selectedCashierOrderId: selectedOrder.id,
+          selectedCashierOrderStatus: selectedOrder.status,
+          selectedCashierOrderTableSessionId: selectedOrder.tableSessionId
+        },
+        notes: [
+          `selected current cashier order: ${selectedOrder.id} (${selectedOrder.status})`
+        ]
+      };
+    }
   );
 
   await run.step(
@@ -921,8 +1002,36 @@ async function runCashierSmoke(run) {
         token && orderId ? null : "Missing cashier token or submitted orderId",
       coverage: { category: "Staff", name: "cashier accept" }
     },
-    async ({ http }) => ({
-      http: await http.request({
+    async ({ http }) => {
+      if (run.entityIds.selectedCashierOrderId !== orderId) {
+        throw new SmokeHttpError(
+          "Cashier accept refused before API call because selected order does not match submitted order",
+          {
+            code: "SMOKE_CASHIER_SELECTED_ORDER_MISMATCH",
+            role: "cashier",
+            endpoint: `/orders/${orderId}/cashier/accept`,
+            method: "POST"
+          }
+        );
+      }
+
+      if (
+        run.entityIds.selectedCashierOrderStatus &&
+        run.entityIds.selectedCashierOrderStatus !== "submitted"
+      ) {
+        throw new SmokeHttpError(
+          `Cashier accept refused before API call because current order status is ${run.entityIds.selectedCashierOrderStatus}`,
+          {
+            code: "SMOKE_CURRENT_ORDER_NOT_SUBMITTED",
+            role: "cashier",
+            endpoint: `/orders/${orderId}/cashier/accept`,
+            method: "POST"
+          }
+        );
+      }
+
+      return {
+        http: await http.request({
         path: `/orders/${orderId}/cashier/accept`,
         method: "POST",
         role: "cashier",
@@ -931,7 +1040,8 @@ async function runCashierSmoke(run) {
         flowId: `${run.config.runId}:cashier:${orderId}`,
         body: {}
       })
-    })
+      };
+    }
   );
 }
 
@@ -964,6 +1074,14 @@ async function runKitchenSmoke(run) {
         query: { status: "all", limit: 50 }
       });
       const ticket = findMatchingRecord(httpResult.body, orderId, "ticket");
+
+      if (ticket) {
+        assertRecordMatchesCurrentFlow(ticket, {
+          kind: "kitchen ticket",
+          orderId,
+          tableSessionId: run.entityIds.sessionId
+        });
+      }
 
       return {
         http: httpResult,
@@ -1010,9 +1128,18 @@ async function runKitchenSmoke(run) {
         });
       }
 
+      assertRecordMatchesCurrentFlow(task, {
+        kind: "preparation task",
+        orderId,
+        tableSessionId: run.entityIds.sessionId
+      });
+
       return {
         http: httpResult,
-        entityIds: { preparationTaskId: task.id }
+        entityIds: {
+          preparationTaskId: task.id,
+          preparationTaskOrderId: task.orderId
+        }
       };
     }
   );
@@ -1264,15 +1391,40 @@ async function runBillSmoke(run) {
       thresholdMs: THRESHOLDS.pageLoad,
       skipReason: token && branchId ? null : "Missing staff token or branchId"
     },
-    async ({ http }) => ({
-      http: await http.request({
+    async ({ http }) => {
+      const httpResult = await http.request({
         path: `/branches/${branchId}/bill-requests`,
         role: "cashier",
         token,
         action: "bill_request_list",
         query: { status: "active", limit: 20 }
-      })
-    })
+      });
+      const billRequest = findCurrentBillRequest(httpResult.body, {
+        billRequestId,
+        tableSessionId: sessionId
+      });
+
+      if (billRequestId && !billRequest) {
+        throw new SmokeHttpError(
+          `Current bill request was not found in staff list. billRequestId=${billRequestId}`,
+          {
+            code: "SMOKE_CURRENT_BILL_REQUEST_NOT_FOUND",
+            requestId: httpResult.requestId,
+            flowId: httpResult.flowId,
+            clientTraceId: httpResult.clientTraceId,
+            endpoint: `/branches/${branchId}/bill-requests`,
+            method: "GET",
+            role: "cashier",
+            responseBody: httpResult.body
+          }
+        );
+      }
+
+      return {
+        http: httpResult,
+        notes: billRequest ? [`current bill request: ${billRequest.id}`] : []
+      };
+    }
   );
 
   await run.step(
@@ -1560,6 +1712,185 @@ function findProposalId(body) {
   );
 }
 
+export function extractSubmittedOrder(body, expectedTableSessionId) {
+  const directOrder = body?.order && typeof body.order === "object" ? body.order : null;
+  const candidates = [
+    directOrder,
+    ...findOrderRecords(body)
+  ].filter(Boolean);
+
+  return (
+    normalizeOrderRecord(
+      candidates.find(
+        (record) =>
+          typeof record.id === "string" &&
+          (!expectedTableSessionId ||
+            getOrderTableSessionId(record) === expectedTableSessionId)
+      )
+    ) ??
+    normalizeOrderRecord(
+      candidates.find((record) => typeof record.id === "string")
+    )
+  );
+}
+
+export function selectCurrentCashierOrder(body, { orderId, tableSessionId }) {
+  if (!orderId) {
+    return null;
+  }
+
+  const candidates = findOrderRecords(body).map((record) =>
+    normalizeOrderRecord(record)
+  );
+  const exact = candidates.find((record) => record?.id === orderId);
+
+  if (!exact) {
+    return null;
+  }
+
+  if (
+    tableSessionId &&
+    exact.tableSessionId &&
+    exact.tableSessionId !== tableSessionId
+  ) {
+    return null;
+  }
+
+  return exact.status === "submitted" ? exact : null;
+}
+
+function findCurrentOrderInBody(body, { orderId, tableSessionId }) {
+  const records = findOrderRecords(body).map((record) =>
+    normalizeOrderRecord(record)
+  );
+
+  return (
+    records.find(
+      (record) =>
+        record?.id === orderId &&
+        (!tableSessionId ||
+          !record.tableSessionId ||
+          record.tableSessionId === tableSessionId)
+    ) ?? null
+  );
+}
+
+function findCurrentBillRequest(body, { billRequestId, tableSessionId }) {
+  if (!billRequestId) {
+    return null;
+  }
+
+  const records = findRecords(
+    body,
+    (record) =>
+      typeof record.id === "string" &&
+      (record.status || record.billRequest || record.tableSessionId)
+  ).map((record) =>
+    record.billRequest && typeof record.billRequest === "object"
+      ? record.billRequest
+      : record
+  );
+
+  return (
+    records.find(
+      (record) =>
+        record?.id === billRequestId &&
+        (!tableSessionId ||
+          !record.tableSessionId ||
+          record.tableSessionId === tableSessionId)
+    ) ?? null
+  );
+}
+
+export function assertRecordMatchesCurrentFlow(
+  record,
+  { kind, orderId, tableSessionId }
+) {
+  const recordOrderId = getOrderId(record);
+  const recordTableSessionId = getOrderTableSessionId(record);
+
+  if (orderId && recordOrderId && recordOrderId !== orderId) {
+    throw new SmokeHttpError(
+      `${kind} belongs to a different order. expected=${orderId} actual=${recordOrderId}`,
+      {
+        code: "SMOKE_ENTITY_ORDER_MISMATCH",
+        role: "system"
+      }
+    );
+  }
+
+  if (
+    tableSessionId &&
+    recordTableSessionId &&
+    recordTableSessionId !== tableSessionId
+  ) {
+    throw new SmokeHttpError(
+      `${kind} belongs to a different table session. expected=${tableSessionId} actual=${recordTableSessionId}`,
+      {
+        code: "SMOKE_ENTITY_SESSION_MISMATCH",
+        role: "system"
+      }
+    );
+  }
+}
+
+function findOrderRecords(body) {
+  return findRecords(
+    body,
+    (record) =>
+      typeof record.id === "string" &&
+      (record.orderNumber ||
+        record.orderNumberDisplay ||
+        record.status ||
+        record.tableSessionId ||
+        record.order?.id)
+  );
+}
+
+function normalizeOrderRecord(record) {
+  if (!record || typeof record !== "object") {
+    return null;
+  }
+
+  const order = record.order && typeof record.order === "object" ? record.order : record;
+
+  if (typeof order.id !== "string") {
+    return null;
+  }
+
+  return {
+    id: order.id,
+    orderId: order.id,
+    orderNumber: order.orderNumber ?? order.orderNumberDisplay,
+    status: typeof order.status === "string" ? order.status : undefined,
+    tableSessionId: getOrderTableSessionId(order),
+    submittedAt: order.submittedAt
+  };
+}
+
+function getOrderId(record) {
+  return record?.orderId ?? record?.order?.id ?? record?.order?.orderId;
+}
+
+function getOrderTableSessionId(record) {
+  return (
+    record?.tableSessionId ??
+    record?.sessionId ??
+    record?.tableSession?.id ??
+    record?.order?.tableSessionId ??
+    record?.order?.tableSession?.id
+  );
+}
+
+export function summarizeOrderCandidates(body, limit = 5) {
+  return JSON.stringify(
+    findOrderRecords(body)
+      .map((record) => normalizeOrderRecord(record))
+      .filter(Boolean)
+      .slice(0, limit)
+  );
+}
+
 function findMatchingRecord(body, orderId, kind) {
   const records = findRecords(
     body,
@@ -1617,30 +1948,32 @@ function printConsoleReport(report) {
   console.log("- smoke-results/latest-summary.txt");
 }
 
-main().catch((error) => {
-  const safeError = error instanceof Error ? error.message : String(error);
-  console.error(`Smoke runner crashed: ${safeError}`);
-  console.error(
-    buildFailureBundle(
-      {
-        runId: process.env.SMOKE_RUN_ID ?? "unknown",
-        environment: process.env.SMOKE_ENVIRONMENT ?? "staging"
-      },
-      {
-        stepName: "smoke runner",
-        role: "system",
-        pageOrEndpoint: "scripts/smoke/staging-smoke.mjs",
-        status: "failed",
-        durationMs: 0,
-        entityIds: {},
-        error: {
-          code: "SMOKE_RUNNER_CRASH",
-          message: safeError
+if (process.argv[1] === fileURLToPath(import.meta.url)) {
+  main().catch((error) => {
+    const safeError = error instanceof Error ? error.message : String(error);
+    console.error(`Smoke runner crashed: ${safeError}`);
+    console.error(
+      buildFailureBundle(
+        {
+          runId: process.env.SMOKE_RUN_ID ?? "unknown",
+          environment: process.env.SMOKE_ENVIRONMENT ?? "staging"
         },
-        retryCount: 0
-      },
-      []
-    )
-  );
-  process.exitCode = 1;
-});
+        {
+          stepName: "smoke runner",
+          role: "system",
+          pageOrEndpoint: "scripts/smoke/staging-smoke.mjs",
+          status: "failed",
+          durationMs: 0,
+          entityIds: {},
+          error: {
+            code: "SMOKE_RUNNER_CRASH",
+            message: safeError
+          },
+          retryCount: 0
+        },
+        []
+      )
+    );
+    process.exitCode = 1;
+  });
+}

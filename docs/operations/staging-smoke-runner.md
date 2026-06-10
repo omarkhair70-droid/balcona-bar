@@ -72,7 +72,34 @@ SMOKE_BOOTSTRAP_ENABLED=true
 SMOKE_BOOTSTRAP_TOKEN=<strong staging-only token>
 ```
 
-The endpoint is `POST /api/v1/smoke/bootstrap`. It is disabled for `APP_ENV=production`, requires the bootstrap token, and only upserts smoke-prefixed records. It does not delete data and does not modify non-smoke tenants.
+The endpoint is `POST /api/v1/smoke/bootstrap`. It is disabled for `APP_ENV=production`, requires the bootstrap token, and only upserts smoke-prefixed records. It does not modify non-smoke tenants.
+
+SMOKE-STABILITY-1 also adds `POST /api/v1/smoke/reset` and `pnpm smoke:reset:staging`. Use reset when a previous smoke run left active sessions, submitted orders, kitchen tickets, bill requests, or other operational rows behind. Stale operational rows can make the cashier list select an older branch order and produce confusing errors such as `order_not_submitted` even though the current customer flow submitted a fresh cart.
+
+The reset endpoint uses the same `X-Smoke-Bootstrap-Token` guard. It is disabled in production, requires the smoke bootstrap token, and resolves only the deterministic smoke tenant:
+
+```text
+company slug: balcona-smoke
+branch slug: balcona-smoke
+```
+
+It deletes old smoke operational data only:
+
+- table sessions and customer session access identities.
+- carts, cart items, modifier selections, and idempotency records stored on cart/order rows.
+- orders, order items, order modifiers, and order events.
+- preparation tasks, task events, kitchen tickets, ticket items, print jobs, and print job events.
+- waiter calls and waiter call events.
+- bill requests, bill request events, bills, bill lines, manual payments, online payment placeholders/events, and receipts.
+- realtime events, notifications, notification deliveries, presence events, table attention snapshots/events.
+- AI waiter sessions, messages, tool calls, usage events, and cart proposals linked to smoke sessions.
+
+It preserves setup/configuration data:
+
+- smoke company, SaaS subscription, and plan.
+- smoke branch, floors, tables, and QR tokens.
+- menu categories, menu items, modifiers, branch overrides, and inventory configuration.
+- staff users, memberships, platform admin, printer station config, and smart cashier settings.
 
 The local `.env.smoke.local` file must include the staging base URLs and the same token:
 
@@ -80,14 +107,30 @@ The local `.env.smoke.local` file must include the staging base URLs and the sam
 SMOKE_WEB_BASE_URL=https://balcona-bar-staging-web.vercel.app
 SMOKE_API_BASE_URL=https://balcona-bar-staging-api.example.com/api/v1
 SMOKE_BOOTSTRAP_TOKEN=<strong staging-only token>
+SMOKE_RESET_TOKEN=<optional separate staging-only token>
 ```
 
-Run:
+Recommended clean full smoke sequence:
 
 ```powershell
+pnpm smoke:reset:staging
 pnpm smoke:bootstrap:staging
 pnpm smoke:staging:full
 ```
+
+Equivalent one-command sequence:
+
+```powershell
+pnpm smoke:staging:clean-full
+```
+
+Optional bootstrap integration:
+
+```text
+SMOKE_RESET_BEFORE_BOOTSTRAP=true
+```
+
+When this flag is set, `pnpm smoke:bootstrap:staging` runs the reset endpoint first, then upserts smoke base data. The default is `false`.
 
 The bootstrap command creates or updates:
 
@@ -138,9 +181,11 @@ pnpm install
 Run full staging smoke:
 
 ```powershell
+pnpm smoke:reset:staging
 pnpm smoke:bootstrap:staging
 pnpm smoke:staging
 pnpm smoke:staging:full
+pnpm smoke:staging:clean-full
 ```
 
 Run API-first full smoke without web page checks:
@@ -315,7 +360,8 @@ Recommended cleanup strategy:
 - Use a dedicated staging demo branch/table.
 - Run smoke during quiet windows when possible.
 - Filter smoke orders by run ID in notes/events when manual cleanup is needed.
-- Add a protected staging-only reset endpoint only if it can be restricted to smoke-prefixed data and guarded by `SMOKE_RESET_TOKEN`.
+- Prefer `pnpm smoke:staging:clean-full` when investigating full operational flow failures.
+- Never point `.env.smoke.local` at production. Both the reset script and API endpoint intentionally block production-looking environments.
 
 ## Missing Credentials
 

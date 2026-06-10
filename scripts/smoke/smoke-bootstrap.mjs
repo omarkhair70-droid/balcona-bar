@@ -9,6 +9,11 @@ import {
   redactSensitiveText,
   sanitizeValue
 } from "./smoke-core.mjs";
+import {
+  callSmokeResetEndpoint,
+  readSmokeResetConfig,
+  renderResetSummary
+} from "./smoke-reset.mjs";
 
 export const SMOKE_BOOTSTRAP_EMAILS = {
   owner: "smoke-owner@balcona.test",
@@ -27,6 +32,14 @@ export async function main({ env = process.env, envFile = DEFAULT_ENV_FILE } = {
   const mergedEnv = { ...fileEnv, ...env };
   const config = readSmokeBootstrapConfig(mergedEnv);
   assertSafeBootstrapEnvironment(mergedEnv);
+
+  if (String(mergedEnv.SMOKE_RESET_BEFORE_BOOTSTRAP ?? "false") === "true") {
+    const resetConfig = readSmokeResetConfig(mergedEnv);
+    const resetResponse = await callSmokeResetEndpoint(resetConfig);
+
+    console.log(renderResetSummary(resetResponse.body));
+  }
+
   const credentialPlan = buildSmokeCredentials(mergedEnv, {
     overwrite: config.overwrite
   });
