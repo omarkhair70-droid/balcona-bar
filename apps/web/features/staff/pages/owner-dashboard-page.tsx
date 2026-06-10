@@ -49,6 +49,7 @@ import {
   staffLogout
 } from "@/lib/api/endpoints";
 import { staffQueryKeys } from "@/lib/api/query-keys";
+import { useTranslations } from "@/lib/i18n/i18n-provider";
 import type {
   OwnerAnalyticsCashierShiftsResult,
   OwnerAnalyticsCountRow,
@@ -64,13 +65,14 @@ import { StaffAuthGate } from "../components/staff-auth-gate";
 import { StaffBranchSelector } from "../components/staff-branch-selector";
 import { StaffRealtimeStatus } from "../components/staff-realtime-status";
 
-const presetOptions: Array<{ label: string; value: OwnerAnalyticsPreset }> = [
-  { label: "Today", value: "today" },
-  { label: "Last 7 days", value: "last_7_days" },
-  { label: "Last 30 days", value: "last_30_days" }
+const presetOptions: Array<{ labelKey: string; value: OwnerAnalyticsPreset }> = [
+  { labelKey: "dashboard.today", value: "today" },
+  { labelKey: "dashboard.last7Days", value: "last_7_days" },
+  { labelKey: "dashboard.last30Days", value: "last_30_days" }
 ];
 
 function OwnerDashboardActions() {
+  const t = useTranslations("owner");
   const router = useRouter();
   const accessToken = useStaffAuthStore((state) => state.accessToken);
   const effectiveAccess = useStaffAuthStore((state) => state.effectiveAccess);
@@ -92,7 +94,7 @@ function OwnerDashboardActions() {
     return (
       <Link href="/staff/login" className={buttonVariants()}>
         <LogIn className="size-4" aria-hidden="true" />
-        Staff login
+        {t("actions.staffLogin")}
       </Link>
     );
   }
@@ -101,35 +103,35 @@ function OwnerDashboardActions() {
     <>
       <Link href="/staff" className={buttonVariants({ variant: "ghost" })}>
         <LayoutDashboard className="size-4" aria-hidden="true" />
-        Overview
+        {t("actions.overview")}
       </Link>
       <Link
         href="/staff/billing"
         className={buttonVariants({ variant: "ghost" })}
       >
         <CreditCard className="size-4" aria-hidden="true" />
-        Billing
+        {t("actions.billing")}
       </Link>
       <Link
         href="/staff/cashier"
         className={buttonVariants({ variant: "ghost" })}
       >
         <Receipt className="size-4" aria-hidden="true" />
-        Cashier
+        {t("actions.cashier")}
       </Link>
       <Link
         href="/staff/kitchen"
         className={buttonVariants({ variant: "ghost" })}
       >
         <ChefHat className="size-4" aria-hidden="true" />
-        Kitchen
+        {t("actions.kitchen")}
       </Link>
       <Link
         href="/staff/waiter"
         className={buttonVariants({ variant: "ghost" })}
       >
         <UserRoundCheck className="size-4" aria-hidden="true" />
-        Waiter
+        {t("actions.waiter")}
       </Link>
       <StaffBranchSelector
         access={effectiveAccess}
@@ -142,7 +144,7 @@ function OwnerDashboardActions() {
         disabled={logoutMutation.isPending}
       >
         <LogOut className="size-4" aria-hidden="true" />
-        Logout
+        {t("actions.logout")}
       </Button>
     </>
   );
@@ -155,6 +157,8 @@ function RangeSelector({
   preset: OwnerAnalyticsPreset;
   onChange: (preset: OwnerAnalyticsPreset) => void;
 }) {
+  const t = useTranslations("owner");
+
   return (
     <div className="flex flex-wrap gap-2">
       {presetOptions.map((option) => (
@@ -164,7 +168,7 @@ function RangeSelector({
           variant={option.value === preset ? "primary" : "secondary"}
           onClick={() => onChange(option.value)}
         >
-          {option.label}
+          {t(option.labelKey)}
         </Button>
       ))}
     </div>
@@ -178,6 +182,8 @@ function OwnerDataWarning({
   label: string;
   error?: unknown;
 }) {
+  const t = useTranslations("owner");
+
   if (!error) {
     return null;
   }
@@ -185,7 +191,7 @@ function OwnerDataWarning({
   return (
     <Card variant="quiet">
       <CardHeader>
-        <CardTitle>{label} warning</CardTitle>
+        <CardTitle>{t("dashboard.warningTitle", { label })}</CardTitle>
         <CardDescription>{formatErrorMessage(error)}</CardDescription>
       </CardHeader>
     </Card>
@@ -193,9 +199,11 @@ function OwnerDataWarning({
 }
 
 function EmptyRangeState() {
+  const t = useTranslations("owner");
+
   return (
     <p className="rounded-card border border-dashed bg-surface/70 p-4 text-sm text-muted-foreground">
-      No data in this range yet.
+      {t("empty.range")}
     </p>
   );
 }
@@ -249,6 +257,8 @@ function MoneyRowsCard({
   rows: Array<OwnerAnalyticsMoneyRow | OwnerAnalyticsTenderRow>;
   currency?: string;
 }) {
+  const t = useTranslations("owner");
+
   return (
     <Card variant="quiet">
       <CardHeader>
@@ -268,7 +278,9 @@ function MoneyRowsCard({
               >
                 <span className="font-medium text-foreground">{label}</span>
                 <span className="text-muted-foreground">
-                  {row.count.toLocaleString("en")} payments
+                  {t("analytics.paymentsCount", {
+                    count: row.count.toLocaleString("en")
+                  })}
                 </span>
                 <span className="font-semibold text-foreground">
                   {formatMoney(row.amountMinor, currency)}
@@ -293,11 +305,13 @@ function TopItemsCard({
   rows: OwnerAnalyticsItemRow[];
   currency?: string;
 }) {
+  const t = useTranslations("owner");
+
   return (
     <Card variant="quiet">
       <CardHeader>
         <CardTitle>{title}</CardTitle>
-        <CardDescription>Historical paid bill line snapshots.</CardDescription>
+        <CardDescription>{t("analytics.topItemsDescription")}</CardDescription>
       </CardHeader>
       <CardContent className="grid gap-2">
         {rows.length > 0 ? (
@@ -308,7 +322,9 @@ function TopItemsCard({
             >
               <span className="font-medium text-foreground">{item.name}</span>
               <span className="text-muted-foreground">
-                {item.quantity.toLocaleString("en")} sold
+                {t("analytics.quantitySold", {
+                  count: item.quantity.toLocaleString("en")
+                })}
               </span>
               <span className="font-semibold text-foreground">
                 {formatMoney(item.revenueMinor, item.currency ?? currency)}
@@ -330,13 +346,15 @@ function DurationMetric({
   label: string;
   seconds: number | null;
 }) {
+  const t = useTranslations("owner");
+
   return (
     <div className="rounded-card border bg-surface/70 p-4">
       <p className="text-xs font-semibold uppercase text-muted-foreground">
         {label}
       </p>
       <p className="mt-2 text-xl font-semibold text-foreground">
-        {formatDuration(seconds)}
+        {formatDuration(seconds, t)}
       </p>
     </div>
   );
@@ -349,6 +367,7 @@ function CashierShiftPanel({
   data: OwnerAnalyticsCashierShiftsResult;
   currency: string;
 }) {
+  const t = useTranslations("owner");
   const currentShift = data.currentOpenShift;
   const latestZReport = data.latestZReport;
 
@@ -356,36 +375,41 @@ function CashierShiftPanel({
     <Card variant="quiet">
       <CardHeader>
         <Badge variant="muted" className="w-fit">
-          Cashier shifts
+          {t("analytics.cashierShiftsBadge")}
         </Badge>
-        <CardTitle>Drawer and Z report control</CardTitle>
+        <CardTitle>{t("analytics.cashierShiftsTitle")}</CardTitle>
         <CardDescription>
-          Current shift, recent closed shifts, over/short, and drawer movement.
+          {t("analytics.cashierShiftsDescription")}
         </CardDescription>
       </CardHeader>
       <CardContent className="grid gap-4 lg:grid-cols-3">
         <div className="rounded-card border bg-surface/70 p-4">
           <p className="text-sm font-semibold text-foreground">
-            Current shift
+            {t("analytics.currentShift")}
           </p>
           {currentShift ? (
             <div className="mt-3 grid gap-2 text-sm text-muted-foreground">
               <p>{humanizeStatus(currentShift.status)}</p>
-              <p>Opened {formatDateTime(currentShift.openedAt)}</p>
               <p>
-                Expected cash{" "}
-                {formatMoney(currentShift.expectedCashMinor, currency)}
+                {t("analytics.openedAt", {
+                  date: formatDateTime(currentShift.openedAt)
+                })}
+              </p>
+              <p>
+                {t("analytics.expectedCash", {
+                  price: formatMoney(currentShift.expectedCashMinor, currency)
+                })}
               </p>
             </div>
           ) : (
             <p className="mt-3 text-sm text-muted-foreground">
-              No open cashier shift.
+              {t("empty.noOpenCashierShift")}
             </p>
           )}
         </div>
         <div className="rounded-card border bg-surface/70 p-4">
           <p className="text-sm font-semibold text-foreground">
-            Latest Z report
+            {t("analytics.latestZReport")}
           </p>
           {latestZReport ? (
             <div className="mt-3 grid gap-2 text-sm text-muted-foreground">
@@ -394,26 +418,38 @@ function CashierShiftPanel({
             </div>
           ) : (
             <p className="mt-3 text-sm text-muted-foreground">
-              No Z report in this range yet.
+              {t("empty.noZReport")}
             </p>
           )}
         </div>
         <div className="rounded-card border bg-surface/70 p-4">
           <p className="text-sm font-semibold text-foreground">
-            Drawer movement
+            {t("analytics.drawerMovement")}
           </p>
           <div className="mt-3 grid gap-2 text-sm text-muted-foreground">
             <p>
-              Cash in{" "}
-              {formatMoney(data.cashDrawerTransactions.cashInMinor, currency)}
+              {t("analytics.cashIn", {
+                price: formatMoney(
+                  data.cashDrawerTransactions.cashInMinor,
+                  currency
+                )
+              })}
             </p>
             <p>
-              Cash out{" "}
-              {formatMoney(data.cashDrawerTransactions.cashOutMinor, currency)}
+              {t("analytics.cashOut", {
+                price: formatMoney(
+                  data.cashDrawerTransactions.cashOutMinor,
+                  currency
+                )
+              })}
             </p>
             <p>
-              Corrections{" "}
-              {formatMoney(data.cashDrawerTransactions.correctionMinor, currency)}
+              {t("analytics.corrections", {
+                price: formatMoney(
+                  data.cashDrawerTransactions.correctionMinor,
+                  currency
+                )
+              })}
             </p>
           </div>
         </div>
@@ -429,12 +465,14 @@ function DailyReportPanel({
   report?: OwnerAnalyticsDailyReportResult;
   currency: string;
 }) {
+  const t = useTranslations("owner");
+
   if (!report) {
     return (
       <Card variant="quiet">
         <CardHeader>
-          <CardTitle>Daily report</CardTitle>
-          <CardDescription>No report data loaded yet.</CardDescription>
+          <CardTitle>{t("analytics.dailyReport")}</CardTitle>
+          <CardDescription>{t("empty.noReportData")}</CardDescription>
         </CardHeader>
       </Card>
     );
@@ -446,29 +484,34 @@ function DailyReportPanel({
         <Badge variant="muted" className="w-fit">
           {humanizeStatus(report.reportType)}
         </Badge>
-        <CardTitle>Readable daily report snapshot</CardTitle>
+        <CardTitle>{t("analytics.dailyReportSnapshot")}</CardTitle>
         <CardDescription>
-          Generated {formatDateTime(report.generatedAt)} for{" "}
-          {formatDateTime(report.range.from)} to {formatDateTime(report.range.to)}
-          .
+          {t("analytics.generatedReportRange", {
+            date: formatDateTime(report.generatedAt),
+            from: formatDateTime(report.range.from),
+            to: formatDateTime(report.range.to)
+          })}
         </CardDescription>
       </CardHeader>
       <CardContent className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
         <ReportValue
-          label="Collected"
+          label={t("analytics.collected")}
           value={formatMoney(report.summary.collectedMinor, currency)}
         />
         <ReportValue
-          label="Paid bills"
+          label={t("analytics.paidBills")}
           value={report.summary.paidBillCount.toLocaleString("en")}
         />
         <ReportValue
-          label="Top item"
-          value={report.items.topItemsByQuantity[0]?.name ?? "No data"}
+          label={t("analytics.topItem")}
+          value={report.items.topItemsByQuantity[0]?.name ?? t("empty.noData")}
         />
         <ReportValue
-          label="Latest Z"
-          value={report.cashierShifts.latestZReport?.reportNumber ?? "No data"}
+          label={t("analytics.latestZ")}
+          value={
+            report.cashierShifts.latestZReport?.reportNumber ??
+            t("empty.noData")
+          }
         />
       </CardContent>
     </Card>
@@ -486,9 +529,12 @@ function ReportValue({ label, value }: { label: string; value: string }) {
   );
 }
 
-function formatDuration(seconds: number | null) {
+function formatDuration(
+  seconds: number | null,
+  t: ReturnType<typeof useTranslations>
+) {
   if (seconds === null) {
-    return "No data";
+    return t("empty.noData");
   }
 
   if (seconds < 60) {
@@ -520,6 +566,7 @@ function getDashboardCurrency(data: OwnerAnalyticsDashboardResult) {
 }
 
 function OwnerDashboardContent() {
+  const t = useTranslations("owner");
   const queryClient = useQueryClient();
   const accessToken = useStaffAuthStore((state) => state.accessToken);
   const staffUser = useStaffAuthStore((state) => state.staffUser);
@@ -572,25 +619,25 @@ function OwnerDashboardContent() {
   if (!selectedBranchId || !selectedBranch) {
     return (
       <EmptyState
-        title="No accessible branch"
-        description="This staff account does not expose a branch for owner analytics yet."
+        title={t("empty.noAccessibleBranchTitle")}
+        description={t("empty.noAccessibleBranchDescription")}
       />
     );
   }
 
   if (dashboardQuery.isPending) {
-    return <LoadingState label="Loading owner analytics" />;
+    return <LoadingState label={t("dashboard.loadingAnalytics")} />;
   }
 
   if (dashboardQuery.isError || !dashboardQuery.data) {
     return (
       <EmptyState
-        title="Owner analytics could not load"
+        title={t("errors.analyticsLoadTitle")}
         description={formatErrorMessage(dashboardQuery.error)}
         action={
           <Button variant="secondary" onClick={refreshAll}>
             <RefreshCw className="size-4" aria-hidden="true" />
-            Retry
+            {t("actions.retry")}
           </Button>
         }
       />
@@ -606,7 +653,7 @@ function OwnerDashboardContent() {
   const cashierShifts = dashboard.cashierShifts;
   const aiWaiter = dashboard.aiWaiter;
   const currency = getDashboardCurrency(dashboard);
-  const topItemName = items.topItemsByQuantity[0]?.name ?? "No data";
+  const topItemName = items.topItemsByQuantity[0]?.name ?? t("empty.noData");
   const cashOverShortTone =
     cashierShifts.totalOverShortMinor === 0
       ? "success"
@@ -620,7 +667,7 @@ function OwnerDashboardContent() {
         <CardHeader className="gap-4 xl:flex xl:flex-row xl:items-start xl:justify-between xl:space-y-0">
           <div>
             <div className="flex flex-wrap items-center gap-2">
-              <Badge variant="muted">Owner analytics</Badge>
+              <Badge variant="muted">{t("dashboard.badge")}</Badge>
               <StaffRealtimeStatus
                 state={realtime.state}
                 lastEventType={realtime.lastEventType}
@@ -628,70 +675,81 @@ function OwnerDashboardContent() {
             </div>
             <CardTitle className="mt-3">{selectedBranch.name}</CardTitle>
             <CardDescription>
-              {staffUser?.name || staffUser?.email || "Staff user"} is viewing
-              recorded branch management analytics from orders, bills, payments,
-              operations, shifts, and AI waiter usage.
+              {t("dashboard.viewingDescription", {
+                name: staffUser?.name || staffUser?.email || t("dashboard.staffUserFallback")
+              })}
             </CardDescription>
           </div>
           <div className="grid gap-3">
             <RangeSelector preset={preset} onChange={setPreset} />
             <Button variant="secondary" onClick={refreshAll}>
               <RefreshCw className="size-4" aria-hidden="true" />
-              Refresh
+              {t("actions.refresh")}
             </Button>
           </div>
         </CardHeader>
       </Card>
 
-      <OwnerDataWarning label="Daily report" error={reportQuery.error} />
+      <OwnerDataWarning label={t("analytics.dailyReport")} error={reportQuery.error} />
 
       <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
         <MetricCard
-          label="Revenue"
+          label={t("analytics.revenue")}
           value={formatMoney(summary.paidRevenueMinor, currency)}
-          description="Paid revenue from recorded manual payments."
+          description={t("analytics.revenueDescription")}
           icon={<BarChart3 className="size-4" aria-hidden="true" />}
           tone="success"
         />
         <MetricCard
-          label="Collected"
+          label={t("analytics.collected")}
           value={formatMoney(summary.collectedMinor, currency)}
-          description="Cash, card, wallet, and other manual tender recorded."
+          description={t("analytics.collectedDescription")}
           icon={<WalletCards className="size-4" aria-hidden="true" />}
           tone="primary"
         />
         <MetricCard
-          label="Average ticket"
+          label={t("analytics.averageTicket")}
           value={formatMoney(summary.averageTicketMinor, currency)}
-          description={`${summary.paidBillCount.toLocaleString("en")} paid bills`}
+          description={t("analytics.paidBillsCount", {
+            count: summary.paidBillCount.toLocaleString("en")
+          })}
           icon={<Receipt className="size-4" aria-hidden="true" />}
           tone="accent"
         />
         <MetricCard
-          label="Orders"
+          label={t("analytics.orders")}
           value={orders.submittedOrderCount.toLocaleString("en")}
-          description={`${summary.servedOrderCount.toLocaleString("en")} served, ${summary.completedOrderCount.toLocaleString("en")} completed`}
+          description={t("analytics.ordersDescription", {
+            served: summary.servedOrderCount.toLocaleString("en"),
+            completed: summary.completedOrderCount.toLocaleString("en")
+          })}
           icon={<ShoppingBag className="size-4" aria-hidden="true" />}
           tone="muted"
         />
         <MetricCard
-          label="Cash over/short"
+          label={t("analytics.cashOverShort")}
           value={formatMoney(cashierShifts.totalOverShortMinor, currency)}
-          description={`${cashierShifts.shiftCount.toLocaleString("en")} closed shifts in range`}
+          description={t("analytics.closedShiftsCount", {
+            count: cashierShifts.shiftCount.toLocaleString("en")
+          })}
           icon={<WalletCards className="size-4" aria-hidden="true" />}
           tone={cashOverShortTone}
         />
         <MetricCard
-          label="Open waiter calls"
+          label={t("analytics.openWaiterCalls")}
           value={summary.openWaiterCallCount.toLocaleString("en")}
-          description={`${summary.activeBillRequestCount.toLocaleString("en")} active bill requests`}
+          description={t("analytics.activeBillRequestsCount", {
+            count: summary.activeBillRequestCount.toLocaleString("en")
+          })}
           icon={<UserRoundCheck className="size-4" aria-hidden="true" />}
           tone="warning"
         />
         <MetricCard
-          label="Stock risk"
+          label={t("analytics.stockRisk")}
           value={`${summary.lowStockCount ?? 0}/${summary.outOfStockCount ?? 0}`}
-          description={`${summary.stockBlockedMenuItemCount ?? 0} menu items stock-blocked`}
+          description={t("analytics.stockRiskDescription", {
+            count: summary.stockBlockedMenuItemCount ?? 0
+          })}
           icon={<Boxes className="size-4" aria-hidden="true" />}
           tone={
             (summary.outOfStockCount ?? 0) > 0 ||
@@ -701,16 +759,19 @@ function OwnerDashboardContent() {
           }
         />
         <MetricCard
-          label="AI sessions"
+          label={t("analytics.aiSessions")}
           value={aiWaiter.aiSessionCount.toLocaleString("en")}
-          description={`${aiWaiter.aiMessageCount.toLocaleString("en")} messages, ${aiWaiter.escalatedCount.toLocaleString("en")} escalations`}
+          description={t("analytics.aiSessionsDescription", {
+            messages: aiWaiter.aiMessageCount.toLocaleString("en"),
+            escalations: aiWaiter.escalatedCount.toLocaleString("en")
+          })}
           icon={<Bot className="size-4" aria-hidden="true" />}
           tone="primary"
         />
         <MetricCard
-          label="Top item"
+          label={t("analytics.topItem")}
           value={topItemName}
-          description="Best seller by paid quantity."
+          description={t("analytics.topItemDescription")}
           icon={<Sparkles className="size-4" aria-hidden="true" />}
           tone="success"
         />
@@ -718,14 +779,14 @@ function OwnerDashboardContent() {
 
       <section className="grid gap-5 xl:grid-cols-2">
         <MoneyRowsCard
-          title="Tender breakdown"
-          description="Recorded manual payment methods."
+          title={t("analytics.tenderBreakdown")}
+          description={t("analytics.tenderBreakdownDescription")}
           rows={sales.tenderBreakdown}
           currency={currency}
         />
         <MoneyRowsCard
-          title="Revenue by day"
-          description="Manual collections bucketed by recording date."
+          title={t("analytics.revenueByDay")}
+          description={t("analytics.revenueByDayDescription")}
           rows={sales.revenueByDay}
           currency={currency}
         />
@@ -733,18 +794,18 @@ function OwnerDashboardContent() {
 
       <section className="grid gap-5 xl:grid-cols-3">
         <CountRowsCard
-          title="Order status"
-          description="Submitted orders grouped by lifecycle status."
+          title={t("orders.statusTitle")}
+          description={t("orders.statusDescription")}
           rows={orders.orderCountByStatus}
         />
         <CountRowsCard
-          title="Bill status"
-          description="Bills created in the selected range."
+          title={t("orders.billStatusTitle")}
+          description={t("orders.billStatusDescription")}
           rows={sales.billCountByStatus}
         />
         <CountRowsCard
-          title="Waiter calls"
-          description="Service pressure by waiter call status."
+          title={t("orders.waiterCallsTitle")}
+          description={t("orders.waiterCallsDescription")}
           rows={operations.waiterCallCountsByStatus}
         />
       </section>
@@ -752,32 +813,32 @@ function OwnerDashboardContent() {
       <Card variant="quiet">
         <CardHeader>
           <Badge variant="muted" className="w-fit">
-            Lifecycle
+            {t("orders.lifecycleBadge")}
           </Badge>
-          <CardTitle>Order timing</CardTitle>
+          <CardTitle>{t("orders.timingTitle")}</CardTitle>
           <CardDescription>
-            Averages skip orders where a timestamp is not recorded.
+            {t("orders.timingDescription")}
           </CardDescription>
         </CardHeader>
         <CardContent className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
           <DurationMetric
-            label="Submit to accept"
+            label={t("orders.submitToAccept")}
             seconds={orders.lifecycleAverages.submittedToAcceptedSeconds}
           />
           <DurationMetric
-            label="Accept to prep"
+            label={t("orders.acceptToPrep")}
             seconds={orders.lifecycleAverages.acceptedToPreparingSeconds}
           />
           <DurationMetric
-            label="Prep to ready"
+            label={t("orders.prepToReady")}
             seconds={orders.lifecycleAverages.preparingToReadySeconds}
           />
           <DurationMetric
-            label="Ready to served"
+            label={t("orders.readyToServed")}
             seconds={orders.lifecycleAverages.readyToServedSeconds}
           />
           <DurationMetric
-            label="Submit to served"
+            label={t("orders.submitToServed")}
             seconds={orders.lifecycleAverages.submittedToServedSeconds}
           />
         </CardContent>
@@ -785,12 +846,12 @@ function OwnerDashboardContent() {
 
       <section className="grid gap-5 xl:grid-cols-2">
         <TopItemsCard
-          title="Top items by quantity"
+          title={t("menu.topItemsByQuantity")}
           rows={items.topItemsByQuantity}
           currency={currency}
         />
         <TopItemsCard
-          title="Top items by revenue"
+          title={t("menu.topItemsByRevenue")}
           rows={items.topItemsByRevenue}
           currency={currency}
         />
@@ -798,18 +859,20 @@ function OwnerDashboardContent() {
 
       <section className="grid gap-5 xl:grid-cols-3">
         <CountRowsCard
-          title="Preparation tasks"
-          description="Kitchen, barista, dessert, and cashier preparation status."
+          title={t("orders.preparationTasks")}
+          description={t("orders.preparationTasksDescription")}
           rows={operations.preparationTaskCountsByStatus}
         />
         <CountRowsCard
-          title="Kitchen tickets"
-          description="Ticket status across preparation stations."
+          title={t("orders.kitchenTickets")}
+          description={t("orders.kitchenTicketsDescription")}
           rows={operations.kitchenTicketCountsByStatus}
         />
         <CountRowsCard
-          title="Print jobs"
-          description={`${operations.failedPrintJobCount.toLocaleString("en")} failed print jobs in range.`}
+          title={t("orders.printJobs")}
+          description={t("orders.printJobsDescription", {
+            count: operations.failedPrintJobCount.toLocaleString("en")
+          })}
           rows={operations.printJobCountsByStatus}
         />
       </section>
@@ -819,35 +882,43 @@ function OwnerDashboardContent() {
       <section className="grid gap-5 xl:grid-cols-[1fr_1fr_1fr]">
         <Card variant="quiet">
           <CardHeader>
-            <CardTitle>AI waiter</CardTitle>
+            <CardTitle>{t("analytics.aiWaiterTitle")}</CardTitle>
             <CardDescription>
-              Sessions, proposals, escalation reasons, and estimated usage.
+              {t("analytics.aiWaiterDescription")}
             </CardDescription>
           </CardHeader>
           <CardContent className="grid gap-3">
             <ReportValue
-              label="Proposals"
-              value={`${aiWaiter.appliedProposalCount.toLocaleString("en")} applied / ${aiWaiter.proposalCount.toLocaleString("en")} total`}
+              label={t("analytics.proposals")}
+              value={t("analytics.proposalsValue", {
+                applied: aiWaiter.appliedProposalCount.toLocaleString("en"),
+                total: aiWaiter.proposalCount.toLocaleString("en")
+              })}
             />
             <ReportValue
-              label="Tokens"
-              value={`${aiWaiter.inputTokens.toLocaleString("en")} in / ${aiWaiter.outputTokens.toLocaleString("en")} out`}
+              label={t("analytics.tokens")}
+              value={t("analytics.tokensValue", {
+                input: aiWaiter.inputTokens.toLocaleString("en"),
+                output: aiWaiter.outputTokens.toLocaleString("en")
+              })}
             />
             <ReportValue
-              label="Estimated cost"
+              label={t("analytics.estimatedCost")}
               value={formatAiCost(aiWaiter.estimatedCostMicros)}
             />
           </CardContent>
         </Card>
         <CountRowsCard
-          title="AI escalation reasons"
-          description="Only reasons recorded by the backend are shown."
+          title={t("analytics.aiEscalationReasons")}
+          description={t("analytics.aiEscalationReasonsDescription")}
           rows={aiWaiter.topEscalationReasons}
         />
         <Card variant="quiet">
           <CardHeader>
-            <CardTitle>Latest paid bill</CardTitle>
-            <CardDescription>Top paid bill by recorded total.</CardDescription>
+            <CardTitle>{t("analytics.latestPaidBill")}</CardTitle>
+            <CardDescription>
+              {t("analytics.latestPaidBillDescription")}
+            </CardDescription>
           </CardHeader>
           <CardContent>
             {sales.topPaidBills[0] ? (
@@ -879,13 +950,15 @@ function OwnerDashboardContent() {
       <Card variant="quiet">
         <CardHeader className="gap-4 md:flex md:flex-row md:items-center md:justify-between md:space-y-0">
           <div>
-            <CardTitle>Manager navigation</CardTitle>
+            <CardTitle>{t("dashboard.managerNavigation")}</CardTitle>
             <CardDescription>
-              Continue operational work in the existing live staff surfaces.
+              {t("dashboard.managerNavigationDescription")}
             </CardDescription>
           </div>
           <Badge variant="muted">
-            Generated {formatDateTime(dashboard.generatedAt)}
+            {t("dashboard.generatedAt", {
+              date: formatDateTime(dashboard.generatedAt)
+            })}
           </Badge>
         </CardHeader>
         <CardContent className="flex flex-wrap gap-3">
@@ -894,32 +967,32 @@ function OwnerDashboardContent() {
             className={buttonVariants({ variant: "secondary" })}
           >
             <CreditCard className="size-4" aria-hidden="true" />
-            Plan and limits
+            {t("actions.planAndLimits")}
           </Link>
           <Link
             href="/staff/cashier"
             className={buttonVariants({ variant: "secondary" })}
           >
             <Receipt className="size-4" aria-hidden="true" />
-            Open cashier
+            {t("actions.openCashier")}
           </Link>
           <Link
             href="/staff/kitchen"
             className={buttonVariants({ variant: "secondary" })}
           >
             <ChefHat className="size-4" aria-hidden="true" />
-            Open kitchen
+            {t("actions.openKitchen")}
           </Link>
           <Link
             href="/staff/waiter"
             className={buttonVariants({ variant: "secondary" })}
           >
             <UserRoundCheck className="size-4" aria-hidden="true" />
-            Open waiter
+            {t("actions.openWaiter")}
           </Link>
           <Button variant="secondary" onClick={refreshAll}>
             <Download className="size-4" aria-hidden="true" />
-            Refresh report
+            {t("actions.refreshReport")}
           </Button>
         </CardContent>
       </Card>
@@ -928,10 +1001,12 @@ function OwnerDashboardContent() {
 }
 
 export function OwnerDashboardPage() {
+  const t = useTranslations("owner");
+
   return (
     <StaffPageShell
-      title="Owner command center"
-      description="Branch owner analytics for revenue, orders, items, operations, cashier shifts, and AI waiter usage."
+      title={t("dashboard.title")}
+      description={t("dashboard.description")}
       actions={<OwnerDashboardActions />}
     >
       <StaffAuthGate requiredPermissions={["owner_analytics.read"]} branchScoped>

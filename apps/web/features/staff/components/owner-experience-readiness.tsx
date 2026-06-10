@@ -14,6 +14,7 @@ import type {
   BranchEffectiveExperience,
   BranchMenuResult
 } from "@/lib/api/types";
+import { useTranslations } from "@/lib/i18n/i18n-provider";
 
 type OwnerExperienceReadinessProps = {
   experience?: BranchEffectiveExperience;
@@ -32,6 +33,7 @@ export function OwnerExperienceReadiness({
   experienceError,
   menuError
 }: OwnerExperienceReadinessProps) {
+  const t = useTranslations("owner");
   const categories = menu?.categories ?? [];
   const itemCount = categories.reduce(
     (sum, category) => sum + category.items.length,
@@ -45,36 +47,39 @@ export function OwnerExperienceReadiness({
     <Card variant="quiet">
       <CardHeader>
         <div className="flex flex-wrap items-center gap-2">
-          <Badge variant="muted">Readiness</Badge>
+          <Badge variant="muted">{t("readiness.badge")}</Badge>
           <Badge variant={themeLoaded ? "success" : "warning"}>
-            {themeLoaded ? "Experience loaded" : "Experience pending"}
+            {themeLoaded
+              ? t("readiness.experienceLoaded")
+              : t("readiness.experiencePending")}
           </Badge>
         </div>
-        <CardTitle>Menu / experience readiness</CardTitle>
+        <CardTitle>{t("readiness.title")}</CardTitle>
         <CardDescription>
-          Read-only branch setup pulse. Full editing belongs to later SaaS admin
-          phases.
+          {t("readiness.description")}
         </CardDescription>
       </CardHeader>
       <CardContent className="grid gap-3 md:grid-cols-3">
         {experienceLoading || menuLoading ? (
-          <LoadingState label="Loading branch readiness" />
+          <LoadingState label={t("readiness.loading")} />
         ) : null}
         <section className="rounded-card border bg-surface/75 p-4">
           <Palette className="size-4 text-primary" aria-hidden="true" />
           <p className="mt-3 text-sm font-semibold text-foreground">
-            Experience
+            {t("readiness.experience")}
           </p>
           <p className="mt-1 text-xs text-muted-foreground">
             {themeLoaded
-              ? `${experience?.source ?? "branch"} profile available`
-              : "No effective profile returned"}
+              ? t("readiness.profileAvailable", {
+                  source: experience?.source ?? t("readiness.branchSource")
+                })
+              : t("readiness.noEffectiveProfile")}
           </p>
         </section>
         <section className="rounded-card border bg-surface/75 p-4">
           <Utensils className="size-4 text-primary" aria-hidden="true" />
           <p className="mt-3 text-sm font-semibold text-foreground">
-            Menu categories
+            {t("readiness.menuCategories")}
           </p>
           <p className="mt-1 text-2xl font-semibold text-foreground">
             {categories.length}
@@ -83,7 +88,7 @@ export function OwnerExperienceReadiness({
         <section className="rounded-card border bg-surface/75 p-4">
           <Utensils className="size-4 text-primary" aria-hidden="true" />
           <p className="mt-3 text-sm font-semibold text-foreground">
-            Visible menu items
+            {t("readiness.visibleMenuItems")}
           </p>
           <p className="mt-1 text-2xl font-semibold text-foreground">
             {itemCount}
@@ -92,13 +97,13 @@ export function OwnerExperienceReadiness({
         {experienceError ? (
           <p className="rounded-card border border-warning bg-warning/10 p-3 text-sm text-warning md:col-span-3">
             <AlertTriangle className="mr-2 inline size-4" aria-hidden="true" />
-            Experience could not load. {experienceError.message}
+            {t("errors.experienceLoad", { message: experienceError.message })}
           </p>
         ) : null}
         {menuError ? (
           <p className="rounded-card border border-warning bg-warning/10 p-3 text-sm text-warning md:col-span-3">
             <AlertTriangle className="mr-2 inline size-4" aria-hidden="true" />
-            Menu could not load. {menuError.message}
+            {t("errors.menuLoad", { message: menuError.message })}
           </p>
         ) : null}
       </CardContent>

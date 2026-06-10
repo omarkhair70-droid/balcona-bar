@@ -48,6 +48,7 @@ import type {
   TenantOnboardingStaffRole,
   UpdatePlatformSubscriptionPayload
 } from "@/lib/api/types";
+import { useTranslations } from "@/lib/i18n/i18n-provider";
 import { usePlatformAuthStore } from "@/lib/platform/platform-auth-store";
 import { formatMoney, humanizeStatus } from "@/features/staff/staff-format";
 
@@ -94,19 +95,28 @@ function badgeVariant(value?: string | null): NonNullable<BadgeProps["variant"]>
   return "muted";
 }
 
-function formatUsage(metric: SaasUsageMetric) {
+function formatUsage(
+  metric: SaasUsageMetric,
+  t: ReturnType<typeof useTranslations>
+) {
   if (metric.limit === null) {
-    return `${metric.used.toLocaleString("en")} / unlimited`;
+    return t("company.usageUnlimited", {
+      used: metric.used.toLocaleString("en")
+    });
   }
 
-  return `${metric.used.toLocaleString("en")} / ${metric.limit.toLocaleString(
-    "en"
-  )}`;
+  return t("company.usageWithLimit", {
+    used: metric.used.toLocaleString("en"),
+    limit: metric.limit.toLocaleString("en")
+  });
 }
 
-function inviteStatusBadge(invite?: StaffInviteSummary | null) {
+function inviteStatusBadge(
+  invite: StaffInviteSummary | null | undefined,
+  t: ReturnType<typeof useTranslations>
+) {
   if (!invite) {
-    return <Badge variant="warning">Invite needed</Badge>;
+    return <Badge variant="warning">{t("company.inviteNeeded")}</Badge>;
   }
 
   return (
@@ -131,6 +141,7 @@ function normalizeSubscriptionStatus(value?: string | null) {
 }
 
 function UsageGrid({ company }: { company: PlatformCompanyDetail }) {
+  const t = useTranslations("platform");
   const usage = Object.values(company.saas.usage ?? {});
 
   if (usage.length === 0) {
@@ -145,7 +156,7 @@ function UsageGrid({ company }: { company: PlatformCompanyDetail }) {
             <div className="flex items-start justify-between gap-3">
               <div>
                 <CardTitle>{metric.label}</CardTitle>
-                <CardDescription>{formatUsage(metric)}</CardDescription>
+                <CardDescription>{formatUsage(metric, t)}</CardDescription>
               </div>
               <Badge variant={badgeVariant(metric.status)}>
                 {humanizeStatus(metric.status)}
@@ -155,8 +166,10 @@ function UsageGrid({ company }: { company: PlatformCompanyDetail }) {
           <CardContent>
             <p className="text-sm text-muted-foreground">
               {metric.limit === null
-                ? "Unlimited on this plan"
-                : `${(metric.remaining ?? 0).toLocaleString("en")} remaining`}
+                ? t("company.unlimitedOnPlan")
+                : t("company.remaining", {
+                    count: (metric.remaining ?? 0).toLocaleString("en")
+                  })}
             </p>
           </CardContent>
         </Card>
@@ -166,6 +179,7 @@ function UsageGrid({ company }: { company: PlatformCompanyDetail }) {
 }
 
 function SubscriptionPanel({ company }: { company: PlatformCompanyDetail }) {
+  const t = useTranslations("platform");
   const queryClient = useQueryClient();
   const accessToken = usePlatformAuthStore((state) => state.accessToken);
   const [planCode, setPlanCode] = useState<
@@ -206,10 +220,11 @@ function SubscriptionPanel({ company }: { company: PlatformCompanyDetail }) {
             <Badge variant={badgeVariant(company.subscription?.status)}>
               {humanizeStatus(company.subscription?.status ?? "unconfigured")}
             </Badge>
-            <CardTitle className="mt-3">Subscription</CardTitle>
+            <CardTitle className="mt-3">
+              {t("company.subscriptionTitle")}
+            </CardTitle>
             <CardDescription>
-              Internal plan and subscription status only. No SaaS billing
-              checkout runs in this phase.
+              {t("company.subscriptionDescription")}
             </CardDescription>
           </div>
           <CreditCard className="size-5 text-primary" aria-hidden="true" />
@@ -218,22 +233,26 @@ function SubscriptionPanel({ company }: { company: PlatformCompanyDetail }) {
       <form onSubmit={submit}>
         <CardContent className="grid gap-4">
           <div className="rounded-button border bg-surface/70 p-4">
-            <p className="text-sm text-muted-foreground">Current plan</p>
+            <p className="text-sm text-muted-foreground">
+              {t("company.currentPlan")}
+            </p>
             <p className="mt-1 text-xl font-semibold text-foreground">
-              {company.plan?.name ?? "No plan"}
+              {company.plan?.name ?? t("company.noPlan")}
             </p>
             <p className="mt-1 text-sm text-muted-foreground">
               {company.plan?.monthlyPriceMinor === null ||
               company.plan?.monthlyPriceMinor === undefined
-                ? "Custom pricing"
-                : `${formatMoney(
-                    company.plan.monthlyPriceMinor,
-                    company.plan.currency
-                  )}/mo`}
+                ? t("company.customPricing")
+                : t("company.pricePerMonth", {
+                    price: formatMoney(
+                      company.plan.monthlyPriceMinor,
+                      company.plan.currency
+                    )
+                  })}
             </p>
           </div>
           <label className="grid gap-2 text-sm font-medium text-foreground">
-            Plan
+            {t("company.plan")}
             <select
               value={planCode}
               onChange={(event) =>
@@ -254,7 +273,7 @@ function SubscriptionPanel({ company }: { company: PlatformCompanyDetail }) {
             </select>
           </label>
           <label className="grid gap-2 text-sm font-medium text-foreground">
-            Status
+            {t("company.status")}
             <select
               value={status}
               onChange={(event) =>
@@ -286,7 +305,9 @@ function SubscriptionPanel({ company }: { company: PlatformCompanyDetail }) {
         <CardFooter>
           <Button type="submit" disabled={mutation.isPending}>
             <Save className="size-4" aria-hidden="true" />
-            {mutation.isPending ? "Saving..." : "Save subscription"}
+            {mutation.isPending
+              ? t("actions.saving")
+              : t("actions.saveSubscription")}
           </Button>
         </CardFooter>
       </form>
@@ -295,6 +316,7 @@ function SubscriptionPanel({ company }: { company: PlatformCompanyDetail }) {
 }
 
 function StaffInvitePanel({ company }: { company: PlatformCompanyDetail }) {
+  const t = useTranslations("platform");
   const queryClient = useQueryClient();
   const accessToken = usePlatformAuthStore((state) => state.accessToken);
   const [inviteForm, setInviteForm] =
@@ -352,12 +374,11 @@ function StaffInvitePanel({ company }: { company: PlatformCompanyDetail }) {
         <div className="flex items-start justify-between gap-4">
           <div>
             <Badge variant="muted" className="mb-3">
-              Staff handoff
+              {t("company.staffHandoffBadge")}
             </Badge>
-            <CardTitle>Create staff invite</CardTitle>
+            <CardTitle>{t("company.createInviteTitle")}</CardTitle>
             <CardDescription>
-              Generate a first-password link for owners, managers, or branch
-              operators in this workspace.
+              {t("company.createInviteDescription")}
             </CardDescription>
           </div>
           <UserPlus className="size-5 text-primary" aria-hidden="true" />
@@ -366,7 +387,7 @@ function StaffInvitePanel({ company }: { company: PlatformCompanyDetail }) {
       <form onSubmit={submit}>
         <CardContent className="grid gap-3">
           <label className="grid gap-2 text-sm font-medium text-foreground">
-            Name
+            {t("company.name")}
             <Input
               value={inviteForm.name}
               onChange={(event) =>
@@ -378,7 +399,7 @@ function StaffInvitePanel({ company }: { company: PlatformCompanyDetail }) {
             />
           </label>
           <label className="grid gap-2 text-sm font-medium text-foreground">
-            Email
+            {t("company.email")}
             <Input
               type="email"
               value={inviteForm.email}
@@ -391,7 +412,7 @@ function StaffInvitePanel({ company }: { company: PlatformCompanyDetail }) {
             />
           </label>
           <label className="grid gap-2 text-sm font-medium text-foreground">
-            Role
+            {t("company.role")}
             <select
               value={inviteForm.role}
               onChange={(event) =>
@@ -410,7 +431,7 @@ function StaffInvitePanel({ company }: { company: PlatformCompanyDetail }) {
             </select>
           </label>
           <label className="grid gap-2 text-sm font-medium text-foreground">
-            Branch
+            {t("company.branch")}
             <select
               value={inviteForm.branchId ?? ""}
               disabled={!roleRequiresBranch}
@@ -440,13 +461,13 @@ function StaffInvitePanel({ company }: { company: PlatformCompanyDetail }) {
           {lastInviteUrl ? (
             <div className="grid gap-2 rounded-button border bg-surface/70 p-3">
               <p className="text-xs font-semibold uppercase text-muted-foreground">
-                Invite link
+                {t("company.inviteLink")}
               </p>
               <div className="grid gap-2 md:grid-cols-[1fr_auto]">
                 <Input value={lastInviteUrl} readOnly />
                 <Button type="button" variant="secondary" onClick={copyInviteUrl}>
                   <Copy className="size-4" aria-hidden="true" />
-                  {copied ? "Copied" : "Copy"}
+                  {copied ? t("actions.copied") : t("actions.copy")}
                 </Button>
               </div>
             </div>
@@ -467,7 +488,7 @@ function StaffInvitePanel({ company }: { company: PlatformCompanyDetail }) {
             ) : (
               <KeyRound className="size-4" aria-hidden="true" />
             )}
-            Create invite
+            {t("actions.createInvite")}
           </Button>
         </CardFooter>
       </form>
@@ -476,6 +497,7 @@ function StaffInvitePanel({ company }: { company: PlatformCompanyDetail }) {
 }
 
 function CompanyDetailContent({ companyId }: { companyId: string }) {
+  const t = useTranslations("platform");
   const accessToken = usePlatformAuthStore((state) => state.accessToken);
   const companyQuery = useQuery({
     queryKey: platformQueryKeys.company(companyId),
@@ -484,18 +506,18 @@ function CompanyDetailContent({ companyId }: { companyId: string }) {
   });
 
   if (companyQuery.isPending) {
-    return <LoadingState label="Loading company detail" />;
+    return <LoadingState label={t("company.loadingDetail")} />;
   }
 
   if (companyQuery.isError) {
     return (
       <EmptyState
-        title="Company detail could not be loaded"
+        title={t("errors.companyDetailLoadTitle")}
         description={formatErrorMessage(companyQuery.error)}
         action={
           <Button onClick={() => companyQuery.refetch()} variant="secondary">
             <RefreshCw className="size-4" aria-hidden="true" />
-            Retry
+            {t("actions.retry")}
           </Button>
         }
       />
@@ -508,27 +530,27 @@ function CompanyDetailContent({ companyId }: { companyId: string }) {
     <div className="grid gap-5">
       <section className="grid gap-4 md:grid-cols-4">
         <MetricCard
-          label="Company"
-          value={data.company.status ?? "Active"}
+          label={t("company.metricCompany")}
+          value={data.company.status ?? t("company.active")}
           description={data.company.slug}
           icon={<Building2 className="size-4" aria-hidden="true" />}
         />
         <MetricCard
-          label="Plan"
-          value={data.plan?.name ?? "None"}
+          label={t("company.metricPlan")}
+          value={data.plan?.name ?? t("company.none")}
           description={humanizeStatus(data.subscription?.status)}
           icon={<CreditCard className="size-4" aria-hidden="true" />}
         />
         <MetricCard
-          label="Branches"
+          label={t("company.metricBranches")}
           value={String(data.branches.length)}
-          description="Configured tenant branches"
+          description={t("company.metricBranchesDescription")}
           icon={<Building2 className="size-4" aria-hidden="true" />}
         />
         <MetricCard
-          label="Owners"
+          label={t("company.metricOwners")}
           value={String(data.owners.length)}
-          description="Owner or manager assignments"
+          description={t("company.metricOwnersDescription")}
           icon={<UsersRound className="size-4" aria-hidden="true" />}
         />
       </section>
@@ -537,38 +559,37 @@ function CompanyDetailContent({ companyId }: { companyId: string }) {
         <div className="grid gap-5">
           <Card variant="glass" padding="lg">
             <CardHeader>
-              <Badge variant="muted">Company</Badge>
+              <Badge variant="muted">{t("company.companyBadge")}</Badge>
               <CardTitle>{data.company.name}</CardTitle>
               <CardDescription>
-                Tenant workspace ID {data.company.id}
+                {t("company.workspaceId", { companyId: data.company.id })}
               </CardDescription>
             </CardHeader>
             <CardContent className="grid gap-3 md:grid-cols-3">
               <Link href="/staff/setup" className={buttonVariants()}>
                 <ExternalLink className="size-4" aria-hidden="true" />
-                Staff setup
+                {t("actions.staffSetup")}
               </Link>
               <Link
                 href="/staff/billing"
                 className={buttonVariants({ variant: "secondary" })}
               >
-                Staff billing
+                {t("actions.staffBilling")}
               </Link>
               <Link
                 href="/staff/owner"
                 className={buttonVariants({ variant: "secondary" })}
               >
-                Owner dashboard
+                {t("actions.ownerDashboard")}
               </Link>
             </CardContent>
           </Card>
 
           <Card variant="quiet" padding="lg">
             <CardHeader>
-              <CardTitle>Branches</CardTitle>
+              <CardTitle>{t("company.branchesTitle")}</CardTitle>
               <CardDescription>
-                Active branches created by platform bootstrap or later staff
-                setup.
+                {t("company.branchesDescription")}
               </CardDescription>
             </CardHeader>
             <CardContent className="grid gap-3">
@@ -582,14 +603,21 @@ function CompanyDetailContent({ companyId }: { companyId: string }) {
                       {branch.name}
                     </p>
                     <p className="mt-1 text-sm text-muted-foreground">
-                      {branch.slug} · {branch.address ?? "No address"}
+                      {t("company.branchDescription", {
+                        slug: branch.slug,
+                        address: branch.address ?? t("company.noAddress")
+                      })}
                     </p>
                   </div>
                   <div className="flex gap-2 text-sm">
                     <Badge variant={badgeVariant(branch.status)}>
                       {humanizeStatus(branch.status)}
                     </Badge>
-                    <Badge variant="muted">{branch.tablesCount} tables</Badge>
+                    <Badge variant="muted">
+                      {t("company.tablesCount", {
+                        count: branch.tablesCount
+                      })}
+                    </Badge>
                   </div>
                 </div>
               ))}
@@ -598,10 +626,9 @@ function CompanyDetailContent({ companyId }: { companyId: string }) {
 
           <Card variant="quiet" padding="lg">
             <CardHeader>
-              <CardTitle>Owners and managers</CardTitle>
+              <CardTitle>{t("company.ownersTitle")}</CardTitle>
               <CardDescription>
-                Company-level owner membership is created by bootstrap. Branch
-                managers can be invited later from staff setup.
+                {t("company.ownersDescription")}
               </CardDescription>
             </CardHeader>
             <CardContent className="grid gap-3">
@@ -622,11 +649,15 @@ function CompanyDetailContent({ companyId }: { companyId: string }) {
                     <div className="flex flex-wrap gap-2">
                       <Badge variant="muted">{humanizeStatus(owner.role)}</Badge>
                       {owner.staffUser.passwordSetAt ? (
-                        <Badge variant="success">Password set</Badge>
+                        <Badge variant="success">
+                          {t("company.passwordSet")}
+                        </Badge>
                       ) : (
-                        <Badge variant="warning">Password pending</Badge>
+                        <Badge variant="warning">
+                          {t("company.passwordPending")}
+                        </Badge>
                       )}
-                      {inviteStatusBadge(owner.recentInvite)}
+                      {inviteStatusBadge(owner.recentInvite, t)}
                     </div>
                   </div>
                 </div>
@@ -655,14 +686,16 @@ function CompanyDetailContent({ companyId }: { companyId: string }) {
 }
 
 export function PlatformCompanyDetailPage({ companyId }: { companyId: string }) {
+  const t = useTranslations("platform");
+
   return (
     <PlatformShell
-      title="Company detail"
-      description="Review plan status, limits, branches, owners, and staff handoff links for this tenant workspace."
+      title={t("company.title")}
+      description={t("company.description")}
       actions={
         <Link href="/platform" className={buttonVariants({ variant: "ghost" })}>
           <ArrowLeft className="size-4" aria-hidden="true" />
-          Platform dashboard
+          {t("actions.platformDashboard")}
         </Link>
       }
     >

@@ -8,7 +8,7 @@ import {
   CheckCircle2,
   ExternalLink,
   RefreshCw,
-  Server,
+  Server
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button, buttonVariants } from "@/components/ui/button";
@@ -18,7 +18,7 @@ import {
   CardDescription,
   CardFooter,
   CardHeader,
-  CardTitle,
+  CardTitle
 } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
 import { LoadingState } from "@/components/ui/loading-state";
@@ -28,6 +28,7 @@ import { formatErrorMessage } from "@/lib/api/error-message";
 import { getSystemInfo } from "@/lib/api/endpoints";
 import { platformQueryKeys } from "@/lib/api/query-keys";
 import { env, getApiBaseUrlSafety } from "@/lib/config/env";
+import { useTranslations } from "@/lib/i18n/i18n-provider";
 
 function apiOriginFromBaseUrl(value: string) {
   const url = new URL(value);
@@ -42,9 +43,11 @@ function apiOriginFromBaseUrl(value: string) {
 function DetailRow({
   label,
   value,
+  fallback
 }: {
   label: string;
   value?: string | null;
+  fallback: string;
 }) {
   return (
     <div className="grid gap-1 border-b border-border/70 py-3 last:border-b-0 md:grid-cols-[11rem_1fr] md:gap-4">
@@ -52,13 +55,14 @@ function DetailRow({
         {label}
       </dt>
       <dd className="break-words text-sm text-foreground">
-        {value || "Not reported"}
+        {value || fallback}
       </dd>
     </div>
   );
 }
 
 function PlatformStatusContent() {
+  const t = useTranslations("platform");
   const apiBaseUrl = env.NEXT_PUBLIC_API_BASE_URL;
   const apiOrigin = apiOriginFromBaseUrl(apiBaseUrl);
   const apiSafety = getApiBaseUrlSafety(apiBaseUrl);
@@ -86,16 +90,25 @@ function PlatformStatusContent() {
                 {apiSafety.status}
               </Badge>
             </div>
-            <CardTitle>Web API target</CardTitle>
+            <CardTitle>{t("status.webApiTargetTitle")}</CardTitle>
             <CardDescription>{apiSafety.reason}</CardDescription>
           </CardHeader>
           <CardContent>
             <dl>
-              <DetailRow label="Base URL" value={apiBaseUrl} />
-              <DetailRow label="Host" value={apiSafety.host} />
               <DetailRow
-                label="Web app env"
+                label={t("status.baseUrl")}
+                value={apiBaseUrl}
+                fallback={t("status.notReported")}
+              />
+              <DetailRow
+                label={t("status.host")}
+                value={apiSafety.host}
+                fallback={t("status.notReported")}
+              />
+              <DetailRow
+                label={t("status.webAppEnv")}
                 value={env.NEXT_PUBLIC_APP_ENV}
+                fallback={t("status.notReported")}
               />
             </dl>
           </CardContent>
@@ -107,7 +120,7 @@ function PlatformStatusContent() {
               className={buttonVariants({ variant: "secondary", size: "sm" })}
             >
               <ExternalLink className="size-4" aria-hidden="true" />
-              Health
+              {t("status.health")}
             </a>
             <a
               href={`${apiBaseUrl.replace(/\/$/, "")}/system/info`}
@@ -116,7 +129,7 @@ function PlatformStatusContent() {
               className={buttonVariants({ variant: "secondary", size: "sm" })}
             >
               <ExternalLink className="size-4" aria-hidden="true" />
-              System info
+              {t("status.systemInfo")}
             </a>
           </CardFooter>
         </Card>
@@ -141,25 +154,25 @@ function PlatformStatusContent() {
                 }
               >
                 {systemInfoQuery.isError
-                  ? "unreachable"
+                  ? t("status.unreachable")
                   : systemInfoQuery.data
-                    ? "online"
-                    : "checking"}
+                    ? t("status.online")
+                    : t("status.checking")}
               </Badge>
             </div>
-            <CardTitle>Railway API metadata</CardTitle>
+            <CardTitle>{t("status.apiMetadataTitle")}</CardTitle>
             <CardDescription>
-              {systemInfoQuery.data?.timestamp ?? "Waiting for API response"}
+              {systemInfoQuery.data?.timestamp ?? t("status.waitingForApi")}
             </CardDescription>
           </CardHeader>
           <CardContent>
             {systemInfoQuery.isPending ? (
-              <LoadingState label="Checking API metadata" />
+              <LoadingState label={t("status.checkingApiMetadata")} />
             ) : null}
 
             {systemInfoQuery.isError ? (
               <EmptyState
-                title="API metadata could not be loaded"
+                title={t("errors.apiMetadataLoadTitle")}
                 description={formatErrorMessage(systemInfoQuery.error)}
                 action={
                   <Button
@@ -167,7 +180,7 @@ function PlatformStatusContent() {
                     variant="secondary"
                   >
                     <RefreshCw className="size-4" aria-hidden="true" />
-                    Retry
+                    {t("actions.retry")}
                   </Button>
                 }
               />
@@ -175,25 +188,33 @@ function PlatformStatusContent() {
 
             {systemInfoQuery.data ? (
               <dl>
-                <DetailRow label="Service" value={systemInfoQuery.data.name} />
                 <DetailRow
-                  label="Version"
-                  value={systemInfoQuery.data.version}
+                  label={t("status.service")}
+                  value={systemInfoQuery.data.name}
+                  fallback={t("status.notReported")}
                 />
                 <DetailRow
-                  label="APP_ENV"
+                  label={t("status.version")}
+                  value={systemInfoQuery.data.version}
+                  fallback={t("status.notReported")}
+                />
+                <DetailRow
+                  label={t("status.appEnv")}
                   value={
                     systemInfoQuery.data.appEnvironment ??
                     systemInfoQuery.data.environment
                   }
+                  fallback={t("status.notReported")}
                 />
                 <DetailRow
-                  label="NODE_ENV"
+                  label={t("status.nodeEnv")}
                   value={systemInfoQuery.data.nodeEnvironment}
+                  fallback={t("status.notReported")}
                 />
                 <DetailRow
-                  label="API prefix"
+                  label={t("status.apiPrefix")}
                   value={systemInfoQuery.data.apiPrefix}
+                  fallback={t("status.notReported")}
                 />
               </dl>
             ) : null}
@@ -203,15 +224,15 @@ function PlatformStatusContent() {
 
       {apiSafety.status === "temporary" ? (
         <EmptyState
-          title="Temporary API URL configured"
-          description="Staging Vercel must point to the permanent Railway API URL before client demos."
+          title={t("status.temporaryApiTitle")}
+          description={t("status.temporaryApiDescription")}
           action={
             <Link
               href="/platform"
               className={buttonVariants({ variant: "secondary" })}
             >
               <CheckCircle2 className="size-4" aria-hidden="true" />
-              Back to platform
+              {t("actions.backToPlatform")}
             </Link>
           }
         />
@@ -221,17 +242,19 @@ function PlatformStatusContent() {
 }
 
 export function PlatformStatusPage() {
+  const t = useTranslations("platform");
+
   return (
     <PlatformShell
-      title="Staging status"
-      description="Permanent staging runtime checks for the Vercel web app and Railway API."
+      title={t("status.title")}
+      description={t("status.description")}
       actions={
         <Button
           onClick={() => window.location.reload()}
           variant="secondary"
         >
           <RefreshCw className="size-4" aria-hidden="true" />
-          Refresh
+          {t("actions.refresh")}
         </Button>
       }
     >

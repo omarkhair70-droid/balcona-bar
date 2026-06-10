@@ -140,6 +140,46 @@ describe("i18n Crowdin foundation", () => {
     }
   });
 
+  it("includes the owner and platform namespaces required for Crowdin", async () => {
+    const enMessages = await readJson("../../apps/web/messages/en.json");
+    const owner = enMessages.owner;
+    const platform = enMessages.platform;
+
+    for (const namespace of [
+      "actions",
+      "activity",
+      "analytics",
+      "attention",
+      "branch",
+      "dashboard",
+      "empty",
+      "errors",
+      "health",
+      "menu",
+      "operations",
+      "orders",
+      "pulse",
+      "readiness"
+    ]) {
+      assert.ok(owner[namespace], `missing owner.${namespace}`);
+    }
+
+    for (const namespace of [
+      "actions",
+      "auth",
+      "companies",
+      "company",
+      "empty",
+      "errors",
+      "navigation",
+      "onboarding",
+      "shell",
+      "status"
+    ]) {
+      assert.ok(platform[namespace], `missing platform.${namespace}`);
+    }
+  });
+
   it("keeps extracted customer ordering strings out of targeted source files", async () => {
     const files = [
       "../../apps/web/features/customer/pages/customer-entry-page.tsx",
@@ -230,6 +270,53 @@ describe("i18n Crowdin foundation", () => {
       "Ready orders",
       "Waiter dashboard",
       "Staff command surface"
+    ];
+    const combinedSource = (
+      await Promise.all(files.map((file) => readText(file)))
+    ).join("\n");
+
+    for (const phrase of extractedPhrases) {
+      assert.doesNotMatch(combinedSource, new RegExp(phrase.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
+    }
+  });
+
+  it("keeps extracted owner and platform strings out of targeted source files", async () => {
+    const files = [
+      "../../apps/web/features/platform/platform-shell.tsx",
+      "../../apps/web/features/platform/components/platform-auth-gate.tsx",
+      "../../apps/web/features/platform/pages/platform-login-page.tsx",
+      "../../apps/web/features/platform/pages/platform-dashboard-page.tsx",
+      "../../apps/web/features/platform/pages/platform-company-detail-page.tsx",
+      "../../apps/web/features/platform/pages/platform-new-company-page.tsx",
+      "../../apps/web/features/platform/pages/platform-status-page.tsx",
+      "../../apps/web/features/staff/pages/owner-dashboard-page.tsx",
+      "../../apps/web/features/staff/components/owner-attention-summary.tsx",
+      "../../apps/web/features/staff/components/owner-experience-readiness.tsx",
+      "../../apps/web/features/staff/components/owner-health-panel.tsx",
+      "../../apps/web/features/staff/components/owner-operations-snapshot.tsx",
+      "../../apps/web/features/staff/components/owner-pulse-metrics.tsx",
+      "../../apps/web/features/staff/components/owner-recent-activity.tsx"
+    ];
+    const extractedPhrases = [
+      "Platform login required",
+      "Open platform session",
+      "Platform companies",
+      "No cafe workspaces yet",
+      "Company workspace created",
+      "Create Cafe Workspace",
+      "Company detail could not be loaded",
+      "Staging status",
+      "Railway API metadata",
+      "Owner command center",
+      "Owner analytics could not load",
+      "Tender breakdown",
+      "Order timing",
+      "Latest paid bill",
+      "Top attention risks",
+      "Menu / experience readiness",
+      "Recent activity",
+      "Active orders",
+      "Operations snapshot"
     ];
     const combinedSource = (
       await Promise.all(files.map((file) => readText(file)))

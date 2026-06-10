@@ -11,6 +11,7 @@ import {
   CardHeader,
   CardTitle
 } from "@/components/ui/card";
+import { useTranslations } from "@/lib/i18n/i18n-provider";
 import { cn } from "@/lib/utils/cn";
 
 type OwnerLaneMetric = {
@@ -33,15 +34,17 @@ type OwnerOperationsSnapshotProps = {
 export function OwnerOperationsSnapshot({
   lanes
 }: OwnerOperationsSnapshotProps) {
+  const t = useTranslations("owner");
+
   return (
     <Card variant="glass" padding="lg">
       <CardHeader>
         <Badge variant="muted" className="w-fit">
-          Operations snapshot
+          {t("operations.snapshotBadge")}
         </Badge>
-        <CardTitle>Live branch lanes</CardTitle>
+        <CardTitle>{t("operations.liveLanesTitle")}</CardTitle>
         <CardDescription>
-          Aggregated from existing staff endpoints, grouped by operational lane.
+          {t("operations.liveLanesDescription")}
         </CardDescription>
       </CardHeader>
       <CardContent className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
@@ -77,7 +80,7 @@ export function OwnerOperationsSnapshot({
                 "mt-4 w-full"
               )}
             >
-              Open lane
+              {t("actions.openLane")}
             </Link>
           </section>
         ))}

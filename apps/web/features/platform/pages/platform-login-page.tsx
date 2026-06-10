@@ -18,9 +18,11 @@ import { Input } from "@/components/ui/input";
 import { PlatformShell } from "@/features/platform/platform-shell";
 import { formatErrorMessage } from "@/lib/api/error-message";
 import { platformLogin } from "@/lib/api/endpoints";
+import { useTranslations } from "@/lib/i18n/i18n-provider";
 import { usePlatformAuthStore } from "@/lib/platform/platform-auth-store";
 
 export function PlatformLoginPage() {
+  const t = useTranslations("platform");
   const router = useRouter();
   const setFromLogin = usePlatformAuthStore((state) => state.setFromLogin);
   const [email, setEmail] = useState("");
@@ -43,12 +45,12 @@ export function PlatformLoginPage() {
 
   return (
     <PlatformShell
-      title="Platform login"
-      description="Internal sales and support access for cafe workspace bootstrap. Tenant staff accounts cannot open this surface."
+      title={t("auth.loginTitle")}
+      description={t("auth.loginDescription")}
       actions={
         <Link href="/staff" className={buttonVariants({ variant: "ghost" })}>
           <ArrowLeft className="size-4" aria-hidden="true" />
-          Staff surface
+          {t("auth.staffSurface")}
         </Link>
       }
     >
@@ -58,17 +60,15 @@ export function PlatformLoginPage() {
             <div className="flex size-11 items-center justify-center rounded-button bg-primary/15 text-primary">
               <KeyRound className="size-5" aria-hidden="true" />
             </div>
-            <CardTitle>Open platform session</CardTitle>
+            <CardTitle>{t("auth.openSessionTitle")}</CardTitle>
             <CardDescription>
-              Use the platform admin account created by the explicit local dev
-              bootstrap seed. Sessions are opaque, database-backed, and
-              separate from staff auth.
+              {t("auth.openSessionDescription")}
             </CardDescription>
           </CardHeader>
           <form onSubmit={submitLogin}>
             <CardContent className="grid gap-4">
               <label className="grid gap-2 text-sm font-medium text-foreground">
-                Email
+                {t("auth.email")}
                 <Input
                   value={email}
                   onChange={(event) => setEmail(event.target.value)}
@@ -79,13 +79,13 @@ export function PlatformLoginPage() {
                 />
               </label>
               <label className="grid gap-2 text-sm font-medium text-foreground">
-                Password
+                {t("auth.password")}
                 <Input
                   value={password}
                   onChange={(event) => setPassword(event.target.value)}
                   type="password"
                   autoComplete="current-password"
-                  placeholder="Platform password"
+                  placeholder={t("auth.passwordPlaceholder")}
                   required
                 />
               </label>
@@ -96,7 +96,7 @@ export function PlatformLoginPage() {
                 >
                   {formatErrorMessage(
                     loginMutation.error,
-                    "Platform login failed. Check credentials and dev bootstrap."
+                    t("errors.loginFailed")
                   )}
                 </div>
               ) : null}
@@ -104,7 +104,9 @@ export function PlatformLoginPage() {
             <CardFooter>
               <Button type="submit" disabled={loginMutation.isPending}>
                 <LogIn className="size-4" aria-hidden="true" />
-                {loginMutation.isPending ? "Signing in..." : "Sign in"}
+                {loginMutation.isPending
+                  ? t("auth.signingIn")
+                  : t("auth.signIn")}
               </Button>
             </CardFooter>
           </form>
@@ -112,11 +114,9 @@ export function PlatformLoginPage() {
 
         <Card variant="quiet" padding="lg" className="h-fit">
           <CardHeader>
-            <CardTitle>Internal only</CardTitle>
+            <CardTitle>{t("auth.internalOnlyTitle")}</CardTitle>
             <CardDescription>
-              This is the sales-led bootstrap surface. Public signup,
-              subscription checkout, and real email invitations remain future
-              phases.
+              {t("auth.internalOnlyDescription")}
             </CardDescription>
           </CardHeader>
         </Card>

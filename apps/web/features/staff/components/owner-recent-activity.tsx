@@ -16,6 +16,7 @@ import {
   humanizeStatus,
   shortId
 } from "@/features/staff/staff-format";
+import { useTranslations } from "@/lib/i18n/i18n-provider";
 
 type OwnerRecentActivityProps = {
   events: Record<string, unknown>[];
@@ -28,27 +29,28 @@ export function OwnerRecentActivity({
   isLoading,
   error
 }: OwnerRecentActivityProps) {
+  const t = useTranslations("owner");
+
   return (
     <Card variant="quiet">
       <CardHeader>
-        <CardTitle>Recent activity</CardTitle>
+        <CardTitle>{t("activity.title")}</CardTitle>
         <CardDescription>
-          Branch realtime events across orders, preparation, waiter calls, bills,
-          and attention signals.
+          {t("activity.description")}
         </CardDescription>
       </CardHeader>
       <CardContent className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-        {isLoading ? <LoadingState label="Loading branch activity" /> : null}
+        {isLoading ? <LoadingState label={t("activity.loading")} /> : null}
         {error ? (
           <div className="rounded-card border border-warning bg-warning/10 p-3 text-sm text-warning">
-            <AlertTriangle className="mr-2 inline size-4" aria-hidden="true" />
+            <AlertTriangle className="me-2 inline size-4" aria-hidden="true" />
             {error.message}
           </div>
         ) : null}
         {!isLoading && !error && events.length === 0 ? (
           <EmptyState
-            title="No recent branch events"
-            description="Realtime activity appears after branch workflows emit events."
+            title={t("empty.recentActivityTitle")}
+            description={t("empty.recentActivityDescription")}
           />
         ) : null}
         {!isLoading && !error
@@ -67,17 +69,23 @@ export function OwnerRecentActivity({
                 </p>
                 {getRecordString(event, "orderId") ? (
                   <p className="mt-2 text-xs text-muted-foreground">
-                    Order {shortId(getRecordString(event, "orderId"))}
+                    {t("activity.orderId", {
+                      id: shortId(getRecordString(event, "orderId"))
+                    })}
                   </p>
                 ) : null}
                 {getRecordString(event, "waiterCallId") ? (
                   <p className="mt-1 text-xs text-muted-foreground">
-                    Call {shortId(getRecordString(event, "waiterCallId"))}
+                    {t("activity.callId", {
+                      id: shortId(getRecordString(event, "waiterCallId"))
+                    })}
                   </p>
                 ) : null}
                 {getRecordString(event, "tableSessionId") ? (
                   <p className="mt-1 text-xs text-muted-foreground">
-                    Session {shortId(getRecordString(event, "tableSessionId"))}
+                    {t("activity.sessionId", {
+                      id: shortId(getRecordString(event, "tableSessionId"))
+                    })}
                   </p>
                 ) : null}
               </article>

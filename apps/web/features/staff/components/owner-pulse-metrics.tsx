@@ -12,6 +12,7 @@ import {
 import { MetricCard } from "@/components/ui/metric-card";
 import { humanizeStatus } from "@/features/staff/staff-format";
 import type { StaffRealtimeState } from "@/features/staff/use-staff-branch-realtime";
+import { useTranslations } from "@/lib/i18n/i18n-provider";
 
 type OwnerPulseMetricsProps = {
   activeOrders: number;
@@ -42,68 +43,74 @@ export function OwnerPulseMetrics({
   realtimeState,
   isLoading
 }: OwnerPulseMetricsProps) {
+  const t = useTranslations("owner");
+
   return (
     <section className="grid gap-4 md:grid-cols-4 xl:grid-cols-8">
       <MetricCard
-        label="Active orders"
+        label={t("pulse.activeOrders")}
         value={metricValue(activeOrders, isLoading)}
-        description="Visible non-terminal orders"
+        description={t("pulse.activeOrdersDescription")}
         icon={<Receipt className="size-4" aria-hidden="true" />}
         tone="primary"
       />
       <MetricCard
-        label="Unaccepted"
+        label={t("pulse.unaccepted")}
         value={metricValue(submittedOrders, isLoading)}
-        description="Needs cashier decision"
+        description={t("pulse.unacceptedDescription")}
         icon={<Clock3 className="size-4" aria-hidden="true" />}
         tone={submittedOrders > 0 ? "warning" : "muted"}
       />
       <MetricCard
-        label="Preparing"
+        label={t("pulse.preparing")}
         value={metricValue(preparingTasks, isLoading)}
-        description="Station work active"
+        description={t("pulse.preparingDescription")}
         icon={<ChefHat className="size-4" aria-hidden="true" />}
         tone="accent"
       />
       <MetricCard
-        label="Ready"
+        label={t("pulse.ready")}
         value={metricValue(readyOrders, isLoading)}
-        description="May need serving"
+        description={t("pulse.readyDescription")}
         icon={<AlertTriangle className="size-4" aria-hidden="true" />}
         tone={readyOrders > 0 ? "warning" : "success"}
       />
       <MetricCard
-        label="Waiter calls"
+        label={t("pulse.waiterCalls")}
         value={metricValue(openWaiterCalls, isLoading)}
-        description="Open service asks"
+        description={t("pulse.waiterCallsDescription")}
         icon={<BellRing className="size-4" aria-hidden="true" />}
         tone={openWaiterCalls > 0 ? "warning" : "success"}
       />
       <MetricCard
-        label="Bill requests"
+        label={t("pulse.billRequests")}
         value={metricValue(openBillRequests, isLoading)}
-        description="Open bill lane"
+        description={t("pulse.billRequestsDescription")}
         icon={<WalletCards className="size-4" aria-hidden="true" />}
         tone={openBillRequests > 0 ? "primary" : "muted"}
       />
       <MetricCard
-        label="Urgent"
+        label={t("pulse.urgent")}
         value={metricValue(urgentAttention, isLoading)}
-        description="Attention queue"
+        description={t("pulse.urgentDescription")}
         icon={<AlertTriangle className="size-4" aria-hidden="true" />}
         tone={urgentAttention > 0 ? "warning" : "success"}
       />
       <MetricCard
-        label="Visible value"
+        label={t("pulse.visibleValue")}
         value={isLoading ? "..." : visibleOrderValue}
-        description="Tracked order value"
+        description={t("pulse.visibleValueDescription")}
         icon={<Radio className="size-4" aria-hidden="true" />}
         tone={realtimeState === "connected" ? "success" : "muted"}
       />
       <MetricCard
         className="md:col-span-4 xl:col-span-8"
-        label="Realtime"
-        value={realtimeState === "connected" ? "Live" : "Watch"}
+        label={t("pulse.realtime")}
+        value={
+          realtimeState === "connected"
+            ? t("pulse.realtimeLive")
+            : t("pulse.realtimeWatch")
+        }
         description={humanizeStatus(realtimeState)}
         icon={<Radio className="size-4" aria-hidden="true" />}
         tone={realtimeState === "connected" ? "success" : "warning"}

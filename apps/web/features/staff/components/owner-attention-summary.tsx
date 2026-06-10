@@ -28,6 +28,7 @@ import {
   getTableLabel,
   humanizeStatus
 } from "@/features/staff/staff-format";
+import { useTranslations } from "@/lib/i18n/i18n-provider";
 import { AttentionPriorityPill } from "./attention-priority-pill";
 import { AttentionStatusPill } from "./attention-status-pill";
 
@@ -42,6 +43,7 @@ export function OwnerAttentionSummary({
   isLoading,
   error
 }: OwnerAttentionSummaryProps) {
+  const t = useTranslations("owner");
   const topItems = attentionItems
     .slice()
     .sort((first, second) => getAttentionScore(second) - getAttentionScore(first))
@@ -52,30 +54,30 @@ export function OwnerAttentionSummary({
       <CardHeader className="gap-4 sm:flex sm:flex-row sm:items-start sm:justify-between sm:space-y-0">
         <div>
           <Badge variant="muted" className="mb-3">
-            Service recovery
+            {t("attention.serviceRecoveryBadge")}
           </Badge>
-          <CardTitle>Top attention risks</CardTitle>
+          <CardTitle>{t("attention.title")}</CardTitle>
           <CardDescription>
-            Highest scoring table signals returned by the attention queue.
+            {t("attention.description")}
           </CardDescription>
         </div>
         <Link href="/staff/waiter" className={buttonVariants({ variant: "secondary" })}>
           <AlertTriangle className="size-4" aria-hidden="true" />
-          Open Waiter
+          {t("actions.openWaiter")}
         </Link>
       </CardHeader>
       <CardContent className="grid gap-3">
-        {isLoading ? <LoadingState label="Loading attention summary" /> : null}
+        {isLoading ? <LoadingState label={t("attention.loading")} /> : null}
         {error ? (
           <EmptyState
-            title="Attention summary could not load"
+            title={t("errors.attentionSummaryLoadTitle")}
             description={error.message}
           />
         ) : null}
         {!isLoading && !error && topItems.length === 0 ? (
           <EmptyState
-            title="No attention risks returned"
-            description="The manager summary will show table recovery signals when the backend queue returns active snapshots."
+            title={t("empty.attentionRisksTitle")}
+            description={t("empty.attentionRisksDescription")}
           />
         ) : null}
         {!isLoading && !error
@@ -98,7 +100,9 @@ export function OwnerAttentionSummary({
                       </p>
                       <p className="mt-1 inline-flex items-center gap-1.5 text-xs text-muted-foreground">
                         <Gauge className="size-3.5" aria-hidden="true" />
-                        Score {getAttentionScore(item)}
+                        {t("attention.score", {
+                          count: getAttentionScore(item)
+                        })}
                       </p>
                     </div>
                     <div className="flex flex-wrap justify-end gap-2">

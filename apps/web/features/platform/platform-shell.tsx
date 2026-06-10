@@ -25,7 +25,10 @@ export function PlatformShell({
 }: PlatformShellProps) {
   const t = useTranslations("platform");
   const accessToken = usePlatformAuthStore((state) => state.accessToken);
-  const navItems = getPlatformNavItems(Boolean(accessToken));
+  const navItems = getPlatformNavItems(Boolean(accessToken)).map((item) => ({
+    ...item,
+    label: item.labelKey ? t(item.labelKey) : item.label
+  }));
 
   return (
     <DashboardShell
@@ -40,21 +43,21 @@ export function PlatformShell({
         supporting ?? (
           <div className="grid gap-3">
             <MetricCard
-              label="Scope"
-              value="Platform"
-              description="Cross-tenant admin only"
+              label={t("shell.scopeLabel")}
+              value={t("shell.scopeValue")}
+              description={t("shell.scopeDescription")}
               icon={<ShieldCheck className="size-4" aria-hidden="true" />}
             />
             <MetricCard
-              label="Flow"
-              value="Sales"
-              description="Cafe workspace bootstrap"
+              label={t("shell.flowLabel")}
+              value={t("shell.flowValue")}
+              description={t("shell.flowDescription")}
               icon={<Building2 className="size-4" aria-hidden="true" />}
             />
             <MetricCard
-              label="Auth"
-              value="Separate"
-              description="Not tenant staff auth"
+              label={t("shell.authLabel")}
+              value={t("shell.authValue")}
+              description={t("shell.authDescription")}
               icon={<KeyRound className="size-4" aria-hidden="true" />}
             />
           </div>
