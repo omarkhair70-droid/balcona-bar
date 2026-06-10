@@ -1835,15 +1835,52 @@ export function assertRecordMatchesCurrentFlow(
 }
 
 function findOrderRecords(body) {
-  return findRecords(
-    body,
-    (record) =>
-      typeof record.id === "string" &&
-      (record.orderNumber ||
-        record.orderNumberDisplay ||
-        record.status ||
-        record.tableSessionId ||
-        record.order?.id)
+  return findRecords(body, isOrderLikeRecord);
+}
+
+function isOrderLikeRecord(record) {
+  if (!record || typeof record !== "object") {
+    return false;
+  }
+
+  const order =
+    record.order && typeof record.order === "object" ? record.order : record;
+  const id = order.id ?? order.orderId;
+
+  if (typeof id !== "string") {
+    return false;
+  }
+
+  if (order.orderNumber || order.orderNumberDisplay) {
+    return true;
+  }
+
+  const status = String(order.orderStatus ?? order.status ?? "");
+  const hasKnownOrderStatus = [
+    "submitted",
+    "cashier_accepted",
+    "cashier_rejected",
+    "preparing",
+    "ready",
+    "served",
+    "completed",
+    "cancelled"
+  ].includes(status);
+  const hasTableSession = Boolean(getOrderTableSessionId(order));
+  const hasOrderSpecificField =
+    order.submittedAt !== undefined ||
+    order.orderStatus !== undefined ||
+    order.customerNote !== undefined ||
+    order.source !== undefined ||
+    order.cartId !== undefined ||
+    order.subtotalMinor !== undefined ||
+    order.totalQuantity !== undefined ||
+    order.itemCount !== undefined ||
+    Array.isArray(order.items);
+
+  return (
+    (hasTableSession && (hasKnownOrderStatus || hasOrderSpecificField)) ||
+    hasOrderSpecificField
   );
 }
 
@@ -1862,7 +1899,12 @@ function normalizeOrderRecord(record) {
     id: order.id,
     orderId: order.id,
     orderNumber: order.orderNumber ?? order.orderNumberDisplay,
-    status: typeof order.status === "string" ? order.status : undefined,
+    status:
+      typeof order.orderStatus === "string"
+        ? order.orderStatus
+        : typeof order.status === "string"
+          ? order.status
+          : undefined,
     tableSessionId: getOrderTableSessionId(order),
     submittedAt: order.submittedAt
   };

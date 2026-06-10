@@ -78,6 +78,13 @@ export interface OnlinePaymentSettlementResult {
   billResponse?: unknown;
 }
 
+export type BillRequestBillMutationResult = {
+  billId: string;
+  billRequestId: string;
+  tableSessionId: string;
+  created: boolean;
+};
+
 @Injectable()
 export class BillsService {
   constructor(
@@ -92,7 +99,7 @@ export class BillsService {
     billRequestId: string,
     options: { actorType?: string; metadata?: Record<string, unknown> } = {},
     tx?: Prisma.TransactionClient,
-  ) {
+  ): Promise<any> {
     const run = (client: Prisma.TransactionClient) =>
       this.createOrGetBillForBillRequestInternal(
         billRequestId,
@@ -101,6 +108,19 @@ export class BillsService {
       );
 
     return tx ? run(tx) : this.prisma.$transaction(run);
+  }
+
+  async createOrGetBillForBillRequestCompact(
+    billRequestId: string,
+    options: { actorType?: string; metadata?: Record<string, unknown> } = {},
+    tx: Prisma.TransactionClient,
+  ): Promise<BillRequestBillMutationResult> {
+    return this.createOrGetBillForBillRequestInternal(
+      billRequestId,
+      options,
+      tx,
+      { hydrateResponse: false, recordRealtimeEvents: false },
+    ) as Promise<BillRequestBillMutationResult>;
   }
 
   async findForBranch(branchId: string, query: BranchBillsQueryDto = {}) {
@@ -643,14 +663,33 @@ export class BillsService {
     billRequestId: string,
     options: { actorType?: string; metadata?: Record<string, unknown> },
     tx: Prisma.TransactionClient,
-  ) {
-    const existingBill = await tx.bill.findUnique({
-      where: { billRequestId },
-      include: this.billDetailInclude(),
-    });
+    behavior: { hydrateResponse?: boolean; recordRealtimeEvents?: boolean } = {},
+  ): Promise<any> {
+    const hydrateResponse = behavior.hydrateResponse ?? true;
+    const recordRealtimeEvents = behavior.recordRealtimeEvents ?? true;
+    const existingBill = hydrateResponse
+      ? await tx.bill.findUnique({
+          where: { billRequestId },
+          include: this.billDetailInclude(),
+        })
+      : await tx.bill.findUnique({
+          where: { billRequestId },
+          select: {
+            id: true,
+            billRequestId: true,
+            tableSessionId: true,
+          },
+        });
 
     if (existingBill) {
-      return this.toBillResponse(existingBill);
+      return hydrateResponse
+        ? this.toBillResponse(existingBill)
+        : {
+            billId: existingBill.id,
+            billRequestId: existingBill.billRequestId ?? billRequestId,
+            tableSessionId: existingBill.tableSessionId,
+            created: false,
+          };
     }
 
     const billRequest = await tx.billRequest.findUnique({
@@ -754,9 +793,18 @@ export class BillsService {
       select: { id: true },
     });
 
-    await this.realtimeEventsService.recordBillCreated(bill.id, tx);
+    if (recordRealtimeEvents) {
+      await this.realtimeEventsService.recordBillCreated(bill.id, tx);
+    }
 
-    return this.getBillResponse(bill.id, tx);
+    return hydrateResponse
+      ? this.getBillResponse(bill.id, tx)
+      : {
+          billId: bill.id,
+          billRequestId: billRequest.id,
+          tableSessionId: billRequest.tableSessionId,
+          created: true,
+        };
   }
 
   private async presentInternal(

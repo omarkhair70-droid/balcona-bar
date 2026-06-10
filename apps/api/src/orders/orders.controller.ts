@@ -129,6 +129,7 @@ export class OrdersController {
     @CurrentStaff() currentStaff: StaffAuthContext,
     @Param() params: OrderIdParamDto,
     @Body() body: OrderLifecycleActionDto = {},
+    @Headers('x-request-id') requestId?: string,
   ) {
     await this.staffScopedAccessService.assertCanForOrder(
       currentStaff.staffUser.id,
@@ -140,6 +141,7 @@ export class OrdersController {
       params.orderId,
       body ?? {},
       currentStaff.staffUser.id,
+      requestId,
     );
   }
 

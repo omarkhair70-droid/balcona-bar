@@ -321,7 +321,10 @@ function buildService(input: {
   const kitchenTicketsService = {
     createPrintJobsForTickets: jest.fn().mockResolvedValue(1),
     recordCreatedRealtimeEventsForTickets: jest.fn().mockResolvedValue(1),
-    syncTicketsForOrderServed: jest.fn().mockResolvedValue(1),
+    syncTicketsForOrderServed: jest
+      .fn()
+      .mockResolvedValue({ ticketIds: ["ticket-1"], updatedTicketCount: 1 }),
+    recordUpdatedRealtimeEventsForTickets: jest.fn().mockResolvedValue(1),
     syncTicketsForOrderCancelled: jest.fn().mockResolvedValue(1),
   };
   const inventoryService = {
@@ -339,6 +342,9 @@ function buildService(input: {
         )
       : jest.fn().mockResolvedValue({ consumed: true, movements: [] }),
   };
+  const tableAttentionService = {
+    recalculateForTableSession: jest.fn().mockResolvedValue({}),
+  };
   const service = new OrdersService(
     prisma as never,
     {} as never,
@@ -346,17 +352,19 @@ function buildService(input: {
     presenceNotificationsService as never,
     realtimeEventsService as never,
     {} as never,
-    { recalculateForTableSession: jest.fn().mockResolvedValue({}) } as never,
+    tableAttentionService as never,
     kitchenTicketsService as never,
     inventoryService as never,
   );
 
   return {
     service,
+    prisma,
     tx,
     preparationTasksService,
     presenceNotificationsService,
     realtimeEventsService,
+    tableAttentionService,
     kitchenTicketsService,
     inventoryService,
   };
@@ -1390,7 +1398,15 @@ describe("OrdersService lifecycle hardening", () => {
   });
 
   it("serves ready orders and records transition metadata", async () => {
-    const { service, tx, realtimeEventsService } = buildService({
+    const {
+      service,
+      prisma,
+      tx,
+      presenceNotificationsService,
+      realtimeEventsService,
+      kitchenTicketsService,
+      tableAttentionService,
+    } = buildService({
       transitionOrder: {
         status: OrderStatus.ready,
         preparationTasks: [
@@ -1401,6 +1417,7 @@ describe("OrdersService lifecycle hardening", () => {
     });
 
     await service.serve("order-1", { note: "Delivered" }, "staff-1");
+    await flushAsyncWork();
 
     expect(tx.order.updateMany).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -1424,9 +1441,119 @@ describe("OrdersService lifecycle hardening", () => {
         }),
       }),
     });
-    expect(realtimeEventsService.recordOrderServed).toHaveBeenCalledWith(
+    expect(kitchenTicketsService.syncTicketsForOrderServed).toHaveBeenCalledWith(
       "order-1",
       tx,
+      { recordRealtimeEvents: false },
+    );
+    expect(
+      kitchenTicketsService.recordUpdatedRealtimeEventsForTickets,
+    ).toHaveBeenCalledWith(["ticket-1"]);
+    expect(
+      presenceNotificationsService.createOrderServedNotification,
+    ).toHaveBeenCalledWith("order-1");
+    expect(realtimeEventsService.recordOrderServed).toHaveBeenCalledWith(
+      "order-1",
+      prisma,
+    );
+    expect(tableAttentionService.recalculateForTableSession).toHaveBeenCalledWith(
+      "session-1",
+      prisma,
+      { source: "order_served", metadata: { orderId: "order-1" } },
+    );
+    expect(
+      tx.order.findUnique.mock.calls.some(([call]) => Boolean(call.include)),
+    ).toBe(false);
+    expect(
+      prisma.order.findUnique.mock.calls.some(([call]) => Boolean(call.include)),
+    ).toBe(true);
+  });
+
+  it("serves the order even if post-commit side effects fail", async () => {
+    const {
+      service,
+      tx,
+      presenceNotificationsService,
+      realtimeEventsService,
+      kitchenTicketsService,
+      tableAttentionService,
+    } = buildService({
+      transitionOrder: {
+        status: OrderStatus.ready,
+        preparationTasks: [
+          { id: "task-1", status: PreparationTaskStatus.ready },
+        ],
+      },
+      responseStatus: OrderStatus.served,
+    });
+    const warnSpy = jest.spyOn(Logger.prototype, "warn").mockImplementation();
+
+    presenceNotificationsService.createOrderServedNotification.mockRejectedValue(
+      new Error("notification unavailable"),
+    );
+    kitchenTicketsService.recordUpdatedRealtimeEventsForTickets.mockRejectedValue(
+      new Error("kds realtime unavailable"),
+    );
+    realtimeEventsService.recordOrderServed.mockRejectedValue(
+      new Error("order realtime unavailable"),
+    );
+    tableAttentionService.recalculateForTableSession.mockRejectedValue(
+      new Error("attention unavailable"),
+    );
+
+    await service.serve("order-1", {}, "staff-1", "req-serve");
+    await flushAsyncWork();
+
+    expect(tx.order.updateMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ status: OrderStatus.served }),
+      }),
+    );
+    expect(tx.orderEvent.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({ type: OrderEventType.served }),
+    });
+    expect(warnSpy).toHaveBeenCalledWith(
+      expect.objectContaining({
+        message:
+          "Post-order action automation failed; committed order status remains source of truth",
+        requestId: "req-serve",
+        action: "serve",
+      }),
+    );
+  });
+
+  it("logs useful stage details when serve transaction fails", async () => {
+    const { service, tx } = buildService({
+      transitionOrder: {
+        status: OrderStatus.ready,
+        preparationTasks: [
+          { id: "task-1", status: PreparationTaskStatus.ready },
+        ],
+      },
+    });
+    const loggerSpy = jest.spyOn(Logger.prototype, "error").mockImplementation();
+
+    tx.order.updateMany.mockRejectedValueOnce(
+      Object.assign(new Error("Transaction already closed. Timeout 5000ms"), {
+        code: "P2028",
+      }),
+    );
+
+    await expect(
+      service.serve("order-1", {}, "staff-1", "req-timeout"),
+    ).rejects.toThrow("Transaction already closed");
+
+    expect(loggerSpy).toHaveBeenCalledWith(
+      expect.objectContaining({
+        message: "Order action failed",
+        requestId: "req-timeout",
+        action: "serve",
+        orderId: "order-1",
+        sessionId: "session-1",
+        previousStatus: OrderStatus.ready,
+        targetStatus: OrderStatus.served,
+        failureStage: "status_update",
+      }),
     );
   });
 

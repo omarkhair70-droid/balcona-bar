@@ -122,8 +122,9 @@ export function readSmokeConfig({
   const fileEnv = loadSmokeEnvFile(envFile);
   const merged = { ...fileEnv, ...env };
   const args = parseArgs(argv);
+  const configuredRunId = String(merged.SMOKE_RUN_ID ?? "").trim();
   const runId =
-    merged.SMOKE_RUN_ID ??
+    configuredRunId ||
     `smoke-${new Date().toISOString().replace(/[:.]/g, "-")}`;
   const timeoutMs = Number.parseInt(
     merged.SMOKE_TIMEOUT_MS ?? String(DEFAULT_TIMEOUT_MS),

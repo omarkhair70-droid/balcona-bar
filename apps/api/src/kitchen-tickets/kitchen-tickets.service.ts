@@ -726,6 +726,7 @@ export class KitchenTicketsService {
   async syncTicketsForOrderServed(
     orderId: string,
     tx: Prisma.TransactionClient,
+    options: { recordRealtimeEvents?: boolean } = {},
   ) {
     const tickets = await tx.kitchenTicket.findMany({
       where: {
@@ -743,13 +744,29 @@ export class KitchenTicketsService {
           servedAt: new Date(),
         },
       });
-      await this.realtimeEventsService.recordKitchenTicketUpdated(
-        ticket.id,
-        tx,
-      );
+      if (options.recordRealtimeEvents ?? true) {
+        await this.realtimeEventsService.recordKitchenTicketUpdated(
+          ticket.id,
+          tx,
+        );
+      }
     }
 
-    return tickets.length;
+    return {
+      ticketIds: tickets.map((ticket) => ticket.id),
+      updatedTicketCount: tickets.length,
+    };
+  }
+
+  async recordUpdatedRealtimeEventsForTickets(
+    ticketIds: string[],
+    tx: PrismaExecutor = this.prisma,
+  ) {
+    for (const ticketId of ticketIds) {
+      await this.realtimeEventsService.recordKitchenTicketUpdated(ticketId, tx);
+    }
+
+    return ticketIds.length;
   }
 
   getTicketLifecycleSummary(ticket: any) {

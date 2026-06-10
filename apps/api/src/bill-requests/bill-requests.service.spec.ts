@@ -189,6 +189,7 @@ function buildService(tx: any, overrides: Record<string, any> = {}) {
     ...overrides.presenceNotificationsService,
   };
   const realtimeEventsService = {
+    recordBillCreated: jest.fn().mockResolvedValue(undefined),
     recordBillRequested: jest.fn().mockResolvedValue(undefined),
     recordBillAcknowledged: jest.fn().mockResolvedValue(undefined),
     recordBillPresented: jest.fn().mockResolvedValue(undefined),
@@ -202,6 +203,12 @@ function buildService(tx: any, overrides: Record<string, any> = {}) {
     createOrGetBillForBillRequest: jest
       .fn()
       .mockResolvedValue({ bill: billSummary() }),
+    createOrGetBillForBillRequestCompact: jest.fn().mockResolvedValue({
+      billId: 'bill-1',
+      billRequestId: 'bill-request-1',
+      tableSessionId: 'session-1',
+      created: true,
+    }),
     findForTableSession: jest.fn().mockResolvedValue({
       activeBill: { bill: billSummary() },
       latestBills: [{ bill: billSummary() }],
@@ -269,10 +276,15 @@ describe('BillRequestsService', () => {
         }),
       }),
     );
-    expect(billsService.createOrGetBillForBillRequest).toHaveBeenCalledWith(
+    expect(billsService.createOrGetBillForBillRequestCompact).toHaveBeenCalledWith(
       'bill-request-1',
       { actorType: 'customer' },
       tx,
+    );
+    expect(billsService.createOrGetBillForBillRequest).not.toHaveBeenCalled();
+    expect(realtimeEventsService.recordBillCreated).toHaveBeenCalledWith(
+      'bill-1',
+      prisma,
     );
     expect(presenceNotificationsService.createBillRequestedNotification).toHaveBeenCalledWith(
       'bill-request-1',

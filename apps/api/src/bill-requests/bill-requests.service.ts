@@ -15,7 +15,10 @@ import {
   TableSessionStatus,
 } from "@prisma/client";
 import { TableAttentionService } from "../autopilot/table-attention.service";
-import { BillsService } from "../bills/bills.service";
+import {
+  BillRequestBillMutationResult,
+  BillsService,
+} from "../bills/bills.service";
 import { PresenceNotificationsService } from "../presence-notifications/presence-notifications.service";
 import { PrismaService } from "../prisma/prisma.service";
 import { RealtimeEventsService } from "../realtime-events/realtime-events.service";
@@ -41,6 +44,8 @@ const DEFAULT_BRANCH_BILL_REQUEST_LIMIT = 50;
 type PrismaExecutor = PrismaService | Prisma.TransactionClient;
 type RequestBillTransactionResult = {
   billRequestId: string;
+  billId?: string;
+  billCreated?: boolean;
   tableSessionId: string;
   shouldRunPostCommitSideEffects: boolean;
 };
@@ -72,17 +77,20 @@ export class BillRequestsService {
       const activeBillRequest = await this.findActiveBillRequest(sessionId, tx);
 
       if (activeBillRequest) {
-        await this.billsService.createOrGetBillForBillRequest(
-          activeBillRequest.id,
-          {
-            actorType: "customer",
-            metadata: { source: "active_bill_request" },
-          },
-          tx,
-        );
+        const bill: BillRequestBillMutationResult =
+          await this.billsService.createOrGetBillForBillRequestCompact(
+            activeBillRequest.id,
+            {
+              actorType: "customer",
+              metadata: { source: "active_bill_request" },
+            },
+            tx,
+          );
 
         return {
           billRequestId: activeBillRequest.id,
+          billId: bill.billId,
+          billCreated: bill.created,
           tableSessionId: tableSession.id,
           shouldRunPostCommitSideEffects: false,
         } satisfies RequestBillTransactionResult;
@@ -139,20 +147,26 @@ export class BillRequestsService {
         });
       }
 
-      await this.billsService.createOrGetBillForBillRequest(
-        billRequest.id,
-        { actorType: "customer" },
-        tx,
-      );
+      const bill: BillRequestBillMutationResult =
+        await this.billsService.createOrGetBillForBillRequestCompact(
+          billRequest.id,
+          { actorType: "customer" },
+          tx,
+        );
 
       return {
         billRequestId: billRequest.id,
+        billId: bill.billId,
+        billCreated: bill.created,
         tableSessionId: tableSession.id,
         shouldRunPostCommitSideEffects: true,
       } satisfies RequestBillTransactionResult;
     });
 
-    if (transactionResult.shouldRunPostCommitSideEffects) {
+    if (
+      transactionResult.shouldRunPostCommitSideEffects ||
+      transactionResult.billCreated
+    ) {
       this.scheduleBillRequestedPostCommitSideEffects(transactionResult);
     }
 
@@ -448,35 +462,53 @@ export class BillRequestsService {
   private async runBillRequestedPostCommitSideEffects(
     input: RequestBillTransactionResult,
   ) {
-    const steps: Array<{ stage: string; run: () => Promise<unknown> }> = [
-      {
-        stage: "presence_notification",
-        run: () =>
-          this.presenceNotificationsService.createBillRequestedNotification(
-            input.billRequestId,
-            this.prisma,
-          ),
-      },
-      {
-        stage: "realtime_event",
-        run: () =>
-          this.realtimeEventsService.recordBillRequested(
-            input.billRequestId,
-            this.prisma,
-          ),
-      },
-      {
-        stage: "table_attention",
-        run: () =>
-          this.tableAttentionService.recalculateForTableSession(
-            input.tableSessionId,
-            this.prisma,
+    const billRequestedSteps: Array<{ stage: string; run: () => Promise<unknown> }> =
+      input.shouldRunPostCommitSideEffects
+        ? [
             {
-              source: "bill_requested",
-              metadata: { billRequestId: input.billRequestId },
+              stage: "presence_notification",
+              run: () =>
+                this.presenceNotificationsService.createBillRequestedNotification(
+                  input.billRequestId,
+                  this.prisma,
+                ),
             },
-          ),
-      },
+            {
+              stage: "realtime_event",
+              run: () =>
+                this.realtimeEventsService.recordBillRequested(
+                  input.billRequestId,
+                  this.prisma,
+                ),
+            },
+            {
+              stage: "table_attention",
+              run: () =>
+                this.tableAttentionService.recalculateForTableSession(
+                  input.tableSessionId,
+                  this.prisma,
+                  {
+                    source: "bill_requested",
+                    metadata: { billRequestId: input.billRequestId },
+                  },
+                ),
+            },
+          ]
+        : [];
+    const steps: Array<{ stage: string; run: () => Promise<unknown> }> = [
+      ...(input.billCreated && input.billId
+        ? [
+            {
+              stage: "bill_created_realtime",
+              run: () =>
+                this.realtimeEventsService.recordBillCreated(
+                  input.billId as string,
+                  this.prisma,
+                ),
+            },
+          ]
+        : []),
+      ...billRequestedSteps,
     ];
 
     for (const step of steps) {
