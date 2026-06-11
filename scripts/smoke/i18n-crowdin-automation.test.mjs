@@ -68,13 +68,14 @@ describe("i18n Crowdin automation", () => {
   it("configures Crowdin source and Arabic target safely", async () => {
     const crowdinConfig = await readText("../../crowdin.yml");
 
-    assert.match(crowdinConfig, /source:\s*\/apps\/web\/messages\/en\.json/);
+    assert.match(crowdinConfig, /source:\s*apps\/web\/messages\/en\.json/);
     assert.match(
       crowdinConfig,
-      /translation:\s*\/apps\/web\/messages\/%two_letters_code%\.json/
+      /translation:\s*apps\/web\/messages\/%two_letters_code%\.json/
     );
+    assert.doesNotMatch(crowdinConfig, /(?:source|translation):\s*\//);
     assert.match(crowdinConfig, /preserve_hierarchy:\s*true/);
-    assert.doesNotMatch(crowdinConfig, /source:\s*\/apps\/web\/messages\/ar\.json/);
+    assert.doesNotMatch(crowdinConfig, /source:\s*apps\/web\/messages\/ar\.json/);
     assert.doesNotMatch(crowdinConfig, /^\s*(project_id|api_token|token)\s*:/im);
   });
 

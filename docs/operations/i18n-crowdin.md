@@ -17,6 +17,9 @@ Crowdin must upload only `apps/web/messages/en.json` as source. It must write
 Arabic to `apps/web/messages/ar.json` through the configured
 `%two_letters_code%` mapping.
 
+The paths in `crowdin.yml` are intentionally relative, not `/`-prefixed, so the
+Crowdin CLI can match files in the GitHub Actions checkout.
+
 ## Local Commands
 
 Run these before opening or merging an i18n PR:

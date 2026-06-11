@@ -13,6 +13,8 @@ export const messagePaths = {
   ar: join(repoRoot, "apps/web/messages/ar.json"),
   crowdin: join(repoRoot, "crowdin.yml")
 };
+export const crowdinSourcePath = "apps/web/messages/en.json";
+export const crowdinTranslationPath = "apps/web/messages/%two_letters_code%.json";
 
 export const requiredTopLevelNamespaces = [
   "common",
@@ -274,26 +276,44 @@ function validateNoInternalCodes(errors, label, messages) {
   }
 }
 
+export function extractCrowdinLocalPaths(crowdinConfig) {
+  const source = crowdinConfig.match(/^\s*-?\s*source:\s*(.+?)\s*$/m)?.[1]?.trim();
+  const translation = crowdinConfig
+    .match(/^\s*-?\s*translation:\s*(.+?)\s*$/m)?.[1]
+    ?.trim();
+
+  return {
+    source: source?.replace(/^["']|["']$/g, ""),
+    translation: translation?.replace(/^["']|["']$/g, "")
+  };
+}
+
 function validateCrowdinConfig(errors, crowdinConfig) {
-  if (!/source:\s*\/apps\/web\/messages\/en\.json/.test(crowdinConfig)) {
-    errors.push("crowdin.yml must use /apps/web/messages/en.json as the source");
+  const paths = extractCrowdinLocalPaths(crowdinConfig);
+
+  if (paths.source !== crowdinSourcePath) {
+    errors.push(`crowdin.yml must use ${crowdinSourcePath} as the source`);
   }
 
-  if (
-    !/translation:\s*\/apps\/web\/messages\/%two_letters_code%\.json/.test(
-      crowdinConfig
-    )
-  ) {
+  if (paths.translation !== crowdinTranslationPath) {
     errors.push(
-      "crowdin.yml must use /apps/web/messages/%two_letters_code%.json as the translation target"
+      `crowdin.yml must use ${crowdinTranslationPath} as the translation target`
     );
+  }
+
+  for (const [label, path] of Object.entries(paths)) {
+    if (path?.startsWith("/")) {
+      errors.push(
+        `crowdin.yml ${label} path must be relative for Crowdin CLI compatibility`
+      );
+    }
   }
 
   if (!/preserve_hierarchy:\s*true/.test(crowdinConfig)) {
     errors.push("crowdin.yml must preserve hierarchy");
   }
 
-  if (/source:\s*\/apps\/web\/messages\/ar\.json/.test(crowdinConfig)) {
+  if (paths.source === "apps/web/messages/ar.json") {
     errors.push("crowdin.yml must not treat ar.json as a source file");
   }
 
