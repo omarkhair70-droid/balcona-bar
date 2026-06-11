@@ -1,10 +1,15 @@
 #!/usr/bin/env node
 import {
+  formatCrowdinDownloadDiagnostics,
   formatCrowdinPreflight,
   formatQaResult,
+  getCrowdinDownloadFailureMessage,
+  inspectCrowdinDownload,
+  messagePaths,
   runCrowdinCliCommand,
   runCrowdinPreflight,
-  runI18nQa
+  runI18nQa,
+  sha256File
 } from "./i18n-utils.mjs";
 
 const command = process.argv[2] ?? "preflight";
@@ -23,6 +28,7 @@ Crowdin upload/download/sync require:
 
 Optional:
 - CROWDIN_BRANCH defaults to main
+- ALLOW_EMPTY_CROWDIN_DOWNLOAD=true allows diagnostics-only empty downloads
 
 Secret values are never printed.`);
 }
@@ -58,6 +64,24 @@ async function validateAfterDownload() {
   return true;
 }
 
+async function downloadWithDiagnostics() {
+  const beforeHash = await sha256File(messagePaths.ar);
+
+  await runCrowdinCliCommand("download");
+
+  const diagnostics = await inspectCrowdinDownload({ beforeHash });
+
+  console.log("");
+  console.log(formatCrowdinDownloadDiagnostics(diagnostics));
+
+  const failureMessage = getCrowdinDownloadFailureMessage(diagnostics);
+  if (failureMessage) {
+    throw new Error(failureMessage);
+  }
+
+  return diagnostics;
+}
+
 if (!allowedCommands.has(command)) {
   printUsage();
   process.exitCode = 1;
@@ -73,13 +97,13 @@ if (!allowedCommands.has(command)) {
       }
 
       if (command === "download") {
-        await runCrowdinCliCommand("download");
+        await downloadWithDiagnostics();
         await validateAfterDownload();
       }
 
       if (command === "sync") {
         await runCrowdinCliCommand("upload", ["sources"]);
-        await runCrowdinCliCommand("download");
+        await downloadWithDiagnostics();
         await validateAfterDownload();
       }
     } catch (error) {

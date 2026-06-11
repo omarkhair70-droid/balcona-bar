@@ -1,7 +1,7 @@
 import { strict as assert } from "node:assert";
 import { execFile } from "node:child_process";
 import { existsSync } from "node:fs";
-import { readFile } from "node:fs/promises";
+import { readFile, unlink, writeFile } from "node:fs/promises";
 import { dirname, relative } from "node:path";
 import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
@@ -9,13 +9,20 @@ import { describe, it } from "node:test";
 import {
   buildCrowdinCliArgs,
   calculateArabicCoverage,
+  findCommonWrongCrowdinOutputPaths,
+  formatCrowdinDownloadDiagnostics,
   formatCrowdinPreflight,
+  getCrowdinDownloadFailureMessage,
   getCrowdinBranch,
   getTempCrowdinConfigPath,
+  inspectCrowdinDownload,
   loadCatalogs,
+  messagePaths,
   repoRoot,
   runCrowdinPreflight,
   runI18nQa,
+  sha256File,
+  unchangedCrowdinDownloadMessage,
   writeTempCrowdinConfig
 } from "../i18n/i18n-utils.mjs";
 
@@ -115,6 +122,78 @@ describe("i18n Crowdin automation", () => {
     assert.match(output, /CROWDIN_BRANCH: present/);
     assert.doesNotMatch(output, /localization-main/);
     assert.doesNotMatch(output, /987654/);
+    assert.doesNotMatch(output, /secret-value-that-must-not-print/);
+  });
+
+  it("fails Crowdin download diagnostics by default when ar.json is unchanged", async () => {
+    const beforeHash = await sha256File(messagePaths.ar);
+    const diagnostics = await inspectCrowdinDownload({
+      beforeHash,
+      env: {},
+      statusShort: ""
+    });
+    const output = formatCrowdinDownloadDiagnostics(diagnostics);
+
+    assert.equal(diagnostics.arJsonChanged, false);
+    assert.equal(diagnostics.allowEmptyDownload, false);
+    assert.equal(diagnostics.ok, false);
+    assert.equal(
+      getCrowdinDownloadFailureMessage(diagnostics),
+      unchangedCrowdinDownloadMessage
+    );
+    assert.match(output, /apps\/web\/messages\/ar\.json changed: no/);
+    assert.match(output, /ALLOW_EMPTY_CROWDIN_DOWNLOAD: disabled/);
+  });
+
+  it("allows unchanged Crowdin downloads only with the explicit escape hatch", async () => {
+    const beforeHash = await sha256File(messagePaths.ar);
+    const diagnostics = await inspectCrowdinDownload({
+      beforeHash,
+      env: { ALLOW_EMPTY_CROWDIN_DOWNLOAD: "true" },
+      statusShort: ""
+    });
+    const output = formatCrowdinDownloadDiagnostics(diagnostics);
+
+    assert.equal(diagnostics.arJsonChanged, false);
+    assert.equal(diagnostics.allowEmptyDownload, true);
+    assert.equal(diagnostics.ok, true);
+    assert.equal(getCrowdinDownloadFailureMessage(diagnostics), undefined);
+    assert.match(output, /ALLOW_EMPTY_CROWDIN_DOWNLOAD: enabled/);
+  });
+
+  it("reports common wrong Crowdin output paths without moving files", async () => {
+    const wrongOutputFile = new URL("../../apps/web/messages/ar-EG.json", import.meta.url);
+    const existedBefore = existsSync(wrongOutputFile);
+
+    if (!existedBefore) {
+      await writeFile(wrongOutputFile, "{}\n", "utf8");
+    }
+
+    try {
+      const wrongOutputPaths = await findCommonWrongCrowdinOutputPaths();
+
+      assert.ok(wrongOutputPaths.includes("apps/web/messages/ar-EG.json"));
+    } finally {
+      if (!existedBefore) {
+        await unlink(wrongOutputFile);
+      }
+    }
+  });
+
+  it("keeps Crowdin download diagnostics free of secret values", async () => {
+    const beforeHash = await sha256File(messagePaths.ar);
+    const diagnostics = await inspectCrowdinDownload({
+      beforeHash,
+      env: {
+        ALLOW_EMPTY_CROWDIN_DOWNLOAD: "true",
+        CROWDIN_PROJECT_ID: "123456",
+        CROWDIN_PERSONAL_TOKEN: "secret-value-that-must-not-print"
+      },
+      statusShort: "?? apps/web/messages/ar-EG.json"
+    });
+    const output = formatCrowdinDownloadDiagnostics(diagnostics);
+
+    assert.doesNotMatch(output, /123456/);
     assert.doesNotMatch(output, /secret-value-that-must-not-print/);
   });
 
