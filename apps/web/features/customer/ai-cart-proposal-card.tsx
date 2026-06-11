@@ -75,7 +75,7 @@ export function AiCartProposalCard({
             {status}
           </Badge>
         </div>
-        <CardTitle>{getProposalTitle(proposal)}</CardTitle>
+        <CardTitle>{getProposalTitle(proposal, t)}</CardTitle>
         <CardDescription>
           {t("proposal.disclaimer")}
         </CardDescription>
@@ -92,7 +92,7 @@ export function AiCartProposalCard({
           </div>
         ) : null}
         {items.map((item, index) => {
-          const detail = describeProposalItem(item, menuItemsById);
+          const detail = describeProposalItem(item, menuItemsById, t);
 
           return (
             <div

@@ -298,15 +298,6 @@
         "send": "Send",
         "sending": "Sending..."
       },
-      "debug": {
-        "closeAction": "ai_waiter_close",
-        "flow": "customer_ai_waiter",
-        "proposalApplyAction": "ai_proposal_apply",
-        "proposalRejectAction": "ai_proposal_reject",
-        "sendAction": "ai_waiter_send_message",
-        "startAction": "ai_waiter_start",
-        "stateAction": "ai_waiter_state"
-      },
       "empty": {
         "noActiveSessionDescription": "Start one or send a prompt. Suggestions will use this branch menu and availability.",
         "noActiveSessionTitle": "No AI waiter session is active yet.",

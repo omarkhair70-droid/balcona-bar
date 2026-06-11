@@ -195,7 +195,8 @@ export function AiWaiterPage({ sessionId }: AiWaiterPageProps) {
     [];
   const experience = getAiWaiterExperience(
     aiWaiterQuery.data,
-    experienceQuery.data
+    experienceQuery.data,
+    t
   );
   const cartSummary = aiWaiterQuery.data?.cartSummary;
 

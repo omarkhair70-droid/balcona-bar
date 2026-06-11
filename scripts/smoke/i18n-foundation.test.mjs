@@ -188,7 +188,6 @@ describe("i18n Crowdin foundation", () => {
     for (const namespace of [
       "actions",
       "composer",
-      "debug",
       "empty",
       "errors",
       "escalation",

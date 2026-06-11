@@ -13,6 +13,11 @@ export type AiLanguageOption = {
   dir: "ltr" | "rtl";
 };
 
+export type AiWaiterText = (
+  key: string,
+  values?: Record<string, string | number>
+) => string;
+
 export const aiLanguageOptions: AiLanguageOption[] = [
   { value: "en", labelKey: "language.english", dir: "ltr" },
   { value: "ar-EG", labelKey: "language.arabic", dir: "rtl" }
@@ -96,10 +101,7 @@ export function getMessageRole(message: Record<string, unknown>) {
   return role === "customer" || role === "system" ? role : "assistant";
 }
 
-export function getMessageContent(
-  message: Record<string, unknown>,
-  fallback = translate("en", "customer.ai.messages.detailsUnavailable")
-) {
+export function getMessageContent(message: Record<string, unknown>, fallback = "") {
   return (
     getString(message, "content") ||
     getString(getNestedRecord(message, "structuredPayload"), "message") ||
@@ -217,11 +219,14 @@ export function getProposalStatus(proposal?: Record<string, unknown>) {
   return getString(proposal, "status", "draft").replaceAll("_", " ");
 }
 
-export function getProposalTitle(proposal?: Record<string, unknown>) {
+export function getProposalTitle(
+  proposal: Record<string, unknown> | undefined,
+  t: AiWaiterText
+) {
   return (
     getString(proposal, "title") ||
     getString(proposal, "summary") ||
-    translate("en", "customer.ai.proposal.fallbackTitle")
+    t("proposal.fallbackTitle")
   );
 }
 
@@ -245,7 +250,8 @@ export function getProposalItemMenuId(item: Record<string, unknown>) {
 
 export function describeProposalItem(
   item: Record<string, unknown>,
-  menuItemsById: Map<string, MenuItemSummary>
+  menuItemsById: Map<string, MenuItemSummary>,
+  t: AiWaiterText
 ) {
   const menuItemId = getProposalItemMenuId(item);
   const quantity = Math.max(1, getNumber(item, "quantity", 1));
@@ -255,12 +261,11 @@ export function describeProposalItem(
     return {
       quantity,
       title: menuItemId
-        ? translate("en", "customer.ai.proposal.menuItemWithId", {
+        ? t("proposal.menuItemWithId", {
             id: menuItemId.slice(0, 8)
           })
-        : translate("en", "customer.ai.proposal.menuItemFallback"),
-      detail:
-        translate("en", "customer.ai.proposal.menuDetailsUnavailable"),
+        : t("proposal.menuItemFallback"),
+      detail: t("proposal.menuDetailsUnavailable"),
       price: "",
       menuItemId
     };
@@ -269,15 +274,16 @@ export function describeProposalItem(
   return {
     quantity,
     title: menuItem.name,
-    detail: translate("en", "customer.ai.proposal.liveMenuMatch"),
+    detail: t("proposal.liveMenuMatch"),
     price: formatMoney(getMenuItemPrice(menuItem), menuItem.currency),
     menuItemId
   };
 }
 
 export function getAiWaiterExperience(
-  state?: AiWaiterStateResult,
-  branchExperience?: BranchEffectiveExperience
+  state: AiWaiterStateResult | undefined,
+  branchExperience: BranchEffectiveExperience | undefined,
+  t: AiWaiterText
 ) {
   const aiExperience = getRecord(state?.effectiveExperience);
   const tenantExperience = getRecord(branchExperience);
@@ -299,20 +305,20 @@ export function getAiWaiterExperience(
   const brandName =
     getString(branch, "name") ||
     getString(company, "name") ||
-    translate("en", "customer.ai.page.thisCafe");
+    t("page.thisCafe");
   const title =
     getString(aiWaiterTone, "title") ||
     getString(aiWaiterTone, "headline") ||
-    translate("en", "customer.ai.page.tenantAiWaiterTitle", { name: brandName });
+    t("page.tenantAiWaiterTitle", { name: brandName });
   const description =
     getString(introBlock, "body") ||
     getString(aiWaiterTone, "description") ||
     getString(brandVoice, "customerGreeting") ||
-    translate("en", "customer.ai.page.defaultExperienceDescription");
+    t("page.defaultExperienceDescription");
   const tone =
     getString(aiWaiterTone, "tone") ||
     getString(brandVoice, "tone") ||
-    translate("en", "customer.ai.page.defaultTone");
+    t("page.defaultTone");
 
   return {
     brandName,
