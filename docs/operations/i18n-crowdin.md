@@ -1,49 +1,128 @@
-# I18N and Crowdin
+# I18N and Crowdin Runbook
 
-The web app now has a small Arabic/English translation foundation designed for the Next.js App Router without changing existing URLs.
+Balcona uses English as the source catalog and Arabic as the Crowdin-managed
+target catalog for the Next.js web app. The runtime keeps existing URLs intact:
+locale is stored in a cookie/localStorage pair, and Arabic switches the document
+to `lang="ar"` and `dir="rtl"`.
 
-## Source Files
+## Source Of Truth
 
-- English source strings live in `apps/web/messages/en.json`.
-- Arabic translations live in `apps/web/messages/ar.json`.
-- Runtime helpers live in `apps/web/lib/i18n`.
-- The reusable switcher lives in `apps/web/components/i18n/language-switcher.tsx`.
-- Crowdin configuration lives in `crowdin.yml`.
+- English source: `apps/web/messages/en.json`
+- Arabic target: `apps/web/messages/ar.json`
+- Runtime helpers: `apps/web/lib/i18n`
+- Language switcher: `apps/web/components/i18n/language-switcher.tsx`
+- Crowdin config: `crowdin.yml`
 
-Messages are grouped by namespace:
+Crowdin must upload only `apps/web/messages/en.json` as source. It must write
+Arabic to `apps/web/messages/ar.json` through the configured
+`%two_letters_code%` mapping.
 
-- `common`
-- `navigation`
-- `customer`
-- `cart`
-- `status`
-- `service`
-- `staff`
-- `cashier`
-- `kitchen`
-- `owner`
-- `platform`
-- `errors`
-- `debug`
+## Local Commands
 
-## Locale Behavior
+Run these before opening or merging an i18n PR:
 
-The first implementation uses a safe cookie/localStorage locale mechanism instead of route-based locale segments. This keeps `/customer`, `/staff`, `/platform`, and smoke URLs unchanged.
+```bash
+pnpm i18n:qa
+pnpm i18n:qa:ar
+pnpm i18n:crowdin:preflight
+pnpm --filter @balcona-bar/web lint
+pnpm --filter @balcona-bar/web typecheck
+pnpm web:build
+pnpm smoke:test
+node --check scripts/smoke/staging-smoke.mjs
+git diff --check
+```
 
-- Supported locales: `en`, `ar`
-- Default locale: `en`
-- Cookie: `balcona_locale`
-- Local storage key: `balcona.locale`
-- Arabic sets `html lang="ar"` and `dir="rtl"`
-- English sets `html lang="en"` and `dir="ltr"`
+Crowdin sync commands are available when the Crowdin CLI is installed and the
+required environment variables are present:
 
-## Adding a New Key
+```bash
+pnpm i18n:crowdin:upload
+pnpm i18n:crowdin:download
+pnpm i18n:crowdin:sync
+```
 
-1. Add the English key to `apps/web/messages/en.json`.
-2. Add the same key path to `apps/web/messages/ar.json`.
-3. Use `useTranslations("namespace")` in a client component.
-4. Prefer namespaced keys such as `common.retry` or `navigation.cart`.
-5. Keep placeholders stable across languages:
+If the Crowdin CLI is missing, the helper fails with a clear setup message. The
+repo does not vendor the CLI.
+
+The helper wraps the same manual Crowdin CLI flow operators can run directly:
+`crowdin upload sources` to publish English source strings and
+`crowdin download` to retrieve reviewed Arabic translations.
+
+## Required Secrets
+
+Crowdin upload/download/sync requires:
+
+- `CROWDIN_PROJECT_ID`
+- `CROWDIN_PERSONAL_TOKEN`
+
+Put these in:
+
+- local environment variables for local sync
+- GitHub Actions secrets for the manual workflow
+
+Never put them in:
+
+- `crowdin.yml`
+- `.env.example`
+- source code
+- docs with real values
+- PR comments or screenshots
+
+The scripts print only whether each variable is present. They never print the
+token value.
+
+## Manual First Run Setup
+
+1. Create a Crowdin project outside the repo.
+2. Add `CROWDIN_PROJECT_ID` and `CROWDIN_PERSONAL_TOKEN` locally.
+3. Install the Crowdin CLI outside the repo.
+4. Run `pnpm i18n:crowdin:preflight`.
+5. Upload source with `pnpm i18n:crowdin:upload`.
+6. Translate and review Arabic in Crowdin.
+7. Download Arabic with `pnpm i18n:crowdin:download`.
+8. Run `pnpm i18n:qa` and `pnpm i18n:qa:ar`.
+9. Run web build and smoke tests.
+10. Open a PR for the downloaded Arabic catalog changes.
+
+## GitHub Actions Sync
+
+`.github/workflows/i18n-crowdin.yml` is manual-only through
+`workflow_dispatch`. It:
+
+1. Checks out the repo.
+2. Installs pnpm dependencies.
+3. Installs the Crowdin CLI.
+4. Uses GitHub secrets for Crowdin credentials.
+5. Uploads English source.
+6. Downloads Arabic translations.
+7. Runs `pnpm i18n:qa`.
+8. Opens a localization PR if files changed.
+
+This workflow should not be scheduled until the Crowdin project is stable.
+
+## Adding A New Key
+
+1. Add a semantic English key in `apps/web/messages/en.json`.
+2. Add the same key path in `apps/web/messages/ar.json`.
+3. Use `useTranslations("namespace")` from the existing i18n provider.
+4. Keep placeholders identical across languages.
+
+Good keys:
+
+- `customer.cart.submitOrder`
+- `staff.cashier.acceptOrder`
+- `platform.companies.createCompany`
+
+Avoid visual or positional keys:
+
+- `button1`
+- `leftCardText`
+- `pageTextTop`
+
+## Placeholder Rules
+
+Placeholders must match exactly across English and Arabic:
 
 ```json
 {
@@ -53,41 +132,44 @@ The first implementation uses a safe cookie/localStorage locale mechanism instea
 }
 ```
 
-Then call:
+Do not rename, remove, translate, or add placeholders unless the code changes
+at the same time. Examples that must remain exact:
 
-```tsx
-const t = useTranslations("customer");
-t("tableLabel", { token: "T01" });
-```
-
-## Crowdin Sync
-
-The `crowdin.yml` file maps:
-
-- source: `/apps/web/messages/en.json`
-- Arabic output: `/apps/web/messages/ar.json`
-
-Crowdin API tokens and project secrets must be configured in Crowdin/GitHub secrets or the local Crowdin CLI environment. Do not commit tokens, credentials, or generated private config.
-
-Typical flow:
-
-1. Add or update English source strings.
-2. Upload sources with `crowdin upload sources` or the GitHub integration.
-3. Translate/review Arabic in Crowdin.
-4. Download translations with `crowdin download` back into `apps/web/messages/ar.json`.
-5. Run `pnpm --filter @balcona-bar/web typecheck` and `pnpm web:build`.
-
-## Arabic Review Rules
-
-- Keep café operations terms natural for Egyptian/Arabic-speaking staff and customers.
-- Avoid translating product IDs, route names, QR tokens, request IDs, branch IDs, order IDs, or API codes.
-- Preserve placeholders exactly, including braces: `{token}`.
-- Preserve debug and error codes as machine-readable English identifiers.
-- Avoid adding broad dictionary content. Translate only product UI keys that exist in the app.
+- `{count}`
+- `{price}`
+- `{name}`
+- `{status}`
+- `{token}`
+- `{requestId}`
 
 ## What Not To Translate
 
-- Secrets, tokens, cookies, API keys, or credentials.
-- URLs, endpoint paths, QR tokens, request IDs, order IDs, branch IDs, and payment/provider IDs.
-- Raw backend error codes.
-- Brand names unless product explicitly chooses an Arabic brand form.
+Do not translate or catalog:
+
+- real secrets, tokens, cookies, passwords, or API keys
+- request IDs, order IDs, branch IDs, company IDs, QR tokens
+- backend enum values and raw error/debug codes
+- action/debug codes such as `ai_waiter_close` or `customer_ai_waiter`
+- API route names
+- AI tool names sent to the backend
+- raw assistant/customer messages returned by the backend
+- source code identifiers
+
+Some customer-visible labels necessarily mention concepts like password fields
+or table QR tokens. Those labels are allowed. Secret values are not.
+
+## Arabic QA
+
+Use `pnpm i18n:qa:ar` to print a coverage report:
+
+- total strings
+- strings containing Arabic script
+- strings still identical to English
+- placeholder-only strings
+- suspicious untranslated samples
+
+Coverage is informational for now. The build does not fail only because Arabic
+still mirrors English; Crowdin review is responsible for gradually replacing
+those values.
+
+See `docs/operations/arabic-qa.md` for the visual and functional QA checklist.

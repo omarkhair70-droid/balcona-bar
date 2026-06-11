@@ -1,3 +1,4 @@
+# Source-only config. Private Crowdin values are supplied outside this file.
 preserve_hierarchy: true
 files:
   - source: /apps/web/messages/en.json
