@@ -1,0 +1,65 @@
+name: I18N Crowdin Sync
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  crowdin-sync:
+    name: Upload English and download Arabic
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Enable pnpm
+        run: |
+          corepack enable
+          corepack prepare pnpm@10.28.1 --activate
+          pnpm --version
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Install Crowdin CLI
+        run: npm install --global @crowdin/cli
+
+      - name: Crowdin preflight
+        env:
+          CROWDIN_PROJECT_ID: ${{ secrets.CROWDIN_PROJECT_ID }}
+          CROWDIN_PERSONAL_TOKEN: ${{ secrets.CROWDIN_PERSONAL_TOKEN }}
+        run: node scripts/i18n/crowdin-preflight.mjs --require-credentials
+
+      - name: Sync Crowdin Arabic translations
+        env:
+          CROWDIN_PROJECT_ID: ${{ secrets.CROWDIN_PROJECT_ID }}
+          CROWDIN_PERSONAL_TOKEN: ${{ secrets.CROWDIN_PERSONAL_TOKEN }}
+        run: pnpm i18n:crowdin:sync
+
+      - name: Validate i18n catalogs
+        run: pnpm i18n:qa
+
+      - name: Create localization PR
+        uses: peter-evans/create-pull-request@v6
+        with:
+          branch: i18n/crowdin-arabic-sync
+          title: "I18N — Sync Arabic translations from Crowdin"
+          commit-message: "Sync Arabic translations from Crowdin"
+          body: |
+            ## Summary
+            - Downloaded Arabic translations from Crowdin.
+            - Ran `pnpm i18n:qa` after download.
+
+            ## Review checklist
+            - Confirm placeholders are preserved.
+            - Review Arabic copy in RTL.
+            - Run `pnpm web:build` before merge if additional edits are made.
