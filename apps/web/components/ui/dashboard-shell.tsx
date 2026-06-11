@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { type ReactNode } from "react";
 import { LanguageSwitcher } from "@/components/i18n/language-switcher";
+import { useTranslations } from "@/lib/i18n/i18n-provider";
 import { Badge } from "./badge";
 import type { AppShellNavItem } from "./app-shell";
 import { cn } from "@/lib/utils/cn";
@@ -24,7 +25,7 @@ export function DashboardShell({
   productLabel,
   title,
   description,
-  productSubtitle = "Smart cafe OS",
+  productSubtitle,
   eyebrow,
   navItems = [],
   actions,
@@ -32,6 +33,9 @@ export function DashboardShell({
   children,
   className
 }: DashboardShellProps) {
+  const t = useTranslations("common");
+  const resolvedProductSubtitle = productSubtitle ?? t("smartCafeOs");
+
   return (
     <div
       className={cn(
@@ -48,11 +52,13 @@ export function DashboardShell({
             <p className="text-sm font-semibold text-foreground">
               {productLabel}
             </p>
-            <p className="text-xs text-muted-foreground">{productSubtitle}</p>
+            <p className="text-xs text-muted-foreground">
+              {resolvedProductSubtitle}
+            </p>
           </div>
         </div>
         {navItems.length > 0 ? (
-          <nav className="mt-4 grid gap-1" aria-label="Dashboard sections">
+          <nav className="mt-4 grid gap-1" aria-label={t("dashboardSections")}>
             {navItems.map((item) => (
               <Link
                 key={item.href}
@@ -93,7 +99,7 @@ export function DashboardShell({
           {navItems.length > 0 ? (
             <nav
               className="mt-5 flex gap-2 overflow-x-auto border-t pt-4 lg:hidden"
-              aria-label="Dashboard sections"
+              aria-label={t("dashboardSections")}
             >
               {navItems.map((item) => (
                 <Link

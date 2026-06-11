@@ -1,6 +1,9 @@
+"use client";
+
 import Link from "next/link";
 import { type ReactNode } from "react";
 import { Badge } from "./badge";
+import { useTranslations } from "@/lib/i18n/i18n-provider";
 import { cn } from "@/lib/utils/cn";
 
 export type AppShellNavItem = {
@@ -28,6 +31,8 @@ export function AppShell({
   children,
   className
 }: AppShellProps) {
+  const t = useTranslations("common");
+
   return (
     <div className={cn("mx-auto flex min-h-screen w-full max-w-7xl flex-col px-4 py-5 sm:px-6 lg:px-8", className)}>
       <header className="flex flex-col gap-5 border-b pb-5 md:flex-row md:items-end md:justify-between">
@@ -52,7 +57,7 @@ export function AppShell({
       {navItems.length > 0 ? (
         <nav
           className="flex gap-2 overflow-x-auto border-b py-3"
-          aria-label="App sections"
+          aria-label={t("appSections")}
         >
           {navItems.map((item) => (
             <Link

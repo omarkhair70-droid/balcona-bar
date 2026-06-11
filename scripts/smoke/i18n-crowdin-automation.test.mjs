@@ -17,6 +17,7 @@ import {
   formatCrowdinPreflight,
   getCrowdinDownloadFailureMessage,
   getCrowdinBranch,
+  getUnexpectedArabicCatalogLatinText,
   getTempCrowdinConfigPath,
   inspectCrowdinDownload,
   loadCatalogs,
@@ -92,6 +93,7 @@ describe("i18n Crowdin automation", () => {
     assert.ok(coverage.arabicStrings > 0);
     assert.ok(coverage.englishIdenticalStrings >= 0);
     assert.ok(Array.isArray(coverage.suspiciousUntranslated));
+    assert.equal(coverage.suspiciousUntranslatedCount, 0);
   });
 
   it("keeps Crowdin preflight output free of secret values", async () => {
@@ -285,11 +287,63 @@ describe("i18n Crowdin automation", () => {
 
   it("blocks known bad Arabic machine translation terms", () => {
     const en = { customer: { actions: { cart: "Cart" } } };
-    const ar = { customer: { actions: { cart: "عربة التسوق" } } };
+    const ar = {
+      customer: {
+        actions: {
+          cart: "عربة التسوق",
+          bill: "مشروع القانون",
+          waiter: "ناظر AI",
+          backend: "الواجهة الخلفية",
+          idempotency: "idempowery"
+        }
+      }
+    };
     const validation = validateArabicCatalogForApp(en, ar);
 
     assert.equal(validation.ok, false);
     assert.match(validation.errors.join("\n"), /عربة التسوق/);
+    assert.match(validation.errors.join("\n"), /مشروع القانون/);
+    assert.match(validation.errors.join("\n"), /ناظر AI/);
+    assert.match(validation.errors.join("\n"), /الواجهة الخلفية/);
+    assert.match(validation.errors.join("\n"), /idempowery/);
+  });
+
+  it("allows intentional technical Latin terms in Arabic catalogs only", () => {
+    assert.deepEqual(
+      getUnexpectedArabicCatalogLatinText(
+        "رمز QR وواجهة API وKDS وRBAC وSSE وAPP_ENV وNODE_ENV وVercel وRailway وowner@example.com"
+      ),
+      []
+    );
+
+    assert.deepEqual(getUnexpectedArabicCatalogLatinText("Open dashboard"), [
+      "Open",
+      "dashboard"
+    ]);
+  });
+
+  it("blocks accidental English UI text in Arabic catalogs", () => {
+    const en = {
+      platform: {
+        status: {
+          apiPrefix: "API prefix",
+          action: "Open dashboard"
+        }
+      }
+    };
+    const ar = {
+      platform: {
+        status: {
+          apiPrefix: "بادئة API",
+          action: "Open dashboard"
+        }
+      }
+    };
+    const validation = validateArabicCatalogForApp(en, ar);
+
+    assert.equal(validation.ok, false);
+    assert.match(validation.errors.join("\n"), /Open/);
+    assert.match(validation.errors.join("\n"), /dashboard/);
   });
 
   it("configures Crowdin source and Arabic target safely", async () => {
