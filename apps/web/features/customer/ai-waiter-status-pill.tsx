@@ -1,5 +1,6 @@
 import { Bot, CircleAlert, Sparkles } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import { useTranslations } from "@/lib/i18n/i18n-provider";
 import {
   getString,
   type AiLanguageOption
@@ -18,11 +19,13 @@ export function AiWaiterStatusPill({
   isLoading,
   isError
 }: AiWaiterStatusPillProps) {
+  const t = useTranslations("customer.ai");
+
   if (isError) {
     return (
       <Badge variant="danger" className="gap-2">
         <CircleAlert className="size-3.5" aria-hidden="true" />
-        Offline
+        {t("status.offline")}
       </Badge>
     );
   }
@@ -31,7 +34,7 @@ export function AiWaiterStatusPill({
     return (
       <Badge variant="muted" className="gap-2">
         <Bot className="size-3.5" aria-hidden="true" />
-        Waking
+        {t("status.waking")}
       </Badge>
     );
   }
@@ -43,7 +46,7 @@ export function AiWaiterStatusPill({
   return (
     <Badge variant={session ? "success" : "muted"} className="gap-2">
       <Sparkles className="size-3.5" aria-hidden="true" />
-      {status} · {language.label}
+      {t("status.summary", { status, language: t(language.labelKey) })}
     </Badge>
   );
 }

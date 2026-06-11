@@ -1,6 +1,7 @@
 import { SendHorizontal } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import type { AiWaiterLanguage } from "@/lib/api/types";
+import { useTranslations } from "@/lib/i18n/i18n-provider";
 import {
   aiLanguageOptions,
   type AiLanguageOption
@@ -25,6 +26,7 @@ export function AiMessageComposer({
   isSending,
   errorMessage
 }: AiMessageComposerProps) {
+  const t = useTranslations("customer.ai");
   const isEmpty = value.trim().length === 0;
 
   return (
@@ -34,7 +36,7 @@ export function AiMessageComposer({
     >
       <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
         <p className="text-xs font-semibold text-primary">
-          AI suggests. You confirm.
+          {t("composer.safety")}
         </p>
         <div className="flex rounded-button border bg-surface p-1">
           {aiLanguageOptions.map((option) => (
@@ -48,13 +50,13 @@ export function AiMessageComposer({
                   : "text-muted-foreground hover:bg-muted hover:text-foreground"
               }`}
             >
-              {option.label}
+              {t(option.labelKey)}
             </button>
           ))}
         </div>
       </div>
       <label className="sr-only" htmlFor="ai-waiter-message">
-        Message AI waiter
+        {t("composer.label")}
       </label>
       <textarea
         id="ai-waiter-message"
@@ -62,8 +64,8 @@ export function AiMessageComposer({
         onChange={(event) => onChange(event.target.value)}
         placeholder={
           language.value === "ar-EG"
-            ? "اكتب اللي نفسك فيه..."
-            : "Tell the waiter what you like..."
+            ? t("composer.placeholderAr")
+            : t("composer.placeholderEn")
         }
         className="min-h-24 w-full resize-none rounded-card border bg-surface px-3 py-3 text-sm text-foreground outline-none transition placeholder:text-muted-foreground focus:border-primary focus:ring-2 focus:ring-primary/35"
       />
@@ -77,12 +79,11 @@ export function AiMessageComposer({
       ) : null}
       <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
         <p className="text-xs text-muted-foreground">
-          Suggestions use this branch menu and availability. Final order
-          submission stays in the cart.
+          {t("composer.helper")}
         </p>
         <Button onClick={onSubmit} disabled={isSending || isEmpty}>
           <SendHorizontal className="size-4" aria-hidden="true" />
-          {isSending ? "Sending..." : "Send"}
+          {isSending ? t("composer.sending") : t("composer.send")}
         </Button>
       </div>
     </div>

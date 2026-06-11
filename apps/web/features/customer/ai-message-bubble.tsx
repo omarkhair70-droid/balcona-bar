@@ -1,7 +1,8 @@
 import { Badge } from "@/components/ui/badge";
+import { useTranslations } from "@/lib/i18n/i18n-provider";
 import { cn } from "@/lib/utils/cn";
 import {
-  getAiToolExecutionStatus,
+  getAiToolExecutionStatusKey,
   getMessageContent,
   getMessageRole,
   getPendingModifierQuickReplies,
@@ -22,13 +23,14 @@ export function AiMessageBubble({
   isReplyDisabled = false,
   onQuickReply
 }: AiMessageBubbleProps) {
+  const t = useTranslations("customer.ai");
   const role = getMessageRole(message);
   const isCustomer = role === "customer";
   const isSystem = role === "system";
   const kind = getString(message, "kind", "text").replaceAll("_", " ");
   const time = getRecordDateLabel(message);
   const toolStatus = !isCustomer && !isSystem
-    ? getAiToolExecutionStatus(message)
+    ? getAiToolExecutionStatusKey(message)
     : undefined;
   const quickReplies = !isCustomer && !isSystem
     ? getPendingModifierQuickReplies(message)
@@ -55,17 +57,21 @@ export function AiMessageBubble({
       >
         <div className="flex flex-wrap items-center gap-2">
           <Badge variant={isCustomer ? "muted" : isSystem ? "warning" : "default"}>
-            {isCustomer ? "You" : isSystem ? "System" : "AI waiter"}
+            {isCustomer
+              ? t("messages.you")
+              : isSystem
+                ? t("messages.system")
+                : t("messages.aiWaiter")}
           </Badge>
           <span className="text-xs opacity-75">{kind}</span>
           {time ? <span className="text-xs opacity-65">{time}</span> : null}
         </div>
         <p className="mt-3 whitespace-pre-wrap text-sm leading-6">
-          {getMessageContent(message)}
+          {getMessageContent(message, t("messages.detailsUnavailable"))}
         </p>
         {toolStatus ? (
           <Badge variant="success" className="mt-3">
-            {toolStatus}
+          {t(toolStatus)}
           </Badge>
         ) : null}
         {quickReplies.length > 0 ? (

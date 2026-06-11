@@ -11,6 +11,7 @@ import {
   CardTitle
 } from "@/components/ui/card";
 import type { MenuItemSummary } from "@/lib/api/types";
+import { useTranslations } from "@/lib/i18n/i18n-provider";
 import {
   describeProposalItem,
   getProposalId,
@@ -47,12 +48,13 @@ export function AiCartProposalCard({
   onApply,
   onReject
 }: AiCartProposalCardProps) {
+  const t = useTranslations("customer.ai");
+
   if (!proposal) {
     return (
       <Card variant="quiet">
         <p className="text-sm text-muted-foreground">
-          Cart proposals appear here only when the backend returns one. The AI
-          can suggest, but the cart validates and you submit the order later.
+          {t("proposal.empty")}
         </p>
       </Card>
     );
@@ -68,15 +70,14 @@ export function AiCartProposalCard({
     <Card variant="accent" padding="lg">
       <CardHeader>
         <div className="flex flex-wrap items-center gap-2">
-          <Badge>Cart proposal</Badge>
+          <Badge>{t("proposal.badge")}</Badge>
           <Badge variant={status === "proposed" ? "warning" : "muted"}>
             {status}
           </Badge>
         </div>
         <CardTitle>{getProposalTitle(proposal)}</CardTitle>
         <CardDescription>
-          This is backend proposal data, not a submitted order. Prices and
-          availability are checked by the system when you apply it.
+          {t("proposal.disclaimer")}
         </CardDescription>
       </CardHeader>
       <CardContent className="grid gap-3">
@@ -87,8 +88,7 @@ export function AiCartProposalCard({
         ) : null}
         {items.length === 0 ? (
           <div className="rounded-card border border-warning bg-warning/10 p-3 text-sm text-warning">
-            Proposal item details are missing. Nothing can be applied until the
-            backend returns complete proposal data.
+            {t("proposal.missingItemDetails")}
           </div>
         ) : null}
         {items.map((item, index) => {
@@ -118,9 +118,8 @@ export function AiCartProposalCard({
           );
         })}
         <div className="rounded-card border border-success/40 bg-success/10 p-3 text-sm text-success">
-          <ShieldCheck className="mr-2 inline size-4" aria-hidden="true" />
-          Applying a proposal only updates the cart through backend validation.
-          It never submits the final order.
+          <ShieldCheck className="me-2 inline size-4" aria-hidden="true" />
+          {t("proposal.backendValidationNotice")}
         </div>
         {actionError ? (
           <div
@@ -147,7 +146,7 @@ export function AiCartProposalCard({
           onClick={() => proposalId && onApply(proposalId)}
           disabled={!isActionable || isApplying || isRejecting}
         >
-          {isApplying ? "Applying..." : "Apply to cart"}
+          {isApplying ? t("proposal.applying") : t("proposal.applyToCart")}
         </Button>
         <Button
           variant="ghost"
@@ -155,13 +154,13 @@ export function AiCartProposalCard({
           disabled={!isActionable || isApplying || isRejecting}
         >
           <X className="size-4" aria-hidden="true" />
-          {isRejecting ? "Rejecting..." : "Reject"}
+          {isRejecting ? t("proposal.rejecting") : t("proposal.reject")}
         </Button>
         <Link
           href={`/customer/session/${sessionId}/cart`}
           className={buttonVariants({ variant: "secondary" })}
         >
-          Review cart
+          {t("actions.reviewCart")}
         </Link>
       </CardFooter>
     </Card>

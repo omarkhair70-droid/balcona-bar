@@ -8,6 +8,7 @@ import {
   CardHeader,
   CardTitle
 } from "@/components/ui/card";
+import { useTranslations } from "@/lib/i18n/i18n-provider";
 
 type AiEscalationCardProps = {
   isPending?: boolean;
@@ -22,16 +23,17 @@ export function AiEscalationCard({
   successMessage,
   onEscalate
 }: AiEscalationCardProps) {
+  const t = useTranslations("customer.ai");
+
   return (
     <Card variant="glass" padding="lg">
       <CardHeader>
         <div className="text-primary">
           <HandHeart className="size-6" aria-hidden="true" />
         </div>
-        <CardTitle>Ask a human waiter</CardTitle>
+        <CardTitle>{t("escalation.title")}</CardTitle>
         <CardDescription>
-          If the AI cannot help or you prefer a person, the team can be notified
-          calmly without leaving this table experience.
+          {t("escalation.description")}
         </CardDescription>
       </CardHeader>
       <CardContent className="grid gap-3">
@@ -51,7 +53,7 @@ export function AiEscalationCard({
       </CardContent>
       <CardFooter>
         <Button onClick={onEscalate} disabled={isPending}>
-          {isPending ? "Asking..." : "Ask a human waiter"}
+          {isPending ? t("escalation.asking") : t("escalation.askHuman")}
         </Button>
       </CardFooter>
     </Card>
