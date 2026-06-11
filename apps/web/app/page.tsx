@@ -1,3 +1,5 @@
+"use client";
+
 import Link from "next/link";
 import {
   ArrowRight,
@@ -20,81 +22,79 @@ import {
   CardTitle
 } from "@/components/ui/card";
 import { MetricCard } from "@/components/ui/metric-card";
-
-const systemPillars = [
-  {
-    title: "Design token core",
-    description:
-      "Branch personality, spacing, surfaces, and state colors live behind CSS variables.",
-    icon: <SwatchBook className="size-5" aria-hidden="true" />
-  },
-  {
-    title: "Realtime-ready shell",
-    description:
-      "Operator screens refresh around live service signals across staff dashboards.",
-    icon: <Radio className="size-5" aria-hidden="true" />
-  },
-  {
-    title: "Customer and staff split",
-    description:
-      "Guest and operator routes share primitives while keeping their product rhythms distinct.",
-    icon: <MonitorSmartphone className="size-5" aria-hidden="true" />
-  }
-];
+import { useTranslations } from "@/lib/i18n/i18n-provider";
 
 export default function HomePage() {
+  const t = useTranslations("home");
+  const systemPillars = [
+    {
+      title: t("pillars.designTitle"),
+      description: t("pillars.designDescription"),
+      icon: <SwatchBook className="size-5" aria-hidden="true" />
+    },
+    {
+      title: t("pillars.realtimeTitle"),
+      description: t("pillars.realtimeDescription"),
+      icon: <Radio className="size-5" aria-hidden="true" />
+    },
+    {
+      title: t("pillars.splitTitle"),
+      description: t("pillars.splitDescription"),
+      icon: <MonitorSmartphone className="size-5" aria-hidden="true" />
+    }
+  ];
+
   return (
     <main className="mx-auto grid min-h-screen w-full max-w-7xl gap-8 px-4 py-6 sm:px-6 lg:grid-cols-[1.05fr_0.95fr] lg:px-8">
       <section className="flex flex-col justify-center">
-        <Badge className="w-fit">UI Phase 8</Badge>
+        <Badge className="w-fit">{t("badge")}</Badge>
         <h1 className="mt-5 max-w-4xl text-4xl font-semibold text-foreground md:text-6xl">
-          Premium smart cafe product shell
+          {t("title")}
         </h1>
         <p className="mt-5 max-w-2xl text-base leading-7 text-muted-foreground md:text-lg">
-          A Balkona-first visual system for table service, staff operations,
-          dynamic branch theming, and future SaaS cafe experiences.
+          {t("description")}
         </p>
         <div className="mt-8 flex flex-wrap gap-3">
           <Link
             href="/demo/balkona"
             className={buttonVariants({ variant: "primary", size: "lg" })}
           >
-            Full demo launcher
+            {t("actions.demo")}
             <MonitorPlay className="size-4" aria-hidden="true" />
           </Link>
           <Link
             href="/customer"
             className={buttonVariants({ variant: "secondary", size: "lg" })}
           >
-            Customer shell
+            {t("actions.customer")}
             <ArrowRight className="size-4" aria-hidden="true" />
           </Link>
           <Link
             href="/staff"
             className={buttonVariants({ variant: "secondary", size: "lg" })}
           >
-            Staff shell
+            {t("actions.staff")}
             <Store className="size-4" aria-hidden="true" />
           </Link>
         </div>
 
-        <section className="mt-10 grid gap-4 sm:grid-cols-3" aria-label="System status">
+        <section className="mt-10 grid gap-4 sm:grid-cols-3" aria-label={t("metricsLabel")}>
           <MetricCard
-            label="Theme"
-            value="Warm"
-            description="Cafe-first default"
+            label={t("metrics.themeLabel")}
+            value={t("metrics.themeValue")}
+            description={t("metrics.themeDescription")}
             icon={<Sparkles className="size-4" aria-hidden="true" />}
           />
           <MetricCard
-            label="Routes"
-            value="Demo"
-            description="Customer and staff flow"
+            label={t("metrics.routesLabel")}
+            value={t("metrics.routesValue")}
+            description={t("metrics.routesDescription")}
             icon={<ClipboardList className="size-4" aria-hidden="true" />}
           />
           <MetricCard
-            label="Alerts"
-            value="Ready"
-            description="Haptics and sound"
+            label={t("metrics.alertsLabel")}
+            value={t("metrics.alertsValue")}
+            description={t("metrics.alertsDescription")}
             icon={<BellRing className="size-4" aria-hidden="true" />}
           />
         </section>
@@ -104,14 +104,13 @@ export default function HomePage() {
         <Card variant="glass" className="w-full" padding="lg">
           <CardHeader>
             <Badge variant="muted" className="w-fit">
-              Product architecture
+              {t("architectureBadge")}
             </Badge>
             <CardTitle className="text-2xl">
-              One shell, many cafe experiences
+              {t("architectureTitle")}
             </CardTitle>
             <CardDescription>
-              The first web app carries shared primitives, route structure, and
-              tokenized brand surfaces before the product grows into full flows.
+              {t("architectureDescription")}
             </CardDescription>
           </CardHeader>
           <CardContent className="grid gap-4">

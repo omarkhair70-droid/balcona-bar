@@ -80,10 +80,53 @@ export const forbiddenArabicMachineTranslationTerms = [
   "ناظر",
   "ناظر AI",
   "ناظر الذكاء",
+  "الواجهة الخلفية",
+  "الجانب الخلفي",
+  "نهاية الخلفية",
+  "الرصيد المستحق",
   "مشروع القانون",
+  "مشروع قانون",
   "عربة التسوق",
+  "سلة التسوق",
   "قائمة التصفح",
-  "فتح الجدول"
+  "فتح الجدول",
+  "idempowery",
+  "أمين الصندوق",
+  "ناجم",
+  "النازلة",
+  "التنازل",
+  "مكالمة تنازلية",
+  "مكالمات تنازلية",
+  "مكالمات الأسفل",
+  "نداء الناصر",
+  "سبار الفرع",
+  "سبار الشركة",
+  "هدية المالك",
+  "فضاء عمل",
+  "إنش تطبيق الويب"
+];
+
+export const allowedArabicCatalogLatinTerms = [
+  "APP_ENV",
+  "NODE_ENV",
+  "RBAC",
+  "SSE",
+  "API",
+  "PWA",
+  "QR",
+  "URL",
+  "ID",
+  "ENV",
+  "HTTP",
+  "JSON",
+  "KDS",
+  "SaaS",
+  "Dev",
+  "Vercel",
+  "Railway",
+  "Web",
+  "LZ",
+  "Z"
 ];
 
 const secretValuePatterns = [
@@ -173,6 +216,25 @@ export function hasLatinLetters(value) {
   return /[A-Za-z]/.test(value);
 }
 
+export function getUnexpectedArabicCatalogLatinText(value) {
+  let stripped = value
+    .replace(/\{[a-zA-Z0-9_]+\}/g, " ")
+    .replace(/\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b/g, " ");
+
+  for (const term of allowedArabicCatalogLatinTerms) {
+    const escaped = term.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    stripped = stripped.replace(new RegExp(`\\b${escaped}\\b`, "g"), " ");
+  }
+
+  const remaining = stripped.match(/[A-Za-z][A-Za-z0-9_-]*/g) ?? [];
+
+  return [...new Set(remaining)].sort();
+}
+
+export function hasUnexpectedArabicCatalogLatinText(value) {
+  return getUnexpectedArabicCatalogLatinText(value).length > 0;
+}
+
 export function calculateArabicCoverage(enMessages, arMessages) {
   const enEntries = flattenEntries(enMessages);
   const arEntries = new Map(flattenEntries(arMessages));
@@ -196,7 +258,11 @@ export function calculateArabicCoverage(enMessages, arMessages) {
 
     if (arValue === enValue) {
       englishIdenticalStrings += 1;
-      if (hasLatinLetters(arValue) && !isPlaceholderOnly(arValue)) {
+      if (
+        hasLatinLetters(arValue) &&
+        !isPlaceholderOnly(arValue) &&
+        hasUnexpectedArabicCatalogLatinText(arValue)
+      ) {
         suspiciousUntranslated.push({ key, value: arValue });
       }
     }
@@ -321,6 +387,22 @@ function validateNoForbiddenArabicMachineTranslations(errors, messages) {
   }
 }
 
+function validateNoUnexpectedEnglishInArabicCatalog(errors, messages) {
+  for (const [key, value] of flattenEntries(messages)) {
+    if (isPlaceholderOnly(value)) {
+      continue;
+    }
+
+    const unexpectedLatin = getUnexpectedArabicCatalogLatinText(value);
+
+    if (unexpectedLatin.length > 0) {
+      errors.push(
+        `ar.${key} contains untranslated English text: ${unexpectedLatin.join(", ")}`
+      );
+    }
+  }
+}
+
 export function extractCrowdinLocalPaths(crowdinConfig) {
   const source = crowdinConfig.match(/^\s*-?\s*source:\s*(.+?)\s*$/m)?.[1]?.trim();
   const translation = crowdinConfig
@@ -384,6 +466,7 @@ export async function runI18nQa() {
   validateNoInternalCodes(errors, "en", en);
   validateNoInternalCodes(errors, "ar", ar);
   validateNoForbiddenArabicMachineTranslations(errors, ar);
+  validateNoUnexpectedEnglishInArabicCatalog(errors, ar);
   pushSecretFindings(errors, "en", enEntries);
   pushSecretFindings(errors, "ar", arEntries);
   validateCrowdinConfig(errors, crowdin);
@@ -612,6 +695,7 @@ export function validateArabicCatalogForApp(enMessages, arMessages) {
   validatePlaceholders(errors, enMessages, arMessages);
   validateNoEmptyValues(errors, "ar", flattenEntries(arMessages));
   validateNoForbiddenArabicMachineTranslations(errors, arMessages);
+  validateNoUnexpectedEnglishInArabicCatalog(errors, arMessages);
 
   return {
     ok: errors.length === 0,

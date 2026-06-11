@@ -209,17 +209,16 @@ function StaffOverviewContent() {
           <CardHeader className="gap-4 md:flex md:flex-row md:items-center md:justify-between md:space-y-0">
             <div>
               <Badge variant="muted" className="mb-3">
-                Balkona demo
+                {t("overview.demoLauncherBadge")}
               </Badge>
-              <CardTitle>Balkona Bar Full Operating Demo</CardTitle>
+              <CardTitle>{t("overview.demoLauncherTitle")}</CardTitle>
               <CardDescription>
-                Launch the guided customer-to-owner flow, local credentials,
-                readiness checklist, and setup diagnostics from one place.
+                {t("overview.demoLauncherDescription")}
               </CardDescription>
             </div>
             <Link href="/demo/balkona" className={buttonVariants()}>
               <MonitorPlay className="size-4" aria-hidden="true" />
-              Open launcher
+              {t("actions.openLauncher")}
             </Link>
           </CardHeader>
         </Card>

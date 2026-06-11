@@ -181,6 +181,22 @@ describe("i18n Crowdin foundation", () => {
     }
   });
 
+  it("includes the root product shell and demo launcher namespaces", async () => {
+    const enMessages = await readJson("../../apps/web/messages/en.json");
+    const arMessages = await readJson("../../apps/web/messages/ar.json");
+
+    assert.ok(enMessages.home, "missing en.home");
+    assert.ok(arMessages.home, "missing ar.home");
+    assert.ok(enMessages.demo, "missing en.demo");
+    assert.ok(arMessages.demo, "missing ar.demo");
+    assert.ok(enMessages.demo.routes.customerQrDemo);
+    assert.ok(arMessages.demo.routes.customerQrDemo);
+    assert.ok(enMessages.demo.checklist.openCustomerQr);
+    assert.ok(arMessages.demo.checklist.openCustomerQr);
+    assert.ok(enMessages.demo.proof.tableQrSession);
+    assert.ok(arMessages.demo.proof.tableQrSession);
+  });
+
   it("includes the AI waiter namespaces required for Crowdin", async () => {
     const enMessages = await readJson("../../apps/web/messages/en.json");
     const ai = enMessages.customer.ai;
@@ -340,6 +356,40 @@ describe("i18n Crowdin foundation", () => {
       "Recent activity",
       "Active orders",
       "Operations snapshot"
+    ];
+    const combinedSource = (
+      await Promise.all(files.map((file) => readText(file)))
+    ).join("\n");
+
+    for (const phrase of extractedPhrases) {
+      assert.doesNotMatch(combinedSource, new RegExp(phrase.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
+    }
+  });
+
+  it("keeps extracted product shell and demo launcher strings out of targeted source files", async () => {
+    const files = [
+      "../../apps/web/app/page.tsx",
+      "../../apps/web/app/demo/balkona/page.tsx",
+      "../../apps/web/features/demo/balkona-demo.ts",
+      "../../apps/web/features/staff/pages/staff-overview-page.tsx",
+      "../../apps/web/components/ui/app-shell.tsx",
+      "../../apps/web/components/ui/dashboard-shell.tsx"
+    ];
+    const extractedPhrases = [
+      "Premium smart cafe product shell",
+      "Full demo launcher",
+      "Balkona Bar Full Operating Demo",
+      "Open demo surfaces",
+      "Customer QR demo",
+      "Staff demo credentials",
+      "Presentation reminder",
+      "Full demo flow checklist",
+      "What this demo proves",
+      "Local demo diagnostics",
+      "Dashboard sections",
+      "App sections",
+      "Smart cafe OS",
+      "Open launcher"
     ];
     const combinedSource = (
       await Promise.all(files.map((file) => readText(file)))

@@ -7,78 +7,69 @@ export const balkonaDemoStaff = {
 
 export const balkonaDemoRoutes = [
   {
-    label: "Customer QR demo",
+    key: "customerQrDemo",
     href: `/customer/table/${balkonaDemoQrToken}`,
-    description: "Start or resume the seeded Balkona table session."
   },
   {
-    label: "Customer entry",
+    key: "customerEntry",
     href: "/customer",
-    description: "Enter a QR token or open the default demo table."
   },
   {
-    label: "Staff login",
+    key: "staffLogin",
     href: "/staff/login",
-    description: "Authenticate into staff operations for the local demo."
   },
   {
-    label: "Cashier",
+    key: "cashier",
     href: "/staff/cashier",
-    description: "Accept submitted customer orders and manage bill requests."
   },
   {
-    label: "Menu Admin",
+    key: "menuAdmin",
     href: "/staff/menu",
-    description: "Review branch menu setup, availability, and modifiers."
   },
   {
-    label: "Branch & Tables",
+    key: "branchTables",
     href: "/staff/branches",
-    description: "Review branch tables, QR tokens, and customer preview links."
   },
   {
-    label: "Kitchen / Barista",
+    key: "kitchenBarista",
     href: "/staff/kitchen",
-    description: "Start and mark preparation tasks ready."
   },
   {
-    label: "Waiter / Floor",
+    key: "waiterFloor",
     href: "/staff/waiter",
-    description: "Resolve service calls and table attention."
   },
   {
-    label: "Owner / Manager",
+    key: "ownerManager",
     href: "/staff/owner",
-    description: "Review branch pulse, risk, and realtime activity."
   }
 ] as const;
 
 export const balkonaDemoChecklist = [
-  "Open customer QR route",
-  "Add items to cart",
-  "Optional: use AI Waiter and apply proposal if available",
-  "Submit order",
-  "Login as staff",
-  "Open menu admin and review branch availability",
-  "Open branch and tables admin and review QR readiness",
-  "Open cashier and accept order",
-  "Open kitchen and start or mark ready a prep task",
-  "Open waiter and resolve service call or attention",
-  "Open owner and review branch pulse"
+  "openCustomerQr",
+  "addItems",
+  "useAiWaiter",
+  "submitOrder",
+  "loginStaff",
+  "reviewMenuAdmin",
+  "reviewBranchTables",
+  "acceptOrder",
+  "prepareTask",
+  "resolveWaiter",
+  "reviewOwner"
 ] as const;
 
 export const balkonaDemoProofPoints = [
-  "Table QR session",
-  "Menu and order flow",
-  "AI waiter proposal flow",
-  "Staff login and session",
-  "Menu admin readiness",
-  "Branch tables and QR readiness",
-  "Cashier acceptance",
-  "Preparation tasks",
-  "Waiter calls and attention queue",
-  "Owner pulse",
-  "Realtime refresh foundation"
+  "tableQrSession",
+  "menuOrderFlow",
+  "aiProposalFlow",
+  "staffSession",
+  "menuAdminReadiness",
+  "branchQrReadiness",
+  "cashierAcceptance",
+  "preparationTasks",
+  "waiterAttention",
+  "ownerPulse",
+  "realtimeRefresh"
 ] as const;
 
 export const balkonaDemoCommands = [

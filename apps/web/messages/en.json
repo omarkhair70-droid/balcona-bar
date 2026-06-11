@@ -9,8 +9,11 @@
     "error": "Something went wrong",
     "language": "Language",
     "loading": "Loading",
+    "appSections": "App sections",
+    "dashboardSections": "Dashboard sections",
     "refresh": "Refresh",
-    "retry": "Retry"
+    "retry": "Retry",
+    "smartCafeOs": "Smart cafe OS"
   },
   "navigation": {
     "addCafe": "Add Cafe",
@@ -753,9 +756,12 @@
       "commandDescription": "Branch-aware staff operations with cashier, kitchen, waiter, and owner dashboards connected to live backend workflows.",
       "commandTitle": "Staff command surface",
       "defaultCashierScope": "Default cashier scope",
-      "demo": "Demo",
-      "demoDescription": "Presentation launcher",
-      "demoOpen": "Open",
+    "demo": "Demo",
+    "demoDescription": "Presentation launcher",
+    "demoLauncherBadge": "Balkona demo",
+    "demoLauncherDescription": "Launch the guided customer-to-owner flow, local credentials, readiness checklist, and setup diagnostics from one place.",
+    "demoLauncherTitle": "Balkona Bar Full Operating Demo",
+    "demoOpen": "Open",
       "live": "Live",
       "new": "New",
       "notActiveDescription": "Sign in to select a branch and open the cashier dashboard.",
@@ -1342,6 +1348,156 @@
       "webApiTargetTitle": "Web API target",
       "webAppEnv": "Web app env"
     }
+  },
+  "home": {
+    "badge": "UI Phase 8",
+    "title": "Premium smart cafe product shell",
+    "description": "A Balkona-first visual system for table service, staff operations, dynamic branch theming, and future SaaS cafe experiences.",
+    "actions": {
+      "demo": "Full demo launcher",
+      "customer": "Customer shell",
+      "staff": "Staff shell"
+    },
+    "metricsLabel": "System status",
+    "metrics": {
+      "themeLabel": "Theme",
+      "themeValue": "Warm",
+      "themeDescription": "Cafe-first default",
+      "routesLabel": "Routes",
+      "routesValue": "Demo",
+      "routesDescription": "Customer and staff flow",
+      "alertsLabel": "Alerts",
+      "alertsValue": "Ready",
+      "alertsDescription": "Haptics and sound"
+    },
+    "architectureBadge": "Product architecture",
+    "architectureTitle": "One shell, many cafe experiences",
+    "architectureDescription": "The first web app carries shared primitives, route structure, and tokenized brand surfaces before the product grows into full flows.",
+    "pillars": {
+      "designTitle": "Design token core",
+      "designDescription": "Branch personality, spacing, surfaces, and state colors live behind CSS variables.",
+      "realtimeTitle": "Realtime-ready shell",
+      "realtimeDescription": "Operator screens refresh around live service signals across staff dashboards.",
+      "splitTitle": "Customer and staff split",
+      "splitDescription": "Guest and operator routes share primitives while keeping their product rhythms distinct."
+    }
+  },
+  "demo": {
+    "badges": {
+      "demo": "Balkona demo",
+      "local": "Local presentation mode",
+      "localOnly": "Local/dev only",
+      "doNotUseProduction": "Do not use in production",
+      "launch": "Launch",
+      "presentationFlow": "Presentation flow",
+      "proofPoints": "Proof points",
+      "diagnostics": "Diagnostics",
+      "frontendOnly": "Frontend only"
+    },
+    "title": "Balkona Bar Full Operating Demo",
+    "description": "QR customer app, AI waiter, cart submission, staff operations, and owner command center in one guided local demo.",
+    "actions": {
+      "startCustomerQr": "Start customer QR",
+      "staffLogin": "Staff login",
+      "customerEntry": "Customer entry",
+      "staffOverview": "Staff overview",
+      "ownerCommandCenter": "Owner command center"
+    },
+    "metrics": {
+      "demoTableLabel": "Demo table",
+      "demoTableDescription": "Seeded QR token: {token}",
+      "customerLabel": "Customer",
+      "customerValue": "PWA",
+      "customerDescription": "Menu, AI, cart, status, service",
+      "staffLabel": "Staff",
+      "staffValue": "4 live",
+      "staffDescription": "Cashier, kitchen, waiter, owner",
+      "realtimeLabel": "Realtime",
+      "realtimeValue": "Ready",
+      "realtimeDescription": "SSE refresh foundation"
+    },
+    "routesTitle": "Open demo surfaces",
+    "routesDescription": "Use these direct links during a presentation. They are real routes, not mocked screens.",
+    "routes": {
+      "customerQrDemo": {
+        "label": "Customer QR demo",
+        "description": "Start or resume the seeded Balkona table session."
+      },
+      "customerEntry": {
+        "label": "Customer entry",
+        "description": "Enter a QR token or open the default demo table."
+      },
+      "staffLogin": {
+        "label": "Staff login",
+        "description": "Authenticate into staff operations for the local demo."
+      },
+      "cashier": {
+        "label": "Cashier",
+        "description": "Accept submitted customer orders and manage bill requests."
+      },
+      "menuAdmin": {
+        "label": "Menu Admin",
+        "description": "Review branch menu setup, availability, and modifiers."
+      },
+      "branchTables": {
+        "label": "Branch & Tables",
+        "description": "Review branch tables, QR tokens, and customer preview links."
+      },
+      "kitchenBarista": {
+        "label": "Kitchen / Barista",
+        "description": "Start and mark preparation tasks ready."
+      },
+      "waiterFloor": {
+        "label": "Waiter / Floor",
+        "description": "Resolve service calls and table attention."
+      },
+      "ownerManager": {
+        "label": "Owner / Manager",
+        "description": "Review branch pulse, risk, and realtime activity."
+      }
+    },
+    "credentialsTitle": "Staff demo credentials",
+    "credentialsDescription": "These credentials are for the seeded local demo account after local password bootstrap.",
+    "email": "Email",
+    "password": "Password",
+    "reminderTitle": "Presentation reminder",
+    "reminderDescription": "Keep Docker, API, and Web terminals running during the local demo.",
+    "reminderWarning": "Do not close terminals while presenting the local demo.",
+    "checklistTitle": "Full demo flow checklist",
+    "checklistDescription": "Walk through customer ordering and staff operations end to end.",
+    "checklist": {
+      "openCustomerQr": "Open customer QR route",
+      "addItems": "Add items to cart",
+      "useAiWaiter": "Optional: use AI Waiter and apply proposal if available",
+      "submitOrder": "Submit order",
+      "loginStaff": "Login as staff",
+      "reviewMenuAdmin": "Open menu admin and review branch availability",
+      "reviewBranchTables": "Open branch and tables admin and review QR readiness",
+      "acceptOrder": "Open cashier and accept order",
+      "prepareTask": "Open kitchen and start or mark ready a prep task",
+      "resolveWaiter": "Open waiter and resolve service call or attention",
+      "reviewOwner": "Open owner and review branch pulse"
+    },
+    "proofTitle": "What this demo proves",
+    "proofDescription": "Each point is backed by existing frontend routes and backend contracts.",
+    "proof": {
+      "tableQrSession": "Table QR session",
+      "menuOrderFlow": "Menu and order flow",
+      "aiProposalFlow": "AI waiter proposal flow",
+      "staffSession": "Staff login and session",
+      "menuAdminReadiness": "Menu admin readiness",
+      "branchQrReadiness": "Branch tables and QR readiness",
+      "cashierAcceptance": "Cashier acceptance",
+      "preparationTasks": "Preparation tasks",
+      "waiterAttention": "Waiter calls and attention queue",
+      "ownerPulse": "Owner pulse",
+      "realtimeRefresh": "Realtime refresh foundation"
+    },
+    "diagnosticsTitle": "Local demo diagnostics",
+    "diagnosticsDescription": "Lightweight reference for local setup. This panel does not execute commands.",
+    "apiBaseUrl": "API base URL",
+    "routesLabel": "Routes",
+    "commandReference": "Local command reference"
   },
   "errors": {
     "missingTranslation": "Missing translation"
