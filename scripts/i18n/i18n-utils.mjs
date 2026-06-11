@@ -1,6 +1,5 @@
-import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { readFile, unlink, writeFile } from "node:fs/promises";
 import { existsSync } from "node:fs";
-import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { spawnSync } from "node:child_process";
@@ -498,9 +497,12 @@ export function ensureCrowdinCli() {
   }
 }
 
-async function writeTempCrowdinConfig() {
-  const dir = await mkdtemp(join(tmpdir(), "balcona-crowdin-"));
-  const configPath = join(dir, "crowdin.yml");
+export function getTempCrowdinConfigPath(now = Date.now()) {
+  return join(repoRoot, `.crowdin.sync.${process.pid}.${now}.yml`);
+}
+
+export async function writeTempCrowdinConfig(now = Date.now()) {
+  const configPath = getTempCrowdinConfigPath(now);
   const baseConfig = await readText(messagePaths.crowdin);
   const tempConfig = [
     "project_id_env: CROWDIN_PROJECT_ID",
@@ -513,7 +515,15 @@ async function writeTempCrowdinConfig() {
 
   return {
     configPath,
-    cleanup: () => rm(dir, { recursive: true, force: true })
+    cleanup: async () => {
+      try {
+        await unlink(configPath);
+      } catch (error) {
+        if (!(error instanceof Error) || !("code" in error) || error.code !== "ENOENT") {
+          throw error;
+        }
+      }
+    }
   };
 }
 

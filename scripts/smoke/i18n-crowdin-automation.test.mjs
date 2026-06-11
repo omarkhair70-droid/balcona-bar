@@ -1,19 +1,24 @@
 import { strict as assert } from "node:assert";
 import { execFile } from "node:child_process";
+import { existsSync } from "node:fs";
 import { readFile } from "node:fs/promises";
+import { dirname, relative } from "node:path";
 import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
 import { describe, it } from "node:test";
 import {
   calculateArabicCoverage,
   formatCrowdinPreflight,
+  getTempCrowdinConfigPath,
   loadCatalogs,
+  repoRoot,
   runCrowdinPreflight,
-  runI18nQa
+  runI18nQa,
+  writeTempCrowdinConfig
 } from "../i18n/i18n-utils.mjs";
 
 const execFileAsync = promisify(execFile);
-const repoRoot = fileURLToPath(new URL("../..", import.meta.url));
+const testRepoRoot = fileURLToPath(new URL("../..", import.meta.url));
 
 async function readJson(relativePath) {
   return JSON.parse(await readFile(new URL(relativePath, import.meta.url), "utf8"));
@@ -79,6 +84,38 @@ describe("i18n Crowdin automation", () => {
     assert.doesNotMatch(crowdinConfig, /^\s*(project_id|api_token|token)\s*:/im);
   });
 
+  it("writes the generated Crowdin CLI config in the repo root without secret values", async () => {
+    const now = 1_765_000_000_000;
+    const expectedPath = getTempCrowdinConfigPath(now);
+    const temp = await writeTempCrowdinConfig(now);
+
+    try {
+      assert.equal(temp.configPath, expectedPath);
+      assert.equal(dirname(temp.configPath), repoRoot);
+      assert.equal(
+        relative(repoRoot, temp.configPath),
+        `.crowdin.sync.${process.pid}.${now}.yml`
+      );
+
+      const generatedConfig = await readFile(temp.configPath, "utf8");
+
+      assert.match(generatedConfig, /project_id_env:\s*CROWDIN_PROJECT_ID/);
+      assert.match(generatedConfig, /api_token_env:\s*CROWDIN_PERSONAL_TOKEN/);
+      assert.match(generatedConfig, /source:\s*apps\/web\/messages\/en\.json/);
+      assert.match(
+        generatedConfig,
+        /translation:\s*apps\/web\/messages\/%two_letters_code%\.json/
+      );
+      assert.doesNotMatch(generatedConfig, /(?:source|translation):\s*\//);
+      assert.doesNotMatch(generatedConfig, /secret-value-that-must-not-print/);
+      assert.doesNotMatch(generatedConfig, /987654/);
+    } finally {
+      await temp.cleanup();
+    }
+
+    assert.equal(existsSync(temp.configPath), false);
+  });
+
   it("wires root package scripts for i18n QA and Crowdin sync", async () => {
     const packageJson = await readJson("../../package.json");
     const scripts = packageJson.scripts;
@@ -99,7 +136,7 @@ describe("i18n Crowdin automation", () => {
     const { stdout } = await execFileAsync(
       process.execPath,
       ["scripts/i18n/i18n-qa.mjs"],
-      { cwd: repoRoot }
+      { cwd: testRepoRoot }
     );
 
     assert.match(stdout, /I18N QA passed/);
@@ -109,7 +146,7 @@ describe("i18n Crowdin automation", () => {
     const { stdout } = await execFileAsync(
       process.execPath,
       ["scripts/i18n/crowdin-preflight.mjs"],
-      { cwd: repoRoot }
+      { cwd: testRepoRoot }
     );
 
     assert.match(stdout, /Crowdin preflight passed/);
