@@ -1,8 +1,8 @@
 # Source-only config. Private Crowdin values are supplied outside this file.
 preserve_hierarchy: true
 files:
-  - source: /apps/web/messages/en.json
-    translation: /apps/web/messages/%two_letters_code%.json
+  - source: apps/web/messages/en.json
+    translation: apps/web/messages/%two_letters_code%.json
     type: json
     languages_mapping:
       two_letters_code:

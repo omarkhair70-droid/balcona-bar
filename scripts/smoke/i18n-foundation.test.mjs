@@ -394,11 +394,12 @@ describe("i18n Crowdin foundation", () => {
   it("keeps Crowdin configured for English source and Arabic output without secrets", async () => {
     const crowdinConfig = await readText("../../crowdin.yml");
 
-    assert.match(crowdinConfig, /source:\s*\/apps\/web\/messages\/en\.json/);
+    assert.match(crowdinConfig, /source:\s*apps\/web\/messages\/en\.json/);
     assert.match(
       crowdinConfig,
-      /translation:\s*\/apps\/web\/messages\/%two_letters_code%\.json/
+      /translation:\s*apps\/web\/messages\/%two_letters_code%\.json/
     );
+    assert.doesNotMatch(crowdinConfig, /(?:source|translation):\s*\//);
     assert.match(crowdinConfig, /preserve_hierarchy:\s*true/);
     assert.doesNotMatch(crowdinConfig, sensitivePattern);
   });
