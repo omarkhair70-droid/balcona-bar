@@ -56,6 +56,10 @@ translation paths resolve against the checked-out repository.
 The GitHub/Crowdin integration stores these files under the Crowdin branch named
 `main`; the helper passes `--branch main` by default for upload and download.
 Set `CROWDIN_BRANCH` only when intentionally syncing another Crowdin branch.
+After `crowdin download`, the helper prints safe diagnostics, compares the
+before/after `apps/web/messages/ar.json` hash, lists likely wrong output paths,
+and fails if `ar.json` did not change. That prevents a green workflow from
+silently skipping the localization PR.
 
 ## Required Secrets
 
@@ -67,6 +71,9 @@ Crowdin upload/download/sync requires:
 Optional:
 
 - `CROWDIN_BRANCH`, default `main`
+- `ALLOW_EMPTY_CROWDIN_DOWNLOAD`, default unset. Set to `true` only for
+  diagnostics when investigating Crowdin branch, language, or export-path
+  issues.
 
 Put these in:
 
@@ -95,9 +102,12 @@ token value.
 6. Translate and review Arabic in Crowdin.
 7. Download Arabic with `pnpm i18n:crowdin:download` from the same Crowdin
    branch.
-8. Run `pnpm i18n:qa` and `pnpm i18n:qa:ar`.
-9. Run web build and smoke tests.
-10. Open a PR for the downloaded Arabic catalog changes.
+8. If the download fails because `apps/web/messages/ar.json` did not change,
+   check the Crowdin branch, Arabic language mapping, and export path. Use
+   `ALLOW_EMPTY_CROWDIN_DOWNLOAD=true` only to gather diagnostics.
+9. Run `pnpm i18n:qa` and `pnpm i18n:qa:ar`.
+10. Run web build and smoke tests.
+11. Open a PR for the downloaded Arabic catalog changes.
 
 ## GitHub Actions Sync
 
@@ -110,8 +120,21 @@ token value.
 4. Uses GitHub secrets for Crowdin credentials.
 5. Uploads English source to `CROWDIN_BRANCH`, default `main`.
 6. Downloads Arabic translations from `CROWDIN_BRANCH`, default `main`.
-7. Runs `pnpm i18n:qa`.
-8. Opens a localization PR if files changed.
+7. Fails if Crowdin download succeeds but `apps/web/messages/ar.json` is
+   unchanged, unless `ALLOW_EMPTY_CROWDIN_DOWNLOAD=true` is explicitly set for
+   diagnostics.
+8. Runs `pnpm i18n:qa`.
+9. Opens a localization PR if files changed.
+
+If the workflow reports that `ar.json` did not change, inspect the printed
+diagnostics for:
+
+- `git status --short`
+- before/after `ar.json` SHA-256 hashes
+- obvious English strings still present in `ar.json`
+- newly created files under `apps/web/messages`
+- common wrong output paths such as `apps/web/messages/ar-EG.json`,
+  `apps/web/messages/en/ar.json`, `translations/**`, or `build/**`
 
 This workflow should not be scheduled until the Crowdin project is stable.
 

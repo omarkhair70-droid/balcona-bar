@@ -1,6 +1,7 @@
-import { readFile, unlink, writeFile } from "node:fs/promises";
+import { createHash } from "node:crypto";
+import { readFile, readdir, unlink, writeFile } from "node:fs/promises";
 import { existsSync } from "node:fs";
-import { dirname, join, resolve } from "node:path";
+import { dirname, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { spawnSync } from "node:child_process";
 
@@ -15,6 +16,17 @@ export const messagePaths = {
 export const crowdinSourcePath = "apps/web/messages/en.json";
 export const crowdinTranslationPath = "apps/web/messages/%two_letters_code%.json";
 export const defaultCrowdinBranch = "main";
+export const unchangedCrowdinDownloadMessage =
+  "Crowdin download completed but apps/web/messages/ar.json did not change. Check Crowdin branch/language/export path.";
+
+const commonWrongCrowdinOutputFiles = [
+  "apps/web/messages/ar-EG.json",
+  "apps/web/messages/ar-eg.json",
+  "apps/web/messages/Arabic.json",
+  "apps/web/messages/en/ar.json"
+];
+
+const commonWrongCrowdinOutputDirectories = ["translations", "build"];
 
 export const requiredTopLevelNamespaces = [
   "common",
@@ -77,6 +89,10 @@ export async function readText(path) {
 
 export async function readJson(path) {
   return JSON.parse(await readText(path));
+}
+
+export async function sha256File(path) {
+  return createHash("sha256").update(await readFile(path)).digest("hex");
 }
 
 export async function loadCatalogs() {
@@ -402,6 +418,158 @@ export function formatArabicCoverageReport(coverage) {
     for (const item of coverage.suspiciousUntranslated) {
       lines.push(`- ${item.key}: ${item.value}`);
     }
+  }
+
+  return lines.join("\n");
+}
+
+export function runGitStatusShort() {
+  const result = spawnSync("git", ["status", "--short"], {
+    cwd: repoRoot,
+    encoding: "utf8",
+    shell: process.platform === "win32"
+  });
+
+  if (result.error) {
+    throw result.error;
+  }
+
+  if (result.status !== 0) {
+    throw new Error(`git status --short exited with status ${result.status}`);
+  }
+
+  return result.stdout.trimEnd();
+}
+
+function normalizeRepoPath(path) {
+  return path.trim().replace(/^"|"$/g, "").replace(/\\/g, "/");
+}
+
+export function getNewMessageFilesFromGitStatus(statusShort) {
+  return statusShort
+    .split(/\r?\n/)
+    .filter(Boolean)
+    .flatMap((line) => {
+      const status = line.slice(0, 2);
+      const rawPath = line.slice(3).split(" -> ").pop() ?? "";
+      const path = normalizeRepoPath(rawPath);
+      const isNew = status === "??" || status.includes("A");
+
+      return isNew && path.startsWith("apps/web/messages/") ? [path] : [];
+    });
+}
+
+async function listRepoFilesUnder(relativeDirectory, limit = 50) {
+  const root = join(repoRoot, relativeDirectory);
+
+  if (!existsSync(root)) {
+    return [];
+  }
+
+  const found = [];
+  const pending = [root];
+
+  while (pending.length > 0 && found.length < limit) {
+    const current = pending.shift();
+    const entries = await readdir(current, { withFileTypes: true });
+
+    for (const entry of entries) {
+      const fullPath = join(current, entry.name);
+
+      if (entry.isDirectory()) {
+        pending.push(fullPath);
+        continue;
+      }
+
+      if (entry.isFile()) {
+        found.push(normalizeRepoPath(relative(repoRoot, fullPath)));
+      }
+
+      if (found.length >= limit) {
+        break;
+      }
+    }
+  }
+
+  return found;
+}
+
+export async function findCommonWrongCrowdinOutputPaths() {
+  const existingFiles = commonWrongCrowdinOutputFiles.filter((path) =>
+    existsSync(join(repoRoot, path))
+  );
+  const existingDirectoryFiles = (
+    await Promise.all(
+      commonWrongCrowdinOutputDirectories.map((path) => listRepoFilesUnder(path))
+    )
+  ).flat();
+
+  return [...existingFiles, ...existingDirectoryFiles].sort();
+}
+
+export function getCrowdinDownloadFailureMessage(result) {
+  return result.arJsonChanged || result.allowEmptyDownload
+    ? undefined
+    : unchangedCrowdinDownloadMessage;
+}
+
+export async function inspectCrowdinDownload({
+  beforeHash,
+  env = process.env,
+  statusShort = runGitStatusShort()
+} = {}) {
+  const [afterHash, { en, ar }] = await Promise.all([
+    sha256File(messagePaths.ar),
+    loadCatalogs()
+  ]);
+  const coverage = calculateArabicCoverage(en, ar);
+  const arJsonChanged = Boolean(beforeHash) && beforeHash !== afterHash;
+  const allowEmptyDownload = env.ALLOW_EMPTY_CROWDIN_DOWNLOAD === "true";
+
+  return {
+    ok: arJsonChanged || allowEmptyDownload,
+    arJsonChanged,
+    beforeHash: beforeHash ?? null,
+    afterHash,
+    statusShort,
+    obviousRemainingEnglishStrings: coverage.suspiciousUntranslatedCount,
+    newlyCreatedMessageFiles: getNewMessageFilesFromGitStatus(statusShort),
+    wrongOutputPaths: await findCommonWrongCrowdinOutputPaths(),
+    allowEmptyDownload,
+    errorMessage: arJsonChanged || allowEmptyDownload ? undefined : unchangedCrowdinDownloadMessage
+  };
+}
+
+export function formatCrowdinDownloadDiagnostics(result) {
+  const lines = [
+    "Crowdin download diagnostics",
+    "git status --short:",
+    result.statusShort ? result.statusShort : "<clean>",
+    `apps/web/messages/ar.json changed: ${result.arJsonChanged ? "yes" : "no"}`,
+    `apps/web/messages/ar.json before sha256: ${result.beforeHash ?? "unavailable"}`,
+    `apps/web/messages/ar.json after sha256: ${result.afterHash}`,
+    `Obvious remaining English UI strings in ar.json: ${result.obviousRemainingEnglishStrings}`,
+    `ALLOW_EMPTY_CROWDIN_DOWNLOAD: ${
+      result.allowEmptyDownload ? "enabled" : "disabled"
+    }`
+  ];
+
+  lines.push("Newly created files under apps/web/messages:");
+  lines.push(
+    result.newlyCreatedMessageFiles.length > 0
+      ? result.newlyCreatedMessageFiles.map((path) => `- ${path}`).join("\n")
+      : "<none>"
+  );
+
+  lines.push("Common wrong Crowdin output paths found:");
+  lines.push(
+    result.wrongOutputPaths.length > 0
+      ? result.wrongOutputPaths.map((path) => `- ${path}`).join("\n")
+      : "<none>"
+  );
+
+  if (result.errorMessage) {
+    lines.push("", `Error: ${result.errorMessage}`);
   }
 
   return lines.join("\n");
