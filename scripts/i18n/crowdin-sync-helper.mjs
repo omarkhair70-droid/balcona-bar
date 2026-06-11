@@ -1,12 +1,14 @@
 #!/usr/bin/env node
 import {
+  buildCrowdinDownloadTranslationsArgs,
+  buildCrowdinUploadSourcesArgs,
   formatCrowdinDownloadDiagnostics,
   formatCrowdinPreflight,
   formatQaResult,
   getCrowdinDownloadFailureMessage,
   inspectCrowdinDownload,
   messagePaths,
-  runCrowdinCliCommand,
+  runCrowdinCliArgs,
   runCrowdinPreflight,
   runI18nQa,
   sha256File
@@ -28,6 +30,7 @@ Crowdin upload/download/sync require:
 
 Optional:
 - CROWDIN_BRANCH defaults to main
+- CROWDIN_LANGUAGE defaults to ar
 - ALLOW_EMPTY_CROWDIN_DOWNLOAD=true allows diagnostics-only empty downloads
 
 Secret values are never printed.`);
@@ -66,8 +69,23 @@ async function validateAfterDownload() {
 
 async function downloadWithDiagnostics() {
   const beforeHash = await sha256File(messagePaths.ar);
+  const dryRunArgs = buildCrowdinDownloadTranslationsArgs({ dryRun: true });
+  const downloadArgs = buildCrowdinDownloadTranslationsArgs();
 
-  await runCrowdinCliCommand("download");
+  console.log("");
+  console.log(`Crowdin dry run: crowdin ${dryRunArgs.join(" ")}`);
+
+  try {
+    await runCrowdinCliArgs(dryRunArgs);
+  } catch (error) {
+    throw new Error(
+      `Crowdin download translations dry run failed. ${
+        error instanceof Error ? error.message : String(error)
+      }`
+    );
+  }
+
+  await runCrowdinCliArgs(downloadArgs);
 
   const diagnostics = await inspectCrowdinDownload({ beforeHash });
 
@@ -93,7 +111,7 @@ if (!allowedCommands.has(command)) {
   if (ok) {
     try {
       if (command === "upload") {
-        await runCrowdinCliCommand("upload", ["sources"]);
+        await runCrowdinCliArgs(buildCrowdinUploadSourcesArgs());
       }
 
       if (command === "download") {
@@ -102,7 +120,7 @@ if (!allowedCommands.has(command)) {
       }
 
       if (command === "sync") {
-        await runCrowdinCliCommand("upload", ["sources"]);
+        await runCrowdinCliArgs(buildCrowdinUploadSourcesArgs());
         await downloadWithDiagnostics();
         await validateAfterDownload();
       }

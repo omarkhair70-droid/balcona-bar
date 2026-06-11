@@ -16,6 +16,7 @@ export const messagePaths = {
 export const crowdinSourcePath = "apps/web/messages/en.json";
 export const crowdinTranslationPath = "apps/web/messages/%two_letters_code%.json";
 export const defaultCrowdinBranch = "main";
+export const defaultCrowdinLanguage = "ar";
 export const unchangedCrowdinDownloadMessage =
   "Crowdin download completed but apps/web/messages/ar.json did not change. Check Crowdin branch/language/export path.";
 
@@ -609,7 +610,8 @@ export async function runCrowdinPreflight({
   const envStatus = {
     CROWDIN_PROJECT_ID: Boolean(env.CROWDIN_PROJECT_ID),
     CROWDIN_PERSONAL_TOKEN: Boolean(env.CROWDIN_PERSONAL_TOKEN),
-    CROWDIN_BRANCH: Boolean(env.CROWDIN_BRANCH?.trim())
+    CROWDIN_BRANCH: Boolean(env.CROWDIN_BRANCH?.trim()),
+    CROWDIN_LANGUAGE: Boolean(env.CROWDIN_LANGUAGE?.trim())
   };
 
   if (requireCredentials) {
@@ -648,6 +650,11 @@ export function formatCrowdinPreflight(result) {
   lines.push(
     `- CROWDIN_BRANCH: ${result.env.CROWDIN_BRANCH ? "present" : "defaulted"}`
   );
+  lines.push(
+    `- CROWDIN_LANGUAGE: ${
+      result.env.CROWDIN_LANGUAGE ? "present" : "defaulted"
+    }`
+  );
 
   if (result.errors.length > 0) {
     lines.push("", "Errors:");
@@ -663,8 +670,34 @@ export function getCrowdinBranch(env = process.env) {
   return branch || defaultCrowdinBranch;
 }
 
+export function getCrowdinLanguage(env = process.env) {
+  const language = env.CROWDIN_LANGUAGE?.trim();
+
+  return language || defaultCrowdinLanguage;
+}
+
 export function buildCrowdinCliArgs(command, args = [], env = process.env) {
   return [command, ...args, "--branch", getCrowdinBranch(env)];
+}
+
+export function buildCrowdinUploadSourcesArgs(env = process.env) {
+  return ["upload", "sources", "--branch", getCrowdinBranch(env)];
+}
+
+export function buildCrowdinDownloadTranslationsArgs({
+  env = process.env,
+  dryRun = false
+} = {}) {
+  return [
+    "download",
+    "translations",
+    "--branch",
+    getCrowdinBranch(env),
+    "--language",
+    getCrowdinLanguage(env),
+    "--all",
+    ...(dryRun ? ["--dryrun", "--tree"] : [])
+  ];
 }
 
 export function ensureCrowdinCli() {
@@ -710,7 +743,7 @@ export async function writeTempCrowdinConfig(now = Date.now()) {
   };
 }
 
-export async function runCrowdinCliCommand(command, args = []) {
+export async function runCrowdinCliArgs(args) {
   const preflight = await runCrowdinPreflight({ requireCredentials: true });
   if (!preflight.ok) {
     throw new Error(formatCrowdinPreflight(preflight));
@@ -722,7 +755,7 @@ export async function runCrowdinCliCommand(command, args = []) {
   try {
     const result = spawnSync(
       "crowdin",
-      [...buildCrowdinCliArgs(command, args), "--config", temp.configPath],
+      [...args, "--config", temp.configPath],
       {
         cwd: repoRoot,
         env: process.env,
@@ -741,4 +774,8 @@ export async function runCrowdinCliCommand(command, args = []) {
   } finally {
     await temp.cleanup();
   }
+}
+
+export async function runCrowdinCliCommand(command, args = []) {
+  return runCrowdinCliArgs(buildCrowdinCliArgs(command, args));
 }

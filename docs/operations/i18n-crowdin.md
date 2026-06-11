@@ -50,16 +50,26 @@ repo does not vendor the CLI.
 
 The helper wraps the same manual Crowdin CLI flow operators can run directly:
 `crowdin upload sources` to publish English source strings and
-`crowdin download` to retrieve reviewed Arabic translations.
+`crowdin download translations` to retrieve Arabic translations.
 It writes a temporary Crowdin config in the repo root so relative source and
 translation paths resolve against the checked-out repository.
 The GitHub/Crowdin integration stores these files under the Crowdin branch named
 `main`; the helper passes `--branch main` by default for upload and download.
 Set `CROWDIN_BRANCH` only when intentionally syncing another Crowdin branch.
-After `crowdin download`, the helper prints safe diagnostics, compares the
-before/after `apps/web/messages/ar.json` hash, lists likely wrong output paths,
-and fails if `ar.json` did not change. That prevents a green workflow from
-silently skipping the localization PR.
+Downloads use `CROWDIN_LANGUAGE`, default `ar`, and pass `--all` so missing
+source/export mismatches do not silently hide translations. During this setup
+stage, the helper does not pass `--export-only-approved`; unreviewed Crowdin
+translations can still download for QA cleanup. Before the real download, the
+helper runs this safe diagnostic check:
+
+```bash
+crowdin download translations --branch main --language ar --all --dryrun --tree
+```
+
+After the real download, it prints safe diagnostics, compares the before/after
+`apps/web/messages/ar.json` hash, lists likely wrong output paths, and fails if
+`ar.json` did not change. That prevents a green workflow from silently skipping
+the localization PR.
 
 ## Required Secrets
 
@@ -71,6 +81,7 @@ Crowdin upload/download/sync requires:
 Optional:
 
 - `CROWDIN_BRANCH`, default `main`
+- `CROWDIN_LANGUAGE`, default `ar`
 - `ALLOW_EMPTY_CROWDIN_DOWNLOAD`, default unset. Set to `true` only for
   diagnostics when investigating Crowdin branch, language, or export-path
   issues.
@@ -101,7 +112,8 @@ token value.
    `main` unless `CROWDIN_BRANCH` is set.
 6. Translate and review Arabic in Crowdin.
 7. Download Arabic with `pnpm i18n:crowdin:download` from the same Crowdin
-   branch.
+   branch. The helper runs `crowdin download translations --language ar --all`
+   by default, with `CROWDIN_LANGUAGE` available for intentional overrides.
 8. If the download fails because `apps/web/messages/ar.json` did not change,
    check the Crowdin branch, Arabic language mapping, and export path. Use
    `ALLOW_EMPTY_CROWDIN_DOWNLOAD=true` only to gather diagnostics.
@@ -119,12 +131,14 @@ token value.
 3. Installs the Crowdin CLI.
 4. Uses GitHub secrets for Crowdin credentials.
 5. Uploads English source to `CROWDIN_BRANCH`, default `main`.
-6. Downloads Arabic translations from `CROWDIN_BRANCH`, default `main`.
-7. Fails if Crowdin download succeeds but `apps/web/messages/ar.json` is
+6. Runs a safe Crowdin dry run for `download translations --language ar --all`.
+7. Downloads Arabic translations from `CROWDIN_BRANCH`, default `main`, and
+   `CROWDIN_LANGUAGE`, default `ar`.
+8. Fails if Crowdin download succeeds but `apps/web/messages/ar.json` is
    unchanged, unless `ALLOW_EMPTY_CROWDIN_DOWNLOAD=true` is explicitly set for
    diagnostics.
-8. Runs `pnpm i18n:qa`.
-9. Opens a localization PR if files changed.
+9. Runs `pnpm i18n:qa`.
+10. Opens a localization PR if files changed.
 
 If the workflow reports that `ar.json` did not change, inspect the printed
 diagnostics for:

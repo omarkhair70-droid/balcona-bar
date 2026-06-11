@@ -7,13 +7,15 @@ import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
 import { describe, it } from "node:test";
 import {
-  buildCrowdinCliArgs,
+  buildCrowdinDownloadTranslationsArgs,
+  buildCrowdinUploadSourcesArgs,
   calculateArabicCoverage,
   findCommonWrongCrowdinOutputPaths,
   formatCrowdinDownloadDiagnostics,
   formatCrowdinPreflight,
   getCrowdinDownloadFailureMessage,
   getCrowdinBranch,
+  getCrowdinLanguage,
   getTempCrowdinConfigPath,
   inspectCrowdinDownload,
   loadCatalogs,
@@ -76,23 +78,46 @@ describe("i18n Crowdin automation", () => {
     assert.match(output, /CROWDIN_PROJECT_ID: present/);
     assert.match(output, /CROWDIN_PERSONAL_TOKEN: present/);
     assert.match(output, /CROWDIN_BRANCH: defaulted/);
+    assert.match(output, /CROWDIN_LANGUAGE: defaulted/);
     assert.doesNotMatch(output, /123456/);
     assert.doesNotMatch(output, /secret-value-that-must-not-print/);
   });
 
-  it("builds Crowdin upload and download commands for the main branch by default", () => {
+  it("builds Crowdin upload and Arabic translation download commands by default", () => {
     assert.equal(getCrowdinBranch({}), "main");
-    assert.deepEqual(buildCrowdinCliArgs("upload", ["sources"], {}), [
+    assert.equal(getCrowdinLanguage({}), "ar");
+    assert.deepEqual(buildCrowdinUploadSourcesArgs({}), [
       "upload",
       "sources",
       "--branch",
       "main"
     ]);
-    assert.deepEqual(buildCrowdinCliArgs("download", [], {}), [
+    assert.deepEqual(buildCrowdinDownloadTranslationsArgs({ env: {} }), [
       "download",
+      "translations",
       "--branch",
-      "main"
+      "main",
+      "--language",
+      "ar",
+      "--all"
     ]);
+  });
+
+  it("builds the Crowdin Arabic translation download dry run command", () => {
+    assert.deepEqual(
+      buildCrowdinDownloadTranslationsArgs({ env: {}, dryRun: true }),
+      [
+        "download",
+        "translations",
+        "--branch",
+        "main",
+        "--language",
+        "ar",
+        "--all",
+        "--dryrun",
+        "--tree"
+      ]
+    );
   });
 
   it("allows CROWDIN_BRANCH to override the Crowdin CLI branch without printing it", async () => {
@@ -108,19 +133,53 @@ describe("i18n Crowdin automation", () => {
     const output = formatCrowdinPreflight(result);
 
     assert.equal(getCrowdinBranch(env), "localization-main");
-    assert.deepEqual(buildCrowdinCliArgs("upload", ["sources"], env), [
+    assert.deepEqual(buildCrowdinUploadSourcesArgs(env), [
       "upload",
       "sources",
       "--branch",
       "localization-main"
     ]);
-    assert.deepEqual(buildCrowdinCliArgs("download", [], env), [
+    assert.deepEqual(buildCrowdinDownloadTranslationsArgs({ env }), [
       "download",
+      "translations",
       "--branch",
-      "localization-main"
+      "localization-main",
+      "--language",
+      "ar",
+      "--all"
     ]);
     assert.match(output, /CROWDIN_BRANCH: present/);
+    assert.match(output, /CROWDIN_LANGUAGE: defaulted/);
     assert.doesNotMatch(output, /localization-main/);
+    assert.doesNotMatch(output, /987654/);
+    assert.doesNotMatch(output, /secret-value-that-must-not-print/);
+  });
+
+  it("allows CROWDIN_LANGUAGE to override the download language without printing it", async () => {
+    const env = {
+      CROWDIN_PROJECT_ID: "987654",
+      CROWDIN_PERSONAL_TOKEN: "secret-value-that-must-not-print",
+      CROWDIN_LANGUAGE: "egyptian-arabic"
+    };
+    const result = await runCrowdinPreflight({
+      requireCredentials: true,
+      env
+    });
+    const output = formatCrowdinPreflight(result);
+
+    assert.equal(getCrowdinLanguage(env), "egyptian-arabic");
+    assert.deepEqual(buildCrowdinDownloadTranslationsArgs({ env }), [
+      "download",
+      "translations",
+      "--branch",
+      "main",
+      "--language",
+      "egyptian-arabic",
+      "--all"
+    ]);
+    assert.match(output, /CROWDIN_LANGUAGE: present/);
+    assert.match(output, /CROWDIN_BRANCH: defaulted/);
+    assert.doesNotMatch(output, /egyptian-arabic/);
     assert.doesNotMatch(output, /987654/);
     assert.doesNotMatch(output, /secret-value-that-must-not-print/);
   });
@@ -279,5 +338,6 @@ describe("i18n Crowdin automation", () => {
     assert.match(stdout, /Crowdin preflight passed/);
     assert.match(stdout, /CROWDIN_PERSONAL_TOKEN: (present|missing)/);
     assert.match(stdout, /CROWDIN_BRANCH: (present|defaulted)/);
+    assert.match(stdout, /CROWDIN_LANGUAGE: (present|defaulted)/);
   });
 });
