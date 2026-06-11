@@ -1,5 +1,9 @@
 import type { AiWaiterLanguage } from "@/lib/api/types";
-import { aiSuggestedPrompts } from "./ai-waiter-helpers";
+import {
+  aiSuggestedPromptKeys,
+  getAiSuggestedPrompt
+} from "./ai-waiter-helpers";
+import { useTranslations } from "@/lib/i18n/i18n-provider";
 
 type AiSuggestedPromptsProps = {
   language: AiWaiterLanguage;
@@ -12,11 +16,16 @@ export function AiSuggestedPrompts({
   onSelect,
   disabled
 }: AiSuggestedPromptsProps) {
+  const t = useTranslations("customer.ai");
+
   return (
-    <div className="flex gap-2 overflow-x-auto pb-1" aria-label="Suggested prompts">
-      {aiSuggestedPrompts[language].map((prompt) => (
+    <div className="flex gap-2 overflow-x-auto pb-1" aria-label={t("prompts.ariaLabel")}>
+      {aiSuggestedPromptKeys[language].map((promptKey) => {
+        const prompt = getAiSuggestedPrompt(language, promptKey);
+
+        return (
         <button
-          key={prompt}
+          key={promptKey}
           type="button"
           disabled={disabled}
           onClick={() => onSelect(prompt)}
@@ -24,7 +33,8 @@ export function AiSuggestedPrompts({
         >
           {prompt}
         </button>
-      ))}
+        );
+      })}
     </div>
   );
 }

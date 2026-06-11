@@ -8,6 +8,7 @@ import {
   CardHeader,
   CardTitle
 } from "@/components/ui/card";
+import { useTranslations } from "@/lib/i18n/i18n-provider";
 
 type AiChatShellProps = {
   title: string;
@@ -26,6 +27,8 @@ export function AiChatShell({
   children,
   side
 }: AiChatShellProps) {
+  const t = useTranslations("customer.ai");
+
   return (
     <section className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_22rem]">
       <div className="min-w-0">
@@ -48,19 +51,19 @@ export function AiChatShell({
               <div className="rounded-card border bg-surface/75 p-3">
                 <ShieldCheck className="size-4 text-success" aria-hidden="true" />
                 <p className="mt-2 text-xs font-semibold text-foreground">
-                  AI suggests. You confirm.
+                  {t("page.safetyConfirm")}
                 </p>
               </div>
               <div className="rounded-card border bg-surface/75 p-3">
                 <MenuSquare className="size-4 text-primary" aria-hidden="true" />
                 <p className="mt-2 text-xs font-semibold text-foreground">
-                  Based on branch menu and availability.
+                  {t("page.menuGrounded")}
                 </p>
               </div>
               <div className="rounded-card border bg-surface/75 p-3">
                 <ShieldCheck className="size-4 text-warning" aria-hidden="true" />
                 <p className="mt-2 text-xs font-semibold text-foreground">
-                  Cart validation keeps price authority.
+                  {t("page.cartValidationAuthority")}
                 </p>
               </div>
             </div>

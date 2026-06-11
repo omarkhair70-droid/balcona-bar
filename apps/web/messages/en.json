@@ -283,6 +283,119 @@
       "startingSession": "Starting session",
       "titleError": "Table link could not open",
       "titleOpening": "Opening your table session"
+    },
+    "ai": {
+      "actions": {
+        "reviewCart": "Review cart",
+        "viewMenu": "View menu"
+      },
+      "composer": {
+        "helper": "Suggestions use this branch menu and availability. Final order submission stays in the cart.",
+        "label": "Message AI waiter",
+        "placeholderAr": "اكتب اللي نفسك فيه...",
+        "placeholderEn": "Tell the waiter what you like...",
+        "safety": "AI suggests. You confirm.",
+        "send": "Send",
+        "sending": "Sending..."
+      },
+      "empty": {
+        "noActiveSessionDescription": "Start one or send a prompt. Suggestions will use this branch menu and availability.",
+        "noActiveSessionTitle": "No AI waiter session is active yet.",
+        "noMessagesDescription": "Ask for a menu-grounded recommendation or choose a prompt to begin.",
+        "noMessagesTitle": "No messages yet"
+      },
+      "errors": {
+        "applyProposal": "We could not apply this proposal. {message} You can try applying it again.",
+        "close": "AI waiter could not close. {message}",
+        "emptyMessage": "Write a message or choose a suggested prompt first.",
+        "escalation": "We could not notify the team yet. {message}",
+        "loadTitle": "AI waiter could not load",
+        "rejectProposal": "We could not reject this proposal. {message}",
+        "respond": "AI waiter could not respond. {message}",
+        "start": "AI waiter could not start. {message}"
+      },
+      "escalation": {
+        "askHuman": "Ask a human waiter",
+        "asking": "Asking...",
+        "description": "If the AI cannot help or you prefer a person, the team can be notified calmly without leaving this table experience.",
+        "notified": "A human waiter has been notified for your table.",
+        "title": "Ask a human waiter"
+      },
+      "language": {
+        "arabic": "العربية",
+        "english": "English"
+      },
+      "messages": {
+        "aiWaiter": "AI waiter",
+        "checkingMenu": "AI waiter is checking the branch menu and availability...",
+        "detailsUnavailable": "Message details are not available yet.",
+        "sentSuccess": "Message sent. Any cart proposal still needs your confirmation.",
+        "system": "System",
+        "you": "You"
+      },
+      "page": {
+        "cartValidationAuthority": "Cart validation keeps price authority.",
+        "closeAiWaiter": "Close AI waiter",
+        "closing": "Closing...",
+        "defaultExperienceDescription": "Tell the cafe AI waiter what you like. Suggestions are grounded in this branch menu and availability.",
+        "defaultTone": "Warm cafe concierge",
+        "description": "Ask for recommendations, review safe cart proposals, and keep final order submission in the cart.",
+        "eyebrow": "AI waiter",
+        "loading": "Loading AI waiter",
+        "menuGrounded": "Based on branch menu and availability.",
+        "safetyConfirm": "AI suggests. You confirm.",
+        "startAiWaiter": "Start AI waiter",
+        "starting": "Starting...",
+        "tenantAiWaiterTitle": "{name} AI waiter",
+        "thisCafe": "this cafe",
+        "title": "AI cafe concierge"
+      },
+      "prompts": {
+        "ariaLabel": "Suggested prompts",
+        "callWaiter": "Call a waiter",
+        "chooseFast": "Help me choose fast",
+        "coffeePairing": "What goes well with coffee?",
+        "coldDrink": "I want a cold drink",
+        "getBill": "Can I get the bill?",
+        "notTooSweet": "I want something not too sweet",
+        "orderForTwo": "Build an order for two",
+        "recommendLight": "Recommend something light",
+        "whereIsOrder": "Where is my order?"
+      },
+      "proposal": {
+        "appliedNotice": "Proposal applied to your cart. Please review the cart before submitting the order.",
+        "applying": "Applying...",
+        "applyToCart": "Apply to cart",
+        "backendValidationNotice": "Applying a proposal only updates the cart through backend validation. It never submits the final order.",
+        "badge": "Cart proposal",
+        "disclaimer": "This is backend proposal data, not a submitted order. Prices and availability are checked by the system when you apply it.",
+        "empty": "Cart proposals appear here only when the backend returns one. The AI can suggest, but the cart validates and you submit the order later.",
+        "fallbackTitle": "Cart proposal",
+        "liveMenuMatch": "Matched to the live branch menu and availability snapshot.",
+        "menuDetailsUnavailable": "Menu details are not loaded here yet. The backend validates this proposal before it reaches your cart.",
+        "menuItemFallback": "Menu item",
+        "menuItemWithId": "Menu item {id}",
+        "missingItemDetails": "Proposal item details are missing. Nothing can be applied until the backend returns complete proposal data.",
+        "rejectedNotice": "Proposal rejected. You can ask for a different suggestion.",
+        "reject": "Reject",
+        "rejecting": "Rejecting..."
+      },
+      "status": {
+        "offline": "Offline",
+        "summary": "{status} · {language}",
+        "waking": "Waking"
+      },
+      "tools": {
+        "billAlreadyRequested": "Bill already requested",
+        "billAvailableAfterAcceptedOrder": "Bill available after an accepted order",
+        "billRequestChecked": "Bill request checked",
+        "billRequestSent": "Bill request sent",
+        "noOrderPlacedYet": "No order placed yet",
+        "orderStatusChecked": "Order status checked",
+        "waiterCallAlreadyActive": "Waiter call already active",
+        "waiterCallChecked": "Waiter call checked",
+        "waiterNotified": "Waiter notified"
+      }
     }
   },
   "cart": {

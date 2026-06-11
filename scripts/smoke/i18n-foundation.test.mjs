@@ -94,6 +94,7 @@ describe("i18n Crowdin foundation", () => {
 
     for (const namespace of [
       "actions",
+      "ai",
       "bill",
       "cart",
       "empty",
@@ -177,6 +178,28 @@ describe("i18n Crowdin foundation", () => {
       "status"
     ]) {
       assert.ok(platform[namespace], `missing platform.${namespace}`);
+    }
+  });
+
+  it("includes the AI waiter namespaces required for Crowdin", async () => {
+    const enMessages = await readJson("../../apps/web/messages/en.json");
+    const ai = enMessages.customer.ai;
+
+    for (const namespace of [
+      "actions",
+      "composer",
+      "empty",
+      "errors",
+      "escalation",
+      "language",
+      "messages",
+      "page",
+      "prompts",
+      "proposal",
+      "status",
+      "tools"
+    ]) {
+      assert.ok(ai[namespace], `missing customer.ai.${namespace}`);
     }
   });
 
@@ -317,6 +340,47 @@ describe("i18n Crowdin foundation", () => {
       "Recent activity",
       "Active orders",
       "Operations snapshot"
+    ];
+    const combinedSource = (
+      await Promise.all(files.map((file) => readText(file)))
+    ).join("\n");
+
+    for (const phrase of extractedPhrases) {
+      assert.doesNotMatch(combinedSource, new RegExp(phrase.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
+    }
+  });
+
+  it("keeps extracted AI waiter strings out of targeted source files", async () => {
+    const files = [
+      "../../apps/web/features/customer/pages/ai-waiter-page.tsx",
+      "../../apps/web/features/customer/ai-chat-shell.tsx",
+      "../../apps/web/features/customer/ai-message-composer.tsx",
+      "../../apps/web/features/customer/ai-message-bubble.tsx",
+      "../../apps/web/features/customer/ai-cart-proposal-card.tsx",
+      "../../apps/web/features/customer/ai-escalation-card.tsx",
+      "../../apps/web/features/customer/ai-suggested-prompts.tsx",
+      "../../apps/web/features/customer/ai-waiter-status-pill.tsx",
+      "../../apps/web/features/customer/ai-waiter-helpers.ts"
+    ];
+    const extractedPhrases = [
+      "AI cafe concierge",
+      "AI café concierge",
+      "AI suggests. You confirm.",
+      "Based on branch menu and availability.",
+      "Cart validation keeps price authority.",
+      "Message AI waiter",
+      "Tell the waiter what you like...",
+      "Suggestions use this branch menu and availability.",
+      "Cart proposal",
+      "Apply to cart",
+      "Ask a human waiter",
+      "Bill request sent",
+      "Waiter notified",
+      "Order status checked",
+      "No messages yet",
+      "Message sent. Any cart proposal still needs your confirmation.",
+      "Recommend something light",
+      "رشحلي حاجة خفيفة"
     ];
     const combinedSource = (
       await Promise.all(files.map((file) => readText(file)))

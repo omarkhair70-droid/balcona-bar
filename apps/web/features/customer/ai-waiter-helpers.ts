@@ -4,43 +4,57 @@ import type {
   BranchEffectiveExperience,
   MenuItemSummary
 } from "@/lib/api/types";
+import { translate } from "@/lib/i18n/messages";
 import { formatMoney, getMenuItemPrice } from "./customer-format";
 
 export type AiLanguageOption = {
   value: AiWaiterLanguage;
-  label: string;
+  labelKey: string;
   dir: "ltr" | "rtl";
 };
 
+export type AiWaiterText = (
+  key: string,
+  values?: Record<string, string | number>
+) => string;
+
 export const aiLanguageOptions: AiLanguageOption[] = [
-  { value: "en", label: "English", dir: "ltr" },
-  { value: "ar-EG", label: "العربية", dir: "rtl" }
+  { value: "en", labelKey: "language.english", dir: "ltr" },
+  { value: "ar-EG", labelKey: "language.arabic", dir: "rtl" }
 ];
 
-export const aiSuggestedPrompts: Record<AiWaiterLanguage, string[]> = {
+export const aiSuggestedPromptKeys: Record<AiWaiterLanguage, string[]> = {
   en: [
-    "Recommend something light",
-    "I want a cold drink",
-    "What goes well with coffee?",
-    "Build an order for two",
-    "I want something not too sweet",
-    "Where is my order?",
-    "Can I get the bill?",
-    "Call a waiter",
-    "Help me choose fast"
+    "recommendLight",
+    "coldDrink",
+    "coffeePairing",
+    "orderForTwo",
+    "notTooSweet",
+    "whereIsOrder",
+    "getBill",
+    "callWaiter",
+    "chooseFast"
   ],
   "ar-EG": [
-    "رشحلي حاجة خفيفة",
-    "عايز مشروب ساقع",
-    "إيه يمشي مع القهوة؟",
-    "جهزلي طلب لاتنين",
-    "عايز حاجة مش مسكرة قوي",
-    "فين طلبي؟",
-    "ممكن الحساب؟",
-    "ناديلي ويتر",
-    "ساعدني أختار بسرعة"
+    "recommendLight",
+    "coldDrink",
+    "coffeePairing",
+    "orderForTwo",
+    "notTooSweet",
+    "whereIsOrder",
+    "getBill",
+    "callWaiter",
+    "chooseFast"
   ]
 };
+
+export function getAiPromptLocale(language: AiWaiterLanguage) {
+  return language === "ar-EG" ? "ar" : "en";
+}
+
+export function getAiSuggestedPrompt(language: AiWaiterLanguage, key: string) {
+  return translate(getAiPromptLocale(language), `customer.ai.prompts.${key}`);
+}
 
 export function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -87,11 +101,11 @@ export function getMessageRole(message: Record<string, unknown>) {
   return role === "customer" || role === "system" ? role : "assistant";
 }
 
-export function getMessageContent(message: Record<string, unknown>) {
+export function getMessageContent(message: Record<string, unknown>, fallback = "") {
   return (
     getString(message, "content") ||
     getString(getNestedRecord(message, "structuredPayload"), "message") ||
-    "Message details are not available yet."
+    fallback
   );
 }
 
@@ -114,7 +128,7 @@ export function getPendingModifierQuickReplies(
   return Array.from(labels).slice(0, 8);
 }
 
-export function getAiToolExecutionStatus(message: Record<string, unknown>) {
+export function getAiToolExecutionStatusKey(message: Record<string, unknown>) {
   const metadata = getNestedRecord(message, "metadata");
   const toolExecution = getNestedRecord(metadata, "toolExecution");
   const actions = getRecordArray(toolExecution?.actions);
@@ -139,38 +153,38 @@ export function getAiToolExecutionStatus(message: Record<string, unknown>) {
 
   if (toolName === "request_bill") {
     if (status === "succeeded") {
-      return "Bill request sent";
+      return "tools.billRequestSent";
     }
 
     if (reason === "active_bill_request_exists") {
-      return "Bill already requested";
+      return "tools.billAlreadyRequested";
     }
 
     if (reason === "no_billable_orders") {
-      return "Bill available after an accepted order";
+      return "tools.billAvailableAfterAcceptedOrder";
     }
 
-    return "Bill request checked";
+    return "tools.billRequestChecked";
   }
 
   if (toolName === "call_waiter") {
     if (status === "succeeded") {
-      return "Waiter notified";
+      return "tools.waiterNotified";
     }
 
     if (reason === "active_waiter_call_exists") {
-      return "Waiter call already active";
+      return "tools.waiterCallAlreadyActive";
     }
 
-    return "Waiter call checked";
+    return "tools.waiterCallChecked";
   }
 
   if (toolName === "read_order_status") {
     if (status === "succeeded") {
-      return "Order status checked";
+      return "tools.orderStatusChecked";
     }
 
-    return "No order placed yet";
+    return "tools.noOrderPlacedYet";
   }
 
   return undefined;
@@ -205,11 +219,14 @@ export function getProposalStatus(proposal?: Record<string, unknown>) {
   return getString(proposal, "status", "draft").replaceAll("_", " ");
 }
 
-export function getProposalTitle(proposal?: Record<string, unknown>) {
+export function getProposalTitle(
+  proposal: Record<string, unknown> | undefined,
+  t: AiWaiterText
+) {
   return (
     getString(proposal, "title") ||
     getString(proposal, "summary") ||
-    "Cart proposal"
+    t("proposal.fallbackTitle")
   );
 }
 
@@ -233,7 +250,8 @@ export function getProposalItemMenuId(item: Record<string, unknown>) {
 
 export function describeProposalItem(
   item: Record<string, unknown>,
-  menuItemsById: Map<string, MenuItemSummary>
+  menuItemsById: Map<string, MenuItemSummary>,
+  t: AiWaiterText
 ) {
   const menuItemId = getProposalItemMenuId(item);
   const quantity = Math.max(1, getNumber(item, "quantity", 1));
@@ -242,9 +260,12 @@ export function describeProposalItem(
   if (!menuItem) {
     return {
       quantity,
-      title: menuItemId ? `Menu item ${menuItemId.slice(0, 8)}` : "Menu item",
-      detail:
-        "Menu details are not loaded here yet. The backend validates this proposal before it reaches your cart.",
+      title: menuItemId
+        ? t("proposal.menuItemWithId", {
+            id: menuItemId.slice(0, 8)
+          })
+        : t("proposal.menuItemFallback"),
+      detail: t("proposal.menuDetailsUnavailable"),
       price: "",
       menuItemId
     };
@@ -253,15 +274,16 @@ export function describeProposalItem(
   return {
     quantity,
     title: menuItem.name,
-    detail: "Matched to the live branch menu and availability snapshot.",
+    detail: t("proposal.liveMenuMatch"),
     price: formatMoney(getMenuItemPrice(menuItem), menuItem.currency),
     menuItemId
   };
 }
 
 export function getAiWaiterExperience(
-  state?: AiWaiterStateResult,
-  branchExperience?: BranchEffectiveExperience
+  state: AiWaiterStateResult | undefined,
+  branchExperience: BranchEffectiveExperience | undefined,
+  t: AiWaiterText
 ) {
   const aiExperience = getRecord(state?.effectiveExperience);
   const tenantExperience = getRecord(branchExperience);
@@ -281,20 +303,22 @@ export function getAiWaiterExperience(
     return key.toLowerCase().includes("ai");
   });
   const brandName =
-    getString(branch, "name") || getString(company, "name") || "this cafe";
+    getString(branch, "name") ||
+    getString(company, "name") ||
+    t("page.thisCafe");
   const title =
     getString(aiWaiterTone, "title") ||
     getString(aiWaiterTone, "headline") ||
-    `${brandName} AI waiter`;
+    t("page.tenantAiWaiterTitle", { name: brandName });
   const description =
     getString(introBlock, "body") ||
     getString(aiWaiterTone, "description") ||
     getString(brandVoice, "customerGreeting") ||
-    "Tell the cafe AI waiter what you like. Suggestions are grounded in this branch menu and availability.";
+    t("page.defaultExperienceDescription");
   const tone =
     getString(aiWaiterTone, "tone") ||
     getString(brandVoice, "tone") ||
-    "Warm cafe concierge";
+    t("page.defaultTone");
 
   return {
     brandName,
