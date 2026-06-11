@@ -7,8 +7,10 @@ import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
 import { describe, it } from "node:test";
 import {
+  buildCrowdinCliArgs,
   calculateArabicCoverage,
   formatCrowdinPreflight,
+  getCrowdinBranch,
   getTempCrowdinConfigPath,
   loadCatalogs,
   repoRoot,
@@ -66,7 +68,53 @@ describe("i18n Crowdin automation", () => {
     assert.equal(result.ok, true);
     assert.match(output, /CROWDIN_PROJECT_ID: present/);
     assert.match(output, /CROWDIN_PERSONAL_TOKEN: present/);
+    assert.match(output, /CROWDIN_BRANCH: defaulted/);
     assert.doesNotMatch(output, /123456/);
+    assert.doesNotMatch(output, /secret-value-that-must-not-print/);
+  });
+
+  it("builds Crowdin upload and download commands for the main branch by default", () => {
+    assert.equal(getCrowdinBranch({}), "main");
+    assert.deepEqual(buildCrowdinCliArgs("upload", ["sources"], {}), [
+      "upload",
+      "sources",
+      "--branch",
+      "main"
+    ]);
+    assert.deepEqual(buildCrowdinCliArgs("download", [], {}), [
+      "download",
+      "--branch",
+      "main"
+    ]);
+  });
+
+  it("allows CROWDIN_BRANCH to override the Crowdin CLI branch without printing it", async () => {
+    const env = {
+      CROWDIN_PROJECT_ID: "987654",
+      CROWDIN_PERSONAL_TOKEN: "secret-value-that-must-not-print",
+      CROWDIN_BRANCH: "localization-main"
+    };
+    const result = await runCrowdinPreflight({
+      requireCredentials: true,
+      env
+    });
+    const output = formatCrowdinPreflight(result);
+
+    assert.equal(getCrowdinBranch(env), "localization-main");
+    assert.deepEqual(buildCrowdinCliArgs("upload", ["sources"], env), [
+      "upload",
+      "sources",
+      "--branch",
+      "localization-main"
+    ]);
+    assert.deepEqual(buildCrowdinCliArgs("download", [], env), [
+      "download",
+      "--branch",
+      "localization-main"
+    ]);
+    assert.match(output, /CROWDIN_BRANCH: present/);
+    assert.doesNotMatch(output, /localization-main/);
+    assert.doesNotMatch(output, /987654/);
     assert.doesNotMatch(output, /secret-value-that-must-not-print/);
   });
 
@@ -151,5 +199,6 @@ describe("i18n Crowdin automation", () => {
 
     assert.match(stdout, /Crowdin preflight passed/);
     assert.match(stdout, /CROWDIN_PERSONAL_TOKEN: (present|missing)/);
+    assert.match(stdout, /CROWDIN_BRANCH: (present|defaulted)/);
   });
 });

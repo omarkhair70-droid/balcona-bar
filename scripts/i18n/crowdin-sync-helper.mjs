@@ -21,6 +21,9 @@ Crowdin upload/download/sync require:
 - CROWDIN_PROJECT_ID
 - CROWDIN_PERSONAL_TOKEN
 
+Optional:
+- CROWDIN_BRANCH defaults to main
+
 Secret values are never printed.`);
 }
 

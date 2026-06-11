@@ -53,6 +53,9 @@ The helper wraps the same manual Crowdin CLI flow operators can run directly:
 `crowdin download` to retrieve reviewed Arabic translations.
 It writes a temporary Crowdin config in the repo root so relative source and
 translation paths resolve against the checked-out repository.
+The GitHub/Crowdin integration stores these files under the Crowdin branch named
+`main`; the helper passes `--branch main` by default for upload and download.
+Set `CROWDIN_BRANCH` only when intentionally syncing another Crowdin branch.
 
 ## Required Secrets
 
@@ -60,6 +63,10 @@ Crowdin upload/download/sync requires:
 
 - `CROWDIN_PROJECT_ID`
 - `CROWDIN_PERSONAL_TOKEN`
+
+Optional:
+
+- `CROWDIN_BRANCH`, default `main`
 
 Put these in:
 
@@ -83,9 +90,11 @@ token value.
 2. Add `CROWDIN_PROJECT_ID` and `CROWDIN_PERSONAL_TOKEN` locally.
 3. Install the Crowdin CLI outside the repo.
 4. Run `pnpm i18n:crowdin:preflight`.
-5. Upload source with `pnpm i18n:crowdin:upload`.
+5. Upload source with `pnpm i18n:crowdin:upload`, which uses Crowdin branch
+   `main` unless `CROWDIN_BRANCH` is set.
 6. Translate and review Arabic in Crowdin.
-7. Download Arabic with `pnpm i18n:crowdin:download`.
+7. Download Arabic with `pnpm i18n:crowdin:download` from the same Crowdin
+   branch.
 8. Run `pnpm i18n:qa` and `pnpm i18n:qa:ar`.
 9. Run web build and smoke tests.
 10. Open a PR for the downloaded Arabic catalog changes.
@@ -99,8 +108,8 @@ token value.
 2. Installs pnpm dependencies.
 3. Installs the Crowdin CLI.
 4. Uses GitHub secrets for Crowdin credentials.
-5. Uploads English source.
-6. Downloads Arabic translations.
+5. Uploads English source to `CROWDIN_BRANCH`, default `main`.
+6. Downloads Arabic translations from `CROWDIN_BRANCH`, default `main`.
 7. Runs `pnpm i18n:qa`.
 8. Opens a localization PR if files changed.
 

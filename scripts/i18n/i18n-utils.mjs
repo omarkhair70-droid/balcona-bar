@@ -14,6 +14,7 @@ export const messagePaths = {
 };
 export const crowdinSourcePath = "apps/web/messages/en.json";
 export const crowdinTranslationPath = "apps/web/messages/%two_letters_code%.json";
+export const defaultCrowdinBranch = "main";
 
 export const requiredTopLevelNamespaces = [
   "common",
@@ -439,12 +440,13 @@ export async function runCrowdinPreflight({
 
   const envStatus = {
     CROWDIN_PROJECT_ID: Boolean(env.CROWDIN_PROJECT_ID),
-    CROWDIN_PERSONAL_TOKEN: Boolean(env.CROWDIN_PERSONAL_TOKEN)
+    CROWDIN_PERSONAL_TOKEN: Boolean(env.CROWDIN_PERSONAL_TOKEN),
+    CROWDIN_BRANCH: Boolean(env.CROWDIN_BRANCH?.trim())
   };
 
   if (requireCredentials) {
-    for (const [key, present] of Object.entries(envStatus)) {
-      if (!present) {
+    for (const key of ["CROWDIN_PROJECT_ID", "CROWDIN_PERSONAL_TOKEN"]) {
+      if (!envStatus[key]) {
         errors.push(`${key} is required for Crowdin upload/download/sync`);
       }
     }
@@ -475,6 +477,9 @@ export function formatCrowdinPreflight(result) {
       result.env.CROWDIN_PERSONAL_TOKEN ? "present" : "missing"
     }`
   );
+  lines.push(
+    `- CROWDIN_BRANCH: ${result.env.CROWDIN_BRANCH ? "present" : "defaulted"}`
+  );
 
   if (result.errors.length > 0) {
     lines.push("", "Errors:");
@@ -482,6 +487,16 @@ export function formatCrowdinPreflight(result) {
   }
 
   return lines.join("\n");
+}
+
+export function getCrowdinBranch(env = process.env) {
+  const branch = env.CROWDIN_BRANCH?.trim();
+
+  return branch || defaultCrowdinBranch;
+}
+
+export function buildCrowdinCliArgs(command, args = [], env = process.env) {
+  return [command, ...args, "--branch", getCrowdinBranch(env)];
 }
 
 export function ensureCrowdinCli() {
@@ -539,7 +554,7 @@ export async function runCrowdinCliCommand(command, args = []) {
   try {
     const result = spawnSync(
       "crowdin",
-      [command, ...args, "--config", temp.configPath],
+      [...buildCrowdinCliArgs(command, args), "--config", temp.configPath],
       {
         cwd: repoRoot,
         env: process.env,
