@@ -31,6 +31,7 @@
     "i18n:crowdin:upload": "node scripts/i18n/crowdin-sync-helper.mjs upload",
     "i18n:crowdin:download": "node scripts/i18n/crowdin-sync-helper.mjs download",
     "i18n:crowdin:sync": "node scripts/i18n/crowdin-sync-helper.mjs sync",
+    "i18n:crowdin:normalize": "node scripts/i18n/normalize-crowdin-arabic.mjs",
     "smoke:reset:staging": "node scripts/smoke/smoke-reset.mjs",
     "smoke:bootstrap:staging": "node scripts/smoke/smoke-bootstrap.mjs",
     "smoke:staging": "node scripts/smoke/staging-smoke.mjs --mode full",

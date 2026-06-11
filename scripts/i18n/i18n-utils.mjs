@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { readFile, readdir, unlink, writeFile } from "node:fs/promises";
+import { readFile, readdir, rm, unlink, writeFile } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import { dirname, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -8,9 +8,11 @@ import { spawnSync } from "node:child_process";
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
 export const repoRoot = resolve(__dirname, "../..");
+export const englishCatalogPath = "apps/web/messages/en.json";
+export const arabicCatalogPath = "apps/web/messages/ar.json";
 export const messagePaths = {
-  en: join(repoRoot, "apps/web/messages/en.json"),
-  ar: join(repoRoot, "apps/web/messages/ar.json"),
+  en: join(repoRoot, englishCatalogPath),
+  ar: join(repoRoot, arabicCatalogPath),
   crowdin: join(repoRoot, "crowdin.yml")
 };
 export const crowdinSourcePath = "apps/web/messages/en.json";
@@ -27,6 +29,11 @@ const commonWrongCrowdinOutputFiles = [
 ];
 
 const commonWrongCrowdinOutputDirectories = ["translations", "build"];
+export const crowdinArabicExportCandidates = [
+  "ar/apps/web/messages/ar.json",
+  "ar-EG/apps/web/messages/ar.json"
+];
+export const crowdinArabicExportDirectories = ["ar", "ar-EG"];
 
 export const requiredTopLevelNamespaces = [
   "common",
@@ -67,6 +74,16 @@ export const forbiddenCatalogCodes = [
   "ai_waiter_start",
   "ai_waiter_state",
   "customer_ai_waiter"
+];
+
+export const forbiddenArabicMachineTranslationTerms = [
+  "ناظر",
+  "ناظر AI",
+  "ناظر الذكاء",
+  "مشروع القانون",
+  "عربة التسوق",
+  "قائمة التصفح",
+  "فتح الجدول"
 ];
 
 const secretValuePatterns = [
@@ -292,6 +309,18 @@ function validateNoInternalCodes(errors, label, messages) {
   }
 }
 
+function validateNoForbiddenArabicMachineTranslations(errors, messages) {
+  for (const [key, value] of flattenEntries(messages)) {
+    for (const term of forbiddenArabicMachineTranslationTerms) {
+      if (value.includes(term)) {
+        errors.push(
+          `ar.${key} contains blocked machine translation term "${term}"`
+        );
+      }
+    }
+  }
+}
+
 export function extractCrowdinLocalPaths(crowdinConfig) {
   const source = crowdinConfig.match(/^\s*-?\s*source:\s*(.+?)\s*$/m)?.[1]?.trim();
   const translation = crowdinConfig
@@ -354,6 +383,7 @@ export async function runI18nQa() {
   validateNoEmptyValues(errors, "ar", arEntries);
   validateNoInternalCodes(errors, "en", en);
   validateNoInternalCodes(errors, "ar", ar);
+  validateNoForbiddenArabicMachineTranslations(errors, ar);
   pushSecretFindings(errors, "en", enEntries);
   pushSecretFindings(errors, "ar", arEntries);
   validateCrowdinConfig(errors, crowdin);
@@ -570,6 +600,109 @@ export function formatCrowdinDownloadDiagnostics(result) {
 
   if (result.errorMessage) {
     lines.push("", `Error: ${result.errorMessage}`);
+  }
+
+  return lines.join("\n");
+}
+
+export function validateArabicCatalogForApp(enMessages, arMessages) {
+  const errors = [];
+
+  validateCatalogParity(errors, enMessages, arMessages);
+  validatePlaceholders(errors, enMessages, arMessages);
+  validateNoEmptyValues(errors, "ar", flattenEntries(arMessages));
+  validateNoForbiddenArabicMachineTranslations(errors, arMessages);
+
+  return {
+    ok: errors.length === 0,
+    errors
+  };
+}
+
+export function getCrowdinArabicExportCandidates(root = repoRoot) {
+  return crowdinArabicExportCandidates.map((path) => ({
+    relativePath: path,
+    path: join(root, path),
+    exists: existsSync(join(root, path))
+  }));
+}
+
+export function selectCrowdinArabicExport(root = repoRoot) {
+  const candidates = getCrowdinArabicExportCandidates(root);
+  const selected = candidates.find((candidate) => candidate.exists);
+
+  if (!selected) {
+    throw new Error(
+      `No Crowdin Arabic export found. Expected one of: ${crowdinArabicExportCandidates.join(
+        ", "
+      )}`
+    );
+  }
+
+  return selected;
+}
+
+export async function normalizeCrowdinArabicCatalog({
+  root = repoRoot,
+  cleanupExportDirectories = true
+} = {}) {
+  const selected = selectCrowdinArabicExport(root);
+  const englishCatalog = await readJson(join(root, englishCatalogPath));
+  const arabicCatalog = await readJson(selected.path);
+  const validation = validateArabicCatalogForApp(englishCatalog, arabicCatalog);
+
+  if (!validation.ok) {
+    throw new Error(
+      [
+        `Crowdin Arabic export ${selected.relativePath} failed validation`,
+        ...validation.errors.map((error) => `- ${error}`)
+      ].join("\n")
+    );
+  }
+
+  const targetPath = join(root, arabicCatalogPath);
+
+  await writeFile(targetPath, `${JSON.stringify(arabicCatalog, null, 2)}\n`, "utf8");
+
+  const removedExportDirectories = [];
+
+  if (cleanupExportDirectories) {
+    for (const directory of crowdinArabicExportDirectories) {
+      const directoryPath = join(root, directory);
+
+      if (existsSync(directoryPath)) {
+        await rm(directoryPath, { recursive: true, force: true });
+        removedExportDirectories.push(directory);
+      }
+    }
+  }
+
+  return {
+    selectedSourcePath: selected.relativePath,
+    targetPath: arabicCatalogPath,
+    keyCount: flattenEntries(arabicCatalog).length,
+    removedExportDirectories,
+    validation
+  };
+}
+
+export function formatCrowdinArabicNormalizationResult(result) {
+  const lines = [
+    "Crowdin Arabic catalog normalized",
+    `Selected source: ${result.selectedSourcePath}`,
+    `Target catalog: ${result.targetPath}`,
+    `Arabic key count: ${result.keyCount}`,
+    `Validation: ${result.validation.ok ? "passed" : "failed"}`,
+    `Removed export directories: ${
+      result.removedExportDirectories.length > 0
+        ? result.removedExportDirectories.join(", ")
+        : "<none>"
+    }`
+  ];
+
+  if (result.validation.errors?.length > 0) {
+    lines.push("", "Validation errors:");
+    lines.push(...result.validation.errors.map((error) => `- ${error}`));
   }
 
   return lines.join("\n");

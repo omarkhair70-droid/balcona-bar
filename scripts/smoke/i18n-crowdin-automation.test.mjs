@@ -1,15 +1,18 @@
 import { strict as assert } from "node:assert";
 import { execFile } from "node:child_process";
 import { existsSync } from "node:fs";
-import { readFile, unlink, writeFile } from "node:fs/promises";
-import { dirname, relative } from "node:path";
+import { mkdir, mkdtemp, readFile, rm, unlink, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { dirname, join, relative } from "node:path";
 import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
 import { describe, it } from "node:test";
 import {
+  arabicCatalogPath,
   buildCrowdinCliArgs,
   calculateArabicCoverage,
   findCommonWrongCrowdinOutputPaths,
+  formatCrowdinArabicNormalizationResult,
   formatCrowdinDownloadDiagnostics,
   formatCrowdinPreflight,
   getCrowdinDownloadFailureMessage,
@@ -18,11 +21,13 @@ import {
   inspectCrowdinDownload,
   loadCatalogs,
   messagePaths,
+  normalizeCrowdinArabicCatalog,
   repoRoot,
   runCrowdinPreflight,
   runI18nQa,
   sha256File,
   unchangedCrowdinDownloadMessage,
+  validateArabicCatalogForApp,
   writeTempCrowdinConfig
 } from "../i18n/i18n-utils.mjs";
 
@@ -35,6 +40,33 @@ async function readJson(relativePath) {
 
 async function readText(relativePath) {
   return readFile(new URL(relativePath, import.meta.url), "utf8");
+}
+
+async function writeJson(path, value) {
+  await mkdir(dirname(path), { recursive: true });
+  await writeFile(path, `${JSON.stringify(value, null, 2)}\n`, "utf8");
+}
+
+async function createCrowdinFixtureRoot({
+  en,
+  ar,
+  arEg,
+  existingAr = { common: { greeting: "Old {name}" } }
+}) {
+  const root = await mkdtemp(join(tmpdir(), "balcona-i18n-"));
+
+  await writeJson(join(root, "apps/web/messages/en.json"), en);
+  await writeJson(join(root, "apps/web/messages/ar.json"), existingAr);
+
+  if (ar) {
+    await writeJson(join(root, "ar/apps/web/messages/ar.json"), ar);
+  }
+
+  if (arEg) {
+    await writeJson(join(root, "ar-EG/apps/web/messages/ar.json"), arEg);
+  }
+
+  return root;
 }
 
 describe("i18n Crowdin automation", () => {
@@ -197,6 +229,69 @@ describe("i18n Crowdin automation", () => {
     assert.doesNotMatch(output, /secret-value-that-must-not-print/);
   });
 
+  it("normalizes the general Arabic Crowdin export before ar-EG", async () => {
+    const en = { common: { greeting: "Hello {name}" } };
+    const ar = { common: { greeting: "مرحبا {name}" } };
+    const arEg = { common: { greeting: "اهلا {name}" } };
+    const root = await createCrowdinFixtureRoot({ en, ar, arEg });
+
+    try {
+      const result = await normalizeCrowdinArabicCatalog({ root });
+      const normalized = JSON.parse(await readFile(join(root, arabicCatalogPath), "utf8"));
+      const output = formatCrowdinArabicNormalizationResult(result);
+
+      assert.equal(result.selectedSourcePath, "ar/apps/web/messages/ar.json");
+      assert.equal(result.targetPath, "apps/web/messages/ar.json");
+      assert.deepEqual(normalized, ar);
+      assert.equal(existsSync(join(root, "ar")), false);
+      assert.equal(existsSync(join(root, "ar-EG")), false);
+      assert.match(output, /Selected source: ar\/apps\/web\/messages\/ar\.json/);
+      assert.match(output, /Validation: passed/);
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
+  it("normalizes ar-EG only when the general Arabic export is absent", async () => {
+    const en = { common: { greeting: "Hello {name}" } };
+    const arEg = { common: { greeting: "اهلا {name}" } };
+    const root = await createCrowdinFixtureRoot({ en, arEg });
+
+    try {
+      const result = await normalizeCrowdinArabicCatalog({ root });
+      const normalized = JSON.parse(await readFile(join(root, arabicCatalogPath), "utf8"));
+
+      assert.equal(result.selectedSourcePath, "ar-EG/apps/web/messages/ar.json");
+      assert.deepEqual(normalized, arEg);
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
+  it("rejects normalized Crowdin exports with key or placeholder mismatches", async () => {
+    const en = { common: { greeting: "Hello {name}" } };
+    const ar = { common: { greeting: "مرحبا {guest}" } };
+    const root = await createCrowdinFixtureRoot({ en, ar });
+
+    try {
+      await assert.rejects(
+        () => normalizeCrowdinArabicCatalog({ root }),
+        /Placeholder mismatch at common\.greeting/
+      );
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
+  it("blocks known bad Arabic machine translation terms", () => {
+    const en = { customer: { actions: { cart: "Cart" } } };
+    const ar = { customer: { actions: { cart: "عربة التسوق" } } };
+    const validation = validateArabicCatalogForApp(en, ar);
+
+    assert.equal(validation.ok, false);
+    assert.match(validation.errors.join("\n"), /عربة التسوق/);
+  });
+
   it("configures Crowdin source and Arabic target safely", async () => {
     const crowdinConfig = await readText("../../crowdin.yml");
 
@@ -253,7 +348,8 @@ describe("i18n Crowdin automation", () => {
       "i18n:crowdin:preflight",
       "i18n:crowdin:upload",
       "i18n:crowdin:download",
-      "i18n:crowdin:sync"
+      "i18n:crowdin:sync",
+      "i18n:crowdin:normalize"
     ]) {
       assert.ok(scripts[scriptName], `missing package script ${scriptName}`);
     }
