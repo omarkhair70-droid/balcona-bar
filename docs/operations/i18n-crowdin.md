@@ -17,6 +17,12 @@ Crowdin must upload only `apps/web/messages/en.json` as source. It must write
 Arabic to `apps/web/messages/ar.json` through the configured
 `%two_letters_code%` mapping.
 
+Crowdin GitHub PRs may still export reviewed translations under
+language-prefixed paths such as `ar/apps/web/messages/ar.json` or
+`ar-EG/apps/web/messages/ar.json`. Do not merge those PRs as-is, because the
+app does not read language-prefixed folders. Normalize the export into
+`apps/web/messages/ar.json`, then validate the app catalog.
+
 The paths in `crowdin.yml` are intentionally relative, not `/`-prefixed, so the
 Crowdin CLI can match files in the GitHub Actions checkout.
 
@@ -43,6 +49,7 @@ required environment variables are present:
 pnpm i18n:crowdin:upload
 pnpm i18n:crowdin:download
 pnpm i18n:crowdin:sync
+pnpm i18n:crowdin:normalize
 ```
 
 If the Crowdin CLI is missing, the helper fails with a clear setup message. The
@@ -91,6 +98,33 @@ Never put them in:
 The scripts print only whether each variable is present. They never print the
 token value.
 
+## Normalizing Crowdin GitHub PRs
+
+When Crowdin opens a GitHub PR with language-prefixed export folders, run:
+
+```bash
+pnpm i18n:crowdin:normalize
+pnpm i18n:qa
+pnpm i18n:qa:ar
+```
+
+The normalizer reads these common Crowdin export paths:
+
+- `ar/apps/web/messages/ar.json`
+- `ar-EG/apps/web/messages/ar.json`
+
+It prefers the general Arabic path, then falls back to `ar-EG` if that is the
+only export present. After validating that keys and placeholders match
+`apps/web/messages/en.json`, it writes the selected JSON to
+`apps/web/messages/ar.json` and removes the known language-prefixed export
+folders. The final localization PR should contain the app catalog update, not
+the `ar/` or `ar-EG/` folders.
+
+Arabic QA also blocks known bad machine translations for this product context,
+including literal phrases such as `ناظر`, `مشروع القانون`, and `عربة التسوق`.
+If those appear in the normalized catalog, fix only the QA-blocking terms before
+merging.
+
 ## Manual First Run Setup
 
 1. Create a Crowdin project outside the repo.
@@ -105,9 +139,11 @@ token value.
 8. If the download fails because `apps/web/messages/ar.json` did not change,
    check the Crowdin branch, Arabic language mapping, and export path. Use
    `ALLOW_EMPTY_CROWDIN_DOWNLOAD=true` only to gather diagnostics.
-9. Run `pnpm i18n:qa` and `pnpm i18n:qa:ar`.
-10. Run web build and smoke tests.
-11. Open a PR for the downloaded Arabic catalog changes.
+9. If Crowdin produced language-prefixed folders, run
+   `pnpm i18n:crowdin:normalize` before merging any catalog changes.
+10. Run `pnpm i18n:qa` and `pnpm i18n:qa:ar`.
+11. Run web build and smoke tests.
+12. Open a PR for the downloaded Arabic catalog changes.
 
 ## GitHub Actions Sync
 
