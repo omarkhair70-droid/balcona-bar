@@ -51,6 +51,8 @@ repo does not vendor the CLI.
 The helper wraps the same manual Crowdin CLI flow operators can run directly:
 `crowdin upload sources` to publish English source strings and
 `crowdin download` to retrieve reviewed Arabic translations.
+It writes a temporary Crowdin config in the repo root so relative source and
+translation paths resolve against the checked-out repository.
 
 ## Required Secrets
 
