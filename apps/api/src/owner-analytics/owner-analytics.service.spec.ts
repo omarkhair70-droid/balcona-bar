@@ -103,6 +103,7 @@ function createPrisma(overrides: Record<string, unknown> = {}) {
     branch: { findUnique: jest.fn().mockResolvedValue(branch) },
     manualPayment: { findMany: jest.fn().mockResolvedValue([]) },
     onlinePaymentIntent: { findMany: jest.fn().mockResolvedValue([]) },
+    onlinePaymentOperation: { findMany: jest.fn().mockResolvedValue([]) },
     order: {
       groupBy: jest.fn().mockResolvedValue([]),
       findMany: jest.fn().mockResolvedValue([]),
