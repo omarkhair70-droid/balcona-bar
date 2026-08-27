@@ -383,6 +383,7 @@ export class OnlinePaymentsService {
           },
           data: {
             providerIntentId: providerPayment.providerIntentId,
+            providerOrderId: providerPayment.providerOrderId,
             providerCheckoutUrl: providerPayment.checkoutUrl,
             checkoutExpiresAt: providerPayment.checkoutExpiresAt,
             status: providerPayment.status,
@@ -410,6 +411,7 @@ export class OnlinePaymentsService {
             provider: "paymob",
             providerInitialization: "ready",
             providerIntentId: readyIntent.providerIntentId,
+            providerOrderId: readyIntent.providerOrderId,
             checkoutExpiresAt: readyIntent.checkoutExpiresAt,
           },
         );
