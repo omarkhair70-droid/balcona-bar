@@ -220,8 +220,8 @@ CREATE TABLE "OnlinePaymentReconciliationEntry" (
     CHECK ("localAmountMinor" <> 0)
 );
 
-CREATE UNIQUE INDEX
-  "OnlinePaymentReconciliationEntry_reconciliationRunId_providerTransactionId_key"
+CREATE INDEX
+  "OnlinePaymentReconciliationEntry_reconciliationRunId_providerTransactionId_idx"
   ON "OnlinePaymentReconciliationEntry"("reconciliationRunId", "providerTransactionId");
 CREATE INDEX "OnlinePaymentReconciliationEntry_companyId_idx"
   ON "OnlinePaymentReconciliationEntry"("companyId");
