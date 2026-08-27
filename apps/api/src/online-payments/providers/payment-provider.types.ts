@@ -1,4 +1,9 @@
-import { OnlinePaymentIntentStatus, OnlinePaymentProvider } from "@prisma/client";
+import {
+  OnlinePaymentIntentStatus,
+  OnlinePaymentOperationStatus,
+  OnlinePaymentOperationType,
+  OnlinePaymentProvider,
+} from "@prisma/client";
 
 export type PaymentBillingData = {
   firstName: string;
@@ -62,6 +67,12 @@ export type ProviderTransactionState = {
   amountMinor: number;
   currency: string;
   actionable: boolean;
+  hasParentTransaction?: boolean;
+  parentProviderTransactionId?: string;
+  operationType?: OnlinePaymentOperationType;
+  refundedAmountMinor?: number;
+  capturedAmountMinor?: number;
+  isLive?: boolean;
   safeMetadata: Record<string, unknown>;
 };
 
@@ -79,3 +90,23 @@ export type ProviderTransactionInquiryResult =
       providerOrderId: string;
       transaction: ProviderTransactionState;
     };
+
+
+export type ProviderPostPaymentOperationInput = {
+  type: OnlinePaymentOperationType;
+  parentProviderTransactionId: string;
+  amountMinor: number;
+  expectedCurrency: string;
+};
+
+export type ProviderPostPaymentOperationResult = {
+  provider: OnlinePaymentProvider;
+  type: OnlinePaymentOperationType;
+  status: OnlinePaymentOperationStatus;
+  parentProviderTransactionId: string;
+  providerTransactionId: string;
+  providerOrderId?: string;
+  amountMinor: number;
+  currency?: string;
+  safeMetadata: Record<string, unknown>;
+};
