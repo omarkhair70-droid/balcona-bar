@@ -1,5 +1,6 @@
 import { Injectable } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
+import { createHmac, timingSafeEqual } from "crypto";
 import {
   OnlinePaymentIntentStatus,
   OnlinePaymentProvider,
@@ -8,6 +9,7 @@ import {
   CreateProviderPaymentInput,
   CreateProviderPaymentResult,
   PaymentProviderError,
+  VerifiedProviderTransactionWebhook,
 } from "./payment-provider.types";
 
 const DEFAULT_PAYMOB_BASE_URL = "https://accept.paymob.com";
@@ -110,14 +112,15 @@ export class PaymobPaymentProviderService {
       );
     }
 
-    const providerIntentId = this.nonEmptyString(payload.id);
+    const providerIntentId = this.identifierString(payload.id);
+    const providerOrderId = this.identifierString(payload.intention_order_id);
     const clientSecret = this.nonEmptyString(payload.client_secret);
     const responseAmount = payload.intention_detail?.amount;
     const responseCurrency = this.nonEmptyString(
       payload.intention_detail?.currency,
     );
 
-    if (!providerIntentId || !clientSecret) {
+    if (!providerIntentId || !providerOrderId || !clientSecret) {
       throw new PaymentProviderError(
         "Paymob intention response is missing required identifiers",
         "invalid_response",
@@ -171,6 +174,7 @@ export class PaymobPaymentProviderService {
     return {
       provider: this.provider,
       providerIntentId,
+      providerOrderId,
       status: OnlinePaymentIntentStatus.pending,
       checkoutUrl: checkoutUrl.toString(),
       checkoutExpiresAt: new Date(
@@ -186,6 +190,193 @@ export class PaymobPaymentProviderService {
         expectedLive: config.expectedLive,
       },
     };
+  }
+
+  verifyTransactionWebhook(
+    objValue: unknown,
+    receivedHmacValue: string,
+  ): VerifiedProviderTransactionWebhook {
+    const config = this.readWebhookConfig();
+    const obj = this.requireRecord(objValue, "Paymob transaction object");
+    const order = this.requireRecord(obj.order, "Paymob transaction order");
+    const sourceData = this.requireRecord(
+      obj.source_data,
+      "Paymob transaction source data",
+    );
+
+    const signedFields = [
+      this.requireSignedScalar(obj.amount_cents, "amount_cents"),
+      this.requireSignedScalar(obj.created_at, "created_at"),
+      this.requireSignedScalar(obj.currency, "currency"),
+      this.requireSignedScalar(obj.error_occured, "error_occured"),
+      this.requireSignedScalar(
+        obj.has_parent_transaction,
+        "has_parent_transaction",
+      ),
+      this.requireSignedScalar(obj.id, "id"),
+      this.requireSignedScalar(obj.integration_id, "integration_id"),
+      this.requireSignedScalar(obj.is_3d_secure, "is_3d_secure"),
+      this.requireSignedScalar(obj.is_auth, "is_auth"),
+      this.requireSignedScalar(obj.is_capture, "is_capture"),
+      this.requireSignedScalar(obj.is_refunded, "is_refunded"),
+      this.requireSignedScalar(
+        obj.is_standalone_payment,
+        "is_standalone_payment",
+      ),
+      this.requireSignedScalar(obj.is_voided, "is_voided"),
+      this.requireSignedScalar(order.id, "order.id"),
+      this.requireSignedScalar(obj.owner, "owner"),
+      this.requireSignedScalar(obj.pending, "pending"),
+      this.requireSignedScalar(sourceData.pan, "source_data.pan"),
+      this.requireSignedScalar(sourceData.sub_type, "source_data.sub_type"),
+      this.requireSignedScalar(sourceData.type, "source_data.type"),
+      this.requireSignedScalar(obj.success, "success"),
+    ];
+    const canonical = signedFields.map((value) => String(value)).join("");
+    const receivedHmac = receivedHmacValue.trim().toLowerCase();
+
+    if (!/^[a-f0-9]{128}$/.test(receivedHmac)) {
+      throw new PaymentProviderError(
+        "Paymob transaction HMAC is invalid",
+        "signature_invalid",
+      );
+    }
+
+    const computedHmac = createHmac("sha512", config.hmacSecret)
+      .update(canonical)
+      .digest("hex");
+    const verified = timingSafeEqual(
+      Buffer.from(computedHmac, "hex"),
+      Buffer.from(receivedHmac, "hex"),
+    );
+
+    if (!verified) {
+      throw new PaymentProviderError(
+        "Paymob transaction HMAC verification failed",
+        "signature_invalid",
+      );
+    }
+
+    const providerTransactionId = this.identifierString(obj.id);
+    const providerOrderId = this.identifierString(order.id);
+    const amountMinor = this.integerValue(obj.amount_cents);
+    const currency = this.nonEmptyString(obj.currency);
+    const integrationId = this.integerValue(obj.integration_id);
+
+    if (
+      !providerTransactionId ||
+      !providerOrderId ||
+      amountMinor === undefined ||
+      !currency ||
+      integrationId === undefined
+    ) {
+      throw new PaymentProviderError(
+        "Paymob transaction callback is missing required verified values",
+        "invalid_response",
+      );
+    }
+
+    if (!config.integrationIds.includes(integrationId)) {
+      throw new PaymentProviderError(
+        "Paymob transaction uses an integration that is not configured",
+        "environment_mismatch",
+        { integrationId },
+      );
+    }
+
+    const pending = this.booleanValue(obj.pending);
+    const success = this.booleanValue(obj.success);
+    const isAuth = this.booleanValue(obj.is_auth);
+    const isCapture = this.booleanValue(obj.is_capture);
+    const isVoided = this.booleanValue(obj.is_voided);
+    const hasParentTransaction = this.booleanValue(
+      obj.has_parent_transaction,
+    );
+
+    if (
+      pending === undefined ||
+      success === undefined ||
+      isAuth === undefined ||
+      isCapture === undefined ||
+      isVoided === undefined ||
+      hasParentTransaction === undefined
+    ) {
+      throw new PaymentProviderError(
+        "Paymob transaction callback contains invalid state flags",
+        "invalid_response",
+      );
+    }
+
+    let status = OnlinePaymentIntentStatus.failed;
+
+    if (pending) {
+      status = OnlinePaymentIntentStatus.pending;
+    } else if (isVoided) {
+      status = OnlinePaymentIntentStatus.cancelled;
+    } else if (success && isAuth && !isCapture) {
+      status = OnlinePaymentIntentStatus.requires_action;
+    } else if (success) {
+      status = OnlinePaymentIntentStatus.succeeded;
+    }
+
+    const merchantReference = this.identifierString(order.merchant_order_id);
+    const providerEventId =
+      `paymob_tx_${providerTransactionId}_${computedHmac.slice(0, 32)}`;
+
+    return {
+      provider: this.provider,
+      providerEventId,
+      providerTransactionId,
+      providerOrderId,
+      merchantReference,
+      integrationId,
+      status,
+      amountMinor,
+      currency,
+      actionable: !hasParentTransaction,
+      safeMetadata: {
+        providerTransactionId,
+        providerOrderId,
+        integrationId,
+        errorOccurred: this.booleanValue(obj.error_occured),
+        hasParentTransaction,
+        is3dSecure: this.booleanValue(obj.is_3d_secure),
+        isAuth,
+        isCapture,
+        isRefunded: this.booleanValue(obj.is_refunded),
+        isStandalonePayment: this.booleanValue(obj.is_standalone_payment),
+        isVoided,
+        pending,
+        success,
+        sourceType: this.nonEmptyString(sourceData.type),
+        sourceSubtype: this.nonEmptyString(sourceData.sub_type),
+      },
+    };
+  }
+
+  private readWebhookConfig() {
+    const hmacSecret = this.nonEmptyString(
+      this.configService.get<string>("onlinePayments.paymob.hmacSecret"),
+    );
+    const integrationIds =
+      this.configService.get<number[]>("onlinePayments.paymob.integrationIds") ??
+      [];
+
+    if (!hmacSecret) {
+      throw new PaymentProviderError(
+        "Paymob HMAC secret is not configured",
+        "missing_config",
+      );
+    }
+
+    if (integrationIds.length === 0) {
+      throw new PaymentProviderError(
+        "Paymob payment integration IDs are not configured",
+        "missing_config",
+      );
+    }
+
+    return { hmacSecret, integrationIds };
   }
 
   private readConfig() {
@@ -384,6 +575,70 @@ export class PaymobPaymentProviderService {
       "provider_unavailable",
       { status },
     );
+  }
+
+  private requireRecord(value: unknown, label: string) {
+    if (!value || typeof value !== "object" || Array.isArray(value)) {
+      throw new PaymentProviderError(
+        `${label} is invalid`,
+        "invalid_response",
+      );
+    }
+
+    return value as Record<string, unknown>;
+  }
+
+  private requireSignedScalar(value: unknown, label: string) {
+    if (
+      value === undefined ||
+      (typeof value === "object" && value !== null) ||
+      typeof value === "function" ||
+      typeof value === "symbol"
+    ) {
+      throw new PaymentProviderError(
+        `Paymob HMAC field ${label} is invalid`,
+        "invalid_response",
+      );
+    }
+
+    return value;
+  }
+
+  private identifierString(value: unknown) {
+    if (typeof value === "number" && Number.isFinite(value)) {
+      return String(value);
+    }
+
+    return this.nonEmptyString(value);
+  }
+
+  private integerValue(value: unknown) {
+    if (typeof value === "number" && Number.isInteger(value)) {
+      return value;
+    }
+
+    if (typeof value === "string" && /^-?\d+$/.test(value.trim())) {
+      const parsed = Number.parseInt(value.trim(), 10);
+      return Number.isSafeInteger(parsed) ? parsed : undefined;
+    }
+
+    return undefined;
+  }
+
+  private booleanValue(value: unknown) {
+    if (typeof value === "boolean") {
+      return value;
+    }
+
+    if (value === "true") {
+      return true;
+    }
+
+    if (value === "false") {
+      return false;
+    }
+
+    return undefined;
   }
 
   private nonEmptyString(value: unknown) {
