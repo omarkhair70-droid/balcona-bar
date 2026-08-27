@@ -33,6 +33,7 @@ import {
 import { OnlinePaymentsService } from "./online-payments.service";
 import { PaymentRateLimit } from "./payment-rate-limit.decorator";
 import { PaymentRateLimitGuard } from "./payment-rate-limit.guard";
+import { StaffPaymentRecoveryRateLimitGuard } from "./staff-payment-recovery-rate-limit.guard";
 
 @Controller()
 export class OnlinePaymentsController {
@@ -94,7 +95,7 @@ export class OnlinePaymentsController {
   }
 
   @Post("online-payment-intents/:intentId/recover")
-  @UseGuards(StaffSessionGuard)
+  @UseGuards(StaffSessionGuard, StaffPaymentRecoveryRateLimitGuard)
   async recoverPaymobIntent(
     @CurrentStaff() currentStaff: StaffAuthContext,
     @Param() params: OnlinePaymentIntentIdParamDto,
