@@ -683,27 +683,20 @@ export class OnlinePaymentsService {
       });
     }
 
-    if (!ACTIVE_ONLINE_PAYMENT_STATUSES.includes(intent.status)) {
-      return this.skipPaymobSettlement(
-        tx,
-        intent,
-        verified,
-        "intent_terminal",
-        { status: intent.status },
-      );
-    }
-
     const now = new Date();
     const updateResult = await tx.onlinePaymentIntent.updateMany({
       where: {
         id: intent.id,
         provider: OnlinePaymentProvider.paymob,
         providerOrderId: verified.providerOrderId,
-        status: { in: ACTIVE_ONLINE_PAYMENT_STATUSES },
+        status: { not: OnlinePaymentIntentStatus.succeeded },
       },
       data: {
         status: OnlinePaymentIntentStatus.succeeded,
         succeededAt: now,
+        failedAt: null,
+        cancelledAt: null,
+        expiredAt: null,
         failureCode: null,
         failureMessage: null,
         metadata: this.toJsonValue({
