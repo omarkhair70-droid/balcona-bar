@@ -5,6 +5,10 @@ import {
   CashDrawerTransactionType,
   CashierShiftReportType,
   CashierShiftStatus,
+  OnlinePaymentIntentStatus,
+  OnlinePaymentOperationStatus,
+  OnlinePaymentOperationType,
+  OnlinePaymentProvider,
 } from '@prisma/client';
 import { CashierShiftsService } from './cashier-shifts.service';
 
@@ -270,6 +274,61 @@ describe('CashierShiftsService', () => {
       }),
     );
     expect(result.report.reportNumber).toBe('X-00001');
+  });
+
+  it('nets Paymob refund adjustments from online shift tender totals', async () => {
+    const tx = buildTx({
+      onlinePaymentIntent: {
+        findMany: jest.fn().mockResolvedValue([
+          {
+            id: 'intent-1',
+            billId: 'bill-1',
+            provider: OnlinePaymentProvider.paymob,
+            status: OnlinePaymentIntentStatus.succeeded,
+            amountMinor: 12500,
+            currency: 'EGP',
+            succeededAt: now,
+            bill: {
+              id: 'bill-1',
+              billNumber: 'BILL-00001',
+              status: 'paid',
+              totalMinor: 12500,
+              paidMinor: 12500,
+              balanceDueMinor: 0,
+              paidAt: now,
+            },
+          },
+        ]),
+      },
+      onlinePaymentOperation: {
+        findMany: jest.fn().mockResolvedValue([
+          {
+            id: 'refund-1',
+            onlinePaymentIntentId: 'intent-1',
+            provider: OnlinePaymentProvider.paymob,
+            type: OnlinePaymentOperationType.refund,
+            status: OnlinePaymentOperationStatus.succeeded,
+            amountMinor: 5000,
+            currency: 'EGP',
+            providerTransactionId: '555010',
+            parentProviderTransactionId: '555001',
+            completedAt: now,
+            onlinePaymentIntent: { billId: 'bill-1' },
+          },
+        ]),
+      },
+    });
+    const { service } = buildService(tx);
+
+    const result = await service.generateXReport('shift-1', 'staff-1');
+    const tenderTotals = (result.report.snapshot as any).tenderTotals;
+
+    expect(tenderTotals.onlineGrossMinor).toBe(12500);
+    expect(tenderTotals.onlineAdjustmentMinor).toBe(5000);
+    expect(tenderTotals.onlineRefundedMinor).toBe(5000);
+    expect(tenderTotals.onlineExternalMinor).toBe(7500);
+    expect(tenderTotals.onlineTotalMinor).toBe(7500);
+    expect(tenderTotals.totalCollectedMinor).toBe(7500);
   });
 
   it('closes a shift and stores a Z report snapshot with over-short', async () => {
