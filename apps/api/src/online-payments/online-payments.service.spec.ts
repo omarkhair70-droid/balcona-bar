@@ -1574,9 +1574,11 @@ describe("OnlinePaymentsService", () => {
         }),
       }),
     );
-    expect(result).toMatchObject({ settlement: {
-      settled: false,
-      reason: "bill_already_paid",
+    expect(result).toMatchObject({
+      settlement: {
+        settled: false,
+        reason: "bill_already_paid",
+      },
     });
   });
 
