@@ -37,6 +37,7 @@ import {
 import { PrismaService } from "../prisma/prisma.service";
 import { RealtimeEventsService } from "../realtime-events/realtime-events.service";
 import { SaasService } from "../saas/saas.service";
+import { FawryPaymentProviderService } from "./providers/fawry-payment-provider.service";
 import { PaymobPaymentProviderService } from "./providers/paymob-payment-provider.service";
 import {
   PaymentProviderError,
@@ -128,6 +129,7 @@ export class OnlinePaymentsService {
     private readonly saasService: SaasService,
     private readonly auditService: AuditService,
     private readonly paymobPaymentProviderService: PaymobPaymentProviderService,
+    private readonly fawryPaymentProviderService: FawryPaymentProviderService,
   ) {}
 
   async createIntentForCustomer(
@@ -141,6 +143,10 @@ export class OnlinePaymentsService {
 
     if (provider === OnlinePaymentProvider.paymob) {
       return this.createPaymobIntentForCustomer(sessionId, billId, body);
+    }
+
+    if (provider === OnlinePaymentProvider.fawry) {
+      return this.createFawryIntentForCustomer(sessionId, billId, body);
     }
 
     if (provider !== OnlinePaymentProvider.mock) {
@@ -3171,6 +3177,10 @@ export class OnlinePaymentsService {
 
     if (provider === OnlinePaymentProvider.paymob) {
       return OnlinePaymentProvider.paymob;
+    }
+
+    if (provider === OnlinePaymentProvider.fawry) {
+      return OnlinePaymentProvider.fawry;
     }
 
     if (provider === OnlinePaymentProvider.external) {
