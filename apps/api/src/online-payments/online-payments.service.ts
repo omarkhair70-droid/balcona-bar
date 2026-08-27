@@ -108,6 +108,16 @@ type OnlinePaymentIntentRecord = Prisma.OnlinePaymentIntentGetPayload<{
   include: typeof onlinePaymentIntentInclude;
 }>;
 
+const onlinePaymentOperationInclude = {
+  onlinePaymentIntent: {
+    include: onlinePaymentIntentInclude,
+  },
+} satisfies Prisma.OnlinePaymentOperationInclude;
+
+type OnlinePaymentOperationRecord = Prisma.OnlinePaymentOperationGetPayload<{
+  include: typeof onlinePaymentOperationInclude;
+}>;
+
 @Injectable()
 export class OnlinePaymentsService {
   constructor(
