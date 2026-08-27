@@ -1348,14 +1348,16 @@ export class OnlinePaymentsService {
           preparation.operation.id,
           error,
         );
-      } else {
-        await this.failPaymobOperationBeforeMutation(
-          preparation.operation.id,
-          error,
-          "provider_request_rejected",
+        throw new ServiceUnavailableException(
+          "Paymob operation outcome is uncertain and must be recovered before another financial operation",
         );
       }
 
+      await this.failPaymobOperationBeforeMutation(
+        preparation.operation.id,
+        error,
+        "provider_request_rejected",
+      );
       throw this.mapPaymobOperationError(error);
     }
 
@@ -1397,6 +1399,9 @@ export class OnlinePaymentsService {
     } catch (error) {
       if (this.isAmbiguousProviderMutationError(error)) {
         await this.markPaymobOperationUncertain(updatedOperation.id, error);
+        throw new ServiceUnavailableException(
+          "Paymob operation is pending authoritative provider confirmation",
+        );
       }
 
       throw this.mapPaymobOperationError(error);
@@ -1828,7 +1833,14 @@ export class OnlinePaymentsService {
   private isAmbiguousProviderMutationError(error: unknown) {
     return (
       error instanceof PaymentProviderError &&
-      (error.code === "timeout" || error.code === "provider_unavailable")
+      [
+        "timeout",
+        "provider_unavailable",
+        "invalid_response",
+        "amount_mismatch",
+        "currency_mismatch",
+        "environment_mismatch",
+      ].includes(error.code)
     );
   }
 
