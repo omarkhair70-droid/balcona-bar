@@ -203,7 +203,7 @@ describe("API runtime configuration", () => {
     });
 
     expect(() => validateEnvironment(process.env)).toThrow(
-      "Fawry production payments require merchant code, secure key, checkout/status URLs, notification URL, and return URL",
+      "Fawry production payments require merchant code, secure key, checkout/status/refund URLs, notification URL, and return URL",
     );
   });
 
@@ -217,6 +217,8 @@ describe("API runtime configuration", () => {
       FAWRY_CHECKOUT_URL: "https://www.atfawry.com/live-checkout",
       FAWRY_STATUS_URL:
         "https://www.atfawry.com/ECommerceWeb/Fawry/payments/status/v2",
+      FAWRY_REFUND_URL:
+        "https://www.atfawry.com/ECommerceWeb/Fawry/payments/refund",
       FAWRY_MERCHANT_CODE: "merchant-code",
       FAWRY_SECURE_KEY: "secure-key",
       FAWRY_NOTIFICATION_URL:
