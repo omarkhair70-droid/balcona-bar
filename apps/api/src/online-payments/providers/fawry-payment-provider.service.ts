@@ -289,9 +289,7 @@ export class FawryPaymentProviderService {
       this.identifierString(obj.paymentReferenceNumber) ??
       "";
     const paymentAmount = this.decimalValue(obj.paymentAmount);
-    const orderAmount =
-      this.decimalValue(obj.orderAmount) ??
-      this.deriveOrderAmount(obj);
+    const orderAmount = this.decimalValue(obj.orderAmount);
     const messageSignature =
       this.nonEmptyString(obj.messageSignature) ??
       this.nonEmptyString(obj.signature);
