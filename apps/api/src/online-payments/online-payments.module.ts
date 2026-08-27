@@ -6,6 +6,7 @@ import { SaasModule } from "../saas/saas.module";
 import { StaffModule } from "../staff/staff.module";
 import { OnlinePaymentsController } from "./online-payments.controller";
 import { OnlinePaymentsService } from "./online-payments.service";
+import { PaymobPaymentProviderService } from "./providers/paymob-payment-provider.service";
 
 @Module({
   imports: [
@@ -16,7 +17,7 @@ import { OnlinePaymentsService } from "./online-payments.service";
     StaffModule,
   ],
   controllers: [OnlinePaymentsController],
-  providers: [OnlinePaymentsService],
+  providers: [OnlinePaymentsService, PaymobPaymentProviderService],
   exports: [OnlinePaymentsService],
 })
 export class OnlinePaymentsModule {}
