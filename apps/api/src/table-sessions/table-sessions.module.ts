@@ -4,6 +4,7 @@ import { PrismaModule } from '../prisma/prisma.module';
 import { RealtimeEventsModule } from '../realtime-events/realtime-events.module';
 import { StaffModule } from '../staff/staff.module';
 import { TableSessionAccessService } from './table-session-access.service';
+import { CustomerSessionAccessGuard } from './guards/customer-session-access.guard';
 import { TableSessionsController } from './table-sessions.controller';
 import { TableSessionsService } from './table-sessions.service';
 
@@ -15,7 +16,15 @@ import { TableSessionsService } from './table-sessions.service';
     StaffModule,
   ],
   controllers: [TableSessionsController],
-  providers: [TableSessionsService, TableSessionAccessService],
-  exports: [TableSessionsService, TableSessionAccessService],
+  providers: [
+    TableSessionsService,
+    TableSessionAccessService,
+    CustomerSessionAccessGuard,
+  ],
+  exports: [
+    TableSessionsService,
+    TableSessionAccessService,
+    CustomerSessionAccessGuard,
+  ],
 })
 export class TableSessionsModule {}

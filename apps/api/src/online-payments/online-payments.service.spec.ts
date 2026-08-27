@@ -71,8 +71,9 @@ function intent(
   };
 }
 
-function createService(provider = "mock") {
+function createService(provider = "mock", environment = "test") {
   const tx = {
+    $executeRaw: jest.fn().mockResolvedValue(1),
     onlinePaymentEvent: {
       findUnique: jest.fn().mockResolvedValue(null),
       create: jest.fn().mockResolvedValue({ id: "event-1" }),
@@ -111,6 +112,10 @@ function createService(provider = "mock") {
 
       if (key === "onlinePayments.checkoutBaseUrl") {
         return "http://localhost:3001";
+      }
+
+      if (key === "app.environment") {
+        return environment;
       }
 
       return undefined;
@@ -174,6 +179,107 @@ describe("OnlinePaymentsService", () => {
     await expect(
       service.createIntentForCustomer("session-1", "bill-1"),
     ).rejects.toThrow("Your current plan does not include online payments.");
+    expect(tx.onlinePaymentIntent.create).not.toHaveBeenCalled();
+  });
+
+  it("forbids the mock provider for customer payment creation in production", async () => {
+    const { service, tx } = createService("mock", "production");
+
+    await expect(
+      service.createIntentForCustomer("session-1", "bill-1"),
+    ).rejects.toThrow("Mock online payments are forbidden in production");
+
+    expect(tx.bill.findUnique).not.toHaveBeenCalled();
+    expect(tx.onlinePaymentIntent.create).not.toHaveBeenCalled();
+  });
+
+  it("serializes mock intent creation with a bill advisory lock before checking active intents", async () => {
+    const { service, tx } = createService("mock");
+    const pendingIntent = intent(
+      OnlinePaymentIntentStatus.pending,
+      OnlinePaymentProvider.mock,
+    );
+    tx.bill.findUnique.mockResolvedValueOnce({
+      id: "bill-1",
+      companyId: "company-1",
+      branchId: "branch-1",
+      tableSessionId: "session-1",
+      status: BillStatus.presented,
+      currency: "EGP",
+      totalMinor: 12500,
+      balanceDueMinor: 12500,
+    });
+    tx.onlinePaymentIntent.findFirst.mockResolvedValueOnce(null);
+    tx.onlinePaymentIntent.create.mockResolvedValueOnce(pendingIntent);
+
+    const result = await service.createIntentForCustomer(
+      "session-1",
+      "bill-1",
+    );
+
+    expect(tx.$executeRaw).toHaveBeenCalledTimes(1);
+    expect(tx.onlinePaymentIntent.create).toHaveBeenCalledTimes(1);
+    expect(tx.$executeRaw.mock.invocationCallOrder[0]).toBeLessThan(
+      tx.onlinePaymentIntent.findFirst.mock.invocationCallOrder[0],
+    );
+    expect(result.outcome).toBe("created");
+  });
+
+  it("rejects a stale active intent whose amount no longer matches the bill", async () => {
+    const { service, tx } = createService("mock");
+    tx.bill.findUnique.mockResolvedValueOnce({
+      id: "bill-1",
+      companyId: "company-1",
+      branchId: "branch-1",
+      tableSessionId: "session-1",
+      status: BillStatus.payment_pending,
+      currency: "EGP",
+      totalMinor: 12500,
+      balanceDueMinor: 12500,
+    });
+    tx.onlinePaymentIntent.findFirst.mockResolvedValueOnce(
+      intent(
+        OnlinePaymentIntentStatus.pending,
+        OnlinePaymentProvider.mock,
+        { amountMinor: 10000 },
+      ),
+    );
+
+    await expect(
+      service.createIntentForCustomer("session-1", "bill-1"),
+    ).rejects.toThrow(
+      "Bill amount or currency changed while an online payment is active",
+    );
+
+    expect(tx.$executeRaw).toHaveBeenCalledTimes(1);
+    expect(tx.onlinePaymentIntent.create).not.toHaveBeenCalled();
+  });
+
+  it("rejects an active intent owned by another configured provider", async () => {
+    const { service, tx } = createService("mock");
+    tx.bill.findUnique.mockResolvedValueOnce({
+      id: "bill-1",
+      companyId: "company-1",
+      branchId: "branch-1",
+      tableSessionId: "session-1",
+      status: BillStatus.payment_pending,
+      currency: "EGP",
+      totalMinor: 12500,
+      balanceDueMinor: 12500,
+    });
+    tx.onlinePaymentIntent.findFirst.mockResolvedValueOnce(
+      intent(
+        OnlinePaymentIntentStatus.pending,
+        OnlinePaymentProvider.paymob,
+      ),
+    );
+
+    await expect(
+      service.createIntentForCustomer("session-1", "bill-1"),
+    ).rejects.toThrow(
+      "Bill already has an active online payment with another provider",
+    );
+
     expect(tx.onlinePaymentIntent.create).not.toHaveBeenCalled();
   });
 
@@ -268,6 +374,10 @@ describe("OnlinePaymentsService", () => {
           currency: "EGP",
         }),
       }),
+    );
+    expect(tx.$executeRaw).toHaveBeenCalledTimes(1);
+    expect(tx.$executeRaw.mock.invocationCallOrder[0]).toBeLessThan(
+      tx.onlinePaymentIntent.create.mock.invocationCallOrder[0],
     );
     expect(paymobPaymentProviderService.createPayment).toHaveBeenCalledWith(
       expect.objectContaining({

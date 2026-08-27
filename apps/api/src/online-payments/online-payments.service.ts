@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  ConflictException,
   ForbiddenException,
   Injectable,
   NotFoundException,
@@ -92,6 +93,7 @@ export class OnlinePaymentsService {
   ) {
     this.assertOnlinePaymentsEnabled();
     const provider = this.getConfiguredProvider();
+    this.assertConfiguredProviderAllowed(provider);
 
     if (provider === OnlinePaymentProvider.paymob) {
       return this.createPaymobIntentForCustomer(sessionId, billId, body);
@@ -127,6 +129,7 @@ export class OnlinePaymentsService {
         SaasFeatureKey.online_payments,
       );
       this.assertBillCanStartOnlinePayment(bill);
+      await this.lockBillForOnlinePayment(tx, bill.id);
 
       if (body.idempotencyKey) {
         const idempotentIntent = await tx.onlinePaymentIntent.findUnique({
@@ -152,7 +155,6 @@ export class OnlinePaymentsService {
         where: {
           billId: bill.id,
           tableSessionId: sessionId,
-          amountMinor: bill.balanceDueMinor,
           status: { in: ACTIVE_ONLINE_PAYMENT_STATUSES },
         },
         orderBy: [{ createdAt: "desc" }, { id: "desc" }],
@@ -160,6 +162,12 @@ export class OnlinePaymentsService {
       });
 
       if (existingActiveIntent) {
+        this.assertActiveIntentCompatibleWithBill(
+          existingActiveIntent,
+          bill,
+          provider,
+        );
+
         return this.toIntentResult(existingActiveIntent, "existing_active");
       }
 
@@ -254,6 +262,7 @@ export class OnlinePaymentsService {
         SaasFeatureKey.online_payments,
       );
       this.assertBillCanStartOnlinePayment(bill);
+      await this.lockBillForOnlinePayment(tx, bill.id);
 
       if (body.idempotencyKey) {
         const idempotentIntent = await tx.onlinePaymentIntent.findUnique({
@@ -283,7 +292,6 @@ export class OnlinePaymentsService {
         where: {
           billId: bill.id,
           tableSessionId: sessionId,
-          amountMinor: bill.balanceDueMinor,
           status: { in: ACTIVE_ONLINE_PAYMENT_STATUSES },
         },
         orderBy: [{ createdAt: "desc" }, { id: "desc" }],
@@ -291,11 +299,11 @@ export class OnlinePaymentsService {
       });
 
       if (existingActiveIntent) {
-        if (existingActiveIntent.provider !== OnlinePaymentProvider.paymob) {
-          throw new BadRequestException(
-            "Bill already has an active online payment with another provider",
-          );
-        }
+        this.assertActiveIntentCompatibleWithBill(
+          existingActiveIntent,
+          bill,
+          OnlinePaymentProvider.paymob,
+        );
 
         return {
           kind: "existing" as const,
@@ -1302,6 +1310,56 @@ export class OnlinePaymentsService {
           String(value).includes("providerEventId"),
       )
     );
+  }
+
+  private assertActiveIntentCompatibleWithBill(
+    intent: {
+      provider: OnlinePaymentProvider;
+      amountMinor: number;
+      currency: string;
+    },
+    bill: {
+      balanceDueMinor: number;
+      currency: string;
+    },
+    expectedProvider: OnlinePaymentProvider,
+  ) {
+    if (intent.provider !== expectedProvider) {
+      throw new ConflictException(
+        "Bill already has an active online payment with another provider",
+      );
+    }
+
+    if (
+      intent.amountMinor !== bill.balanceDueMinor ||
+      intent.currency !== bill.currency
+    ) {
+      throw new ConflictException(
+        "Bill amount or currency changed while an online payment is active",
+      );
+    }
+  }
+
+  private async lockBillForOnlinePayment(
+    tx: Prisma.TransactionClient,
+    billId: string,
+  ) {
+    await tx.$executeRaw`
+      SELECT pg_advisory_xact_lock(
+        hashtextextended(${`online-payment:${billId}`}, 0)
+      )
+    `;
+  }
+
+  private assertConfiguredProviderAllowed(provider: OnlinePaymentProvider) {
+    if (
+      this.configService.get<string>("app.environment") === "production" &&
+      provider === OnlinePaymentProvider.mock
+    ) {
+      throw new ServiceUnavailableException(
+        "Mock online payments are forbidden in production",
+      );
+    }
   }
 
   private assertOnlinePaymentsEnabled() {

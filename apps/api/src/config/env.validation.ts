@@ -265,6 +265,24 @@ class EnvironmentVariables {
   @IsOptional()
   PAYMOB_EXPECT_LIVE?: string;
 
+  @IsInt()
+  @Min(10)
+  @Max(3600)
+  @IsOptional()
+  ONLINE_PAYMENT_RATE_LIMIT_WINDOW_SECONDS?: number;
+
+  @IsInt()
+  @Min(1)
+  @Max(100)
+  @IsOptional()
+  ONLINE_PAYMENT_CREATE_RATE_LIMIT_MAX?: number;
+
+  @IsInt()
+  @Min(1)
+  @Max(1000)
+  @IsOptional()
+  ONLINE_PAYMENT_READ_RATE_LIMIT_MAX?: number;
+
   @IsBooleanString()
   @IsOptional()
   SMOKE_BOOTSTRAP_ENABLED?: string;
@@ -289,6 +307,35 @@ export function validateEnvironment(config: Record<string, unknown>) {
 
   if (errors.length > 0) {
     throw new Error(errors.toString());
+  }
+
+  const effectiveAppEnvironment = String(
+    validatedConfig.APP_ENV ??
+      validatedConfig.NODE_ENV ??
+      AppEnvironment.Development,
+  );
+  const effectivePaymentProvider =
+    validatedConfig.ONLINE_PAYMENT_PROVIDER ?? OnlinePaymentProvider.Mock;
+  const onlinePaymentsEnabled =
+    validatedConfig.ONLINE_PAYMENTS_ENABLED !== "false";
+
+  if (
+    effectiveAppEnvironment === "production" &&
+    onlinePaymentsEnabled &&
+    effectivePaymentProvider === OnlinePaymentProvider.Mock
+  ) {
+    throw new Error(
+      "ONLINE_PAYMENT_PROVIDER=mock is forbidden when APP_ENV=production",
+    );
+  }
+
+  if (
+    effectiveAppEnvironment === "production" &&
+    validatedConfig.MOCK_ONLINE_PAYMENTS_ENABLED === "true"
+  ) {
+    throw new Error(
+      "MOCK_ONLINE_PAYMENTS_ENABLED=true is forbidden when APP_ENV=production",
+    );
   }
 
   return validatedConfig;
