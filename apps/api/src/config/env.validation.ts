@@ -252,6 +252,10 @@ class EnvironmentVariables {
 
   @IsString()
   @IsOptional()
+  FAWRY_RETURN_URL?: string;
+
+  @IsString()
+  @IsOptional()
   FAWRY_ALLOWED_RETURN_ORIGINS?: string;
 
   @IsInt()
@@ -461,7 +465,8 @@ export function validateEnvironment(config: Record<string, unknown>) {
       !validatedConfig.FAWRY_SECURE_KEY ||
       !validatedConfig.FAWRY_CHECKOUT_URL ||
       !validatedConfig.FAWRY_STATUS_URL ||
-      !validatedConfig.FAWRY_NOTIFICATION_URL
+      !validatedConfig.FAWRY_NOTIFICATION_URL ||
+      !validatedConfig.FAWRY_RETURN_URL
     ) {
       throw new Error(
         "Fawry production payments require merchant code, secure key, checkout/status URLs, and notification URL",
