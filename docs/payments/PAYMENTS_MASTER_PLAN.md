@@ -1,6 +1,13 @@
 # Balcona Real Payments Master Plan
 
 Status: ACTIVE
+
+Implementation progress:
+- PAY-0: merged to main in PR #109
+- PAY-1: merged to main in PR #109
+- PAY-2: implemented on branch `payments/paymob-verified-callbacks`
+- PAY-3 and later: pending
+
 Owner: Balcona engineering
 Baseline main: 23f52a530cc5f9372956405edaa29c3e8015f6a3
 Working branch: payments/real-payments-foundation

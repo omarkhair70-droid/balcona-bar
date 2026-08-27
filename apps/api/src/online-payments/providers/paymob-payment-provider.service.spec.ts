@@ -1,5 +1,6 @@
 import { ConfigService } from "@nestjs/config";
 import { OnlinePaymentProvider } from "@prisma/client";
+import { createHmac } from "crypto";
 import { PaymobPaymentProviderService } from "./paymob-payment-provider.service";
 import { PaymentProviderError } from "./payment-provider.types";
 
@@ -8,6 +9,7 @@ function config(overrides: Record<string, unknown> = {}) {
     "onlinePayments.paymob.baseUrl": "https://accept.paymob.com",
     "onlinePayments.paymob.secretKey": "test-secret",
     "onlinePayments.paymob.publicKey": "test-public",
+    "onlinePayments.paymob.hmacSecret": "test-hmac-secret",
     "onlinePayments.paymob.notificationUrl":
       "https://api.example.com/api/v1/online-payments/webhooks/paymob",
     "onlinePayments.paymob.integrationIds": [101, 202],
@@ -70,6 +72,66 @@ function successResponse(overrides: Record<string, unknown> = {}) {
   );
 }
 
+function paymobTransaction(overrides: Record<string, unknown> = {}) {
+  return {
+    amount_cents: 12500,
+    created_at: "2026-08-27T20:30:00.000000",
+    currency: "EGP",
+    error_occured: false,
+    has_parent_transaction: false,
+    id: 555001,
+    integration_id: 101,
+    is_3d_secure: true,
+    is_auth: false,
+    is_capture: false,
+    is_refunded: false,
+    is_standalone_payment: true,
+    is_voided: false,
+    order: {
+      id: 12345,
+      merchant_order_id: "intent-1",
+    },
+    owner: 999,
+    pending: false,
+    source_data: {
+      pan: "2346",
+      sub_type: "MasterCard",
+      type: "card",
+    },
+    success: true,
+    ...overrides,
+  };
+}
+
+function transactionHmac(obj: Record<string, any>) {
+  const fields = [
+    obj.amount_cents,
+    obj.created_at,
+    obj.currency,
+    obj.error_occured,
+    obj.has_parent_transaction,
+    obj.id,
+    obj.integration_id,
+    obj.is_3d_secure,
+    obj.is_auth,
+    obj.is_capture,
+    obj.is_refunded,
+    obj.is_standalone_payment,
+    obj.is_voided,
+    obj.order.id,
+    obj.owner,
+    obj.pending,
+    obj.source_data.pan,
+    obj.source_data.sub_type,
+    obj.source_data.type,
+    obj.success,
+  ];
+
+  return createHmac("sha512", "test-hmac-secret")
+    .update(fields.map(String).join(""))
+    .digest("hex");
+}
+
 describe("PaymobPaymentProviderService", () => {
   afterEach(() => {
     jest.restoreAllMocks();
@@ -86,6 +148,7 @@ describe("PaymobPaymentProviderService", () => {
     expect(result).toMatchObject({
       provider: OnlinePaymentProvider.paymob,
       providerIntentId: "pi_test_123",
+      providerOrderId: "12345",
       checkoutUrl:
         "https://accept.paymob.com/unifiedcheckout/?publicKey=test-public&clientSecret=client-secret-123",
     });
@@ -252,6 +315,93 @@ describe("PaymobPaymentProviderService", () => {
       code: "missing_config",
     });
     expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  it("verifies a Paymob transaction callback with the documented 20-field HMAC", () => {
+    const service = new PaymobPaymentProviderService(config());
+    const obj = paymobTransaction();
+    const result = service.verifyTransactionWebhook(
+      obj,
+      transactionHmac(obj),
+    );
+
+    expect(result).toMatchObject({
+      provider: OnlinePaymentProvider.paymob,
+      providerTransactionId: "555001",
+      providerOrderId: "12345",
+      merchantReference: "intent-1",
+      integrationId: 101,
+      amountMinor: 12500,
+      currency: "EGP",
+      status: "succeeded",
+      actionable: true,
+    });
+    expect(result.providerEventId).toMatch(
+      /^paymob_tx_555001_[a-f0-9]{32}$/,
+    );
+    expect(result.safeMetadata).not.toHaveProperty("pan");
+  });
+
+  it("rejects a tampered Paymob transaction callback", () => {
+    const service = new PaymobPaymentProviderService(config());
+    const original = paymobTransaction();
+    const hmac = transactionHmac(original);
+    const tampered = {
+      ...original,
+      amount_cents: 9900,
+    };
+
+    expect(() =>
+      service.verifyTransactionWebhook(tampered, hmac),
+    ).toThrow(
+      expect.objectContaining({
+        code: "signature_invalid",
+      }),
+    );
+  });
+
+  it("rejects a signed transaction from an unconfigured integration", () => {
+    const service = new PaymobPaymentProviderService(config());
+    const obj = paymobTransaction({ integration_id: 303 });
+
+    expect(() =>
+      service.verifyTransactionWebhook(obj, transactionHmac(obj)),
+    ).toThrow(
+      expect.objectContaining({
+        code: "environment_mismatch",
+      }),
+    );
+  });
+
+  it("does not normalize auth-only Paymob callbacks as settled", () => {
+    const service = new PaymobPaymentProviderService(config());
+    const obj = paymobTransaction({
+      is_auth: true,
+      is_capture: false,
+      is_standalone_payment: false,
+    });
+
+    const result = service.verifyTransactionWebhook(
+      obj,
+      transactionHmac(obj),
+    );
+
+    expect(result.status).toBe("requires_action");
+  });
+
+  it("marks Paymob child transactions non-actionable for PAY-2", () => {
+    const service = new PaymobPaymentProviderService(config());
+    const obj = paymobTransaction({
+      has_parent_transaction: true,
+      id: 555002,
+    });
+
+    const result = service.verifyTransactionWebhook(
+      obj,
+      transactionHmac(obj),
+    );
+
+    expect(result.actionable).toBe(false);
   });
 
   it("maps provider authentication failures without exposing provider bodies", async () => {

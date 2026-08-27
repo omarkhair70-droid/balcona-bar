@@ -4,6 +4,7 @@ import {
   Injectable,
   NotFoundException,
   ServiceUnavailableException,
+  UnauthorizedException,
 } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import {
@@ -26,7 +27,10 @@ import { PrismaService } from "../prisma/prisma.service";
 import { RealtimeEventsService } from "../realtime-events/realtime-events.service";
 import { SaasService } from "../saas/saas.service";
 import { PaymobPaymentProviderService } from "./providers/paymob-payment-provider.service";
-import { PaymentProviderError } from "./providers/payment-provider.types";
+import {
+  PaymentProviderError,
+  VerifiedProviderTransactionWebhook,
+} from "./providers/payment-provider.types";
 
 const ACTIVE_ONLINE_PAYMENT_STATUSES: OnlinePaymentIntentStatus[] = [
   OnlinePaymentIntentStatus.pending,
@@ -383,6 +387,7 @@ export class OnlinePaymentsService {
           },
           data: {
             providerIntentId: providerPayment.providerIntentId,
+            providerOrderId: providerPayment.providerOrderId,
             providerCheckoutUrl: providerPayment.checkoutUrl,
             checkoutExpiresAt: providerPayment.checkoutExpiresAt,
             status: providerPayment.status,
@@ -410,6 +415,7 @@ export class OnlinePaymentsService {
             provider: "paymob",
             providerInitialization: "ready",
             providerIntentId: readyIntent.providerIntentId,
+            providerOrderId: readyIntent.providerOrderId,
             checkoutExpiresAt: readyIntent.checkoutExpiresAt,
           },
         );
@@ -486,6 +492,413 @@ export class OnlinePaymentsService {
     return new ServiceUnavailableException(
       "Online payment checkout is temporarily unavailable",
     );
+  }
+
+  async processPaymobWebhook(receivedHmac: string, obj: unknown) {
+    this.assertOnlinePaymentsEnabled();
+
+    let verified: VerifiedProviderTransactionWebhook;
+
+    try {
+      verified =
+        this.paymobPaymentProviderService.verifyTransactionWebhook(
+          obj,
+          receivedHmac,
+        );
+    } catch (error) {
+      if (
+        error instanceof PaymentProviderError &&
+        error.code === "signature_invalid"
+      ) {
+        throw new UnauthorizedException("Invalid Paymob webhook signature");
+      }
+
+      if (
+        error instanceof PaymentProviderError &&
+        error.code === "missing_config"
+      ) {
+        throw new ServiceUnavailableException(
+          "Paymob webhook verification is not configured",
+        );
+      }
+
+      throw new BadRequestException("Invalid Paymob transaction callback");
+    }
+
+    try {
+      return await this.prisma.$transaction((tx) =>
+        this.processVerifiedPaymobWebhook(tx, verified),
+      );
+    } catch (error) {
+      if (this.isProviderEventUniqueConstraintError(error)) {
+        return this.paymobDuplicateWebhookResult(verified.providerEventId);
+      }
+
+      throw error;
+    }
+  }
+
+  private async processVerifiedPaymobWebhook(
+    tx: Prisma.TransactionClient,
+    verified: VerifiedProviderTransactionWebhook,
+  ) {
+    const existingEvent = await tx.onlinePaymentEvent.findUnique({
+      where: {
+        provider_providerEventId: {
+          provider: OnlinePaymentProvider.paymob,
+          providerEventId: verified.providerEventId,
+        },
+      },
+      select: { onlinePaymentIntentId: true },
+    });
+
+    if (existingEvent) {
+      const duplicateIntent = await this.loadIntentOrThrow(
+        existingEvent.onlinePaymentIntentId,
+        tx,
+      );
+
+      return this.toIntentResult(duplicateIntent, "duplicate_event", {
+        settled: false,
+        reason: "duplicate_event",
+        message: "Paymob webhook event was already processed",
+      });
+    }
+
+    const intent = await tx.onlinePaymentIntent.findUnique({
+      where: {
+        provider_providerOrderId: {
+          provider: OnlinePaymentProvider.paymob,
+          providerOrderId: verified.providerOrderId,
+        },
+      },
+      include: this.intentInclude(),
+    });
+
+    if (!intent) {
+      return {
+        received: true,
+        outcome: "unmatched_provider_order",
+        provider: OnlinePaymentProvider.paymob,
+        providerTransactionId: verified.providerTransactionId,
+        providerOrderId: verified.providerOrderId,
+        settlement: {
+          settled: false,
+          reason: "unmatched_provider_order",
+          message: "Verified Paymob order is not linked to a local payment intent",
+        },
+      };
+    }
+
+    await this.createOnlinePaymentEvent(
+      tx,
+      intent,
+      OnlinePaymentEventType.provider_webhook_received,
+      {
+        callbackStatus: verified.status,
+        providerTransactionId: verified.providerTransactionId,
+        providerOrderId: verified.providerOrderId,
+        integrationId: verified.integrationId,
+        actionable: verified.actionable,
+        ...verified.safeMetadata,
+      },
+      verified.providerEventId,
+    );
+
+    if (
+      verified.merchantReference &&
+      verified.merchantReference !== intent.id
+    ) {
+      return this.skipPaymobSettlement(
+        tx,
+        intent,
+        verified,
+        "merchant_reference_mismatch",
+        {
+          callbackMerchantReference: verified.merchantReference,
+          localIntentId: intent.id,
+        },
+      );
+    }
+
+    if (verified.amountMinor !== intent.amountMinor) {
+      return this.skipPaymobSettlement(
+        tx,
+        intent,
+        verified,
+        "amount_mismatch",
+        {
+          callbackAmountMinor: verified.amountMinor,
+          intentAmountMinor: intent.amountMinor,
+        },
+      );
+    }
+
+    if (verified.currency !== intent.currency) {
+      return this.skipPaymobSettlement(
+        tx,
+        intent,
+        verified,
+        "currency_mismatch",
+        {
+          callbackCurrency: verified.currency,
+          intentCurrency: intent.currency,
+        },
+      );
+    }
+
+    if (!verified.actionable) {
+      await this.createOnlinePaymentEvent(
+        tx,
+        intent,
+        OnlinePaymentEventType.status_updated,
+        {
+          reason: "child_transaction_ignored",
+          providerTransactionId: verified.providerTransactionId,
+          providerEventId: verified.providerEventId,
+          callbackStatus: verified.status,
+        },
+      );
+
+      return this.toIntentResult(intent, "child_transaction_ignored", {
+        settled: false,
+        reason: "child_transaction_ignored",
+        message:
+          "Paymob child transactions are deferred to capture/refund processing",
+      });
+    }
+
+    if (verified.status === OnlinePaymentIntentStatus.succeeded) {
+      return this.applyPaymobSuccess(tx, intent, verified);
+    }
+
+    return this.applyPaymobStatusUpdate(tx, intent, verified);
+  }
+
+  private async applyPaymobSuccess(
+    tx: Prisma.TransactionClient,
+    intent: OnlinePaymentIntentRecord,
+    verified: VerifiedProviderTransactionWebhook,
+  ) {
+    if (intent.status === OnlinePaymentIntentStatus.succeeded) {
+      return this.toIntentResult(intent, "already_succeeded", {
+        settled: false,
+        reason: "already_succeeded",
+        message: "Paymob payment was already settled",
+      });
+    }
+
+    const now = new Date();
+    const updateResult = await tx.onlinePaymentIntent.updateMany({
+      where: {
+        id: intent.id,
+        provider: OnlinePaymentProvider.paymob,
+        providerOrderId: verified.providerOrderId,
+        status: { not: OnlinePaymentIntentStatus.succeeded },
+      },
+      data: {
+        status: OnlinePaymentIntentStatus.succeeded,
+        succeededAt: now,
+        failedAt: null,
+        cancelledAt: null,
+        expiredAt: null,
+        failureCode: null,
+        failureMessage: null,
+        metadata: this.toJsonValue({
+          ...this.jsonRecord(intent.metadata),
+          paymobTransactionId: verified.providerTransactionId,
+          paymobLastVerifiedEventId: verified.providerEventId,
+          ...verified.safeMetadata,
+        }),
+      },
+    });
+
+    if (updateResult.count !== 1) {
+      const latestIntent = await this.loadIntentOrThrow(intent.id, tx);
+      return this.toIntentResult(latestIntent, "settlement_skipped", {
+        settled: false,
+        reason: "concurrent_state_change",
+        message: "Payment intent state changed before settlement",
+      });
+    }
+
+    const latestIntent = await this.loadIntentOrThrow(intent.id, tx);
+    const settlement = await this.billsService.settleBillWithOnlinePayment(
+      {
+        billId: latestIntent.billId,
+        onlinePaymentIntentId: latestIntent.id,
+        provider: latestIntent.provider,
+        providerIntentId: latestIntent.providerIntentId,
+        providerEventId: verified.providerEventId,
+        amountMinor: latestIntent.amountMinor,
+      },
+      tx,
+    );
+
+    await this.createOnlinePaymentEvent(
+      tx,
+      latestIntent,
+      settlement.settled
+        ? OnlinePaymentEventType.settlement_completed
+        : OnlinePaymentEventType.settlement_skipped,
+      {
+        reason: settlement.reason,
+        message: settlement.message,
+        providerTransactionId: verified.providerTransactionId,
+        providerEventId: verified.providerEventId,
+      },
+    );
+    await this.realtimeEventsService.recordOnlinePaymentSucceeded(
+      latestIntent.id,
+      tx,
+    );
+
+    return this.toIntentResult(
+      await this.loadIntentOrThrow(intent.id, tx),
+      settlement.settled ? "settled" : "settlement_skipped",
+      settlement,
+    );
+  }
+
+  private async applyPaymobStatusUpdate(
+    tx: Prisma.TransactionClient,
+    intent: OnlinePaymentIntentRecord,
+    verified: VerifiedProviderTransactionWebhook,
+  ) {
+    if (!ACTIVE_ONLINE_PAYMENT_STATUSES.includes(intent.status)) {
+      await this.createOnlinePaymentEvent(
+        tx,
+        intent,
+        OnlinePaymentEventType.status_updated,
+        {
+          reason: "terminal_state_preserved",
+          currentStatus: intent.status,
+          callbackStatus: verified.status,
+          providerTransactionId: verified.providerTransactionId,
+        },
+      );
+
+      return this.toIntentResult(intent, "terminal_state_preserved");
+    }
+
+    const now = new Date();
+    const data: Prisma.OnlinePaymentIntentUpdateManyMutationInput = {
+      status: verified.status,
+      metadata: this.toJsonValue({
+        ...this.jsonRecord(intent.metadata),
+        paymobTransactionId: verified.providerTransactionId,
+        paymobLastVerifiedEventId: verified.providerEventId,
+        ...verified.safeMetadata,
+      }),
+    };
+
+    if (verified.status === OnlinePaymentIntentStatus.failed) {
+      data.failedAt = now;
+      data.failureCode = "paymob_transaction_failed";
+      data.failureMessage = "Paymob transaction failed";
+    } else if (verified.status === OnlinePaymentIntentStatus.cancelled) {
+      data.cancelledAt = now;
+      data.failureCode = "paymob_transaction_cancelled";
+      data.failureMessage = "Paymob transaction was cancelled or voided";
+    }
+
+    const updateResult = await tx.onlinePaymentIntent.updateMany({
+      where: {
+        id: intent.id,
+        provider: OnlinePaymentProvider.paymob,
+        providerOrderId: verified.providerOrderId,
+        status: { in: ACTIVE_ONLINE_PAYMENT_STATUSES },
+      },
+      data,
+    });
+
+    const latestIntent = await this.loadIntentOrThrow(intent.id, tx);
+    await this.createOnlinePaymentEvent(
+      tx,
+      latestIntent,
+      OnlinePaymentEventType.status_updated,
+      {
+        callbackStatus: verified.status,
+        providerTransactionId: verified.providerTransactionId,
+        providerEventId: verified.providerEventId,
+        changed: updateResult.count === 1,
+      },
+    );
+
+    if (
+      updateResult.count === 1 &&
+      (verified.status === OnlinePaymentIntentStatus.failed ||
+        verified.status === OnlinePaymentIntentStatus.cancelled)
+    ) {
+      await this.restoreBillPresentedIfNoActiveOnlinePayment(intent.billId, tx);
+      await this.realtimeEventsService.recordOnlinePaymentFailed(intent.id, tx);
+    }
+
+    return this.toIntentResult(
+      latestIntent,
+      updateResult.count === 1 ? "status_updated" : "state_unchanged",
+    );
+  }
+
+  private async skipPaymobSettlement(
+    tx: Prisma.TransactionClient,
+    intent: OnlinePaymentIntentRecord,
+    verified: VerifiedProviderTransactionWebhook,
+    reason: string,
+    details: Record<string, unknown> = {},
+  ) {
+    await this.createOnlinePaymentEvent(
+      tx,
+      intent,
+      OnlinePaymentEventType.settlement_skipped,
+      {
+        reason,
+        providerTransactionId: verified.providerTransactionId,
+        providerEventId: verified.providerEventId,
+        ...details,
+      },
+    );
+
+    return this.toIntentResult(intent, "settlement_skipped", {
+      settled: false,
+      reason,
+      message: "Verified Paymob callback did not pass settlement guards",
+    });
+  }
+
+  private async paymobDuplicateWebhookResult(providerEventId: string) {
+    const event = await this.prisma.onlinePaymentEvent.findUnique({
+      where: {
+        provider_providerEventId: {
+          provider: OnlinePaymentProvider.paymob,
+          providerEventId,
+        },
+      },
+      select: { onlinePaymentIntentId: true },
+    });
+
+    if (!event) {
+      throw new ServiceUnavailableException(
+        "Paymob webhook could not be processed idempotently",
+      );
+    }
+
+    const intent = await this.prisma.onlinePaymentIntent.findUnique({
+      where: { id: event.onlinePaymentIntentId },
+      include: this.intentInclude(),
+    });
+
+    if (!intent) {
+      throw new ServiceUnavailableException(
+        "Paymob webhook intent could not be reloaded",
+      );
+    }
+
+    return this.toIntentResult(intent, "duplicate_event", {
+      settled: false,
+      reason: "duplicate_event",
+      message: "Paymob webhook event was already processed",
+    });
   }
 
   async findIntentForCustomer(sessionId: string, intentId: string) {
@@ -869,6 +1282,26 @@ export class OnlinePaymentsService {
         payload: this.toJsonValue(payload),
       },
     });
+  }
+
+  private isProviderEventUniqueConstraintError(error: unknown) {
+    if (
+      !(error instanceof Prisma.PrismaClientKnownRequestError) ||
+      error.code !== "P2002"
+    ) {
+      return false;
+    }
+
+    const target = error.meta?.target;
+
+    return (
+      Array.isArray(target) &&
+      target.some(
+        (value) =>
+          value === "providerEventId" ||
+          String(value).includes("providerEventId"),
+      )
+    );
   }
 
   private assertOnlinePaymentsEnabled() {
