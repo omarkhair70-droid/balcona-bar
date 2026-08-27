@@ -269,9 +269,7 @@ function providerState(
 function setupOperationHarness(
   context: ReturnType<typeof createService>,
   type: OnlinePaymentOperationType,
-  intentStatus:
-    | OnlinePaymentIntentStatus.succeeded
-    | OnlinePaymentIntentStatus.requires_action,
+  intentStatus: OnlinePaymentIntentStatus,
 ) {
   const { tx } = context;
   let currentIntent = intent(
