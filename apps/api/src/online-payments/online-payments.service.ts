@@ -1575,14 +1575,20 @@ export class OnlinePaymentsService {
         this.booleanMetadata(state.safeMetadata, "isCaptured") === true ||
         this.booleanMetadata(state.safeMetadata, "isCapture") === true;
 
-      if (
-        operation.type === OnlinePaymentOperationType.refund &&
-        (!isRefunded ||
-          (state.refundedAmountMinor !== undefined &&
-            state.refundedAmountMinor <
-              Number(metadata.expectedRefundedMinor ?? operation.amountMinor)))
-      ) {
-        return this.toOperationResult(operation, "provider_confirmation_pending");
+      if (operation.type === OnlinePaymentOperationType.refund) {
+        const expectedRefundedMinor = Number(
+          metadata.expectedRefundedMinor ?? operation.amountMinor,
+        );
+        const refundAmountConfirmed =
+          state.refundedAmountMinor !== undefined &&
+          state.refundedAmountMinor >= expectedRefundedMinor;
+
+        if (!isRefunded && !refundAmountConfirmed) {
+          return this.toOperationResult(
+            operation,
+            "provider_confirmation_pending",
+          );
+        }
       }
 
       if (
