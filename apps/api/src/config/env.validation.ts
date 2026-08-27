@@ -33,6 +33,7 @@ enum AiWaiterProvider {
 enum OnlinePaymentProvider {
   Mock = "mock",
   Paymob = "paymob",
+  Fawry = "fawry",
   External = "external",
 }
 
@@ -223,6 +224,54 @@ class EnvironmentVariables {
 
   @IsString()
   @IsOptional()
+  FAWRY_CHECKOUT_URL?: string;
+
+  @IsString()
+  @IsOptional()
+  FAWRY_STATUS_URL?: string;
+
+  @IsString()
+  @IsOptional()
+  FAWRY_REFUND_URL?: string;
+
+  @IsString()
+  @IsOptional()
+  FAWRY_CANCEL_URL?: string;
+
+  @IsString()
+  @IsOptional()
+  FAWRY_MERCHANT_CODE?: string;
+
+  @IsString()
+  @IsOptional()
+  FAWRY_SECURE_KEY?: string;
+
+  @IsString()
+  @IsOptional()
+  FAWRY_NOTIFICATION_URL?: string;
+
+  @IsString()
+  @IsOptional()
+  FAWRY_ALLOWED_RETURN_ORIGINS?: string;
+
+  @IsInt()
+  @Min(1000)
+  @Max(60000)
+  @IsOptional()
+  FAWRY_TIMEOUT_MS?: number;
+
+  @IsInt()
+  @Min(60)
+  @Max(86400)
+  @IsOptional()
+  FAWRY_CHECKOUT_EXPIRATION_SECONDS?: number;
+
+  @IsBooleanString()
+  @IsOptional()
+  FAWRY_EXPECT_LIVE?: string;
+
+  @IsString()
+  @IsOptional()
   PAYMOB_BASE_URL?: string;
 
   @IsString()
@@ -400,6 +449,30 @@ export function validateEnvironment(config: Record<string, unknown>) {
     throw new Error(
       "MOCK_ONLINE_PAYMENTS_ENABLED=true is forbidden when APP_ENV=production",
     );
+  }
+
+  if (
+    effectiveAppEnvironment === "production" &&
+    onlinePaymentsEnabled &&
+    effectivePaymentProvider === OnlinePaymentProvider.Fawry
+  ) {
+    if (
+      !validatedConfig.FAWRY_MERCHANT_CODE ||
+      !validatedConfig.FAWRY_SECURE_KEY ||
+      !validatedConfig.FAWRY_CHECKOUT_URL ||
+      !validatedConfig.FAWRY_STATUS_URL ||
+      !validatedConfig.FAWRY_NOTIFICATION_URL
+    ) {
+      throw new Error(
+        "Fawry production payments require merchant code, secure key, checkout/status URLs, and notification URL",
+      );
+    }
+
+    if (validatedConfig.FAWRY_EXPECT_LIVE !== "true") {
+      throw new Error(
+        "FAWRY_EXPECT_LIVE=true is required for production Fawry payments",
+      );
+    }
   }
 
   if (
