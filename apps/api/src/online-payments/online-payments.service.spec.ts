@@ -223,7 +223,9 @@ describe("OnlinePaymentsService", () => {
     });
     tx.onlinePaymentIntent.findFirst.mockResolvedValueOnce(null);
     tx.onlinePaymentIntent.create.mockResolvedValueOnce(localIntent);
-    tx.onlinePaymentIntent.findUnique.mockResolvedValueOnce(readyIntent);
+    tx.onlinePaymentIntent.findUnique
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce(readyIntent);
     paymobPaymentProviderService.createPayment.mockResolvedValueOnce({
       provider: OnlinePaymentProvider.paymob,
       providerIntentId: "pi_test_123",
