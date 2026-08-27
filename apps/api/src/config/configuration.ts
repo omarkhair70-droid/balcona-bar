@@ -96,6 +96,7 @@ export default () => ({
     paymob: {
       baseUrl: process.env.PAYMOB_BASE_URL ?? "https://accept.paymob.com",
       secretKey: process.env.PAYMOB_SECRET_KEY || undefined,
+      apiKey: process.env.PAYMOB_API_KEY || undefined,
       publicKey: process.env.PAYMOB_PUBLIC_KEY || undefined,
       hmacSecret: process.env.PAYMOB_HMAC_SECRET || undefined,
       integrationIds: (process.env.PAYMOB_INTEGRATION_IDS ?? "")
@@ -117,6 +118,21 @@ export default () => ({
         10,
       ),
       expectedLive: process.env.PAYMOB_EXPECT_LIVE === "true",
+    },
+    reconciliation: {
+      enabled: process.env.ONLINE_PAYMENT_RECONCILIATION_ENABLED === "true",
+      intervalSeconds: Number.parseInt(
+        process.env.ONLINE_PAYMENT_RECONCILIATION_INTERVAL_SECONDS ?? "60",
+        10,
+      ),
+      staleSeconds: Number.parseInt(
+        process.env.ONLINE_PAYMENT_RECONCILIATION_STALE_SECONDS ?? "120",
+        10,
+      ),
+      batchSize: Number.parseInt(
+        process.env.ONLINE_PAYMENT_RECONCILIATION_BATCH_SIZE ?? "25",
+        10,
+      ),
     },
     rateLimit: {
       windowSeconds: Number.parseInt(
