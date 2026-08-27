@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  ConflictException,
   ForbiddenException,
   Injectable,
   NotFoundException,
@@ -154,7 +155,6 @@ export class OnlinePaymentsService {
         where: {
           billId: bill.id,
           tableSessionId: sessionId,
-          amountMinor: bill.balanceDueMinor,
           status: { in: ACTIVE_ONLINE_PAYMENT_STATUSES },
         },
         orderBy: [{ createdAt: "desc" }, { id: "desc" }],
@@ -162,6 +162,12 @@ export class OnlinePaymentsService {
       });
 
       if (existingActiveIntent) {
+        this.assertActiveIntentCompatibleWithBill(
+          existingActiveIntent,
+          bill,
+          provider,
+        );
+
         return this.toIntentResult(existingActiveIntent, "existing_active");
       }
 
@@ -286,7 +292,6 @@ export class OnlinePaymentsService {
         where: {
           billId: bill.id,
           tableSessionId: sessionId,
-          amountMinor: bill.balanceDueMinor,
           status: { in: ACTIVE_ONLINE_PAYMENT_STATUSES },
         },
         orderBy: [{ createdAt: "desc" }, { id: "desc" }],
@@ -294,11 +299,11 @@ export class OnlinePaymentsService {
       });
 
       if (existingActiveIntent) {
-        if (existingActiveIntent.provider !== OnlinePaymentProvider.paymob) {
-          throw new BadRequestException(
-            "Bill already has an active online payment with another provider",
-          );
-        }
+        this.assertActiveIntentCompatibleWithBill(
+          existingActiveIntent,
+          bill,
+          OnlinePaymentProvider.paymob,
+        );
 
         return {
           kind: "existing" as const,
@@ -1305,6 +1310,34 @@ export class OnlinePaymentsService {
           String(value).includes("providerEventId"),
       )
     );
+  }
+
+  private assertActiveIntentCompatibleWithBill(
+    intent: {
+      provider: OnlinePaymentProvider;
+      amountMinor: number;
+      currency: string;
+    },
+    bill: {
+      balanceDueMinor: number;
+      currency: string;
+    },
+    expectedProvider: OnlinePaymentProvider,
+  ) {
+    if (intent.provider !== expectedProvider) {
+      throw new ConflictException(
+        "Bill already has an active online payment with another provider",
+      );
+    }
+
+    if (
+      intent.amountMinor !== bill.balanceDueMinor ||
+      intent.currency !== bill.currency
+    ) {
+      throw new ConflictException(
+        "Bill amount or currency changed while an online payment is active",
+      );
+    }
   }
 
   private async lockBillForOnlinePayment(
