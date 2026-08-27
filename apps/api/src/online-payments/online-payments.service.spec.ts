@@ -86,6 +86,7 @@ function createService(provider = "mock", environment = "test") {
       create: jest.fn(),
       updateMany: jest.fn().mockResolvedValue({ count: 1 }),
       count: jest.fn().mockResolvedValue(0),
+      findMany: jest.fn().mockResolvedValue([]),
     },
     bill: {
       findUnique: jest.fn(),
@@ -118,6 +119,10 @@ function createService(provider = "mock", environment = "test") {
         return environment;
       }
 
+      if (key === "onlinePayments.reconciliation.enabled") {
+        return false;
+      }
+
       return undefined;
     }),
   };
@@ -139,6 +144,7 @@ function createService(provider = "mock", environment = "test") {
   const paymobPaymentProviderService = {
     createPayment: jest.fn(),
     verifyTransactionWebhook: jest.fn(),
+    inquireTransactionByOrder: jest.fn(),
   };
   const service = new OnlinePaymentsService(
     prisma as never,
@@ -331,7 +337,9 @@ describe("OnlinePaymentsService", () => {
       totalMinor: 12500,
       balanceDueMinor: 12500,
     });
-    tx.onlinePaymentIntent.findFirst.mockResolvedValueOnce(null);
+    tx.onlinePaymentIntent.findFirst
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce(null);
     tx.onlinePaymentIntent.create.mockResolvedValueOnce(localIntent);
     tx.onlinePaymentIntent.findUnique
       .mockResolvedValueOnce(null)
@@ -410,6 +418,301 @@ describe("OnlinePaymentsService", () => {
       url: readyIntent.providerCheckoutUrl,
       requiresHostedCheckout: true,
     });
+  });
+
+  it("recovers a missed Paymob success through inquiry and settles exactly once", async () => {
+    const {
+      service,
+      tx,
+      billsService,
+      paymobPaymentProviderService,
+    } = createService("paymob");
+    const failedIntent = intent(
+      OnlinePaymentIntentStatus.failed,
+      OnlinePaymentProvider.paymob,
+      {
+        failedAt: now,
+        failureCode: "paymob_transaction_failed",
+        failureMessage: "Paymob transaction failed",
+      },
+    );
+    const succeededIntent = intent(
+      OnlinePaymentIntentStatus.succeeded,
+      OnlinePaymentProvider.paymob,
+    );
+    paymobPaymentProviderService.inquireTransactionByOrder.mockResolvedValueOnce({
+      found: true,
+      provider: OnlinePaymentProvider.paymob,
+      providerOrderId: "12345",
+      transaction: {
+        provider: OnlinePaymentProvider.paymob,
+        providerEventId: "paymob_inquiry_555001_state",
+        providerTransactionId: "555001",
+        providerOrderId: "12345",
+        merchantReference: "intent-1",
+        integrationId: 101,
+        status: OnlinePaymentIntentStatus.succeeded,
+        amountMinor: 12500,
+        currency: "EGP",
+        actionable: true,
+        safeMetadata: { inquiry: true, isLive: false },
+      },
+    });
+    tx.onlinePaymentIntent.findUnique
+      .mockResolvedValueOnce(failedIntent)
+      .mockResolvedValueOnce(failedIntent)
+      .mockResolvedValueOnce(succeededIntent)
+      .mockResolvedValueOnce(succeededIntent);
+
+    const result = await service.recoverPaymobIntent(
+      "intent-1",
+      "staff_manual",
+    );
+
+    expect(
+      paymobPaymentProviderService.inquireTransactionByOrder,
+    ).toHaveBeenCalledWith("12345");
+    expect(tx.onlinePaymentEvent.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          type: OnlinePaymentEventType.provider_inquiry_received,
+          providerEventId: "paymob_inquiry_555001_state",
+        }),
+      }),
+    );
+    expect(billsService.settleBillWithOnlinePayment).toHaveBeenCalledTimes(1);
+    expect(result.settlement).toMatchObject({ settled: true });
+  });
+
+  it("reactivates a locally failed intent when Paymob inquiry says it is still pending", async () => {
+    const {
+      service,
+      tx,
+      billsService,
+      paymobPaymentProviderService,
+    } = createService("paymob");
+    const failedIntent = intent(
+      OnlinePaymentIntentStatus.failed,
+      OnlinePaymentProvider.paymob,
+      {
+        failedAt: now,
+        failureCode: "paymob_transaction_failed",
+        failureMessage: "Paymob transaction failed",
+      },
+    );
+    const recoveredIntent = intent(
+      OnlinePaymentIntentStatus.pending,
+      OnlinePaymentProvider.paymob,
+    );
+    paymobPaymentProviderService.inquireTransactionByOrder.mockResolvedValueOnce({
+      found: true,
+      provider: OnlinePaymentProvider.paymob,
+      providerOrderId: "12345",
+      transaction: {
+        provider: OnlinePaymentProvider.paymob,
+        providerEventId: "paymob_inquiry_555001_pending",
+        providerTransactionId: "555001",
+        providerOrderId: "12345",
+        merchantReference: "intent-1",
+        integrationId: 101,
+        status: OnlinePaymentIntentStatus.pending,
+        amountMinor: 12500,
+        currency: "EGP",
+        actionable: true,
+        safeMetadata: { inquiry: true, isLive: false },
+      },
+    });
+    tx.onlinePaymentIntent.findUnique
+      .mockResolvedValueOnce(failedIntent)
+      .mockResolvedValueOnce(failedIntent)
+      .mockResolvedValueOnce(recoveredIntent);
+    tx.onlinePaymentIntent.findFirst.mockResolvedValueOnce(null);
+
+    const result = await service.recoverPaymobIntent(
+      "intent-1",
+      "staff_manual",
+    );
+
+    expect(tx.onlinePaymentIntent.updateMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          status: OnlinePaymentIntentStatus.pending,
+          failedAt: null,
+          cancelledAt: null,
+          expiredAt: null,
+          failureCode: null,
+          failureMessage: null,
+        }),
+      }),
+    );
+    expect(billsService.settleBillWithOnlinePayment).not.toHaveBeenCalled();
+    expect(result.outcome).toBe("status_recovered");
+  });
+
+  it("expires an active Paymob checkout after inquiry confirms no provider transaction exists", async () => {
+    const {
+      service,
+      tx,
+      paymobPaymentProviderService,
+      realtimeEventsService,
+    } = createService("paymob");
+    const pendingIntent = intent(
+      OnlinePaymentIntentStatus.pending,
+      OnlinePaymentProvider.paymob,
+      {
+        checkoutExpiresAt: new Date("2020-01-01T00:00:00.000Z"),
+      },
+    );
+    const expiredIntent = intent(
+      OnlinePaymentIntentStatus.expired,
+      OnlinePaymentProvider.paymob,
+      {
+        checkoutExpiresAt: new Date("2020-01-01T00:00:00.000Z"),
+        expiredAt: now,
+        failureCode: "paymob_checkout_expired_without_transaction",
+      },
+    );
+    paymobPaymentProviderService.inquireTransactionByOrder.mockResolvedValueOnce({
+      found: false,
+      provider: OnlinePaymentProvider.paymob,
+      providerOrderId: "12345",
+    });
+    tx.onlinePaymentIntent.findUnique
+      .mockResolvedValueOnce(pendingIntent)
+      .mockResolvedValueOnce(expiredIntent);
+
+    const result = await service.recoverPaymobIntent(
+      "intent-1",
+      "scheduled_reconciliation",
+    );
+
+    expect(tx.onlinePaymentIntent.updateMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          status: OnlinePaymentIntentStatus.expired,
+          failureCode: "paymob_checkout_expired_without_transaction",
+        }),
+      }),
+    );
+    expect(
+      realtimeEventsService.recordOnlinePaymentFailed,
+    ).toHaveBeenCalledWith("intent-1", tx);
+    expect(result.outcome).toBe("expired");
+  });
+
+  it("rejects inquiry amount mismatch without settling the bill", async () => {
+    const {
+      service,
+      tx,
+      billsService,
+      paymobPaymentProviderService,
+    } = createService("paymob");
+    const pendingIntent = intent(
+      OnlinePaymentIntentStatus.pending,
+      OnlinePaymentProvider.paymob,
+    );
+    paymobPaymentProviderService.inquireTransactionByOrder.mockResolvedValueOnce({
+      found: true,
+      provider: OnlinePaymentProvider.paymob,
+      providerOrderId: "12345",
+      transaction: {
+        provider: OnlinePaymentProvider.paymob,
+        providerEventId: "paymob_inquiry_555001_amount",
+        providerTransactionId: "555001",
+        providerOrderId: "12345",
+        merchantReference: "intent-1",
+        integrationId: 101,
+        status: OnlinePaymentIntentStatus.succeeded,
+        amountMinor: 9900,
+        currency: "EGP",
+        actionable: true,
+        safeMetadata: { inquiry: true, isLive: false },
+      },
+    });
+    tx.onlinePaymentIntent.findUnique
+      .mockResolvedValueOnce(pendingIntent)
+      .mockResolvedValueOnce(pendingIntent);
+
+    const result = await service.recoverPaymobIntent(
+      "intent-1",
+      "staff_manual",
+    );
+
+    expect(billsService.settleBillWithOnlinePayment).not.toHaveBeenCalled();
+    expect(result.settlement).toMatchObject({ reason: "amount_mismatch" });
+  });
+
+  it("blocks a new Paymob retry when inquiry recovers the previous attempt as pending", async () => {
+    const {
+      service,
+      tx,
+      paymobPaymentProviderService,
+    } = createService("paymob");
+    const failedIntent = intent(
+      OnlinePaymentIntentStatus.failed,
+      OnlinePaymentProvider.paymob,
+      {
+        failedAt: now,
+        failureCode: "paymob_transaction_failed",
+      },
+    );
+    const pendingIntent = intent(
+      OnlinePaymentIntentStatus.pending,
+      OnlinePaymentProvider.paymob,
+    );
+    paymobPaymentProviderService.inquireTransactionByOrder.mockResolvedValueOnce({
+      found: true,
+      provider: OnlinePaymentProvider.paymob,
+      providerOrderId: "12345",
+      transaction: {
+        provider: OnlinePaymentProvider.paymob,
+        providerEventId: "paymob_inquiry_555001_pending_retry",
+        providerTransactionId: "555001",
+        providerOrderId: "12345",
+        merchantReference: "intent-1",
+        integrationId: 101,
+        status: OnlinePaymentIntentStatus.pending,
+        amountMinor: 12500,
+        currency: "EGP",
+        actionable: true,
+        safeMetadata: { inquiry: true, isLive: false },
+      },
+    });
+    tx.onlinePaymentIntent.findFirst
+      .mockResolvedValueOnce(failedIntent)
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce(pendingIntent);
+    tx.onlinePaymentIntent.findUnique
+      .mockResolvedValueOnce(failedIntent)
+      .mockResolvedValueOnce(failedIntent)
+      .mockResolvedValueOnce(pendingIntent);
+    tx.bill.findUnique.mockResolvedValueOnce({
+      id: "bill-1",
+      companyId: "company-1",
+      branchId: "branch-1",
+      tableSessionId: "session-1",
+      status: BillStatus.payment_pending,
+      currency: "EGP",
+      totalMinor: 12500,
+      balanceDueMinor: 12500,
+    });
+
+    const result = await service.createIntentForCustomer(
+      "session-1",
+      "bill-1",
+      {
+        billingData: {
+          firstName: "Omar",
+          lastName: "Khair",
+          email: "omar@example.com",
+          phoneNumber: "+201001234567",
+        },
+      },
+    );
+
+    expect(paymobPaymentProviderService.createPayment).not.toHaveBeenCalled();
+    expect(tx.onlinePaymentIntent.create).not.toHaveBeenCalled();
+    expect(result.outcome).toBe("existing_active");
   });
 
   it("settles a verified Paymob success exactly through the existing guarded bill settlement", async () => {
