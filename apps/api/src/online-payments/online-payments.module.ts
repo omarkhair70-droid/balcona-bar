@@ -5,6 +5,7 @@ import { RealtimeEventsModule } from "../realtime-events/realtime-events.module"
 import { SaasModule } from "../saas/saas.module";
 import { StaffModule } from "../staff/staff.module";
 import { TableSessionsModule } from "../table-sessions/table-sessions.module";
+import { OnlinePaymentReconciliationScheduler } from "./online-payment-reconciliation.scheduler";
 import { OnlinePaymentsController } from "./online-payments.controller";
 import { OnlinePaymentsService } from "./online-payments.service";
 import { PaymobPaymentProviderService } from "./providers/paymob-payment-provider.service";
@@ -26,6 +27,7 @@ import { PaymentRateLimitService } from "./payment-rate-limit.service";
     PaymobPaymentProviderService,
     PaymentRateLimitService,
     PaymentRateLimitGuard,
+    OnlinePaymentReconciliationScheduler,
   ],
   exports: [OnlinePaymentsService],
 })
