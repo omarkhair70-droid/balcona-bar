@@ -341,7 +341,7 @@ export class OnlinePaymentsController {
       params.intentId,
     );
 
-    return this.onlinePaymentsService.recoverPaymobIntent(
+    return this.onlinePaymentsService.recoverProviderIntent(
       params.intentId,
       "staff_manual",
     );
@@ -363,6 +363,11 @@ export class OnlinePaymentsController {
   @Post("online-payments/webhooks/mock")
   processMockWebhook(@Body() body: MockOnlinePaymentWebhookDto) {
     return this.onlinePaymentsService.processMockWebhook(body);
+  }
+
+  @Post("online-payments/webhooks/fawry")
+  processFawryWebhook(@Body() body: unknown) {
+    return this.onlinePaymentsService.processFawryWebhook(body);
   }
 
   @Post("online-payments/webhooks/paymob")
