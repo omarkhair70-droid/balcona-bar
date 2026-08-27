@@ -582,6 +582,11 @@ export class OnlinePaymentsService {
         provider: OnlinePaymentProvider.paymob,
         providerTransactionId: verified.providerTransactionId,
         providerOrderId: verified.providerOrderId,
+        settlement: {
+          settled: false,
+          reason: "unmatched_provider_order",
+          message: "Verified Paymob order is not linked to a local payment intent",
+        },
       };
     }
 
