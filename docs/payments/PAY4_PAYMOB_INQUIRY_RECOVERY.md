@@ -127,8 +127,10 @@ Requirements:
 - valid staff session.
 - branch/company scoped access.
 - `online_payments.manage` permission.
+- Redis-backed staff recovery rate limit (default 10 requests / 60 seconds).
 
 The endpoint performs real provider inquiry and may update/settle local state.
+Production fails closed if the shared payment rate limiter is unavailable.
 
 ## Safe metadata
 
