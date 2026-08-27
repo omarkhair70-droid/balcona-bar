@@ -119,17 +119,30 @@ Never enable development password bootstraps on the public demo runtime.
    pnpm --filter @balcona-bar/api prisma:generate
    pnpm --filter @balcona-bar/api prisma:migrate:deploy
    ```
-5. Start the API and verify:
+5. If the original staging database was lost or replaced, seed the branded
+   Balkona demo data once:
+   ```bash
+   pnpm deploy:api:seed
+   ```
+   This is required for the launcher token `balcona-main-t01`, menu, tables,
+   and seeded staff identities. Do not rely on the smoke tenant as a substitute
+   for the branded demo launcher.
+6. For hosted staging, keep `STAFF_AUTH_DEV_BOOTSTRAP_ENABLED=false`. Set a
+   real staging password for the seeded owner/manager through the existing
+   platform/staff invite flow, then use that private credential for the demo.
+   The hardcoded `change-me-local-123` credential shown by the launcher is
+   local-only and must not be enabled as a public-host bootstrap.
+7. Start the API and verify:
    - `GET /health`
    - `GET /api/v1/system/info`
-6. Point Vercel production env at:
+8. Point Vercel production env at:
    ```text
    NEXT_PUBLIC_API_BASE_URL=https://<stable-api-host>/api/v1
    NEXT_PUBLIC_APP_ENV=staging
    ```
-7. Redeploy `balcona-bar-staging-web`.
-8. Configure `.env.smoke.local` from `.env.smoke.example`.
-9. Run:
+9. Redeploy `balcona-bar-staging-web`.
+10. Configure `.env.smoke.local` from `.env.smoke.example`.
+11. Run:
    ```bash
    pnpm smoke:reset:staging
    pnpm smoke:bootstrap:staging
@@ -139,9 +152,9 @@ Never enable development password bootstraps on the public demo runtime.
    ```bash
    pnpm smoke:staging:clean-full
    ```
-10. Require `failed = 0`. Warnings about latency should be reviewed, but future
+12. Require `failed = 0`. Warnings about latency should be reviewed, but future
     SaaS/billing work is not a demo blocker.
-11. Manually walk:
+13. Manually walk:
     - `/demo/balkona`
     - customer QR/table open
     - menu/modifiers/cart/submit
