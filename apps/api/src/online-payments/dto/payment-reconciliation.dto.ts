@@ -114,6 +114,14 @@ export class ImportOnlinePaymentSettlementDto {
   lines!: SettlementStatementLineDto[];
 }
 
+export class ReconciliationRunsQueryDto {
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @IsOptional()
+  limit?: number;
+}
+
 export class ReconciliationIssuesQueryDto {
   @IsEnum(OnlinePaymentReconciliationIssueStatus)
   @IsOptional()
