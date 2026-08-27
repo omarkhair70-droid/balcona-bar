@@ -532,15 +532,34 @@ export function validateEnvironment(config: Record<string, unknown>) {
       );
     }
 
-    if (effectivePaymentProvider !== OnlinePaymentProvider.Paymob) {
+    if (
+      effectivePaymentProvider !== OnlinePaymentProvider.Paymob &&
+      effectivePaymentProvider !== OnlinePaymentProvider.Fawry
+    ) {
       throw new Error(
-        "Online payment reconciliation currently requires ONLINE_PAYMENT_PROVIDER=paymob",
+        "Online payment reconciliation currently requires ONLINE_PAYMENT_PROVIDER=paymob or fawry",
       );
     }
 
-    if (!validatedConfig.PAYMOB_API_KEY) {
+    if (
+      effectivePaymentProvider === OnlinePaymentProvider.Paymob &&
+      !validatedConfig.PAYMOB_API_KEY
+    ) {
       throw new Error(
         "PAYMOB_API_KEY is required when Paymob reconciliation is enabled",
+      );
+    }
+
+    if (
+      effectivePaymentProvider === OnlinePaymentProvider.Fawry &&
+      (
+        !validatedConfig.FAWRY_MERCHANT_CODE ||
+        !validatedConfig.FAWRY_SECURE_KEY ||
+        !validatedConfig.FAWRY_STATUS_URL
+      )
+    ) {
+      throw new Error(
+        "Fawry merchant code, secure key, and status URL are required when Fawry reconciliation is enabled",
       );
     }
   }
