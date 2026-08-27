@@ -316,9 +316,12 @@ export function validateEnvironment(config: Record<string, unknown>) {
   );
   const effectivePaymentProvider =
     validatedConfig.ONLINE_PAYMENT_PROVIDER ?? OnlinePaymentProvider.Mock;
+  const onlinePaymentsEnabled =
+    validatedConfig.ONLINE_PAYMENTS_ENABLED !== "false";
 
   if (
     effectiveAppEnvironment === "production" &&
+    onlinePaymentsEnabled &&
     effectivePaymentProvider === OnlinePaymentProvider.Mock
   ) {
     throw new Error(
