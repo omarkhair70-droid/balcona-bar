@@ -10,6 +10,7 @@ import { OnlinePaymentReconciliationScheduler } from "./online-payment-reconcili
 import { OnlinePaymentSettlementReconciliationScheduler } from "./online-payment-settlement-reconciliation.scheduler";
 import { OnlinePaymentsController } from "./online-payments.controller";
 import { OnlinePaymentsService } from "./online-payments.service";
+import { FawryPaymentProviderService } from "./providers/fawry-payment-provider.service";
 import { PaymobPaymentProviderService } from "./providers/paymob-payment-provider.service";
 import { PaymentRateLimitGuard } from "./payment-rate-limit.guard";
 import { PaymentReconciliationService } from "./payment-reconciliation.service";
@@ -31,6 +32,7 @@ import { StaffPaymentRecoveryRateLimitGuard } from "./staff-payment-recovery-rat
   providers: [
     OnlinePaymentsService,
     PaymobPaymentProviderService,
+    FawryPaymentProviderService,
     PaymentRateLimitService,
     PaymentRateLimitGuard,
     PaymentReconciliationService,
