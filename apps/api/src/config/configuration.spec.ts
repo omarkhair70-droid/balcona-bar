@@ -40,6 +40,19 @@ describe("API runtime configuration", () => {
     expect(config.onlinePayments.mockEnabled).toBe(true);
   });
 
+  it("allows true production to start with online payments explicitly disabled", () => {
+    withEnv({
+      NODE_ENV: "production",
+      APP_ENV: "production",
+      DATABASE_URL: "postgresql://user:password@localhost:5432/balcona",
+      ONLINE_PAYMENTS_ENABLED: "false",
+      ONLINE_PAYMENT_PROVIDER: "mock",
+      MOCK_ONLINE_PAYMENTS_ENABLED: "false",
+    });
+
+    expect(() => validateEnvironment(process.env)).not.toThrow();
+  });
+
   it("rejects a true production runtime configured with the mock payment provider", () => {
     withEnv({
       NODE_ENV: "production",
