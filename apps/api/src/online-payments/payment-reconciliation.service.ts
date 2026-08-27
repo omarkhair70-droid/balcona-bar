@@ -46,6 +46,17 @@ type LocalMovement = {
   happenedAt: Date;
 };
 
+type NormalizedSettlementLine = {
+  providerTransactionId: string;
+  movementType: OnlinePaymentReconciliationMovementType;
+  amountMinor: number;
+  feeMinor: number;
+  netMinor: number;
+  currency: string;
+  settlementReference: string | null;
+  settledAt: Date | null;
+};
+
 type ReconciliationCounters = {
   matched: number;
   pending: number;
@@ -1206,7 +1217,7 @@ export class PaymentReconciliationService {
   private normalizeSettlementLines(
     lines: ImportOnlinePaymentSettlementDto["lines"],
     currency: string,
-  ) {
+  ): NormalizedSettlementLine[] {
     const seen = new Set<string>();
 
     return lines
@@ -1250,9 +1261,7 @@ export class PaymentReconciliationService {
       );
   }
 
-  private statementTotals(
-    lines: ReturnType<PaymentReconciliationService["normalizeSettlementLines"]>,
-  ) {
+  private statementTotals(lines: NormalizedSettlementLine[]) {
     let grossMinor = 0;
     let adjustmentMinor = 0;
     let feeMinor = 0;
