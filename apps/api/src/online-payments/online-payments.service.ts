@@ -1895,6 +1895,10 @@ export class OnlinePaymentsService {
       throw new BadRequestException("Invalid Paymob transaction callback");
     }
 
+    if (verified.hasParentTransaction) {
+      return this.processPaymobChildWebhook(verified);
+    }
+
     try {
       return await this.prisma.$transaction((tx) =>
         this.processVerifiedPaymobWebhook(tx, verified),
@@ -1909,6 +1913,166 @@ export class OnlinePaymentsService {
 
       throw error;
     }
+  }
+
+  private async processPaymobChildWebhook(
+    verified: VerifiedProviderTransactionWebhook,
+  ) {
+    const receipt = await this.prisma.$transaction(async (tx) => {
+      const existingEvent = await tx.onlinePaymentEvent.findUnique({
+        where: {
+          provider_providerEventId: {
+            provider: OnlinePaymentProvider.paymob,
+            providerEventId: verified.providerEventId,
+          },
+        },
+        select: { onlinePaymentIntentId: true },
+      });
+
+      if (existingEvent) {
+        return {
+          intentId: existingEvent.onlinePaymentIntentId,
+          duplicate: true,
+        };
+      }
+
+      const intent = await tx.onlinePaymentIntent.findUnique({
+        where: {
+          provider_providerOrderId: {
+            provider: OnlinePaymentProvider.paymob,
+            providerOrderId: verified.providerOrderId,
+          },
+        },
+        include: this.intentInclude(),
+      });
+
+      if (!intent) {
+        return {
+          unmatched: true as const,
+        };
+      }
+
+      await this.createOnlinePaymentEvent(
+        tx,
+        intent,
+        OnlinePaymentEventType.provider_webhook_received,
+        {
+          callbackStatus: verified.status,
+          providerTransactionId: verified.providerTransactionId,
+          providerOrderId: verified.providerOrderId,
+          integrationId: verified.integrationId,
+          childTransaction: true,
+          authoritativeInquiryRequired: true,
+          ...verified.safeMetadata,
+        },
+        verified.providerEventId,
+      );
+
+      return {
+        intentId: intent.id,
+        duplicate: false,
+      };
+    });
+
+    if ("unmatched" in receipt) {
+      return {
+        received: true,
+        outcome: "unmatched_child_provider_order",
+        provider: OnlinePaymentProvider.paymob,
+        providerTransactionId: verified.providerTransactionId,
+        providerOrderId: verified.providerOrderId,
+      };
+    }
+
+    let state: ProviderTransactionState;
+
+    try {
+      state =
+        await this.paymobPaymentProviderService.inquireTransactionById(
+          verified.providerTransactionId,
+        );
+    } catch (error) {
+      throw this.mapPaymobInquiryError(error);
+    }
+
+    return this.prisma.$transaction(async (tx) => {
+      const intent = await this.loadIntentOrThrow(receipt.intentId, tx);
+
+      if (
+        state.providerOrderId !== intent.providerOrderId ||
+        state.currency !== intent.currency
+      ) {
+        await this.createOnlinePaymentEvent(
+          tx,
+          intent,
+          OnlinePaymentEventType.settlement_skipped,
+          {
+            reason: "child_transaction_scope_mismatch",
+            providerTransactionId: state.providerTransactionId,
+            providerOrderId: state.providerOrderId,
+          },
+        );
+
+        return this.toIntentResult(intent, "child_transaction_scope_mismatch");
+      }
+
+      const operation = await tx.onlinePaymentOperation.findFirst({
+        where: {
+          onlinePaymentIntentId: intent.id,
+          provider: OnlinePaymentProvider.paymob,
+          status: OnlinePaymentOperationStatus.pending,
+          ...(state.operationType ? { type: state.operationType } : {}),
+          ...(state.parentProviderTransactionId
+            ? {
+                parentProviderTransactionId:
+                  state.parentProviderTransactionId,
+              }
+            : {}),
+          OR: [
+            { providerTransactionId: state.providerTransactionId },
+            { providerTransactionId: null },
+          ],
+        },
+        include: onlinePaymentOperationInclude,
+      });
+
+      if (!operation) {
+        await this.createOnlinePaymentEvent(
+          tx,
+          intent,
+          OnlinePaymentEventType.status_updated,
+          {
+            reason: "unmatched_child_transaction",
+            providerTransactionId: state.providerTransactionId,
+            parentProviderTransactionId:
+              state.parentProviderTransactionId,
+            operationType: state.operationType,
+          },
+        );
+
+        return this.toIntentResult(intent, "unmatched_child_transaction");
+      }
+
+      if (!operation.providerTransactionId) {
+        await tx.onlinePaymentOperation.updateMany({
+          where: {
+            id: operation.id,
+            status: OnlinePaymentOperationStatus.pending,
+            providerTransactionId: null,
+          },
+          data: {
+            providerTransactionId: state.providerTransactionId,
+          },
+        });
+      }
+
+      return this.finalizePaymobOperationFromState(
+        tx,
+        operation.id,
+        state,
+        "child_webhook",
+      );
+    });
   }
 
   private async processVerifiedPaymobWebhook(
