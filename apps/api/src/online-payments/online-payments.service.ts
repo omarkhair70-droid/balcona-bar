@@ -2127,6 +2127,235 @@ export class OnlinePaymentsService {
     );
   }
 
+  async refundProviderIntent(
+    intentId: string,
+    staffUserId: string,
+    body: RefundOnlinePaymentDto,
+  ) {
+    const intent = await this.prisma.onlinePaymentIntent.findUnique({
+      where: { id: intentId },
+      select: { provider: true },
+    });
+
+    if (!intent) {
+      throw new NotFoundException("Online payment intent not found");
+    }
+
+    if (intent.provider === OnlinePaymentProvider.paymob) {
+      return this.refundPaymobIntent(intentId, staffUserId, body);
+    }
+
+    if (intent.provider === OnlinePaymentProvider.fawry) {
+      return this.refundFawryIntent(intentId, staffUserId, body);
+    }
+
+    throw new BadRequestException(
+      "Refund is not available for this payment provider",
+    );
+  }
+
+  private async refundFawryIntent(
+    intentId: string,
+    staffUserId: string,
+    body: RefundOnlinePaymentDto,
+  ) {
+    this.assertOnlinePaymentsEnabled();
+
+    const preparation = await this.prisma.$transaction(async (tx) => {
+      const intent = await this.loadIntentOrThrow(intentId, tx);
+
+      if (intent.provider !== OnlinePaymentProvider.fawry) {
+        throw new BadRequestException(
+          "Fawry refund requires a Fawry payment intent",
+        );
+      }
+
+      if (intent.status !== OnlinePaymentIntentStatus.succeeded) {
+        throw new BadRequestException(
+          "Only a succeeded Fawry payment can be refunded",
+        );
+      }
+
+      await this.lockOnlinePaymentOperation(tx, intent.id);
+
+      const existingByKey = await tx.onlinePaymentOperation.findUnique({
+        where: { idempotencyKey: body.idempotencyKey },
+        include: onlinePaymentOperationInclude,
+      });
+
+      if (existingByKey) {
+        if (
+          existingByKey.onlinePaymentIntentId !== intent.id ||
+          existingByKey.type !== OnlinePaymentOperationType.refund ||
+          existingByKey.amountMinor !== body.amountMinor
+        ) {
+          throw new ConflictException(
+            "Idempotency key is already used for another payment operation",
+          );
+        }
+
+        return {
+          kind: "existing" as const,
+          operation: existingByKey,
+        };
+      }
+
+      const pendingOperation = await tx.onlinePaymentOperation.findFirst({
+        where: {
+          onlinePaymentIntentId: intent.id,
+          status: OnlinePaymentOperationStatus.pending,
+        },
+        include: onlinePaymentOperationInclude,
+      });
+
+      if (pendingOperation) {
+        throw new ConflictException(
+          "Another payment operation is still awaiting provider confirmation",
+        );
+      }
+
+      const metadata = this.jsonRecord(intent.metadata);
+      const fawryRefNumber =
+        typeof metadata.fawryRefNumber === "string"
+          ? metadata.fawryRefNumber
+          : null;
+
+      if (!fawryRefNumber) {
+        throw new ConflictException(
+          "Fawry transaction truth is missing. Recover the payment before refunding it.",
+        );
+      }
+
+      const previousRefunds = await tx.onlinePaymentOperation.findMany({
+        where: {
+          onlinePaymentIntentId: intent.id,
+          type: OnlinePaymentOperationType.refund,
+          status: OnlinePaymentOperationStatus.succeeded,
+        },
+        select: { amountMinor: true },
+      });
+      const refundedMinor = previousRefunds.reduce(
+        (sum, operation) => sum + operation.amountMinor,
+        0,
+      );
+      const refundableMinor = intent.amountMinor - refundedMinor;
+
+      if (
+        !Number.isSafeInteger(body.amountMinor) ||
+        body.amountMinor <= 0 ||
+        body.amountMinor > refundableMinor
+      ) {
+        throw new BadRequestException(
+          "Refund amount exceeds the remaining refundable amount",
+        );
+      }
+
+      const operation = await tx.onlinePaymentOperation.create({
+        data: {
+          onlinePaymentIntentId: intent.id,
+          companyId: intent.companyId,
+          branchId: intent.branchId,
+          billId: intent.billId,
+          provider: OnlinePaymentProvider.fawry,
+          type: OnlinePaymentOperationType.refund,
+          status: OnlinePaymentOperationStatus.pending,
+          idempotencyKey: body.idempotencyKey,
+          parentProviderTransactionId: fawryRefNumber,
+          amountMinor: body.amountMinor,
+          currency: intent.currency,
+          reason: this.normalizeOptionalText(body.reason),
+          requestedByStaffUserId: staffUserId,
+          metadata: this.toJsonValue({
+            source: "staff_post_payment_operation",
+            previousRefundedMinor: refundedMinor,
+            expectedRefundedMinor: refundedMinor + body.amountMinor,
+            fawryRefundRecovery:
+              refundedMinor + body.amountMinor === intent.amountMinor
+                ? "full_total_provable"
+                : "partial_exact_amount_requires_direct_response",
+          }),
+        },
+        include: onlinePaymentOperationInclude,
+      });
+
+      await this.createOnlinePaymentEvent(
+        tx,
+        intent,
+        OnlinePaymentEventType.provider_operation_requested,
+        {
+          operationId: operation.id,
+          operationType: OnlinePaymentOperationType.refund,
+          provider: OnlinePaymentProvider.fawry,
+          amountMinor: operation.amountMinor,
+          currency: operation.currency,
+          parentProviderTransactionId: fawryRefNumber,
+          requestedByStaffUserId: staffUserId,
+        },
+      );
+
+      return {
+        kind: "created" as const,
+        operation,
+      };
+    });
+
+    if (preparation.kind === "existing") {
+      return this.toOperationResult(preparation.operation, "idempotent");
+    }
+
+    try {
+      const providerResult =
+        await this.fawryPaymentProviderService.refundPayment({
+          referenceNumber:
+            preparation.operation.parentProviderTransactionId,
+          amountMinor: preparation.operation.amountMinor,
+          reason: preparation.operation.reason ?? undefined,
+        });
+
+      return this.finalizeFawryRefundOperation(
+        preparation.operation.id,
+        "direct_refund_response",
+        {
+          statusCode: providerResult.statusCode,
+          statusDescription: providerResult.statusDescription,
+        },
+      );
+    } catch (error) {
+      if (this.isAmbiguousFawryRefundError(error)) {
+        await this.markFawryRefundUncertain(
+          preparation.operation.id,
+          error,
+        );
+
+        throw new ServiceUnavailableException(
+          "Fawry refund outcome is uncertain and must be recovered before another refund",
+        );
+      }
+
+      await this.failFawryRefundOperation(
+        preparation.operation.id,
+        error,
+      );
+
+      if (
+        error instanceof PaymentProviderError &&
+        (
+          error.code === "invalid_request" ||
+          error.code === "provider_declined" ||
+          error.code === "transaction_not_found"
+        )
+      ) {
+        throw new BadRequestException(
+          "Fawry rejected the refund for the current payment state",
+        );
+      }
+
+      throw new ServiceUnavailableException(
+        "Fawry refund is temporarily unavailable",
+      );
+    }
+  }
+
   refundPaymobIntent(
     intentId: string,
     staffUserId: string,
@@ -2169,6 +2398,118 @@ export class OnlinePaymentsService {
       body.amountMinor,
       body.idempotencyKey,
       body.reason,
+    );
+  }
+
+  async recoverProviderOperation(
+    operationId: string,
+    source: "staff_manual" | "scheduled_reconciliation" | "child_webhook" =
+      "staff_manual",
+  ) {
+    const operation = await this.prisma.onlinePaymentOperation.findUnique({
+      where: { id: operationId },
+      select: { provider: true },
+    });
+
+    if (!operation) {
+      throw new NotFoundException("Online payment operation not found");
+    }
+
+    if (operation.provider === OnlinePaymentProvider.paymob) {
+      return this.recoverPaymobOperation(operationId, source);
+    }
+
+    if (operation.provider === OnlinePaymentProvider.fawry) {
+      return this.recoverFawryRefundOperation(operationId, source);
+    }
+
+    throw new BadRequestException(
+      "Provider operation recovery is not available for this provider",
+    );
+  }
+
+  private async recoverFawryRefundOperation(
+    operationId: string,
+    source: "staff_manual" | "scheduled_reconciliation" | "child_webhook",
+  ) {
+    this.assertOnlinePaymentsEnabled();
+
+    const operation = await this.prisma.onlinePaymentOperation.findUnique({
+      where: { id: operationId },
+      include: onlinePaymentOperationInclude,
+    });
+
+    if (!operation) {
+      throw new NotFoundException("Online payment operation not found");
+    }
+
+    if (
+      operation.provider !== OnlinePaymentProvider.fawry ||
+      operation.type !== OnlinePaymentOperationType.refund
+    ) {
+      throw new BadRequestException(
+        "Fawry operation recovery currently supports refunds only",
+      );
+    }
+
+    if (operation.status !== OnlinePaymentOperationStatus.pending) {
+      return this.toOperationResult(operation, "already_terminal");
+    }
+
+    const merchantRefNumber =
+      operation.onlinePaymentIntent.providerOrderId;
+
+    if (!merchantRefNumber) {
+      throw new ServiceUnavailableException(
+        "Fawry merchant reference is missing for refund recovery",
+      );
+    }
+
+    let inquiry;
+
+    try {
+      inquiry =
+        await this.fawryPaymentProviderService.inquireByMerchantReference(
+          merchantRefNumber,
+        );
+    } catch {
+      throw new ServiceUnavailableException(
+        "Fawry refund recovery is temporarily unavailable",
+      );
+    }
+
+    if (!inquiry.found) {
+      throw new ServiceUnavailableException(
+        "Fawry refund recovery could not find the original transaction",
+      );
+    }
+
+    const metadata = this.jsonRecord(operation.metadata);
+    const expectedRefundedMinor = Number(
+      metadata.expectedRefundedMinor ?? operation.amountMinor,
+    );
+    const fullTotalProvable =
+      Number.isSafeInteger(expectedRefundedMinor) &&
+      expectedRefundedMinor ===
+        operation.onlinePaymentIntent.amountMinor &&
+      inquiry.transaction.safeMetadata.refunded === true;
+
+    if (!fullTotalProvable) {
+      return this.toOperationResult(
+        operation,
+        "provider_confirmation_pending",
+      );
+    }
+
+    return this.finalizeFawryRefundOperation(
+      operation.id,
+      source,
+      {
+        providerStatus:
+          inquiry.transaction.safeMetadata.orderStatus,
+        fawryRefNumber:
+          inquiry.transaction.providerTransactionId,
+      },
     );
   }
 
@@ -2220,7 +2561,7 @@ export class OnlinePaymentsService {
         );
       }
 
-      await this.lockPaymobOperation(tx, intent.id);
+      await this.lockOnlinePaymentOperation(tx, intent.id);
 
       const existingByKey = await tx.onlinePaymentOperation.findUnique({
         where: { idempotencyKey },
@@ -2982,6 +3323,167 @@ export class OnlinePaymentsService {
     );
   }
 
+  private async finalizeFawryRefundOperation(
+    operationId: string,
+    source: string,
+    providerMetadata: Record<string, unknown>,
+  ) {
+    return this.prisma.$transaction(async (tx) => {
+      await tx.onlinePaymentOperation.updateMany({
+        where: {
+          id: operationId,
+          provider: OnlinePaymentProvider.fawry,
+          type: OnlinePaymentOperationType.refund,
+          status: OnlinePaymentOperationStatus.pending,
+        },
+        data: {
+          status: OnlinePaymentOperationStatus.succeeded,
+          completedAt: new Date(),
+          failedAt: null,
+          failureCode: null,
+          failureMessage: null,
+          metadata: this.toJsonValue({
+            providerConfirmationSource: source,
+            providerConfirmation: providerMetadata,
+          }),
+        },
+      });
+
+      const operation = await this.loadOperationOrThrow(operationId, tx);
+
+      if (operation.status !== OnlinePaymentOperationStatus.succeeded) {
+        return this.toOperationResult(operation, "state_unchanged");
+      }
+
+      await this.createOnlinePaymentEvent(
+        tx,
+        operation.onlinePaymentIntent,
+        OnlinePaymentEventType.provider_operation_completed,
+        {
+          operationId: operation.id,
+          operationType: operation.type,
+          provider: OnlinePaymentProvider.fawry,
+          amountMinor: operation.amountMinor,
+          source,
+          parentProviderTransactionId:
+            operation.parentProviderTransactionId,
+        },
+      );
+      await this.billsService.refreshReceiptForOnlinePaymentAdjustment(
+        operation.billId,
+        tx,
+      );
+      await this.auditService.recordAuditLog(
+        {
+          companyId: operation.companyId,
+          branchId: operation.branchId,
+          actorType: AuditActorType.staff,
+          actorStaffUserId: operation.requestedByStaffUserId,
+          targetType: "online_payment_operation",
+          targetId: operation.id,
+          action: AuditAction.online_payment_refunded,
+          message: "Fawry refund completed",
+          metadata: {
+            onlinePaymentIntentId: operation.onlinePaymentIntentId,
+            billId: operation.billId,
+            amountMinor: operation.amountMinor,
+            currency: operation.currency,
+            parentProviderTransactionId:
+              operation.parentProviderTransactionId,
+            source,
+          },
+        },
+        tx,
+      );
+
+      return this.toOperationResult(operation, "succeeded");
+    });
+  }
+
+  private async markFawryRefundUncertain(
+    operationId: string,
+    error: unknown,
+  ) {
+    const providerCode =
+      error instanceof PaymentProviderError
+        ? error.code
+        : "unknown_error";
+    const operation = await this.prisma.onlinePaymentOperation.findUnique({
+      where: { id: operationId },
+      select: { metadata: true },
+    });
+
+    await this.prisma.onlinePaymentOperation.updateMany({
+      where: {
+        id: operationId,
+        provider: OnlinePaymentProvider.fawry,
+        status: OnlinePaymentOperationStatus.pending,
+      },
+      data: {
+        failureCode: `uncertain:${providerCode}`,
+        failureMessage:
+          "Fawry refund outcome is uncertain; provider recovery is required before another refund",
+        metadata: this.toJsonValue({
+          ...this.jsonRecord(operation?.metadata ?? null),
+          providerRequestState: "uncertain",
+          providerErrorCode: providerCode,
+        }),
+      },
+    });
+  }
+
+  private async failFawryRefundOperation(
+    operationId: string,
+    error: unknown,
+  ) {
+    const providerCode =
+      error instanceof PaymentProviderError
+        ? error.code
+        : "unknown_error";
+
+    return this.prisma.$transaction(async (tx) => {
+      await tx.onlinePaymentOperation.updateMany({
+        where: {
+          id: operationId,
+          provider: OnlinePaymentProvider.fawry,
+          status: OnlinePaymentOperationStatus.pending,
+        },
+        data: {
+          status: OnlinePaymentOperationStatus.failed,
+          failedAt: new Date(),
+          failureCode: `fawry_refund_failed:${providerCode}`,
+          failureMessage: "Fawry refund could not be completed",
+        },
+      });
+      const operation = await this.loadOperationOrThrow(operationId, tx);
+
+      await this.createOnlinePaymentEvent(
+        tx,
+        operation.onlinePaymentIntent,
+        OnlinePaymentEventType.provider_operation_failed,
+        {
+          operationId: operation.id,
+          operationType: operation.type,
+          provider: OnlinePaymentProvider.fawry,
+          providerErrorCode: providerCode,
+        },
+      );
+
+      return this.toOperationResult(operation, "failed");
+    });
+  }
+
+  private isAmbiguousFawryRefundError(error: unknown) {
+    return (
+      error instanceof PaymentProviderError &&
+      [
+        "timeout",
+        "provider_unavailable",
+        "invalid_response",
+      ].includes(error.code)
+    );
+  }
+
   private async loadOperationOrThrow(
     operationId: string,
     tx: PrismaExecutor,
@@ -2998,7 +3500,7 @@ export class OnlinePaymentsService {
     return operation;
   }
 
-  private async lockPaymobOperation(
+  private async lockOnlinePaymentOperation(
     tx: Prisma.TransactionClient,
     intentId: string,
   ) {
