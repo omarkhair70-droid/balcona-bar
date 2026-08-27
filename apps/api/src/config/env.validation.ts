@@ -364,6 +364,17 @@ export function validateEnvironment(config: Record<string, unknown>) {
     );
   }
 
+  if (
+    effectiveAppEnvironment === "production" &&
+    onlinePaymentsEnabled &&
+    effectivePaymentProvider === OnlinePaymentProvider.Paymob &&
+    !validatedConfig.PAYMOB_API_KEY
+  ) {
+    throw new Error(
+      "PAYMOB_API_KEY is required for production Paymob recovery",
+    );
+  }
+
   if (validatedConfig.ONLINE_PAYMENT_RECONCILIATION_ENABLED === "true") {
     if (!onlinePaymentsEnabled) {
       throw new Error(
