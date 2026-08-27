@@ -471,6 +471,44 @@ describe("OnlinePaymentsService", () => {
     expect(billsService.settleBillWithOnlinePayment).not.toHaveBeenCalled();
   });
 
+  it("acknowledges an unmatched verified Paymob order without settlement", async () => {
+    const { service, tx, billsService, paymobPaymentProviderService } =
+      createService("paymob");
+    paymobPaymentProviderService.verifyTransactionWebhook.mockReturnValueOnce({
+      provider: OnlinePaymentProvider.paymob,
+      providerEventId: "paymob_tx_777001_unmatched",
+      providerTransactionId: "777001",
+      providerOrderId: "99999",
+      merchantReference: "missing-intent",
+      integrationId: 101,
+      status: OnlinePaymentIntentStatus.succeeded,
+      amountMinor: 12500,
+      currency: "EGP",
+      actionable: true,
+      safeMetadata: {},
+    });
+    tx.onlinePaymentEvent.findUnique.mockResolvedValueOnce(null);
+    tx.onlinePaymentIntent.findUnique.mockResolvedValueOnce(null);
+
+    const result = await service.processPaymobWebhook(
+      "verified-hmac",
+      { signed: "payload" },
+    );
+
+    expect(tx.onlinePaymentEvent.create).not.toHaveBeenCalled();
+    expect(tx.onlinePaymentIntent.updateMany).not.toHaveBeenCalled();
+    expect(billsService.settleBillWithOnlinePayment).not.toHaveBeenCalled();
+    expect(result).toMatchObject({
+      received: true,
+      outcome: "unmatched_provider_order",
+      providerOrderId: "99999",
+      settlement: {
+        settled: false,
+        reason: "unmatched_provider_order",
+      },
+    });
+  });
+
   it("deduplicates the same verified Paymob callback without double settlement", async () => {
     const { service, tx, billsService, paymobPaymentProviderService } =
       createService("paymob");
