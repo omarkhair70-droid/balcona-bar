@@ -51,7 +51,7 @@ export class CustomerSessionAccessGuard implements CanActivate {
 
     request.customerSessionIdentity = {
       id: identity.id,
-      tableSessionId: identity.tableSessionId,
+      tableSessionId: sessionId,
       companyId: identity.companyId,
       branchId: identity.branchId,
     };
