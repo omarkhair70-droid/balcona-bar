@@ -172,6 +172,24 @@ export class StaffScopedAccessService {
     return this.assertCanForRecord(staffUserId, permission, bill, "Bill");
   }
 
+  async assertCanForOnlinePaymentOperation(
+    staffUserId: string,
+    permission: StaffPermission,
+    operationId: string,
+  ) {
+    const operation = await this.prisma.onlinePaymentOperation.findUnique({
+      where: { id: operationId },
+      select: { companyId: true, branchId: true },
+    });
+
+    return this.assertCanForRecord(
+      staffUserId,
+      permission,
+      operation,
+      "Online payment operation",
+    );
+  }
+
   async assertCanForOnlinePaymentIntent(
     staffUserId: string,
     permission: StaffPermission,
