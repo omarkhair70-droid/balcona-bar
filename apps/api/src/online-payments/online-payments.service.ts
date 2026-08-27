@@ -1313,7 +1313,7 @@ export class OnlinePaymentsService {
   ) {
     await tx.$executeRaw`
       SELECT pg_advisory_xact_lock(
-        hashtext(${`online-payment:${billId}`})::bigint
+        hashtextextended(${`online-payment:${billId}`}, 0)
       )
     `;
   }
