@@ -84,8 +84,6 @@ export class PaymentReconciliationService {
   ) {
     const period = this.parsePeriod(body.periodStart, body.periodEnd);
     const currency = this.normalizeCurrency(body.currency);
-    const provider =
-      body.provider ?? OnlinePaymentProvider.paymob;
     const branch = await this.loadBranch(branchId);
 
     const existing = await this.prisma.onlinePaymentReconciliationRun.findUnique({
@@ -234,6 +232,8 @@ export class PaymentReconciliationService {
     const branch = await this.loadBranch(branchId);
     const period = this.parsePeriod(body.periodStart, body.periodEnd);
     const currency = this.normalizeCurrency(body.currency);
+    const provider =
+      body.provider ?? OnlinePaymentProvider.paymob;
     this.assertMovementCountWithinLimit(body.lines.length);
     const lines = this.normalizeSettlementLines(body.lines, currency);
     const totals = this.statementTotals(lines);
@@ -441,11 +441,20 @@ export class PaymentReconciliationService {
     for (const movement of movements) {
       if (!movement.providerTransactionId) {
         mismatchCount += 1;
-        await this.createIssue(run.id, undefined, batch.companyId, batch.branchId, OnlinePaymentReconciliationIssueType.provider_transaction_missing, "Local payment movement has no provider transaction reference", {
-          movementType: movement.movementType,
-          onlinePaymentIntentId: movement.onlinePaymentIntentId,
-          onlinePaymentOperationId: movement.onlinePaymentOperationId,
-        });
+        await this.createIssue(
+          run.id,
+          undefined,
+          batch.companyId,
+          batch.branchId,
+          OnlinePaymentReconciliationIssueType.provider_transaction_missing,
+          "Local payment movement has no provider transaction reference",
+          {
+            movementType: movement.movementType,
+            onlinePaymentIntentId: movement.onlinePaymentIntentId,
+            onlinePaymentOperationId: movement.onlinePaymentOperationId,
+          },
+          batch.provider,
+        );
         continue;
       }
 
