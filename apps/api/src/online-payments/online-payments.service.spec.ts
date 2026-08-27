@@ -1108,7 +1108,7 @@ describe("OnlinePaymentsService", () => {
         idempotencyKey: "refund-timeout",
       }),
     ).rejects.toThrow(
-      "Paymob payment operation is awaiting or missing provider confirmation",
+      "Paymob operation outcome is uncertain and must be recovered before another financial operation",
     );
 
     expect(harness.getOperation().status).toBe(
@@ -1184,9 +1184,9 @@ describe("OnlinePaymentsService", () => {
       },
     );
     harness.setOperation(pendingOperation);
-    tx.onlinePaymentOperation.findFirst.mockResolvedValueOnce(
-      pendingOperation,
-    );
+    tx.onlinePaymentOperation.findFirst
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce(pendingOperation);
 
     paymobPaymentProviderService.verifyTransactionWebhook.mockReturnValueOnce({
       provider: OnlinePaymentProvider.paymob,
