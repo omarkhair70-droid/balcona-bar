@@ -92,6 +92,10 @@ Output:
 
 ### refundPayment
 
+Provider mutation response is not sufficient settlement truth. The adapter
+returns only safe operation references and the business layer must perform
+authenticated transaction inquiry before finalizing the local operation.
+
 Input:
 
 - provider transaction id
@@ -109,11 +113,15 @@ Output:
 
 ### voidPayment
 
-Optional provider capability.
+Optional provider capability. Balcona requires authoritative provider inquiry
+after the mutation and currently enables Paymob void only for card-based
+transactions.
 
 ### capturePayment
 
-Optional provider capability.
+Optional provider capability. Balcona currently permits full capture only
+because the bill settlement domain does not yet support partial online
+settlement.
 
 ## Normalized status vocabulary
 
