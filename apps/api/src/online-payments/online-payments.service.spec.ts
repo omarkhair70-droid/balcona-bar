@@ -386,6 +386,70 @@ describe("OnlinePaymentsService", () => {
     expect(result.settlement).toMatchObject({ settled: true });
   });
 
+  it("recovers a verified late Paymob success after an earlier local failed state", async () => {
+    const {
+      service,
+      tx,
+      billsService,
+      paymobPaymentProviderService,
+    } = createService("paymob");
+    const failedIntent = intent(
+      OnlinePaymentIntentStatus.failed,
+      OnlinePaymentProvider.paymob,
+      {
+        failedAt: now,
+        failureCode: "paymob_transaction_failed",
+        failureMessage: "Paymob transaction failed",
+      },
+    );
+    const succeededIntent = intent(
+      OnlinePaymentIntentStatus.succeeded,
+      OnlinePaymentProvider.paymob,
+    );
+    paymobPaymentProviderService.verifyTransactionWebhook.mockReturnValueOnce({
+      provider: OnlinePaymentProvider.paymob,
+      providerEventId: "paymob_tx_555003_late_success",
+      providerTransactionId: "555003",
+      providerOrderId: "12345",
+      merchantReference: "intent-1",
+      integrationId: 101,
+      status: OnlinePaymentIntentStatus.succeeded,
+      amountMinor: 12500,
+      currency: "EGP",
+      actionable: true,
+      safeMetadata: {},
+    });
+    tx.onlinePaymentEvent.findUnique.mockResolvedValueOnce(null);
+    tx.onlinePaymentIntent.findUnique
+      .mockResolvedValueOnce(failedIntent)
+      .mockResolvedValueOnce(succeededIntent)
+      .mockResolvedValueOnce(succeededIntent);
+
+    const result = await service.processPaymobWebhook(
+      "verified-hmac",
+      { signed: "payload" },
+    );
+
+    expect(tx.onlinePaymentIntent.updateMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          id: "intent-1",
+          status: { not: OnlinePaymentIntentStatus.succeeded },
+        }),
+        data: expect.objectContaining({
+          status: OnlinePaymentIntentStatus.succeeded,
+          failedAt: null,
+          cancelledAt: null,
+          expiredAt: null,
+          failureCode: null,
+          failureMessage: null,
+        }),
+      }),
+    );
+    expect(billsService.settleBillWithOnlinePayment).toHaveBeenCalledTimes(1);
+    expect(result.settlement).toMatchObject({ settled: true });
+  });
+
   it("rejects an invalid Paymob HMAC before reading or mutating payment state", async () => {
     const { service, tx, billsService, paymobPaymentProviderService } =
       createService("paymob");
