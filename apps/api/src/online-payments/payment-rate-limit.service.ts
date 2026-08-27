@@ -64,7 +64,7 @@ export class PaymentRateLimitService {
       }
 
       return this.result(count, limit, ttl > 0 ? ttl : windowSeconds);
-    } catch (error) {
+    } catch {
       if (this.isProduction()) {
         throw new ServiceUnavailableException({
           statusCode: HttpStatus.SERVICE_UNAVAILABLE,
