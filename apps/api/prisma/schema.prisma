@@ -417,6 +417,7 @@ enum ManualPaymentStatus {
 enum OnlinePaymentProvider {
   mock
   paymob
+  fawry
   external
 }
 
