@@ -30,6 +30,7 @@ import { SaasService } from "../saas/saas.service";
 import { PaymobPaymentProviderService } from "./providers/paymob-payment-provider.service";
 import {
   PaymentProviderError,
+  ProviderTransactionState,
   VerifiedProviderTransactionWebhook,
 } from "./providers/payment-provider.types";
 
@@ -237,6 +238,8 @@ export class OnlinePaymentsService {
         "Billing data is required to prepare Paymob checkout",
       );
     }
+
+    await this.recoverBeforePaymobRetry(sessionId, billId);
 
     const preparation = await this.prisma.$transaction(async (tx) => {
       const bill = await tx.bill.findUnique({
@@ -499,6 +502,402 @@ export class OnlinePaymentsService {
 
     return new ServiceUnavailableException(
       "Online payment checkout is temporarily unavailable",
+    );
+  }
+
+  private async recoverBeforePaymobRetry(
+    sessionId: string,
+    billId: string,
+  ) {
+    const latestIntent = await this.prisma.onlinePaymentIntent.findFirst({
+      where: {
+        billId,
+        tableSessionId: sessionId,
+        provider: OnlinePaymentProvider.paymob,
+        providerOrderId: { not: null },
+      },
+      orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+      include: this.intentInclude(),
+    });
+
+    if (!latestIntent || latestIntent.status === OnlinePaymentIntentStatus.succeeded) {
+      return;
+    }
+
+    const terminalStatus = [
+      OnlinePaymentIntentStatus.failed,
+      OnlinePaymentIntentStatus.cancelled,
+      OnlinePaymentIntentStatus.expired,
+    ].includes(latestIntent.status);
+    const activeCheckoutExpired =
+      ACTIVE_ONLINE_PAYMENT_STATUSES.includes(latestIntent.status) &&
+      Boolean(
+        latestIntent.checkoutExpiresAt &&
+          latestIntent.checkoutExpiresAt <= new Date(),
+      );
+
+    if (!terminalStatus && !activeCheckoutExpired) {
+      return;
+    }
+
+    await this.recoverPaymobIntent(
+      latestIntent.id,
+      "customer_retry_preflight",
+    );
+  }
+
+  async recoverPaymobIntent(
+    intentId: string,
+    source:
+      | "customer_retry_preflight"
+      | "scheduled_reconciliation"
+      | "staff_manual" = "staff_manual",
+  ) {
+    this.assertOnlinePaymentsEnabled();
+
+    const intent = await this.prisma.onlinePaymentIntent.findUnique({
+      where: { id: intentId },
+      include: this.intentInclude(),
+    });
+
+    if (!intent) {
+      throw new NotFoundException("Online payment intent not found");
+    }
+
+    if (intent.provider !== OnlinePaymentProvider.paymob) {
+      throw new BadRequestException(
+        "Provider inquiry is only available for Paymob intents",
+      );
+    }
+
+    if (!intent.providerOrderId) {
+      throw new BadRequestException(
+        "Paymob intent does not have a provider order id",
+      );
+    }
+
+    let inquiry;
+
+    try {
+      inquiry =
+        await this.paymobPaymentProviderService.inquireTransactionByOrder(
+          intent.providerOrderId,
+        );
+    } catch (error) {
+      throw this.mapPaymobInquiryError(error);
+    }
+
+    if (!inquiry.found) {
+      return this.handlePaymobInquiryNotFound(intent, source);
+    }
+
+    try {
+      return await this.prisma.$transaction((tx) =>
+        this.processPaymobInquiryState(
+          tx,
+          intent.id,
+          inquiry.transaction,
+          source,
+        ),
+      );
+    } catch (error) {
+      if (this.isProviderEventUniqueConstraintError(error)) {
+        return this.paymobDuplicateProviderStateResult(
+          inquiry.transaction.providerEventId,
+          "duplicate_inquiry",
+        );
+      }
+
+      throw error;
+    }
+  }
+
+  async reconcilePendingPaymobIntents() {
+    if (
+      this.configService.get<boolean>(
+        "onlinePayments.reconciliation.enabled",
+        false,
+      ) !== true
+    ) {
+      return {
+        enabled: false,
+        attempted: 0,
+        recovered: 0,
+        failed: 0,
+      };
+    }
+
+    const staleSeconds = this.configService.get<number>(
+      "onlinePayments.reconciliation.staleSeconds",
+      120,
+    );
+    const batchSize = this.configService.get<number>(
+      "onlinePayments.reconciliation.batchSize",
+      25,
+    );
+    const staleBefore = new Date(Date.now() - staleSeconds * 1000);
+    const intents = await this.prisma.onlinePaymentIntent.findMany({
+      where: {
+        provider: OnlinePaymentProvider.paymob,
+        providerOrderId: { not: null },
+        status: { in: ACTIVE_ONLINE_PAYMENT_STATUSES },
+        updatedAt: { lte: staleBefore },
+      },
+      orderBy: [{ updatedAt: "asc" }, { id: "asc" }],
+      take: batchSize,
+      select: { id: true },
+    });
+
+    let recovered = 0;
+    let failed = 0;
+    const failures: Array<{ intentId: string; code: string }> = [];
+
+    for (const candidate of intents) {
+      try {
+        await this.recoverPaymobIntent(
+          candidate.id,
+          "scheduled_reconciliation",
+        );
+        recovered += 1;
+      } catch (error) {
+        failed += 1;
+        failures.push({
+          intentId: candidate.id,
+          code:
+            error instanceof PaymentProviderError
+              ? error.code
+              : error instanceof Error
+                ? error.name
+                : "unknown_error",
+        });
+      }
+    }
+
+    return {
+      enabled: true,
+      attempted: intents.length,
+      recovered,
+      failed,
+      failures,
+    };
+  }
+
+  private async processPaymobInquiryState(
+    tx: Prisma.TransactionClient,
+    intentId: string,
+    state: ProviderTransactionState,
+    source: string,
+  ) {
+    const existingEvent = await tx.onlinePaymentEvent.findUnique({
+      where: {
+        provider_providerEventId: {
+          provider: OnlinePaymentProvider.paymob,
+          providerEventId: state.providerEventId,
+        },
+      },
+      select: { onlinePaymentIntentId: true },
+    });
+
+    if (existingEvent) {
+      const duplicateIntent = await this.loadIntentOrThrow(
+        existingEvent.onlinePaymentIntentId,
+        tx,
+      );
+
+      return this.toIntentResult(duplicateIntent, "duplicate_inquiry", {
+        settled: false,
+        reason: "duplicate_inquiry",
+        message: "Paymob inquiry state was already processed",
+      });
+    }
+
+    const intent = await this.loadIntentOrThrow(intentId, tx);
+
+    if (intent.providerOrderId !== state.providerOrderId) {
+      return this.skipPaymobSettlement(
+        tx,
+        intent,
+        state,
+        "provider_order_mismatch",
+        {
+          inquiryProviderOrderId: state.providerOrderId,
+          localProviderOrderId: intent.providerOrderId,
+          source,
+        },
+      );
+    }
+
+    await this.createOnlinePaymentEvent(
+      tx,
+      intent,
+      OnlinePaymentEventType.provider_inquiry_received,
+      {
+        source,
+        inquiryStatus: state.status,
+        providerTransactionId: state.providerTransactionId,
+        providerOrderId: state.providerOrderId,
+        integrationId: state.integrationId,
+        actionable: state.actionable,
+        ...state.safeMetadata,
+      },
+      state.providerEventId,
+    );
+
+    if (state.merchantReference && state.merchantReference !== intent.id) {
+      return this.skipPaymobSettlement(
+        tx,
+        intent,
+        state,
+        "merchant_reference_mismatch",
+        {
+          inquiryMerchantReference: state.merchantReference,
+          localIntentId: intent.id,
+          source,
+        },
+      );
+    }
+
+    if (state.amountMinor !== intent.amountMinor) {
+      return this.skipPaymobSettlement(
+        tx,
+        intent,
+        state,
+        "amount_mismatch",
+        {
+          inquiryAmountMinor: state.amountMinor,
+          intentAmountMinor: intent.amountMinor,
+          source,
+        },
+      );
+    }
+
+    if (state.currency !== intent.currency) {
+      return this.skipPaymobSettlement(
+        tx,
+        intent,
+        state,
+        "currency_mismatch",
+        {
+          inquiryCurrency: state.currency,
+          intentCurrency: intent.currency,
+          source,
+        },
+      );
+    }
+
+    if (!state.actionable) {
+      await this.createOnlinePaymentEvent(
+        tx,
+        intent,
+        OnlinePaymentEventType.status_updated,
+        {
+          reason: "inquiry_transaction_deferred",
+          source,
+          providerTransactionId: state.providerTransactionId,
+          providerEventId: state.providerEventId,
+          inquiryStatus: state.status,
+        },
+      );
+
+      return this.toIntentResult(intent, "inquiry_transaction_deferred", {
+        settled: false,
+        reason: "inquiry_transaction_deferred",
+        message:
+          "Paymob inquiry returned a child/refund transaction deferred to PAY-5",
+      });
+    }
+
+    if (state.status === OnlinePaymentIntentStatus.succeeded) {
+      return this.applyPaymobSuccess(tx, intent, state);
+    }
+
+    return this.applyPaymobStatusUpdate(tx, intent, state, {
+      allowTerminalRecovery: true,
+      source,
+    });
+  }
+
+  private async handlePaymobInquiryNotFound(
+    intent: OnlinePaymentIntentRecord,
+    source: string,
+  ) {
+    const checkoutExpired =
+      Boolean(intent.checkoutExpiresAt) &&
+      intent.checkoutExpiresAt! <= new Date();
+
+    if (
+      !checkoutExpired ||
+      !ACTIVE_ONLINE_PAYMENT_STATUSES.includes(intent.status)
+    ) {
+      return this.toIntentResult(intent, "provider_transaction_not_found", {
+        settled: false,
+        reason: "provider_transaction_not_found",
+        message: "Paymob has no transaction for this provider order",
+      });
+    }
+
+    return this.prisma.$transaction(async (tx) => {
+      const now = new Date();
+      const update = await tx.onlinePaymentIntent.updateMany({
+        where: {
+          id: intent.id,
+          provider: OnlinePaymentProvider.paymob,
+          providerOrderId: intent.providerOrderId,
+          status: { in: ACTIVE_ONLINE_PAYMENT_STATUSES },
+        },
+        data: {
+          status: OnlinePaymentIntentStatus.expired,
+          expiredAt: now,
+          failedAt: null,
+          cancelledAt: null,
+          failureCode: "paymob_checkout_expired_without_transaction",
+          failureMessage:
+            "Paymob checkout expired without a provider transaction",
+        },
+      });
+
+      const latest = await this.loadIntentOrThrow(intent.id, tx);
+
+      if (update.count === 1) {
+        await this.createOnlinePaymentEvent(
+          tx,
+          latest,
+          OnlinePaymentEventType.status_updated,
+          {
+            reason: "provider_transaction_not_found_after_checkout_expiry",
+            source,
+          },
+        );
+        await this.restoreBillPresentedIfNoActiveOnlinePayment(
+          latest.billId,
+          tx,
+        );
+        await this.realtimeEventsService.recordOnlinePaymentFailed(
+          latest.id,
+          tx,
+        );
+      }
+
+      return this.toIntentResult(
+        latest,
+        update.count === 1 ? "expired" : "state_unchanged",
+      );
+    });
+  }
+
+  private mapPaymobInquiryError(error: unknown) {
+    if (!(error instanceof PaymentProviderError)) {
+      return new ServiceUnavailableException(
+        "Paymob transaction inquiry is temporarily unavailable",
+      );
+    }
+
+    if (error.code === "invalid_request") {
+      return new BadRequestException("Paymob transaction inquiry is invalid");
+    }
+
+    return new ServiceUnavailableException(
+      "Paymob transaction inquiry is temporarily unavailable",
     );
   }
 
