@@ -11,6 +11,8 @@ import {
   CashierShiftStatus,
   ManualPaymentStatus,
   OnlinePaymentIntentStatus,
+  OnlinePaymentOperationStatus,
+  OnlinePaymentOperationType,
   OnlinePaymentProvider,
   OrderStatus,
   Prisma,
@@ -139,6 +141,38 @@ const onlinePaymentSelect = {
   },
 } satisfies Prisma.OnlinePaymentIntentSelect;
 
+const onlinePaymentAdjustmentSelect = {
+  id: true,
+  provider: true,
+  type: true,
+  status: true,
+  amountMinor: true,
+  currency: true,
+  completedAt: true,
+  onlinePaymentIntent: {
+    select: {
+      billId: true,
+      bill: {
+        select: {
+          id: true,
+          billNumber: true,
+          status: true,
+          currency: true,
+          totalMinor: true,
+          paidMinor: true,
+          balanceDueMinor: true,
+          orderCount: true,
+          lineCount: true,
+          requestedAt: true,
+          presentedAt: true,
+          paidAt: true,
+          closedAt: true,
+        },
+      },
+    },
+  },
+} satisfies Prisma.OnlinePaymentOperationSelect;
+
 const billLineSelect = {
   id: true,
   billId: true,
@@ -199,6 +233,9 @@ type ManualPaymentRecord = Prisma.ManualPaymentGetPayload<{
 type OnlinePaymentRecord = Prisma.OnlinePaymentIntentGetPayload<{
   select: typeof onlinePaymentSelect;
 }>;
+type OnlinePaymentAdjustmentRecord = Prisma.OnlinePaymentOperationGetPayload<{
+  select: typeof onlinePaymentAdjustmentSelect;
+}>;
 type RevenuePaymentRecord =
   | {
       source: "manual";
@@ -213,6 +250,13 @@ type RevenuePaymentRecord =
       amountMinor: number;
       happenedAt: Date;
       bill: OnlinePaymentRecord["bill"];
+    }
+  | {
+      source: "online_adjustment";
+      billId: string;
+      amountMinor: number;
+      happenedAt: Date;
+      bill: OnlinePaymentAdjustmentRecord["onlinePaymentIntent"]["bill"];
     };
 type CountRow = { key: string; count: number };
 type MoneyCountRow = CountRow & { amountMinor: number };
@@ -231,6 +275,7 @@ export class OwnerAnalyticsService {
     const [
       payments,
       onlinePayments,
+      onlinePaymentAdjustments,
       orderStatusCounts,
       activeBillRequestCount,
       openWaiterCallCount,
@@ -241,6 +286,7 @@ export class OwnerAnalyticsService {
     ] = await Promise.all([
       this.getRecordedPayments(branchId, range),
       this.getSucceededOnlinePayments(branchId, range),
+      this.getSucceededOnlinePaymentAdjustments(branchId, range),
       this.prisma.order.groupBy({
         by: ["status"],
         where: this.orderRangeWhere(branchId, range),
@@ -285,7 +331,11 @@ export class OwnerAnalyticsService {
       }),
       this.inventoryService.getBranchInventoryAlerts(branchId),
     ]);
-    const paymentStats = this.summarizePayments(payments, onlinePayments);
+    const paymentStats = this.summarizePayments(
+      payments,
+      onlinePayments,
+      onlinePaymentAdjustments,
+    );
     const orderCounts = this.orderCountsFromGroupBy(orderStatusCounts);
 
     return {
@@ -299,6 +349,9 @@ export class OwnerAnalyticsService {
       walletCollectedMinor: paymentStats.byMethod.wallet_manual.amountMinor,
       otherCollectedMinor: paymentStats.byMethod.other.amountMinor,
       onlineCollectedMinor: paymentStats.onlineCollectedMinor,
+      onlineAdjustedMinor: paymentStats.onlineAdjustedMinor,
+      onlineRefundedMinor: paymentStats.onlineRefundedMinor,
+      onlineVoidedMinor: paymentStats.onlineVoidedMinor,
       onlineMockCollectedMinor:
         paymentStats.byOnlineProvider.online_mock.amountMinor,
       onlineExternalCollectedMinor:
@@ -328,10 +381,16 @@ export class OwnerAnalyticsService {
   async getSales(branchId: string, query: OwnerAnalyticsQueryDto = {}) {
     const branch = await this.findBranchOrThrow(branchId);
     const range = this.resolveRange(query);
-    const [payments, onlinePayments, billStatusCounts, shifts] =
-      await Promise.all([
+    const [
+      payments,
+      onlinePayments,
+      onlinePaymentAdjustments,
+      billStatusCounts,
+      shifts,
+    ] = await Promise.all([
         this.getRecordedPayments(branchId, range),
         this.getSucceededOnlinePayments(branchId, range),
+        this.getSucceededOnlinePaymentAdjustments(branchId, range),
         this.prisma.bill.groupBy({
           by: ["status"],
           where: {
@@ -353,8 +412,16 @@ export class OwnerAnalyticsService {
           take: 25,
         }),
       ]);
-    const paymentStats = this.summarizePayments(payments, onlinePayments);
-    const revenuePayments = this.toRevenuePayments(payments, onlinePayments);
+    const paymentStats = this.summarizePayments(
+      payments,
+      onlinePayments,
+      onlinePaymentAdjustments,
+    );
+    const revenuePayments = this.toRevenuePayments(
+      payments,
+      onlinePayments,
+      onlinePaymentAdjustments,
+    );
 
     return {
       range: this.serializeRange(range),
@@ -1027,6 +1094,27 @@ export class OwnerAnalyticsService {
     });
   }
 
+  private async getSucceededOnlinePaymentAdjustments(
+    branchId: string,
+    range: AnalyticsRange,
+  ) {
+    return this.prisma.onlinePaymentOperation.findMany({
+      where: {
+        branchId,
+        status: OnlinePaymentOperationStatus.succeeded,
+        type: {
+          in: [
+            OnlinePaymentOperationType.refund,
+            OnlinePaymentOperationType.void,
+          ],
+        },
+        completedAt: { gte: range.from, lte: range.to },
+      },
+      select: onlinePaymentAdjustmentSelect,
+      orderBy: [{ completedAt: "desc" }, { id: "desc" }],
+    });
+  }
+
   private resolveRange(query: OwnerAnalyticsQueryDto = {}): AnalyticsRange {
     if (query.from || query.to) {
       if (!query.from || !query.to) {
@@ -1126,6 +1214,7 @@ export class OwnerAnalyticsService {
   private summarizePayments(
     payments: ManualPaymentRecord[],
     onlinePayments: OnlinePaymentRecord[] = [],
+    onlinePaymentAdjustments: OnlinePaymentAdjustmentRecord[] = [],
   ) {
     const byMethod = this.emptyPaymentMethodTotals();
     const byOnlineProvider = this.emptyOnlinePaymentProviderTotals();
@@ -1133,6 +1222,9 @@ export class OwnerAnalyticsService {
     let collectedMinor = 0;
     let manualCollectedMinor = 0;
     let onlineCollectedMinor = 0;
+    let onlineAdjustedMinor = 0;
+    let onlineRefundedMinor = 0;
+    let onlineVoidedMinor = 0;
 
     for (const payment of payments) {
       collectedMinor += payment.amountMinor;
@@ -1155,10 +1247,31 @@ export class OwnerAnalyticsService {
       byOnlineProvider[key].count += 1;
     }
 
+    for (const adjustment of onlinePaymentAdjustments) {
+      collectedMinor -= adjustment.amountMinor;
+      onlineCollectedMinor -= adjustment.amountMinor;
+      onlineAdjustedMinor += adjustment.amountMinor;
+
+      if (adjustment.type === OnlinePaymentOperationType.refund) {
+        onlineRefundedMinor += adjustment.amountMinor;
+      } else if (adjustment.type === OnlinePaymentOperationType.void) {
+        onlineVoidedMinor += adjustment.amountMinor;
+      }
+
+      const key =
+        adjustment.provider === OnlinePaymentProvider.mock
+          ? "online_mock"
+          : "online_external";
+      byOnlineProvider[key].amountMinor -= adjustment.amountMinor;
+    }
+
     return {
       collectedMinor,
       manualCollectedMinor,
       onlineCollectedMinor,
+      onlineAdjustedMinor,
+      onlineRefundedMinor,
+      onlineVoidedMinor,
       paidBillCount: paidBillIds.size,
       averageTicketMinor: this.safeAverageMinor(
         collectedMinor,
@@ -1211,6 +1324,7 @@ export class OwnerAnalyticsService {
   private toRevenuePayments(
     payments: ManualPaymentRecord[],
     onlinePayments: OnlinePaymentRecord[],
+    onlinePaymentAdjustments: OnlinePaymentAdjustmentRecord[] = [],
   ): RevenuePaymentRecord[] {
     return [
       ...payments.map((payment) => ({
@@ -1226,6 +1340,13 @@ export class OwnerAnalyticsService {
         amountMinor: payment.amountMinor,
         happenedAt: payment.succeededAt ?? payment.bill.paidAt ?? new Date(0),
         bill: payment.bill,
+      })),
+      ...onlinePaymentAdjustments.map((adjustment) => ({
+        source: "online_adjustment" as const,
+        billId: adjustment.onlinePaymentIntent.billId,
+        amountMinor: -adjustment.amountMinor,
+        happenedAt: adjustment.completedAt ?? new Date(0),
+        bill: adjustment.onlinePaymentIntent.bill,
       })),
     ];
   }
