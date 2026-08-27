@@ -364,14 +364,24 @@ export function validateEnvironment(config: Record<string, unknown>) {
     );
   }
 
-  if (
-    validatedConfig.ONLINE_PAYMENT_RECONCILIATION_ENABLED === "true" &&
-    effectivePaymentProvider === OnlinePaymentProvider.Paymob &&
-    !validatedConfig.PAYMOB_API_KEY
-  ) {
-    throw new Error(
-      "PAYMOB_API_KEY is required when Paymob reconciliation is enabled",
-    );
+  if (validatedConfig.ONLINE_PAYMENT_RECONCILIATION_ENABLED === "true") {
+    if (!onlinePaymentsEnabled) {
+      throw new Error(
+        "Online payment reconciliation requires ONLINE_PAYMENTS_ENABLED=true",
+      );
+    }
+
+    if (effectivePaymentProvider !== OnlinePaymentProvider.Paymob) {
+      throw new Error(
+        "Online payment reconciliation currently requires ONLINE_PAYMENT_PROVIDER=paymob",
+      );
+    }
+
+    if (!validatedConfig.PAYMOB_API_KEY) {
+      throw new Error(
+        "PAYMOB_API_KEY is required when Paymob reconciliation is enabled",
+      );
+    }
   }
 
   return validatedConfig;
