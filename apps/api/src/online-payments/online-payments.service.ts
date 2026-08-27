@@ -1727,6 +1727,10 @@ export class OnlinePaymentsService {
   ) {
     const providerCode =
       error instanceof PaymentProviderError ? error.code : "unknown_error";
+    const operation = await this.prisma.onlinePaymentOperation.findUnique({
+      where: { id: operationId },
+      select: { metadata: true },
+    });
 
     await this.prisma.onlinePaymentOperation.updateMany({
       where: {
@@ -1738,6 +1742,7 @@ export class OnlinePaymentsService {
         failureMessage:
           "Provider request outcome is uncertain; recovery is required before another financial operation",
         metadata: this.toJsonValue({
+          ...this.jsonRecord(operation?.metadata ?? null),
           providerRequestState: "uncertain",
           providerErrorCode: providerCode,
         }),
@@ -2014,6 +2019,26 @@ export class OnlinePaymentsService {
         );
 
         return this.toIntentResult(intent, "child_transaction_scope_mismatch");
+      }
+
+      if (
+        !state.parentProviderTransactionId ||
+        !state.operationType
+      ) {
+        await this.createOnlinePaymentEvent(
+          tx,
+          intent,
+          OnlinePaymentEventType.status_updated,
+          {
+            reason: "child_transaction_missing_operation_identity",
+            providerTransactionId: state.providerTransactionId,
+          },
+        );
+
+        return this.toIntentResult(
+          intent,
+          "child_transaction_missing_operation_identity",
+        );
       }
 
       const operation = await tx.onlinePaymentOperation.findFirst({
