@@ -44,6 +44,7 @@ describe("OnlinePaymentReconciliationScheduler", () => {
         failed: 0,
       }),
       reconcilePendingFawryIntents: jest.fn(),
+      reconcilePendingFawryOperations: jest.fn(),
     };
     const scheduler = new OnlinePaymentReconciliationScheduler(
       redis as never,
@@ -83,6 +84,12 @@ describe("OnlinePaymentReconciliationScheduler", () => {
         recovered: 2,
         failed: 0,
       }),
+      reconcilePendingFawryOperations: jest.fn().mockResolvedValue({
+        enabled: true,
+        attempted: 1,
+        recovered: 1,
+        failed: 0,
+      }),
     };
     const scheduler = new OnlinePaymentReconciliationScheduler(
       redis as never,
@@ -101,6 +108,9 @@ describe("OnlinePaymentReconciliationScheduler", () => {
     );
     expect(
       onlinePaymentsService.reconcilePendingFawryIntents,
+    ).toHaveBeenCalledTimes(1);
+    expect(
+      onlinePaymentsService.reconcilePendingFawryOperations,
     ).toHaveBeenCalledTimes(1);
     expect(
       onlinePaymentsService.reconcilePendingPaymobIntents,
