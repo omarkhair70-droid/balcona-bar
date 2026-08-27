@@ -448,6 +448,7 @@ enum OnlinePaymentReconciliationSource {
 
 enum OnlinePaymentReconciliationRunStatus {
   running
+  pending
   matched
   mismatch
   failed
