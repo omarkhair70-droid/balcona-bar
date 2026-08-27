@@ -429,10 +429,25 @@ enum OnlinePaymentIntentStatus {
   expired
 }
 
+enum OnlinePaymentOperationType {
+  refund
+  void
+  capture
+}
+
+enum OnlinePaymentOperationStatus {
+  pending
+  succeeded
+  failed
+}
+
 enum OnlinePaymentEventType {
   intent_created
   provider_webhook_received
   provider_inquiry_received
+  provider_operation_requested
+  provider_operation_completed
+  provider_operation_failed
   status_updated
   settlement_completed
   settlement_skipped
@@ -779,6 +794,9 @@ enum AuditAction {
   attention_resolved
   attention_muted
   attention_rebuilt
+  online_payment_refunded
+  online_payment_voided
+  online_payment_captured
   menu_changed
   experience_changed
   media_changed
@@ -889,6 +907,7 @@ model Company {
   manualPayments                ManualPayment[]
   onlinePaymentIntents          OnlinePaymentIntent[]
   onlinePaymentEvents           OnlinePaymentEvent[]
+  onlinePaymentOperations       OnlinePaymentOperation[]
   cashierShifts                 CashierShift[]
   cashDrawerTransactions        CashDrawerTransaction[]
   cashierShiftReports           CashierShiftReport[]
@@ -1025,6 +1044,7 @@ model Branch {
   manualPayments            ManualPayment[]
   onlinePaymentIntents      OnlinePaymentIntent[]
   onlinePaymentEvents       OnlinePaymentEvent[]
+  onlinePaymentOperations   OnlinePaymentOperation[]
   cashierShifts             CashierShift[]
   cashDrawerTransactions    CashDrawerTransaction[]
   cashierShiftReports       CashierShiftReport[]
@@ -1125,6 +1145,7 @@ model StaffUser {
   billEvents               BillEvent[]
   preparationTaskEvents    PreparationTaskEvent[]
   requestedPrintJobs       PrintJob[]              @relation("PrintJobRequestedByStaff")
+  onlinePaymentOperations  OnlinePaymentOperation[] @relation("OnlinePaymentOperationRequestedByStaff")
   printJobEvents           PrintJobEvent[]
   waiterCallEvents         WaiterCallEvent[]
   auditLogs                AuditLog[]
@@ -2561,9 +2582,10 @@ model Bill {
   cancelledByStaffUser StaffUser?            @relation("BillCancelledByStaff", fields: [cancelledByStaffUserId], references: [id], onDelete: SetNull)
   lines                BillLine[]
   manualPayments       ManualPayment[]
-  onlinePaymentIntents OnlinePaymentIntent[]
-  onlinePaymentEvents  OnlinePaymentEvent[]
-  receipt              BillReceipt?
+  onlinePaymentIntents    OnlinePaymentIntent[]
+  onlinePaymentEvents     OnlinePaymentEvent[]
+  onlinePaymentOperations OnlinePaymentOperation[]
+  receipt                 BillReceipt?
   events               BillEvent[]
 
   @@unique([branchId, billNumber])
@@ -2672,6 +2694,7 @@ model OnlinePaymentIntent {
   tableSession TableSession         @relation(fields: [tableSessionId], references: [id], onDelete: Cascade)
   bill         Bill                 @relation(fields: [billId], references: [id], onDelete: Cascade)
   events       OnlinePaymentEvent[]
+  operations   OnlinePaymentOperation[]
 
   @@index([companyId])
   @@index([branchId])
@@ -2684,6 +2707,51 @@ model OnlinePaymentIntent {
   @@index([updatedAt])
   @@index([branchId, status, createdAt])
   @@index([billId, status])
+}
+
+model OnlinePaymentOperation {
+  id                          String                       @id @default(uuid())
+  onlinePaymentIntentId       String
+  companyId                   String
+  branchId                    String
+  billId                      String
+  provider                    OnlinePaymentProvider
+  type                        OnlinePaymentOperationType
+  status                      OnlinePaymentOperationStatus @default(pending)
+  idempotencyKey              String                       @unique
+  parentProviderTransactionId String
+  providerTransactionId       String?
+  amountMinor                 Int
+  currency                    String
+  reason                      String?
+  requestedByStaffUserId      String
+  requestedAt                 DateTime                     @default(now())
+  completedAt                 DateTime?
+  failedAt                    DateTime?
+  failureCode                 String?
+  failureMessage              String?
+  metadata                    Json?
+  createdAt                   DateTime                     @default(now())
+  updatedAt                   DateTime                     @updatedAt
+
+  onlinePaymentIntent  OnlinePaymentIntent @relation(fields: [onlinePaymentIntentId], references: [id], onDelete: Cascade)
+  company              Company             @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  branch               Branch              @relation(fields: [branchId], references: [id], onDelete: Cascade)
+  bill                 Bill                @relation(fields: [billId], references: [id], onDelete: Cascade)
+  requestedByStaffUser StaffUser           @relation("OnlinePaymentOperationRequestedByStaff", fields: [requestedByStaffUserId], references: [id], onDelete: Restrict)
+
+  @@unique([provider, providerTransactionId])
+  @@index([onlinePaymentIntentId])
+  @@index([companyId])
+  @@index([branchId])
+  @@index([billId])
+  @@index([provider])
+  @@index([type])
+  @@index([status])
+  @@index([requestedByStaffUserId])
+  @@index([completedAt])
+  @@index([createdAt])
+  @@index([onlinePaymentIntentId, type, status])
 }
 
 model OnlinePaymentEvent {
