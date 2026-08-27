@@ -1,5 +1,9 @@
 import { ConfigService } from "@nestjs/config";
-import { OnlinePaymentProvider } from "@prisma/client";
+import {
+  OnlinePaymentOperationStatus,
+  OnlinePaymentOperationType,
+  OnlinePaymentProvider,
+} from "@prisma/client";
 import { createHmac } from "crypto";
 import { PaymobPaymentProviderService } from "./paymob-payment-provider.service";
 import { PaymentProviderError } from "./payment-provider.types";
@@ -100,6 +104,30 @@ function paymobTransaction(overrides: Record<string, unknown> = {}) {
       type: "card",
     },
     success: true,
+    ...overrides,
+  };
+}
+
+function postPaymentResponse(
+  type: OnlinePaymentOperationType,
+  overrides: Record<string, unknown> = {},
+) {
+  return {
+    id: 555010,
+    parent_transaction: 555001,
+    pending: false,
+    success: true,
+    amount_cents: type === OnlinePaymentOperationType.void ? 12500 : 5000,
+    currency: "EGP",
+    integration_id: 101,
+    is_live: false,
+    error_occured: false,
+    is_refund: type === OnlinePaymentOperationType.refund,
+    is_void: type === OnlinePaymentOperationType.void,
+    is_capture: type === OnlinePaymentOperationType.capture,
+    is_refunded: type === OnlinePaymentOperationType.refund,
+    is_voided: type === OnlinePaymentOperationType.void,
+    is_captured: type === OnlinePaymentOperationType.capture,
     ...overrides,
   };
 }
@@ -351,6 +379,151 @@ describe("PaymobPaymentProviderService", () => {
       code: "missing_config",
     });
     expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  it("sends partial refund through the documented Secret-Key endpoint", async () => {
+    const fetchSpy = jest.spyOn(global, "fetch").mockResolvedValueOnce(
+      new Response(
+        JSON.stringify(postPaymentResponse(OnlinePaymentOperationType.refund)),
+        {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        },
+      ),
+    );
+    const service = new PaymobPaymentProviderService(config());
+
+    const result = await service.refundTransaction({
+      parentProviderTransactionId: "555001",
+      amountMinor: 5000,
+      expectedCurrency: "EGP",
+    });
+
+    expect(result).toMatchObject({
+      provider: OnlinePaymentProvider.paymob,
+      type: OnlinePaymentOperationType.refund,
+      status: OnlinePaymentOperationStatus.pending,
+      parentProviderTransactionId: "555001",
+      providerTransactionId: "555010",
+      amountMinor: 5000,
+      currency: "EGP",
+    });
+    expect(fetchSpy).toHaveBeenCalledWith(
+      "https://accept.paymob.com/api/acceptance/void_refund/refund",
+      expect.objectContaining({
+        method: "POST",
+        headers: {
+          Authorization: "Token test-secret",
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          transaction_id: 555001,
+          amount_cents: 5000,
+        }),
+      }),
+    );
+  });
+
+  it("sends void without an amount through the documented endpoint", async () => {
+    const fetchSpy = jest.spyOn(global, "fetch").mockResolvedValueOnce(
+      new Response(
+        JSON.stringify(postPaymentResponse(OnlinePaymentOperationType.void)),
+        {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        },
+      ),
+    );
+    const service = new PaymobPaymentProviderService(config());
+
+    await service.voidTransaction({
+      parentProviderTransactionId: "555001",
+      amountMinor: 12500,
+      expectedCurrency: "EGP",
+    });
+
+    expect(fetchSpy).toHaveBeenCalledWith(
+      "https://accept.paymob.com/api/acceptance/void_refund/void",
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({ transaction_id: 555001 }),
+      }),
+    );
+  });
+
+  it("sends capture with the authorized amount through the documented endpoint", async () => {
+    const fetchSpy = jest.spyOn(global, "fetch").mockResolvedValueOnce(
+      new Response(
+        JSON.stringify(
+          postPaymentResponse(OnlinePaymentOperationType.capture, {
+            amount_cents: 12500,
+          }),
+        ),
+        {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        },
+      ),
+    );
+    const service = new PaymobPaymentProviderService(config());
+
+    await service.captureTransaction({
+      parentProviderTransactionId: "555001",
+      amountMinor: 12500,
+      expectedCurrency: "EGP",
+    });
+
+    expect(fetchSpy).toHaveBeenCalledWith(
+      "https://accept.paymob.com/api/acceptance/capture",
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({
+          transaction_id: 555001,
+          amount_cents: 12500,
+        }),
+      }),
+    );
+  });
+
+  it("inquires a child transaction by id and normalizes its operation identity", async () => {
+    jest.spyOn(global, "fetch")
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ token: "inquiry-auth-token" }), {
+          status: 201,
+          headers: { "Content-Type": "application/json" },
+        }),
+      )
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify(
+            inquiryTransaction({
+              id: 555010,
+              amount_cents: 5000,
+              has_parent_transaction: true,
+              parent_transaction: 555001,
+              is_refund: true,
+              is_refunded: false,
+            }),
+          ),
+          {
+            status: 200,
+            headers: { "Content-Type": "application/json" },
+          },
+        ),
+      );
+    const service = new PaymobPaymentProviderService(config());
+
+    const result = await service.inquireTransactionById("555010");
+
+    expect(result).toMatchObject({
+      providerTransactionId: "555010",
+      parentProviderTransactionId: "555001",
+      operationType: OnlinePaymentOperationType.refund,
+      amountMinor: 5000,
+      currency: "EGP",
+      hasParentTransaction: true,
+    });
+    expect(result.safeMetadata).not.toHaveProperty("pan");
   });
 
   it("authenticates with the Paymob API key and inquires by stored provider order id", async () => {

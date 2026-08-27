@@ -3,6 +3,10 @@ import {
   CashDrawerTransactionType,
   CashierShiftReportType,
   CashierShiftStatus,
+  OnlinePaymentIntentStatus,
+  OnlinePaymentOperationStatus,
+  OnlinePaymentOperationType,
+  OnlinePaymentProvider,
   OrderStatus,
 } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
@@ -103,6 +107,7 @@ function createPrisma(overrides: Record<string, unknown> = {}) {
     branch: { findUnique: jest.fn().mockResolvedValue(branch) },
     manualPayment: { findMany: jest.fn().mockResolvedValue([]) },
     onlinePaymentIntent: { findMany: jest.fn().mockResolvedValue([]) },
+    onlinePaymentOperation: { findMany: jest.fn().mockResolvedValue([]) },
     order: {
       groupBy: jest.fn().mockResolvedValue([]),
       findMany: jest.fn().mockResolvedValue([]),
@@ -245,6 +250,54 @@ describe('OwnerAnalyticsService', () => {
     expect(result.submittedOrderCount).toBe(2);
     expect(result.acceptedOrderCount).toBe(1);
     expect(result.servedOrderCount).toBe(1);
+  });
+
+  it('nets successful Paymob refunds from owner revenue in the adjustment date range', async () => {
+    const paidBill = bill('bill-1', 12500);
+    const service = createService({
+      onlinePaymentIntent: {
+        findMany: jest.fn().mockResolvedValue([
+          {
+            id: 'intent-1',
+            billId: 'bill-1',
+            provider: OnlinePaymentProvider.paymob,
+            providerIntentId: 'pi_test_123',
+            status: OnlinePaymentIntentStatus.succeeded,
+            amountMinor: 12500,
+            currency: 'EGP',
+            succeededAt: new Date('2026-06-05T12:05:00.000Z'),
+            bill: paidBill,
+          },
+        ]),
+      },
+      onlinePaymentOperation: {
+        findMany: jest.fn().mockResolvedValue([
+          {
+            id: 'refund-1',
+            provider: OnlinePaymentProvider.paymob,
+            type: OnlinePaymentOperationType.refund,
+            status: OnlinePaymentOperationStatus.succeeded,
+            amountMinor: 5000,
+            currency: 'EGP',
+            completedAt: new Date('2026-06-05T15:00:00.000Z'),
+            onlinePaymentIntent: {
+              billId: 'bill-1',
+              bill: paidBill,
+            },
+          },
+        ]),
+      },
+    });
+
+    const result = await service.getSummary('branch-1', range);
+
+    expect(result.collectedMinor).toBe(7500);
+    expect(result.onlineCollectedMinor).toBe(7500);
+    expect(result.onlineAdjustedMinor).toBe(5000);
+    expect(result.onlineRefundedMinor).toBe(5000);
+    expect(result.onlineVoidedMinor).toBe(0);
+    expect(result.onlineExternalCollectedMinor).toBe(7500);
+    expect(result.paidBillCount).toBe(1);
   });
 
   it('computes order status counts and lifecycle averages while skipping missing timestamps', async () => {

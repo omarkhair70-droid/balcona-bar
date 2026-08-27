@@ -12,6 +12,8 @@ import {
   BillStatus,
   ManualPaymentStatus,
   OnlinePaymentIntentStatus,
+  OnlinePaymentOperationStatus,
+  OnlinePaymentOperationType,
   OnlinePaymentProvider,
   OrderEventActorType,
   OrderEventType,
@@ -1208,6 +1210,49 @@ export class BillsService {
     });
   }
 
+  async refreshReceiptForOnlinePaymentAdjustment(
+    billId: string,
+    tx: Prisma.TransactionClient,
+  ) {
+    const existingReceipt = await tx.billReceipt.findUnique({
+      where: { billId },
+      select: {
+        id: true,
+        receiptNumber: true,
+        generatedAt: true,
+      },
+    });
+
+    if (!existingReceipt) {
+      return null;
+    }
+
+    const bill = await tx.bill.findUnique({
+      where: { id: billId },
+      include: this.billDetailInclude(),
+    });
+
+    if (!bill) {
+      throw new NotFoundException("Bill not found");
+    }
+
+    const payload = this.toReceiptPayload(
+      bill,
+      existingReceipt.receiptNumber,
+      existingReceipt.generatedAt,
+    );
+
+    await tx.billReceipt.update({
+      where: { id: existingReceipt.id },
+      data: {
+        payload: this.toJsonValue(payload),
+        printableText: this.toPrintableReceiptText(payload),
+      },
+    });
+
+    return existingReceipt.id;
+  }
+
   private async ensureReceiptForBill(
     billId: string,
     staffUserId: string | undefined,
@@ -1485,14 +1530,18 @@ export class BillsService {
     });
   }
 
-  private toReceiptPayload(bill: any, receiptNumber: string) {
+  private toReceiptPayload(
+    bill: any,
+    receiptNumber: string,
+    generatedAt = new Date(),
+  ) {
     const tableSession = bill.tableSession;
     const table = tableSession?.table;
     const floor = table?.floor;
 
     return {
       receiptNumber,
-      generatedAt: new Date().toISOString(),
+      generatedAt: generatedAt.toISOString(),
       company: bill.company,
       branch: bill.branch,
       table: table
@@ -1550,19 +1599,49 @@ export class BillsService {
             (payment: any) =>
               payment.status === OnlinePaymentIntentStatus.succeeded,
           )
-          .map((payment: any) => ({
-            id: payment.id,
-            method:
-              payment.provider === OnlinePaymentProvider.mock
-                ? "online_mock"
-                : "online_external",
-            provider: payment.provider,
-            amountMinor: payment.amountMinor,
-            currency: payment.currency,
-            reference: payment.providerIntentId,
-            note: null,
-            recordedAt: payment.succeededAt ?? payment.updatedAt,
-          })),
+          .map((payment: any) => {
+            const adjustments = (payment.operations ?? [])
+              .filter(
+                (operation: any) =>
+                  operation.status === OnlinePaymentOperationStatus.succeeded &&
+                  (operation.type === OnlinePaymentOperationType.refund ||
+                    operation.type === OnlinePaymentOperationType.void),
+              )
+              .map((operation: any) => ({
+                id: operation.id,
+                type: operation.type,
+                amountMinor: operation.amountMinor,
+                currency: operation.currency,
+                providerTransactionId: operation.providerTransactionId,
+                completedAt: operation.completedAt,
+              }));
+            const adjustedMinor = adjustments.reduce(
+              (sum: number, operation: any) =>
+                sum + operation.amountMinor,
+              0,
+            );
+
+            return {
+              id: payment.id,
+              method:
+                payment.provider === OnlinePaymentProvider.mock
+                  ? "online_mock"
+                  : "online_external",
+              provider: payment.provider,
+              amountMinor: payment.amountMinor,
+              grossAmountMinor: payment.amountMinor,
+              adjustedMinor,
+              netAmountMinor: Math.max(
+                0,
+                payment.amountMinor - adjustedMinor,
+              ),
+              currency: payment.currency,
+              reference: payment.providerIntentId,
+              note: null,
+              recordedAt: payment.succeededAt ?? payment.updatedAt,
+              adjustments,
+            };
+          }),
       ].sort(
         (left: any, right: any) =>
           new Date(left.recordedAt).getTime() -
@@ -1595,6 +1674,22 @@ export class BillsService {
       )}`,
       `Total ${this.formatMinor(payload.bill.totalMinor, payload.bill.currency)}`,
       `Paid ${this.formatMinor(payload.bill.paidMinor, payload.bill.currency)}`,
+      ...payload.payments
+        .filter(
+          (payment: any) =>
+            Array.isArray(payment.adjustments) &&
+            payment.adjustments.length > 0,
+        )
+        .flatMap((payment: any) => [
+          `Adjusted ${this.formatMinor(
+            payment.adjustedMinor,
+            payment.currency,
+          )}`,
+          `Net online payment ${this.formatMinor(
+            payment.netAmountMinor,
+            payment.currency,
+          )}`,
+        ]),
       payload.payments.some((payment: any) =>
         String(payment.method).startsWith("online_"),
       )
@@ -1780,6 +1875,11 @@ export class BillsService {
       },
       onlinePaymentIntents: {
         orderBy: [{ createdAt: "asc" }, { id: "asc" }],
+        include: {
+          operations: {
+            orderBy: [{ createdAt: "asc" }, { id: "asc" }],
+          },
+        },
       },
       receipt: true,
     } satisfies Prisma.BillInclude;
@@ -1801,6 +1901,11 @@ export class BillsService {
       },
       onlinePaymentIntents: {
         orderBy: [{ createdAt: "asc" }, { id: "asc" }],
+        include: {
+          operations: {
+            orderBy: [{ createdAt: "asc" }, { id: "asc" }],
+          },
+        },
       },
       onlinePaymentEvents: {
         orderBy: [{ createdAt: "asc" }, { id: "asc" }],

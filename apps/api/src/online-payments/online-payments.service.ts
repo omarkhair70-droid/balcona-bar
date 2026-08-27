@@ -9,14 +9,19 @@ import {
 } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import {
+  AuditAction,
+  AuditActorType,
   OnlinePaymentEventType,
   OnlinePaymentIntentStatus,
+  OnlinePaymentOperationStatus,
+  OnlinePaymentOperationType,
   OnlinePaymentProvider,
   Prisma,
   BillStatus,
   SaasFeatureKey,
 } from "@prisma/client";
 import { randomUUID } from "crypto";
+import { AuditService } from "../audit/audit.service";
 import {
   BillsService,
   OnlinePaymentSettlementResult,
@@ -24,6 +29,11 @@ import {
 import { BranchOnlinePaymentsQueryDto } from "./dto/branch-online-payments-query.dto";
 import { CreateOnlinePaymentIntentDto } from "./dto/create-online-payment-intent.dto";
 import { MockOnlinePaymentWebhookDto } from "./dto/mock-online-payment-webhook.dto";
+import {
+  CaptureOnlinePaymentDto,
+  RefundOnlinePaymentDto,
+  VoidOnlinePaymentDto,
+} from "./dto/post-payment-operation.dto";
 import { PrismaService } from "../prisma/prisma.service";
 import { RealtimeEventsService } from "../realtime-events/realtime-events.service";
 import { SaasService } from "../saas/saas.service";
@@ -70,10 +80,42 @@ const onlinePaymentIntentInclude = {
   events: {
     orderBy: [{ createdAt: "asc" }, { id: "asc" }],
   },
+  operations: {
+    orderBy: [{ createdAt: "asc" }, { id: "asc" }],
+    select: {
+      id: true,
+      provider: true,
+      type: true,
+      status: true,
+      parentProviderTransactionId: true,
+      providerTransactionId: true,
+      amountMinor: true,
+      currency: true,
+      reason: true,
+      requestedAt: true,
+      completedAt: true,
+      failedAt: true,
+      failureCode: true,
+      failureMessage: true,
+      metadata: true,
+      createdAt: true,
+      updatedAt: true,
+    },
+  },
 } satisfies Prisma.OnlinePaymentIntentInclude;
 
 type OnlinePaymentIntentRecord = Prisma.OnlinePaymentIntentGetPayload<{
   include: typeof onlinePaymentIntentInclude;
+}>;
+
+const onlinePaymentOperationInclude = {
+  onlinePaymentIntent: {
+    include: onlinePaymentIntentInclude,
+  },
+} satisfies Prisma.OnlinePaymentOperationInclude;
+
+type OnlinePaymentOperationRecord = Prisma.OnlinePaymentOperationGetPayload<{
+  include: typeof onlinePaymentOperationInclude;
 }>;
 
 @Injectable()
@@ -84,6 +126,7 @@ export class OnlinePaymentsService {
     private readonly billsService: BillsService,
     private readonly realtimeEventsService: RealtimeEventsService,
     private readonly saasService: SaasService,
+    private readonly auditService: AuditService,
     private readonly paymobPaymentProviderService: PaymobPaymentProviderService,
   ) {}
 
@@ -613,6 +656,75 @@ export class OnlinePaymentsService {
     }
   }
 
+  async reconcilePendingPaymobOperations() {
+    if (
+      this.configService.get<boolean>(
+        "onlinePayments.reconciliation.enabled",
+        false,
+      ) !== true
+    ) {
+      return {
+        enabled: false,
+        attempted: 0,
+        recovered: 0,
+        failed: 0,
+      };
+    }
+
+    const staleSeconds = this.configService.get<number>(
+      "onlinePayments.reconciliation.staleSeconds",
+      120,
+    );
+    const batchSize = this.configService.get<number>(
+      "onlinePayments.reconciliation.batchSize",
+      25,
+    );
+    const staleBefore = new Date(Date.now() - staleSeconds * 1000);
+    const operations = await this.prisma.onlinePaymentOperation.findMany({
+      where: {
+        provider: OnlinePaymentProvider.paymob,
+        status: OnlinePaymentOperationStatus.pending,
+        updatedAt: { lte: staleBefore },
+      },
+      orderBy: [{ updatedAt: "asc" }, { id: "asc" }],
+      take: batchSize,
+      select: { id: true },
+    });
+
+    let recovered = 0;
+    let failed = 0;
+    const failures: Array<{ operationId: string; code: string }> = [];
+
+    for (const operation of operations) {
+      try {
+        await this.recoverPaymobOperation(
+          operation.id,
+          "scheduled_reconciliation",
+        );
+        recovered += 1;
+      } catch (error) {
+        failed += 1;
+        failures.push({
+          operationId: operation.id,
+          code:
+            error instanceof PaymentProviderError
+              ? error.code
+              : error instanceof Error
+                ? error.name
+                : "unknown_error",
+        });
+      }
+    }
+
+    return {
+      enabled: true,
+      attempted: operations.length,
+      recovered,
+      failed,
+      failures,
+    };
+  }
+
   async reconcilePendingPaymobIntents() {
     if (
       this.configService.get<boolean>(
@@ -902,6 +1014,948 @@ export class OnlinePaymentsService {
     );
   }
 
+  refundPaymobIntent(
+    intentId: string,
+    staffUserId: string,
+    body: RefundOnlinePaymentDto,
+  ) {
+    return this.executePaymobOperation(
+      intentId,
+      staffUserId,
+      OnlinePaymentOperationType.refund,
+      body.amountMinor,
+      body.idempotencyKey,
+      body.reason,
+    );
+  }
+
+  voidPaymobIntent(
+    intentId: string,
+    staffUserId: string,
+    body: VoidOnlinePaymentDto,
+  ) {
+    return this.executePaymobOperation(
+      intentId,
+      staffUserId,
+      OnlinePaymentOperationType.void,
+      undefined,
+      body.idempotencyKey,
+      body.reason,
+    );
+  }
+
+  capturePaymobIntent(
+    intentId: string,
+    staffUserId: string,
+    body: CaptureOnlinePaymentDto,
+  ) {
+    return this.executePaymobOperation(
+      intentId,
+      staffUserId,
+      OnlinePaymentOperationType.capture,
+      body.amountMinor,
+      body.idempotencyKey,
+      body.reason,
+    );
+  }
+
+  async recoverPaymobOperation(
+    operationId: string,
+    source: "staff_manual" | "scheduled_reconciliation" | "child_webhook" =
+      "staff_manual",
+  ) {
+    this.assertOnlinePaymentsEnabled();
+
+    const operation = await this.prisma.onlinePaymentOperation.findUnique({
+      where: { id: operationId },
+      include: onlinePaymentOperationInclude,
+    });
+
+    if (!operation) {
+      throw new NotFoundException("Online payment operation not found");
+    }
+
+    if (operation.provider !== OnlinePaymentProvider.paymob) {
+      throw new BadRequestException(
+        "Provider operation recovery is only available for Paymob",
+      );
+    }
+
+    if (operation.status !== OnlinePaymentOperationStatus.pending) {
+      return this.toOperationResult(operation, "already_terminal");
+    }
+
+    return this.verifyAndFinalizePaymobOperation(operation, source);
+  }
+
+  private async executePaymobOperation(
+    intentId: string,
+    staffUserId: string,
+    type: OnlinePaymentOperationType,
+    requestedAmountMinor: number | undefined,
+    idempotencyKey: string,
+    reason?: string,
+  ) {
+    this.assertOnlinePaymentsEnabled();
+
+    const preparation = await this.prisma.$transaction(async (tx) => {
+      const intent = await this.loadIntentOrThrow(intentId, tx);
+
+      if (intent.provider !== OnlinePaymentProvider.paymob) {
+        throw new BadRequestException(
+          "Refund, void and capture are currently available only for Paymob payments",
+        );
+      }
+
+      await this.lockPaymobOperation(tx, intent.id);
+
+      const existingByKey = await tx.onlinePaymentOperation.findUnique({
+        where: { idempotencyKey },
+        include: onlinePaymentOperationInclude,
+      });
+
+      if (existingByKey) {
+        if (
+          existingByKey.onlinePaymentIntentId !== intent.id ||
+          existingByKey.type !== type ||
+          (requestedAmountMinor !== undefined &&
+            existingByKey.amountMinor !== requestedAmountMinor)
+        ) {
+          throw new ConflictException(
+            "Idempotency key is already used for another payment operation",
+          );
+        }
+
+        return {
+          kind: "existing" as const,
+          operation: existingByKey,
+        };
+      }
+
+      const pendingOperation = await tx.onlinePaymentOperation.findFirst({
+        where: {
+          onlinePaymentIntentId: intent.id,
+          status: OnlinePaymentOperationStatus.pending,
+        },
+        include: onlinePaymentOperationInclude,
+      });
+
+      if (pendingOperation) {
+        throw new ConflictException(
+          "Another payment operation is still awaiting provider confirmation",
+        );
+      }
+
+      const targetProviderTransactionId =
+        await this.resolvePaymobOperationTargetTransactionId(intent, tx);
+
+      if (!targetProviderTransactionId) {
+        throw new ConflictException(
+          "Paymob transaction truth is missing. Recover the payment before starting a financial operation.",
+        );
+      }
+
+      const previousRefunds = await tx.onlinePaymentOperation.findMany({
+        where: {
+          onlinePaymentIntentId: intent.id,
+          type: OnlinePaymentOperationType.refund,
+          status: OnlinePaymentOperationStatus.succeeded,
+        },
+        select: { amountMinor: true },
+      });
+      const refundedMinor = previousRefunds.reduce(
+        (sum, operation) => sum + operation.amountMinor,
+        0,
+      );
+      const successfulVoid = await tx.onlinePaymentOperation.findFirst({
+        where: {
+          onlinePaymentIntentId: intent.id,
+          type: OnlinePaymentOperationType.void,
+          status: OnlinePaymentOperationStatus.succeeded,
+        },
+        select: { id: true },
+      });
+      const successfulCapture = await tx.onlinePaymentOperation.findFirst({
+        where: {
+          onlinePaymentIntentId: intent.id,
+          type: OnlinePaymentOperationType.capture,
+          status: OnlinePaymentOperationStatus.succeeded,
+        },
+        select: { id: true, amountMinor: true },
+      });
+
+      let amountMinor = requestedAmountMinor ?? intent.amountMinor;
+
+      if (!Number.isSafeInteger(amountMinor) || amountMinor <= 0) {
+        throw new BadRequestException(
+          "Payment operation amount must be a positive integer",
+        );
+      }
+
+      if (type === OnlinePaymentOperationType.refund) {
+        if (intent.status !== OnlinePaymentIntentStatus.succeeded) {
+          throw new BadRequestException(
+            "Only a succeeded online payment can be refunded",
+          );
+        }
+
+        if (successfulVoid) {
+          throw new ConflictException(
+            "A voided payment cannot also be refunded",
+          );
+        }
+
+        const refundableMinor = intent.amountMinor - refundedMinor;
+
+        if (amountMinor > refundableMinor) {
+          throw new BadRequestException(
+            "Refund amount exceeds the remaining refundable amount",
+          );
+        }
+      } else if (type === OnlinePaymentOperationType.void) {
+        if (
+          intent.status !== OnlinePaymentIntentStatus.succeeded &&
+          intent.status !== OnlinePaymentIntentStatus.requires_action
+        ) {
+          throw new BadRequestException(
+            "Only an authorized or succeeded Paymob payment can be voided",
+          );
+        }
+
+        if (refundedMinor > 0 || successfulVoid) {
+          throw new ConflictException(
+            "A refunded or already voided payment cannot be voided again",
+          );
+        }
+
+        amountMinor = intent.amountMinor;
+      } else {
+        if (intent.status !== OnlinePaymentIntentStatus.requires_action) {
+          throw new BadRequestException(
+            "Capture is only available for an authorization-only Paymob payment",
+          );
+        }
+
+        if (successfulVoid || successfulCapture) {
+          throw new ConflictException(
+            "Authorization is already voided or captured",
+          );
+        }
+
+        if (amountMinor !== intent.amountMinor) {
+          throw new BadRequestException(
+            "Balcona currently requires full capture to preserve full-bill settlement integrity",
+          );
+        }
+      }
+
+      const operation = await tx.onlinePaymentOperation.create({
+        data: {
+          onlinePaymentIntentId: intent.id,
+          companyId: intent.companyId,
+          branchId: intent.branchId,
+          billId: intent.billId,
+          provider: OnlinePaymentProvider.paymob,
+          type,
+          status: OnlinePaymentOperationStatus.pending,
+          idempotencyKey,
+          parentProviderTransactionId: targetProviderTransactionId,
+          amountMinor,
+          currency: intent.currency,
+          reason: this.normalizeOptionalText(reason),
+          requestedByStaffUserId: staffUserId,
+          metadata: this.toJsonValue({
+            source: "staff_post_payment_operation",
+            previousRefundedMinor: refundedMinor,
+            expectedRefundedMinor:
+              type === OnlinePaymentOperationType.refund
+                ? refundedMinor + amountMinor
+                : undefined,
+          }),
+        },
+        include: onlinePaymentOperationInclude,
+      });
+
+      await this.createOnlinePaymentEvent(
+        tx,
+        intent,
+        OnlinePaymentEventType.provider_operation_requested,
+        {
+          operationId: operation.id,
+          operationType: type,
+          amountMinor,
+          currency: intent.currency,
+          parentProviderTransactionId: targetProviderTransactionId,
+          requestedByStaffUserId: staffUserId,
+        },
+      );
+
+      return {
+        kind: "created" as const,
+        operation,
+      };
+    });
+
+    if (preparation.kind === "existing") {
+      return this.toOperationResult(preparation.operation, "idempotent");
+    }
+
+    let parentState: ProviderTransactionState;
+
+    try {
+      parentState =
+        await this.paymobPaymentProviderService.inquireTransactionById(
+          preparation.operation.parentProviderTransactionId,
+        );
+      this.assertPaymobOperationParentEligible(
+        preparation.operation,
+        parentState,
+      );
+    } catch (error) {
+      await this.failPaymobOperationBeforeMutation(
+        preparation.operation.id,
+        error,
+        "provider_preflight_failed",
+      );
+      throw this.mapPaymobOperationError(error);
+    }
+
+    let providerResult;
+
+    try {
+      const providerInput = {
+        parentProviderTransactionId:
+          preparation.operation.parentProviderTransactionId,
+        amountMinor: preparation.operation.amountMinor,
+        expectedCurrency: preparation.operation.currency,
+      };
+
+      providerResult =
+        preparation.operation.type === OnlinePaymentOperationType.refund
+          ? await this.paymobPaymentProviderService.refundTransaction(
+              providerInput,
+            )
+          : preparation.operation.type === OnlinePaymentOperationType.void
+            ? await this.paymobPaymentProviderService.voidTransaction(
+                providerInput,
+              )
+            : await this.paymobPaymentProviderService.captureTransaction(
+                providerInput,
+              );
+    } catch (error) {
+      if (this.isAmbiguousProviderMutationError(error)) {
+        await this.markPaymobOperationUncertain(
+          preparation.operation.id,
+          error,
+        );
+        throw new ServiceUnavailableException(
+          "Paymob operation outcome is uncertain and must be recovered before another financial operation",
+        );
+      }
+
+      await this.failPaymobOperationBeforeMutation(
+        preparation.operation.id,
+        error,
+        "provider_request_rejected",
+      );
+      throw this.mapPaymobOperationError(error);
+    }
+
+    const updatedOperation = await this.prisma.$transaction(async (tx) => {
+      await tx.onlinePaymentOperation.updateMany({
+        where: {
+          id: preparation.operation.id,
+          status: OnlinePaymentOperationStatus.pending,
+        },
+        data: {
+          providerTransactionId: providerResult.providerTransactionId,
+          metadata: this.toJsonValue({
+            ...this.jsonRecord(preparation.operation.metadata),
+            providerRequestState: providerResult.status,
+            providerResponse: providerResult.safeMetadata,
+          }),
+        },
+      });
+
+      return this.loadOperationOrThrow(preparation.operation.id, tx);
+    });
+
+    if (providerResult.status === OnlinePaymentOperationStatus.failed) {
+      return this.failPaymobOperationBeforeMutation(
+        updatedOperation.id,
+        new PaymentProviderError(
+          `Paymob ${updatedOperation.type} was declined`,
+          "provider_declined",
+        ),
+        "provider_declined",
+      );
+    }
+
+    try {
+      return await this.verifyAndFinalizePaymobOperation(
+        updatedOperation,
+        "provider_response",
+      );
+    } catch (error) {
+      if (this.isAmbiguousProviderMutationError(error)) {
+        await this.markPaymobOperationUncertain(updatedOperation.id, error);
+        throw new ServiceUnavailableException(
+          "Paymob operation is pending authoritative provider confirmation",
+        );
+      }
+
+      throw this.mapPaymobOperationError(error);
+    }
+  }
+
+  private async resolvePaymobOperationTargetTransactionId(
+    intent: OnlinePaymentIntentRecord,
+    tx: Prisma.TransactionClient,
+  ) {
+    const latestCapture = await tx.onlinePaymentOperation.findFirst({
+      where: {
+        onlinePaymentIntentId: intent.id,
+        type: OnlinePaymentOperationType.capture,
+        status: OnlinePaymentOperationStatus.succeeded,
+        providerTransactionId: { not: null },
+      },
+      orderBy: [{ completedAt: "desc" }, { id: "desc" }],
+      select: { providerTransactionId: true },
+    });
+
+    if (latestCapture?.providerTransactionId) {
+      return latestCapture.providerTransactionId;
+    }
+
+    const metadata = this.jsonRecord(intent.metadata);
+    return typeof metadata.paymobTransactionId === "string"
+      ? metadata.paymobTransactionId
+      : null;
+  }
+
+  private assertPaymobOperationParentEligible(
+    operation: OnlinePaymentOperationRecord,
+    state: ProviderTransactionState,
+  ) {
+    if (
+      state.providerTransactionId !== operation.parentProviderTransactionId
+    ) {
+      throw new PaymentProviderError(
+        "Paymob operation target transaction changed",
+        "invalid_response",
+      );
+    }
+
+    if (state.currency !== operation.currency) {
+      throw new PaymentProviderError(
+        "Paymob operation target currency does not match",
+        "currency_mismatch",
+      );
+    }
+
+    const sourceType = this.stringMetadata(state.safeMetadata, "sourceType");
+
+    if (
+      (operation.type === OnlinePaymentOperationType.void ||
+        operation.type === OnlinePaymentOperationType.capture) &&
+      sourceType !== "card"
+    ) {
+      throw new PaymentProviderError(
+        `Paymob ${operation.type} is supported only for card transactions`,
+        "unsupported_operation",
+      );
+    }
+
+    if (
+      operation.type === OnlinePaymentOperationType.refund &&
+      state.status !== OnlinePaymentIntentStatus.succeeded
+    ) {
+      throw new PaymentProviderError(
+        "Paymob transaction is not currently refundable",
+        "unsupported_operation",
+      );
+    }
+
+    if (
+      operation.type === OnlinePaymentOperationType.capture &&
+      state.status !== OnlinePaymentIntentStatus.requires_action
+    ) {
+      throw new PaymentProviderError(
+        "Paymob transaction is not currently awaiting capture",
+        "unsupported_operation",
+      );
+    }
+
+    if (
+      operation.type === OnlinePaymentOperationType.void &&
+      state.status !== OnlinePaymentIntentStatus.succeeded &&
+      state.status !== OnlinePaymentIntentStatus.requires_action
+    ) {
+      throw new PaymentProviderError(
+        "Paymob transaction is not currently voidable",
+        "unsupported_operation",
+      );
+    }
+  }
+
+  private async verifyAndFinalizePaymobOperation(
+    operation: OnlinePaymentOperationRecord,
+    source: string,
+  ) {
+    let state: ProviderTransactionState;
+
+    if (
+      operation.providerTransactionId &&
+      operation.providerTransactionId !==
+        operation.parentProviderTransactionId
+    ) {
+      state = await this.paymobPaymentProviderService.inquireTransactionById(
+        operation.providerTransactionId,
+      );
+    } else {
+      state = await this.paymobPaymentProviderService.inquireTransactionById(
+        operation.parentProviderTransactionId,
+      );
+    }
+
+    return this.prisma.$transaction((tx) =>
+      this.finalizePaymobOperationFromState(
+        tx,
+        operation.id,
+        state,
+        source,
+      ),
+    );
+  }
+
+  private async finalizePaymobOperationFromState(
+    tx: Prisma.TransactionClient,
+    operationId: string,
+    state: ProviderTransactionState,
+    source: string,
+  ) {
+    const operation = await this.loadOperationOrThrow(operationId, tx);
+
+    if (operation.status !== OnlinePaymentOperationStatus.pending) {
+      return this.toOperationResult(operation, "already_terminal");
+    }
+
+    const parentMutation =
+      state.providerTransactionId === operation.parentProviderTransactionId;
+    const metadata = this.jsonRecord(operation.metadata);
+
+    if (!parentMutation) {
+      if (
+        state.parentProviderTransactionId !==
+        operation.parentProviderTransactionId
+      ) {
+        throw new PaymentProviderError(
+          "Paymob child transaction belongs to another parent",
+          "invalid_response",
+        );
+      }
+
+      if (state.operationType !== operation.type) {
+        throw new PaymentProviderError(
+          "Paymob child transaction type does not match the requested operation",
+          "invalid_response",
+        );
+      }
+
+      if (
+        operation.type !== OnlinePaymentOperationType.void &&
+        state.amountMinor !== operation.amountMinor
+      ) {
+        throw new PaymentProviderError(
+          "Paymob child transaction amount does not match the requested operation",
+          "amount_mismatch",
+        );
+      }
+    } else {
+      const isRefunded =
+        this.booleanMetadata(state.safeMetadata, "isRefunded") === true;
+      const isVoided =
+        this.booleanMetadata(state.safeMetadata, "isVoided") === true;
+      const isCaptured =
+        this.booleanMetadata(state.safeMetadata, "isCaptured") === true ||
+        this.booleanMetadata(state.safeMetadata, "isCapture") === true;
+
+      if (operation.type === OnlinePaymentOperationType.refund) {
+        const expectedRefundedMinor = Number(
+          metadata.expectedRefundedMinor ?? operation.amountMinor,
+        );
+        const refundAmountConfirmed =
+          state.refundedAmountMinor !== undefined &&
+          state.refundedAmountMinor >= expectedRefundedMinor;
+
+        if (!isRefunded && !refundAmountConfirmed) {
+          return this.toOperationResult(
+            operation,
+            "provider_confirmation_pending",
+          );
+        }
+      }
+
+      if (
+        operation.type === OnlinePaymentOperationType.void &&
+        !isVoided
+      ) {
+        return this.toOperationResult(operation, "provider_confirmation_pending");
+      }
+
+      if (
+        operation.type === OnlinePaymentOperationType.capture &&
+        (!isCaptured ||
+          (state.capturedAmountMinor !== undefined &&
+            state.capturedAmountMinor < operation.amountMinor))
+      ) {
+        return this.toOperationResult(operation, "provider_confirmation_pending");
+      }
+    }
+
+    const pending =
+      this.booleanMetadata(state.safeMetadata, "pending") === true;
+    const success =
+      this.booleanMetadata(state.safeMetadata, "success") === true;
+    const errorOccurred =
+      this.booleanMetadata(state.safeMetadata, "errorOccurred") === true;
+
+    if (pending) {
+      return this.toOperationResult(operation, "provider_confirmation_pending");
+    }
+
+    if (!success || errorOccurred) {
+      await tx.onlinePaymentOperation.updateMany({
+        where: {
+          id: operation.id,
+          status: OnlinePaymentOperationStatus.pending,
+        },
+        data: {
+          status: OnlinePaymentOperationStatus.failed,
+          failedAt: new Date(),
+          failureCode: "paymob_operation_failed",
+          failureMessage: "Paymob operation failed",
+          metadata: this.toJsonValue({
+            ...metadata,
+            providerConfirmationSource: source,
+            providerConfirmation: state.safeMetadata,
+          }),
+        },
+      });
+
+      const failedOperation = await this.loadOperationOrThrow(operation.id, tx);
+      await this.createOnlinePaymentEvent(
+        tx,
+        failedOperation.onlinePaymentIntent,
+        OnlinePaymentEventType.provider_operation_failed,
+        {
+          operationId: failedOperation.id,
+          operationType: failedOperation.type,
+          source,
+          providerTransactionId: state.providerTransactionId,
+        },
+      );
+
+      return this.toOperationResult(failedOperation, "failed");
+    }
+
+    const now = new Date();
+    await tx.onlinePaymentOperation.updateMany({
+      where: {
+        id: operation.id,
+        status: OnlinePaymentOperationStatus.pending,
+      },
+      data: {
+        status: OnlinePaymentOperationStatus.succeeded,
+        providerTransactionId: state.providerTransactionId,
+        completedAt: now,
+        failedAt: null,
+        failureCode: null,
+        failureMessage: null,
+        metadata: this.toJsonValue({
+          ...metadata,
+          providerConfirmationSource: source,
+          providerConfirmation: state.safeMetadata,
+        }),
+      },
+    });
+
+    let latestOperation = await this.loadOperationOrThrow(operation.id, tx);
+
+    if (latestOperation.type === OnlinePaymentOperationType.capture) {
+      await this.applyPaymobSuccess(
+        tx,
+        latestOperation.onlinePaymentIntent,
+        {
+          ...state,
+          status: OnlinePaymentIntentStatus.succeeded,
+          amountMinor: latestOperation.amountMinor,
+          actionable: true,
+        },
+      );
+    } else if (
+      latestOperation.type === OnlinePaymentOperationType.void &&
+      latestOperation.onlinePaymentIntent.status ===
+        OnlinePaymentIntentStatus.requires_action
+    ) {
+      await this.applyPaymobStatusUpdate(
+        tx,
+        latestOperation.onlinePaymentIntent,
+        {
+          ...state,
+          status: OnlinePaymentIntentStatus.cancelled,
+          actionable: true,
+        },
+      );
+    }
+
+    latestOperation = await this.loadOperationOrThrow(operation.id, tx);
+
+    await this.createOnlinePaymentEvent(
+      tx,
+      latestOperation.onlinePaymentIntent,
+      OnlinePaymentEventType.provider_operation_completed,
+      {
+        operationId: latestOperation.id,
+        operationType: latestOperation.type,
+        amountMinor: latestOperation.amountMinor,
+        source,
+        parentProviderTransactionId:
+          latestOperation.parentProviderTransactionId,
+        providerTransactionId: latestOperation.providerTransactionId,
+      },
+    );
+
+    if (
+      latestOperation.type === OnlinePaymentOperationType.refund ||
+      (latestOperation.type === OnlinePaymentOperationType.void &&
+        latestOperation.onlinePaymentIntent.status ===
+          OnlinePaymentIntentStatus.succeeded)
+    ) {
+      await this.billsService.refreshReceiptForOnlinePaymentAdjustment(
+        latestOperation.billId,
+        tx,
+      );
+    }
+
+    await this.auditService.recordAuditLog(
+      {
+        companyId: latestOperation.companyId,
+        branchId: latestOperation.branchId,
+        actorType: AuditActorType.staff,
+        actorStaffUserId: latestOperation.requestedByStaffUserId,
+        targetType: "online_payment_operation",
+        targetId: latestOperation.id,
+        action: this.auditActionForOperation(latestOperation.type),
+        message: `Paymob ${latestOperation.type} completed`,
+        metadata: {
+          onlinePaymentIntentId: latestOperation.onlinePaymentIntentId,
+          billId: latestOperation.billId,
+          amountMinor: latestOperation.amountMinor,
+          currency: latestOperation.currency,
+          providerTransactionId: latestOperation.providerTransactionId,
+          parentProviderTransactionId:
+            latestOperation.parentProviderTransactionId,
+        },
+      },
+      tx,
+    );
+
+    return this.toOperationResult(latestOperation, "succeeded");
+  }
+
+  private async failPaymobOperationBeforeMutation(
+    operationId: string,
+    error: unknown,
+    failureCode: string,
+  ) {
+    const providerCode =
+      error instanceof PaymentProviderError ? error.code : "unknown_error";
+
+    return this.prisma.$transaction(async (tx) => {
+      await tx.onlinePaymentOperation.updateMany({
+        where: {
+          id: operationId,
+          status: OnlinePaymentOperationStatus.pending,
+        },
+        data: {
+          status: OnlinePaymentOperationStatus.failed,
+          failedAt: new Date(),
+          failureCode: `${failureCode}:${providerCode}`,
+          failureMessage: "Paymob operation could not be completed",
+        },
+      });
+      const operation = await this.loadOperationOrThrow(operationId, tx);
+      await this.createOnlinePaymentEvent(
+        tx,
+        operation.onlinePaymentIntent,
+        OnlinePaymentEventType.provider_operation_failed,
+        {
+          operationId: operation.id,
+          operationType: operation.type,
+          providerErrorCode: providerCode,
+        },
+      );
+
+      return this.toOperationResult(operation, "failed");
+    });
+  }
+
+  private async markPaymobOperationUncertain(
+    operationId: string,
+    error: unknown,
+  ) {
+    const providerCode =
+      error instanceof PaymentProviderError ? error.code : "unknown_error";
+    const operation = await this.prisma.onlinePaymentOperation.findUnique({
+      where: { id: operationId },
+      select: { metadata: true },
+    });
+
+    await this.prisma.onlinePaymentOperation.updateMany({
+      where: {
+        id: operationId,
+        status: OnlinePaymentOperationStatus.pending,
+      },
+      data: {
+        failureCode: `uncertain:${providerCode}`,
+        failureMessage:
+          "Provider request outcome is uncertain; recovery is required before another financial operation",
+        metadata: this.toJsonValue({
+          ...this.jsonRecord(operation?.metadata ?? null),
+          providerRequestState: "uncertain",
+          providerErrorCode: providerCode,
+        }),
+      },
+    });
+  }
+
+  private isAmbiguousProviderMutationError(error: unknown) {
+    return (
+      error instanceof PaymentProviderError &&
+      [
+        "timeout",
+        "provider_unavailable",
+        "invalid_response",
+        "amount_mismatch",
+        "currency_mismatch",
+        "environment_mismatch",
+      ].includes(error.code)
+    );
+  }
+
+  private mapPaymobOperationError(error: unknown) {
+    if (error instanceof PaymentProviderError) {
+      if (
+        error.code === "invalid_request" ||
+        error.code === "amount_mismatch" ||
+        error.code === "currency_mismatch" ||
+        error.code === "unsupported_operation"
+      ) {
+        return new BadRequestException(
+          "Paymob payment operation is not valid for the current transaction state",
+        );
+      }
+
+      if (error.code === "provider_declined") {
+        return new BadRequestException(
+          "Paymob declined the payment operation",
+        );
+      }
+    }
+
+    return new ServiceUnavailableException(
+      "Paymob payment operation is awaiting or missing provider confirmation",
+    );
+  }
+
+  private async loadOperationOrThrow(
+    operationId: string,
+    tx: PrismaExecutor,
+  ) {
+    const operation = await tx.onlinePaymentOperation.findUnique({
+      where: { id: operationId },
+      include: onlinePaymentOperationInclude,
+    });
+
+    if (!operation) {
+      throw new NotFoundException("Online payment operation not found");
+    }
+
+    return operation;
+  }
+
+  private async lockPaymobOperation(
+    tx: Prisma.TransactionClient,
+    intentId: string,
+  ) {
+    await tx.$executeRaw`
+      SELECT pg_advisory_xact_lock(
+        hashtextextended(${`online-payment-operation:${intentId}`}, 0)
+      )
+    `;
+  }
+
+  private toOperationResult(
+    operation: OnlinePaymentOperationRecord,
+    outcome: string,
+  ) {
+    return {
+      outcome,
+      operation: {
+        id: operation.id,
+        onlinePaymentIntentId: operation.onlinePaymentIntentId,
+        provider: operation.provider,
+        type: operation.type,
+        status: operation.status,
+        parentProviderTransactionId:
+          operation.parentProviderTransactionId,
+        providerTransactionId: operation.providerTransactionId,
+        amountMinor: operation.amountMinor,
+        currency: operation.currency,
+        reason: operation.reason,
+        requestedAt: operation.requestedAt,
+        completedAt: operation.completedAt,
+        failedAt: operation.failedAt,
+        failureCode: operation.failureCode,
+        failureMessage: operation.failureMessage,
+      },
+      onlinePaymentIntent: this.toIntentSummary(
+        operation.onlinePaymentIntent,
+      ),
+    };
+  }
+
+  private auditActionForOperation(type: OnlinePaymentOperationType) {
+    if (type === OnlinePaymentOperationType.refund) {
+      return AuditAction.online_payment_refunded;
+    }
+
+    if (type === OnlinePaymentOperationType.void) {
+      return AuditAction.online_payment_voided;
+    }
+
+    return AuditAction.online_payment_captured;
+  }
+
+  private booleanMetadata(
+    metadata: Record<string, unknown>,
+    key: string,
+  ) {
+    return typeof metadata[key] === "boolean"
+      ? (metadata[key] as boolean)
+      : undefined;
+  }
+
+  private stringMetadata(
+    metadata: Record<string, unknown>,
+    key: string,
+  ) {
+    return typeof metadata[key] === "string"
+      ? (metadata[key] as string)
+      : undefined;
+  }
+
   async processPaymobWebhook(receivedHmac: string, obj: unknown) {
     this.assertOnlinePaymentsEnabled();
 
@@ -933,6 +1987,10 @@ export class OnlinePaymentsService {
       throw new BadRequestException("Invalid Paymob transaction callback");
     }
 
+    if (verified.hasParentTransaction) {
+      return this.processPaymobChildWebhook(verified);
+    }
+
     try {
       return await this.prisma.$transaction((tx) =>
         this.processVerifiedPaymobWebhook(tx, verified),
@@ -947,6 +2005,205 @@ export class OnlinePaymentsService {
 
       throw error;
     }
+  }
+
+  private async processPaymobChildWebhook(
+    verified: VerifiedProviderTransactionWebhook,
+  ) {
+    const receipt = await this.prisma.$transaction(async (tx) => {
+      const existingEvent = await tx.onlinePaymentEvent.findUnique({
+        where: {
+          provider_providerEventId: {
+            provider: OnlinePaymentProvider.paymob,
+            providerEventId: verified.providerEventId,
+          },
+        },
+        select: { onlinePaymentIntentId: true },
+      });
+
+      if (existingEvent) {
+        return {
+          intentId: existingEvent.onlinePaymentIntentId,
+          duplicate: true,
+        };
+      }
+
+      const intent = await tx.onlinePaymentIntent.findUnique({
+        where: {
+          provider_providerOrderId: {
+            provider: OnlinePaymentProvider.paymob,
+            providerOrderId: verified.providerOrderId,
+          },
+        },
+        include: this.intentInclude(),
+      });
+
+      if (!intent) {
+        return {
+          unmatched: true as const,
+        };
+      }
+
+      await this.createOnlinePaymentEvent(
+        tx,
+        intent,
+        OnlinePaymentEventType.provider_webhook_received,
+        {
+          callbackStatus: verified.status,
+          providerTransactionId: verified.providerTransactionId,
+          providerOrderId: verified.providerOrderId,
+          integrationId: verified.integrationId,
+          childTransaction: true,
+          authoritativeInquiryRequired: true,
+          ...verified.safeMetadata,
+        },
+        verified.providerEventId,
+      );
+
+      return {
+        intentId: intent.id,
+        duplicate: false,
+      };
+    });
+
+    if ("unmatched" in receipt) {
+      return {
+        received: true,
+        outcome: "unmatched_child_provider_order",
+        provider: OnlinePaymentProvider.paymob,
+        providerTransactionId: verified.providerTransactionId,
+        providerOrderId: verified.providerOrderId,
+      };
+    }
+
+    let state: ProviderTransactionState;
+
+    try {
+      state =
+        await this.paymobPaymentProviderService.inquireTransactionById(
+          verified.providerTransactionId,
+        );
+    } catch (error) {
+      throw this.mapPaymobInquiryError(error);
+    }
+
+    return this.prisma.$transaction(async (tx) => {
+      const intent = await this.loadIntentOrThrow(receipt.intentId, tx);
+
+      if (
+        state.providerOrderId !== intent.providerOrderId ||
+        state.currency !== intent.currency
+      ) {
+        await this.createOnlinePaymentEvent(
+          tx,
+          intent,
+          OnlinePaymentEventType.settlement_skipped,
+          {
+            reason: "child_transaction_scope_mismatch",
+            providerTransactionId: state.providerTransactionId,
+            providerOrderId: state.providerOrderId,
+          },
+        );
+
+        return this.toIntentResult(intent, "child_transaction_scope_mismatch");
+      }
+
+      if (
+        !state.parentProviderTransactionId ||
+        !state.operationType
+      ) {
+        await this.createOnlinePaymentEvent(
+          tx,
+          intent,
+          OnlinePaymentEventType.status_updated,
+          {
+            reason: "child_transaction_missing_operation_identity",
+            providerTransactionId: state.providerTransactionId,
+          },
+        );
+
+        return this.toIntentResult(
+          intent,
+          "child_transaction_missing_operation_identity",
+        );
+      }
+
+      const linkedOperation = await tx.onlinePaymentOperation.findFirst({
+        where: {
+          onlinePaymentIntentId: intent.id,
+          provider: OnlinePaymentProvider.paymob,
+          providerTransactionId: state.providerTransactionId,
+        },
+        include: onlinePaymentOperationInclude,
+      });
+
+      if (
+        linkedOperation &&
+        linkedOperation.status !== OnlinePaymentOperationStatus.pending
+      ) {
+        return this.toOperationResult(
+          linkedOperation,
+          "duplicate_child_operation",
+        );
+      }
+
+      const operation = await tx.onlinePaymentOperation.findFirst({
+        where: {
+          onlinePaymentIntentId: intent.id,
+          provider: OnlinePaymentProvider.paymob,
+          status: OnlinePaymentOperationStatus.pending,
+          ...(state.operationType ? { type: state.operationType } : {}),
+          ...(state.parentProviderTransactionId
+            ? {
+                parentProviderTransactionId:
+                  state.parentProviderTransactionId,
+              }
+            : {}),
+          OR: [
+            { providerTransactionId: state.providerTransactionId },
+            { providerTransactionId: null },
+          ],
+        },
+        include: onlinePaymentOperationInclude,
+      });
+
+      if (!operation) {
+        await this.createOnlinePaymentEvent(
+          tx,
+          intent,
+          OnlinePaymentEventType.status_updated,
+          {
+            reason: "unmatched_child_transaction",
+            providerTransactionId: state.providerTransactionId,
+            parentProviderTransactionId:
+              state.parentProviderTransactionId,
+            operationType: state.operationType,
+          },
+        );
+
+        return this.toIntentResult(intent, "unmatched_child_transaction");
+      }
+
+      if (!operation.providerTransactionId) {
+        await tx.onlinePaymentOperation.updateMany({
+          where: {
+            id: operation.id,
+            status: OnlinePaymentOperationStatus.pending,
+            providerTransactionId: null,
+          },
+          data: {
+            providerTransactionId: state.providerTransactionId,
+          },
+        });
+      }
+
+      return this.finalizePaymobOperationFromState(
+        tx,
+        operation.id,
+        state,
+        "child_webhook",
+      );
+    });
   }
 
   private async processVerifiedPaymobWebhook(

@@ -77,11 +77,14 @@ export class OnlinePaymentReconciliationScheduler
     }
 
     try {
-      const result =
-        await this.onlinePaymentsService.reconcilePendingPaymobIntents();
+      const [intents, operations] = await Promise.all([
+        this.onlinePaymentsService.reconcilePendingPaymobIntents(),
+        this.onlinePaymentsService.reconcilePendingPaymobOperations(),
+      ]);
       this.logger.log({
         message: "payments.reconciliation_completed",
-        ...result,
+        intents,
+        operations,
       });
     } catch (error) {
       this.logger.warn({

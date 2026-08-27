@@ -1,4 +1,5 @@
 import { Module } from "@nestjs/common";
+import { AuditModule } from "../audit/audit.module";
 import { BillsModule } from "../bills/bills.module";
 import { PrismaModule } from "../prisma/prisma.module";
 import { RealtimeEventsModule } from "../realtime-events/realtime-events.module";
@@ -11,10 +12,12 @@ import { OnlinePaymentsService } from "./online-payments.service";
 import { PaymobPaymentProviderService } from "./providers/paymob-payment-provider.service";
 import { PaymentRateLimitGuard } from "./payment-rate-limit.guard";
 import { PaymentRateLimitService } from "./payment-rate-limit.service";
+import { StaffPaymentOperationRateLimitGuard } from "./staff-payment-operation-rate-limit.guard";
 import { StaffPaymentRecoveryRateLimitGuard } from "./staff-payment-recovery-rate-limit.guard";
 
 @Module({
   imports: [
+    AuditModule,
     PrismaModule,
     BillsModule,
     RealtimeEventsModule,
@@ -30,6 +33,7 @@ import { StaffPaymentRecoveryRateLimitGuard } from "./staff-payment-recovery-rat
     PaymentRateLimitGuard,
     OnlinePaymentReconciliationScheduler,
     StaffPaymentRecoveryRateLimitGuard,
+    StaffPaymentOperationRateLimitGuard,
   ],
   exports: [OnlinePaymentsService],
 })

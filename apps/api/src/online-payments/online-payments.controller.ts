@@ -25,7 +25,15 @@ import {
   CustomerBillOnlinePaymentParamDto,
   CustomerOnlinePaymentIntentParamDto,
 } from "./dto/online-payment-customer-param.dto";
-import { OnlinePaymentIntentIdParamDto } from "./dto/online-payment-id-param.dto";
+import {
+  OnlinePaymentIntentIdParamDto,
+  OnlinePaymentOperationIdParamDto,
+} from "./dto/online-payment-id-param.dto";
+import {
+  CaptureOnlinePaymentDto,
+  RefundOnlinePaymentDto,
+  VoidOnlinePaymentDto,
+} from "./dto/post-payment-operation.dto";
 import {
   PaymobTransactionWebhookDto,
   PaymobTransactionWebhookQueryDto,
@@ -33,6 +41,7 @@ import {
 import { OnlinePaymentsService } from "./online-payments.service";
 import { PaymentRateLimit } from "./payment-rate-limit.decorator";
 import { PaymentRateLimitGuard } from "./payment-rate-limit.guard";
+import { StaffPaymentOperationRateLimitGuard } from "./staff-payment-operation-rate-limit.guard";
 import { StaffPaymentRecoveryRateLimitGuard } from "./staff-payment-recovery-rate-limit.guard";
 
 @Controller()
@@ -92,6 +101,84 @@ export class OnlinePaymentsController {
     );
 
     return this.onlinePaymentsService.findOne(params.intentId);
+  }
+
+  @Post("online-payment-intents/:intentId/refund")
+  @UseGuards(StaffSessionGuard, StaffPaymentOperationRateLimitGuard)
+  async refundPaymobIntent(
+    @CurrentStaff() currentStaff: StaffAuthContext,
+    @Param() params: OnlinePaymentIntentIdParamDto,
+    @Body() body: RefundOnlinePaymentDto,
+  ) {
+    await this.staffScopedAccessService.assertCanForOnlinePaymentIntent(
+      currentStaff.staffUser.id,
+      "online_payments.manage",
+      params.intentId,
+    );
+
+    return this.onlinePaymentsService.refundPaymobIntent(
+      params.intentId,
+      currentStaff.staffUser.id,
+      body,
+    );
+  }
+
+  @Post("online-payment-intents/:intentId/void")
+  @UseGuards(StaffSessionGuard, StaffPaymentOperationRateLimitGuard)
+  async voidPaymobIntent(
+    @CurrentStaff() currentStaff: StaffAuthContext,
+    @Param() params: OnlinePaymentIntentIdParamDto,
+    @Body() body: VoidOnlinePaymentDto,
+  ) {
+    await this.staffScopedAccessService.assertCanForOnlinePaymentIntent(
+      currentStaff.staffUser.id,
+      "online_payments.manage",
+      params.intentId,
+    );
+
+    return this.onlinePaymentsService.voidPaymobIntent(
+      params.intentId,
+      currentStaff.staffUser.id,
+      body,
+    );
+  }
+
+  @Post("online-payment-intents/:intentId/capture")
+  @UseGuards(StaffSessionGuard, StaffPaymentOperationRateLimitGuard)
+  async capturePaymobIntent(
+    @CurrentStaff() currentStaff: StaffAuthContext,
+    @Param() params: OnlinePaymentIntentIdParamDto,
+    @Body() body: CaptureOnlinePaymentDto,
+  ) {
+    await this.staffScopedAccessService.assertCanForOnlinePaymentIntent(
+      currentStaff.staffUser.id,
+      "online_payments.manage",
+      params.intentId,
+    );
+
+    return this.onlinePaymentsService.capturePaymobIntent(
+      params.intentId,
+      currentStaff.staffUser.id,
+      body,
+    );
+  }
+
+  @Post("online-payment-operations/:operationId/recover")
+  @UseGuards(StaffSessionGuard, StaffPaymentOperationRateLimitGuard)
+  async recoverPaymobOperation(
+    @CurrentStaff() currentStaff: StaffAuthContext,
+    @Param() params: OnlinePaymentOperationIdParamDto,
+  ) {
+    await this.staffScopedAccessService.assertCanForOnlinePaymentOperation(
+      currentStaff.staffUser.id,
+      "online_payments.manage",
+      params.operationId,
+    );
+
+    return this.onlinePaymentsService.recoverPaymobOperation(
+      params.operationId,
+      "staff_manual",
+    );
   }
 
   @Post("online-payment-intents/:intentId/recover")

@@ -3,12 +3,16 @@ import { ConfigService } from "@nestjs/config";
 import { createHash, createHmac, timingSafeEqual } from "crypto";
 import {
   OnlinePaymentIntentStatus,
+  OnlinePaymentOperationStatus,
+  OnlinePaymentOperationType,
   OnlinePaymentProvider,
 } from "@prisma/client";
 import {
   CreateProviderPaymentInput,
   CreateProviderPaymentResult,
   PaymentProviderError,
+  ProviderPostPaymentOperationInput,
+  ProviderPostPaymentOperationResult,
   ProviderTransactionInquiryResult,
   ProviderTransactionState,
   VerifiedProviderTransactionWebhook,
@@ -39,6 +43,14 @@ type PaymobIntentionResponse = {
 type PaymobInquiryConfig = {
   baseUrl: string;
   apiKey: string;
+  integrationIds: number[];
+  timeoutMs: number;
+  expectedLive: boolean;
+};
+
+type PaymobPostPaymentConfig = {
+  baseUrl: string;
+  secretKey: string;
   integrationIds: number[];
   timeoutMs: number;
   expectedLive: boolean;
@@ -205,6 +217,107 @@ export class PaymobPaymentProviderService {
     };
   }
 
+  refundTransaction(
+    input: Omit<ProviderPostPaymentOperationInput, "type">,
+  ) {
+    return this.performPostPaymentOperation({
+      ...input,
+      type: OnlinePaymentOperationType.refund,
+    });
+  }
+
+  voidTransaction(
+    input: Omit<ProviderPostPaymentOperationInput, "type">,
+  ) {
+    return this.performPostPaymentOperation({
+      ...input,
+      type: OnlinePaymentOperationType.void,
+    });
+  }
+
+  captureTransaction(
+    input: Omit<ProviderPostPaymentOperationInput, "type">,
+  ) {
+    return this.performPostPaymentOperation({
+      ...input,
+      type: OnlinePaymentOperationType.capture,
+    });
+  }
+
+  private async performPostPaymentOperation(
+    input: ProviderPostPaymentOperationInput,
+  ): Promise<ProviderPostPaymentOperationResult> {
+    const config = this.readPostPaymentConfig();
+    const parentProviderTransactionId = this.identifierString(
+      input.parentProviderTransactionId,
+    );
+
+    if (!parentProviderTransactionId || !/^\d+$/.test(parentProviderTransactionId)) {
+      throw new PaymentProviderError(
+        "Paymob transaction id is invalid",
+        "invalid_request",
+      );
+    }
+
+    if (!Number.isSafeInteger(input.amountMinor) || input.amountMinor <= 0) {
+      throw new PaymentProviderError(
+        "Paymob post-payment amount is invalid",
+        "invalid_request",
+      );
+    }
+
+    const operationPath =
+      input.type === OnlinePaymentOperationType.refund
+        ? "/api/acceptance/void_refund/refund"
+        : input.type === OnlinePaymentOperationType.void
+          ? "/api/acceptance/void_refund/void"
+          : "/api/acceptance/capture";
+    const body =
+      input.type === OnlinePaymentOperationType.void
+        ? { transaction_id: Number(parentProviderTransactionId) }
+        : {
+            transaction_id: Number(parentProviderTransactionId),
+            amount_cents: input.amountMinor,
+          };
+
+    const response = await this.fetchWithTimeout(
+      `${config.baseUrl}${operationPath}`,
+      {
+        method: "POST",
+        headers: {
+          Authorization: `Token ${config.secretKey}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(body),
+      },
+      config.timeoutMs,
+      `Paymob ${input.type} request timed out`,
+      `Paymob ${input.type} request failed`,
+    );
+
+    if (!response.ok) {
+      throw this.errorForPostPaymentHttpStatus(response.status, input.type);
+    }
+
+    let value: unknown;
+
+    try {
+      value = await response.json();
+    } catch {
+      throw new PaymentProviderError(
+        `Paymob returned a non-JSON ${input.type} response`,
+        "invalid_response",
+        { status: response.status },
+      );
+    }
+
+    return this.normalizePostPaymentOperation(
+      value,
+      input,
+      config,
+    );
+  }
+
   async inquireTransactionByOrder(
     providerOrderIdValue: string,
   ): Promise<ProviderTransactionInquiryResult> {
@@ -271,6 +384,77 @@ export class PaymobPaymentProviderService {
       providerOrderId,
       transaction,
     };
+  }
+
+  async inquireTransactionById(
+    providerTransactionIdValue: string,
+  ): Promise<ProviderTransactionState> {
+    const config = this.readInquiryConfig();
+    const providerTransactionId = this.identifierString(
+      providerTransactionIdValue,
+    );
+
+    if (!providerTransactionId || !/^\d+$/.test(providerTransactionId)) {
+      throw new PaymentProviderError(
+        "Paymob transaction id is required for transaction inquiry",
+        "invalid_request",
+      );
+    }
+
+    let authToken = await this.getInquiryAuthToken(config);
+    let response = await this.fetchTransactionById(
+      config,
+      authToken,
+      providerTransactionId,
+    );
+
+    if (response.status === 401 || response.status === 403) {
+      this.inquiryAuthToken = undefined;
+      authToken = await this.getInquiryAuthToken(config, true);
+      response = await this.fetchTransactionById(
+        config,
+        authToken,
+        providerTransactionId,
+      );
+    }
+
+    if (response.status === 404) {
+      throw new PaymentProviderError(
+        "Paymob transaction was not found",
+        "transaction_not_found",
+      );
+    }
+
+    if (!response.ok) {
+      throw this.errorForInquiryHttpStatus(response.status);
+    }
+
+    let value: unknown;
+
+    try {
+      value = await response.json();
+    } catch {
+      throw new PaymentProviderError(
+        "Paymob returned a non-JSON transaction inquiry response",
+        "invalid_response",
+        { status: response.status },
+      );
+    }
+
+    const transaction = this.normalizeInquiryTransaction(
+      value,
+      undefined,
+      config,
+    );
+
+    if (transaction.providerTransactionId !== providerTransactionId) {
+      throw new PaymentProviderError(
+        "Paymob inquiry returned a different transaction",
+        "invalid_response",
+      );
+    }
+
+    return transaction;
   }
 
   private async getInquiryAuthToken(
@@ -379,6 +563,27 @@ export class PaymobPaymentProviderService {
     );
   }
 
+  private fetchTransactionById(
+    config: PaymobInquiryConfig,
+    authToken: string,
+    providerTransactionId: string,
+  ) {
+    return this.fetchWithTimeout(
+      `${config.baseUrl}/api/acceptance/transactions/${encodeURIComponent(
+        providerTransactionId,
+      )}`,
+      {
+        method: "GET",
+        headers: {
+          Authorization: `Bearer ${authToken}`,
+        },
+      },
+      config.timeoutMs,
+      "Paymob transaction inquiry timed out",
+      "Paymob transaction inquiry request failed",
+    );
+  }
+
   private async fetchWithTimeout(
     url: string,
     init: RequestInit,
@@ -410,7 +615,7 @@ export class PaymobPaymentProviderService {
 
   private normalizeInquiryTransaction(
     value: unknown,
-    expectedProviderOrderId: string,
+    expectedProviderOrderId: string | undefined,
     config: PaymobInquiryConfig,
   ): ProviderTransactionState {
     const obj = this.requireRecord(value, "Paymob transaction inquiry response");
@@ -447,7 +652,10 @@ export class PaymobPaymentProviderService {
       );
     }
 
-    if (providerOrderId !== expectedProviderOrderId) {
+    if (
+      expectedProviderOrderId &&
+      providerOrderId !== expectedProviderOrderId
+    ) {
       throw new PaymentProviderError(
         "Paymob inquiry returned a different order",
         "invalid_response",
@@ -483,6 +691,7 @@ export class PaymobPaymentProviderService {
     const isCapture = this.booleanValue(obj.is_capture);
     const isVoided = this.booleanValue(obj.is_voided);
     const isRefunded = this.booleanValue(obj.is_refunded);
+    const isCaptured = this.booleanValue(obj.is_captured);
     const hasParentTransaction = this.booleanValue(
       obj.has_parent_transaction,
     );
@@ -513,6 +722,21 @@ export class PaymobPaymentProviderService {
       isVoided: isVoided || orderCancelled,
     });
     const merchantReference = this.identifierString(order.merchant_order_id);
+    const parentProviderTransactionId = this.identifierString(
+      obj.parent_transaction,
+    );
+    const isRefund = this.booleanValue(obj.is_refund) === true;
+    const isVoid = this.booleanValue(obj.is_void) === true;
+    const operationType = isCapture
+      ? OnlinePaymentOperationType.capture
+      : isRefund
+        ? OnlinePaymentOperationType.refund
+        : isVoid
+          ? OnlinePaymentOperationType.void
+          : undefined;
+    const refundedAmountMinor = this.integerValue(obj.refunded_amount_cents);
+    const capturedAmountMinor =
+      isCapture ? amountMinor : this.integerValue(obj.captured_amount);
     const updatedAt = this.nonEmptyString(obj.updated_at);
     const fingerprint = createHash("sha256")
       .update(
@@ -547,6 +771,12 @@ export class PaymobPaymentProviderService {
       amountMinor,
       currency,
       actionable: !hasParentTransaction && !isRefunded,
+      hasParentTransaction,
+      parentProviderTransactionId,
+      operationType,
+      refundedAmountMinor,
+      capturedAmountMinor,
+      isLive,
       safeMetadata: {
         providerTransactionId,
         providerOrderId,
@@ -558,8 +788,13 @@ export class PaymobPaymentProviderService {
         hasParentTransaction,
         isAuth,
         isCapture,
+        isCaptured,
+        isRefund,
+        isVoid,
         isRefunded,
         isVoided,
+        parentProviderTransactionId,
+        operationType,
         pending,
         success,
         sourceType: this.nonEmptyString(sourceData.type),
@@ -732,6 +967,7 @@ export class PaymobPaymentProviderService {
       amountMinor,
       currency,
       actionable: !hasParentTransaction,
+      hasParentTransaction,
       safeMetadata: {
         providerTransactionId,
         providerOrderId,
@@ -750,6 +986,178 @@ export class PaymobPaymentProviderService {
         sourceSubtype: this.nonEmptyString(sourceData.sub_type),
       },
     };
+  }
+
+  private readPostPaymentConfig(): PaymobPostPaymentConfig {
+    const configuredBaseUrl = (
+      this.configService.get<string>("onlinePayments.paymob.baseUrl") ??
+      DEFAULT_PAYMOB_BASE_URL
+    ).replace(/\/+$/, "");
+    const appEnvironment =
+      this.configService.get<string>("app.environment") ?? "development";
+    const secretKey = this.nonEmptyString(
+      this.configService.get<string>("onlinePayments.paymob.secretKey"),
+    );
+    const integrationIds =
+      this.configService.get<number[]>("onlinePayments.paymob.integrationIds") ??
+      [];
+    const timeoutMs =
+      this.configService.get<number>("onlinePayments.paymob.timeoutMs") ??
+      DEFAULT_TIMEOUT_MS;
+    const expectedLive =
+      this.configService.get<boolean>("onlinePayments.paymob.expectedLive") ??
+      false;
+
+    if (!secretKey) {
+      throw new PaymentProviderError(
+        "Paymob secret key is not configured for post-payment operations",
+        "missing_config",
+      );
+    }
+
+    if (integrationIds.length === 0) {
+      throw new PaymentProviderError(
+        "Paymob payment integration IDs are not configured",
+        "missing_config",
+      );
+    }
+
+    if (appEnvironment === "production" && !expectedLive) {
+      throw new PaymentProviderError(
+        "Production Paymob post-payment operations require live configuration",
+        "environment_mismatch",
+      );
+    }
+
+    return {
+      baseUrl: this.validatedServerUrl(
+        configuredBaseUrl,
+        appEnvironment,
+        "Paymob base URL",
+      ),
+      secretKey,
+      integrationIds,
+      timeoutMs,
+      expectedLive,
+    };
+  }
+
+  private normalizePostPaymentOperation(
+    value: unknown,
+    input: ProviderPostPaymentOperationInput,
+    config: PaymobPostPaymentConfig,
+  ): ProviderPostPaymentOperationResult {
+    const obj = this.requireRecord(
+      value,
+      `Paymob ${input.type} response`,
+    );
+    const providerTransactionId =
+      this.identifierString(obj.id) ?? input.parentProviderTransactionId;
+    const parentProviderTransactionId =
+      this.identifierString(obj.parent_transaction) ??
+      input.parentProviderTransactionId;
+    const integrationId = this.integerValue(obj.integration_id);
+    const isLive = this.booleanValue(obj.is_live);
+    const currency = this.nonEmptyString(obj.currency);
+
+    if (parentProviderTransactionId !== input.parentProviderTransactionId) {
+      throw new PaymentProviderError(
+        `Paymob ${input.type} response references a different parent transaction`,
+        "invalid_response",
+      );
+    }
+
+    if (
+      integrationId !== undefined &&
+      !config.integrationIds.includes(integrationId)
+    ) {
+      throw new PaymentProviderError(
+        `Paymob ${input.type} response uses an unconfigured integration`,
+        "environment_mismatch",
+        { integrationId },
+      );
+    }
+
+    if (isLive !== undefined && isLive !== config.expectedLive) {
+      throw new PaymentProviderError(
+        `Paymob ${input.type} response environment does not match configuration`,
+        "environment_mismatch",
+        {
+          expectedLive: config.expectedLive,
+          receivedLive: isLive,
+        },
+      );
+    }
+
+    if (currency && currency !== input.expectedCurrency) {
+      throw new PaymentProviderError(
+        `Paymob ${input.type} response currency does not match the Balcona payment`,
+        "currency_mismatch",
+        {
+          expectedCurrency: input.expectedCurrency,
+          receivedCurrency: currency,
+        },
+      );
+    }
+
+    return {
+      provider: this.provider,
+      type: input.type,
+      status: OnlinePaymentOperationStatus.pending,
+      parentProviderTransactionId,
+      providerTransactionId,
+      amountMinor: input.amountMinor,
+      currency: currency ?? input.expectedCurrency,
+      safeMetadata: {
+        responseAccepted: true,
+        integrationId,
+        isLive,
+        pending: this.booleanValue(obj.pending),
+        success: this.booleanValue(obj.success),
+        errorOccurred: this.booleanValue(obj.error_occured),
+        isCapture: this.booleanValue(obj.is_capture),
+        isRefund: this.booleanValue(obj.is_refund),
+        isVoid: this.booleanValue(obj.is_void),
+        isCaptured: this.booleanValue(obj.is_captured),
+        isRefunded: this.booleanValue(obj.is_refunded),
+        isVoided: this.booleanValue(obj.is_voided),
+      },
+    };
+  }
+
+  private errorForPostPaymentHttpStatus(
+    status: number,
+    type: OnlinePaymentOperationType,
+  ) {
+    if (status === 401 || status === 403) {
+      return new PaymentProviderError(
+        `Paymob rejected the configured credentials for ${type}`,
+        "authentication_failed",
+        { status },
+      );
+    }
+
+    if (status === 429) {
+      return new PaymentProviderError(
+        `Paymob ${type} rate limit reached`,
+        "rate_limited",
+        { status },
+      );
+    }
+
+    if (status >= 400 && status < 500) {
+      return new PaymentProviderError(
+        `Paymob rejected the ${type} request`,
+        "invalid_request",
+        { status },
+      );
+    }
+
+    return new PaymentProviderError(
+      `Paymob ${type} is temporarily unavailable`,
+      "provider_unavailable",
+      { status },
+    );
   }
 
   private readInquiryConfig(): PaymobInquiryConfig {

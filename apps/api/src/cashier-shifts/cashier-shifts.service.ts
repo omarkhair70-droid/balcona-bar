@@ -11,6 +11,8 @@ import {
   CashierShiftStatus,
   ManualPaymentStatus,
   OnlinePaymentIntentStatus,
+  OnlinePaymentOperationStatus,
+  OnlinePaymentOperationType,
   OnlinePaymentProvider,
   Prisma,
 } from "@prisma/client";
@@ -470,8 +472,12 @@ export class CashierShiftsService {
 
     const onlinePaymentWindowEnd =
       closeContext.closedAt ?? shift.closedAt ?? new Date();
-    const [manualPayments, onlinePayments, drawerTransactions] =
-      await Promise.all([
+    const [
+      manualPayments,
+      onlinePayments,
+      onlinePaymentAdjustments,
+      drawerTransactions,
+    ] = await Promise.all([
         tx.manualPayment.findMany({
           where: {
             cashierShiftId: shift.id,
@@ -518,6 +524,40 @@ export class CashierShiftsService {
             },
           },
         }),
+        tx.onlinePaymentOperation.findMany({
+          where: {
+            branchId: shift.branchId,
+            currency: shift.currency,
+            status: OnlinePaymentOperationStatus.succeeded,
+            type: {
+              in: [
+                OnlinePaymentOperationType.refund,
+                OnlinePaymentOperationType.void,
+              ],
+            },
+            completedAt: {
+              gte: shift.openedAt,
+              lte: onlinePaymentWindowEnd,
+            },
+          },
+          orderBy: [{ completedAt: "asc" }, { id: "asc" }],
+          select: {
+            id: true,
+            onlinePaymentIntentId: true,
+            provider: true,
+            type: true,
+            amountMinor: true,
+            currency: true,
+            providerTransactionId: true,
+            parentProviderTransactionId: true,
+            completedAt: true,
+            onlinePaymentIntent: {
+              select: {
+                billId: true,
+              },
+            },
+          },
+        }),
         tx.cashDrawerTransaction.findMany({
           where: { cashierShiftId: shift.id },
           orderBy: [{ createdAt: "asc" }, { id: "asc" }],
@@ -540,14 +580,42 @@ export class CashierShiftsService {
       manualPayments,
       BillPaymentMethod.other,
     );
-    const onlineMockMinor = this.sumOnlinePaymentsByProvider(
+    const onlineMockGrossMinor = this.sumOnlinePaymentsByProvider(
       onlinePayments,
       OnlinePaymentProvider.mock,
     );
-    const onlineExternalMinor = this.sumOnlinePaymentsByProvider(
-      onlinePayments,
-      OnlinePaymentProvider.external,
-    );
+    const onlineExternalGrossMinor = onlinePayments
+      .filter((payment) => payment.provider !== OnlinePaymentProvider.mock)
+      .reduce((sum, payment) => sum + payment.amountMinor, 0);
+    const onlineMockAdjustmentMinor = onlinePaymentAdjustments
+      .filter(
+        (adjustment) =>
+          adjustment.provider === OnlinePaymentProvider.mock,
+      )
+      .reduce((sum, adjustment) => sum + adjustment.amountMinor, 0);
+    const onlineExternalAdjustmentMinor = onlinePaymentAdjustments
+      .filter(
+        (adjustment) =>
+          adjustment.provider !== OnlinePaymentProvider.mock,
+      )
+      .reduce((sum, adjustment) => sum + adjustment.amountMinor, 0);
+    const onlineRefundedMinor = onlinePaymentAdjustments
+      .filter(
+        (adjustment) =>
+          adjustment.type === OnlinePaymentOperationType.refund,
+      )
+      .reduce((sum, adjustment) => sum + adjustment.amountMinor, 0);
+    const onlineVoidedMinor = onlinePaymentAdjustments
+      .filter(
+        (adjustment) =>
+          adjustment.type === OnlinePaymentOperationType.void,
+      )
+      .reduce((sum, adjustment) => sum + adjustment.amountMinor, 0);
+    const onlineMockMinor =
+      onlineMockGrossMinor - onlineMockAdjustmentMinor;
+    const onlineExternalMinor =
+      onlineExternalGrossMinor - onlineExternalAdjustmentMinor;
+    const onlineTotalMinor = onlineMockMinor + onlineExternalMinor;
     const cashInMinor = this.sumDrawerTransactions(
       drawerTransactions,
       CashDrawerTransactionType.cash_in,
@@ -572,9 +640,10 @@ export class CashierShiftsService {
       closeContext.countedCashMinor ?? shift.countedCashMinor ?? null;
     const cashOverShortMinor =
       countedCashMinor === null ? null : countedCashMinor - expectedCashMinor;
-    const uniqueBillIds = new Set(
-      manualPayments.map((payment) => payment.billId),
-    );
+    const uniqueBillIds = new Set([
+      ...manualPayments.map((payment) => payment.billId),
+      ...onlinePayments.map((payment) => payment.billId),
+    ]);
     const cashPaymentCount = this.countPaymentsByMethod(
       manualPayments,
       BillPaymentMethod.cash,
@@ -639,9 +708,19 @@ export class CashierShiftsService {
         otherMinor,
         onlineMockMinor,
         onlineExternalMinor,
-        onlineTotalMinor: onlineMockMinor + onlineExternalMinor,
+        onlineGrossMinor:
+          onlineMockGrossMinor + onlineExternalGrossMinor,
+        onlineAdjustmentMinor:
+          onlineMockAdjustmentMinor + onlineExternalAdjustmentMinor,
+        onlineRefundedMinor,
+        onlineVoidedMinor,
+        onlineTotalMinor,
         totalCollectedMinor:
-          cashPaymentMinor + cardPosMinor + walletManualMinor + otherMinor,
+          cashPaymentMinor +
+          cardPosMinor +
+          walletManualMinor +
+          otherMinor +
+          onlineTotalMinor,
       },
       counts: {
         billCount: uniqueBillIds.size,
@@ -651,14 +730,18 @@ export class CashierShiftsService {
         walletPaymentCount,
         otherPaymentCount,
         onlinePaymentCount: onlinePayments.length,
+        onlineAdjustmentCount: onlinePaymentAdjustments.length,
       },
       operational: {
         paidBills: Array.from(uniqueBillIds).map((billId) => {
-          const payment = manualPayments.find(
+          const manualPayment = manualPayments.find(
+            (candidate) => candidate.billId === billId,
+          );
+          const onlinePayment = onlinePayments.find(
             (candidate) => candidate.billId === billId,
           );
 
-          return payment?.bill ?? { id: billId };
+          return manualPayment?.bill ?? onlinePayment?.bill ?? { id: billId };
         }),
         manualPayments: manualPayments.map((payment) => ({
           id: payment.id,
@@ -672,6 +755,7 @@ export class CashierShiftsService {
           recordedByStaffUser: payment.recordedByStaffUser,
           bill: payment.bill,
         })),
+        onlineAdjustments: onlinePaymentAdjustments,
         onlinePayments: onlinePayments.map((payment) => ({
           id: payment.id,
           billId: payment.billId,
