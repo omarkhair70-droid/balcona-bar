@@ -237,6 +237,107 @@ function createService(provider = "mock", environment = "test") {
   };
 }
 
+function providerState(
+  overrides: Record<string, unknown> = {},
+) {
+  return {
+    provider: OnlinePaymentProvider.paymob,
+    providerEventId: "paymob_inquiry_555001_state",
+    providerTransactionId: "555001",
+    providerOrderId: "12345",
+    merchantReference: "intent-1",
+    integrationId: 101,
+    status: OnlinePaymentIntentStatus.succeeded,
+    amountMinor: 12500,
+    currency: "EGP",
+    actionable: true,
+    hasParentTransaction: false,
+    isLive: false,
+    safeMetadata: {
+      sourceType: "card",
+      pending: false,
+      success: true,
+      errorOccurred: false,
+      isRefunded: false,
+      isVoided: false,
+      isCaptured: false,
+    },
+    ...overrides,
+  };
+}
+
+function setupOperationHarness(
+  context: ReturnType<typeof createService>,
+  type: OnlinePaymentOperationType,
+  intentStatus:
+    | OnlinePaymentIntentStatus.succeeded
+    | OnlinePaymentIntentStatus.requires_action,
+) {
+  const { tx } = context;
+  let currentIntent = intent(
+    intentStatus,
+    OnlinePaymentProvider.paymob,
+    {
+      metadata: { paymobTransactionId: "555001" },
+    },
+  );
+  let currentOperation: any = null;
+
+  tx.onlinePaymentIntent.findUnique.mockImplementation(async () => currentIntent);
+  tx.onlinePaymentIntent.updateMany.mockImplementation(async ({ data }: any) => {
+    currentIntent = {
+      ...currentIntent,
+      ...data,
+      status: data?.status ?? currentIntent.status,
+    };
+    if (currentOperation) {
+      currentOperation.onlinePaymentIntent = currentIntent;
+    }
+    return { count: 1 };
+  });
+
+  tx.onlinePaymentOperation.findUnique.mockImplementation(
+    async ({ where }: any) => {
+      if (where?.idempotencyKey) {
+        return null;
+      }
+
+      return currentOperation;
+    },
+  );
+  tx.onlinePaymentOperation.findFirst.mockResolvedValue(null);
+  tx.onlinePaymentOperation.findMany.mockResolvedValue([]);
+  tx.onlinePaymentOperation.create.mockImplementation(async ({ data }: any) => {
+    currentOperation = {
+      ...operation(type, OnlinePaymentOperationStatus.pending),
+      ...data,
+      providerTransactionId: null,
+      onlinePaymentIntent: currentIntent,
+    };
+    return currentOperation;
+  });
+  tx.onlinePaymentOperation.updateMany.mockImplementation(
+    async ({ data }: any) => {
+      if (currentOperation) {
+        currentOperation = {
+          ...currentOperation,
+          ...data,
+          onlinePaymentIntent: currentIntent,
+        };
+      }
+      return { count: 1 };
+    },
+  );
+
+  return {
+    getIntent: () => currentIntent,
+    getOperation: () => currentOperation,
+    setOperation: (value: any) => {
+      currentOperation = value;
+    },
+  };
+}
+
 describe("OnlinePaymentsService", () => {
   it("blocks customer online payment creation when the plan does not include online payments", async () => {
     const { service, tx, saasService } = createService();
@@ -785,6 +886,251 @@ describe("OnlinePaymentsService", () => {
     expect(paymobPaymentProviderService.createPayment).not.toHaveBeenCalled();
     expect(tx.onlinePaymentIntent.create).not.toHaveBeenCalled();
     expect(result.outcome).toBe("existing_active");
+  });
+
+  it("completes a partial refund only after authoritative child inquiry", async () => {
+    const context = createService("paymob");
+    const {
+      service,
+      tx,
+      billsService,
+      auditService,
+      paymobPaymentProviderService,
+    } = context;
+    setupOperationHarness(
+      context,
+      OnlinePaymentOperationType.refund,
+      OnlinePaymentIntentStatus.succeeded,
+    );
+
+    paymobPaymentProviderService.inquireTransactionById
+      .mockResolvedValueOnce(providerState())
+      .mockResolvedValueOnce(
+        providerState({
+          providerEventId: "paymob_inquiry_555010_refund",
+          providerTransactionId: "555010",
+          amountMinor: 5000,
+          hasParentTransaction: true,
+          parentProviderTransactionId: "555001",
+          operationType: OnlinePaymentOperationType.refund,
+          actionable: false,
+          safeMetadata: {
+            sourceType: "card",
+            pending: false,
+            success: true,
+            errorOccurred: false,
+            isRefund: true,
+            isRefunded: false,
+          },
+        }),
+      );
+    paymobPaymentProviderService.refundTransaction.mockResolvedValueOnce({
+      provider: OnlinePaymentProvider.paymob,
+      type: OnlinePaymentOperationType.refund,
+      status: OnlinePaymentOperationStatus.pending,
+      parentProviderTransactionId: "555001",
+      providerTransactionId: "555010",
+      amountMinor: 5000,
+      currency: "EGP",
+      safeMetadata: { responseAccepted: true },
+    });
+
+    const result = await service.refundPaymobIntent(
+      "intent-1",
+      "staff-1",
+      {
+        amountMinor: 5000,
+        idempotencyKey: "refund-key-1",
+        reason: "customer request",
+      },
+    );
+
+    expect(
+      paymobPaymentProviderService.refundTransaction,
+    ).toHaveBeenCalledWith({
+      parentProviderTransactionId: "555001",
+      amountMinor: 5000,
+      expectedCurrency: "EGP",
+    });
+    expect(tx.onlinePaymentOperation.updateMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          status: OnlinePaymentOperationStatus.succeeded,
+          providerTransactionId: "555010",
+        }),
+      }),
+    );
+    expect(
+      billsService.refreshReceiptForOnlinePaymentAdjustment,
+    ).toHaveBeenCalledWith("bill-1", tx);
+    expect(auditService.recordAuditLog).toHaveBeenCalledTimes(1);
+    expect(result.outcome).toBe("succeeded");
+    expect(result.operation.amountMinor).toBe(5000);
+  });
+
+  it("rejects refund amounts above the remaining refundable balance before Paymob mutation", async () => {
+    const context = createService("paymob");
+    const { service, tx, paymobPaymentProviderService } = context;
+    setupOperationHarness(
+      context,
+      OnlinePaymentOperationType.refund,
+      OnlinePaymentIntentStatus.succeeded,
+    );
+    tx.onlinePaymentOperation.findMany.mockResolvedValueOnce([
+      { amountMinor: 10000 },
+    ]);
+
+    await expect(
+      service.refundPaymobIntent("intent-1", "staff-1", {
+        amountMinor: 3000,
+        idempotencyKey: "refund-key-over",
+      }),
+    ).rejects.toThrow(
+      "Refund amount exceeds the remaining refundable amount",
+    );
+
+    expect(paymobPaymentProviderService.refundTransaction).not.toHaveBeenCalled();
+    expect(tx.onlinePaymentOperation.create).not.toHaveBeenCalled();
+  });
+
+  it("rejects partial capture because current Balcona settlement requires the full bill amount", async () => {
+    const context = createService("paymob");
+    const { service, tx, paymobPaymentProviderService } = context;
+    setupOperationHarness(
+      context,
+      OnlinePaymentOperationType.capture,
+      OnlinePaymentIntentStatus.requires_action,
+    );
+
+    await expect(
+      service.capturePaymobIntent("intent-1", "staff-1", {
+        amountMinor: 5000,
+        idempotencyKey: "capture-partial",
+      }),
+    ).rejects.toThrow(
+      "Balcona currently requires full capture to preserve full-bill settlement integrity",
+    );
+
+    expect(paymobPaymentProviderService.captureTransaction).not.toHaveBeenCalled();
+    expect(tx.onlinePaymentOperation.create).not.toHaveBeenCalled();
+  });
+
+  it("full capture settles the bill only after authoritative capture inquiry", async () => {
+    const context = createService("paymob");
+    const {
+      service,
+      billsService,
+      paymobPaymentProviderService,
+    } = context;
+    setupOperationHarness(
+      context,
+      OnlinePaymentOperationType.capture,
+      OnlinePaymentIntentStatus.requires_action,
+    );
+
+    paymobPaymentProviderService.inquireTransactionById
+      .mockResolvedValueOnce(
+        providerState({
+          status: OnlinePaymentIntentStatus.requires_action,
+          safeMetadata: {
+            sourceType: "card",
+            pending: false,
+            success: true,
+            errorOccurred: false,
+            isAuth: true,
+            isCapture: false,
+          },
+        }),
+      )
+      .mockResolvedValueOnce(
+        providerState({
+          providerEventId: "paymob_inquiry_555020_capture",
+          providerTransactionId: "555020",
+          amountMinor: 12500,
+          hasParentTransaction: true,
+          parentProviderTransactionId: "555001",
+          operationType: OnlinePaymentOperationType.capture,
+          safeMetadata: {
+            sourceType: "card",
+            pending: false,
+            success: true,
+            errorOccurred: false,
+            isCapture: true,
+            isCaptured: true,
+          },
+        }),
+      );
+    paymobPaymentProviderService.captureTransaction.mockResolvedValueOnce({
+      provider: OnlinePaymentProvider.paymob,
+      type: OnlinePaymentOperationType.capture,
+      status: OnlinePaymentOperationStatus.pending,
+      parentProviderTransactionId: "555001",
+      providerTransactionId: "555020",
+      amountMinor: 12500,
+      currency: "EGP",
+      safeMetadata: { responseAccepted: true },
+    });
+
+    const result = await service.capturePaymobIntent(
+      "intent-1",
+      "staff-1",
+      {
+        amountMinor: 12500,
+        idempotencyKey: "capture-full",
+      },
+    );
+
+    expect(billsService.settleBillWithOnlinePayment).toHaveBeenCalledTimes(1);
+    expect(result.outcome).toBe("succeeded");
+  });
+
+  it("leaves an ambiguous refund timeout pending so a second financial operation stays blocked", async () => {
+    const context = createService("paymob");
+    const {
+      service,
+      tx,
+      paymobPaymentProviderService,
+    } = context;
+    const harness = setupOperationHarness(
+      context,
+      OnlinePaymentOperationType.refund,
+      OnlinePaymentIntentStatus.succeeded,
+    );
+
+    paymobPaymentProviderService.inquireTransactionById.mockResolvedValueOnce(
+      providerState(),
+    );
+    paymobPaymentProviderService.refundTransaction.mockRejectedValueOnce(
+      new PaymentProviderError("timeout", "timeout"),
+    );
+
+    await expect(
+      service.refundPaymobIntent("intent-1", "staff-1", {
+        amountMinor: 5000,
+        idempotencyKey: "refund-timeout",
+      }),
+    ).rejects.toThrow(
+      "Paymob payment operation is awaiting or missing provider confirmation",
+    );
+
+    expect(harness.getOperation().status).toBe(
+      OnlinePaymentOperationStatus.pending,
+    );
+    expect(harness.getOperation().failureCode).toBe("uncertain:timeout");
+
+    tx.onlinePaymentOperation.findUnique.mockResolvedValueOnce(null);
+    tx.onlinePaymentOperation.findFirst.mockResolvedValueOnce(
+      harness.getOperation(),
+    );
+
+    await expect(
+      service.refundPaymobIntent("intent-1", "staff-1", {
+        amountMinor: 1000,
+        idempotencyKey: "refund-second",
+      }),
+    ).rejects.toThrow(
+      "Another payment operation is still awaiting provider confirmation",
+    );
   });
 
   it("settles a verified Paymob success exactly through the existing guarded bill settlement", async () => {
