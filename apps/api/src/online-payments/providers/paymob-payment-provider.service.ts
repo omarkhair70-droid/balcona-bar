@@ -386,6 +386,77 @@ export class PaymobPaymentProviderService {
     };
   }
 
+  async inquireTransactionById(
+    providerTransactionIdValue: string,
+  ): Promise<ProviderTransactionState> {
+    const config = this.readInquiryConfig();
+    const providerTransactionId = this.identifierString(
+      providerTransactionIdValue,
+    );
+
+    if (!providerTransactionId || !/^\d+$/.test(providerTransactionId)) {
+      throw new PaymentProviderError(
+        "Paymob transaction id is required for transaction inquiry",
+        "invalid_request",
+      );
+    }
+
+    let authToken = await this.getInquiryAuthToken(config);
+    let response = await this.fetchTransactionById(
+      config,
+      authToken,
+      providerTransactionId,
+    );
+
+    if (response.status === 401 || response.status === 403) {
+      this.inquiryAuthToken = undefined;
+      authToken = await this.getInquiryAuthToken(config, true);
+      response = await this.fetchTransactionById(
+        config,
+        authToken,
+        providerTransactionId,
+      );
+    }
+
+    if (response.status === 404) {
+      throw new PaymentProviderError(
+        "Paymob transaction was not found",
+        "transaction_not_found",
+      );
+    }
+
+    if (!response.ok) {
+      throw this.errorForInquiryHttpStatus(response.status);
+    }
+
+    let value: unknown;
+
+    try {
+      value = await response.json();
+    } catch {
+      throw new PaymentProviderError(
+        "Paymob returned a non-JSON transaction inquiry response",
+        "invalid_response",
+        { status: response.status },
+      );
+    }
+
+    const transaction = this.normalizeInquiryTransaction(
+      value,
+      undefined,
+      config,
+    );
+
+    if (transaction.providerTransactionId !== providerTransactionId) {
+      throw new PaymentProviderError(
+        "Paymob inquiry returned a different transaction",
+        "invalid_response",
+      );
+    }
+
+    return transaction;
+  }
+
   private async getInquiryAuthToken(
     config: PaymobInquiryConfig,
     forceRefresh = false,
@@ -492,6 +563,27 @@ export class PaymobPaymentProviderService {
     );
   }
 
+  private fetchTransactionById(
+    config: PaymobInquiryConfig,
+    authToken: string,
+    providerTransactionId: string,
+  ) {
+    return this.fetchWithTimeout(
+      `${config.baseUrl}/api/acceptance/transactions/${encodeURIComponent(
+        providerTransactionId,
+      )}`,
+      {
+        method: "GET",
+        headers: {
+          Authorization: `Bearer ${authToken}`,
+        },
+      },
+      config.timeoutMs,
+      "Paymob transaction inquiry timed out",
+      "Paymob transaction inquiry request failed",
+    );
+  }
+
   private async fetchWithTimeout(
     url: string,
     init: RequestInit,
@@ -523,7 +615,7 @@ export class PaymobPaymentProviderService {
 
   private normalizeInquiryTransaction(
     value: unknown,
-    expectedProviderOrderId: string,
+    expectedProviderOrderId: string | undefined,
     config: PaymobInquiryConfig,
   ): ProviderTransactionState {
     const obj = this.requireRecord(value, "Paymob transaction inquiry response");
@@ -560,7 +652,10 @@ export class PaymobPaymentProviderService {
       );
     }
 
-    if (providerOrderId !== expectedProviderOrderId) {
+    if (
+      expectedProviderOrderId &&
+      providerOrderId !== expectedProviderOrderId
+    ) {
       throw new PaymentProviderError(
         "Paymob inquiry returned a different order",
         "invalid_response",
@@ -626,6 +721,21 @@ export class PaymobPaymentProviderService {
       isVoided: isVoided || orderCancelled,
     });
     const merchantReference = this.identifierString(order.merchant_order_id);
+    const parentProviderTransactionId = this.identifierString(
+      obj.parent_transaction,
+    );
+    const isRefund = this.booleanValue(obj.is_refund) === true;
+    const isVoid = this.booleanValue(obj.is_void) === true;
+    const operationType = isCapture
+      ? OnlinePaymentOperationType.capture
+      : isRefund
+        ? OnlinePaymentOperationType.refund
+        : isVoid
+          ? OnlinePaymentOperationType.void
+          : undefined;
+    const refundedAmountMinor = this.integerValue(obj.refunded_amount_cents);
+    const capturedAmountMinor =
+      isCapture ? amountMinor : this.integerValue(obj.captured_amount);
     const updatedAt = this.nonEmptyString(obj.updated_at);
     const fingerprint = createHash("sha256")
       .update(
@@ -660,6 +770,12 @@ export class PaymobPaymentProviderService {
       amountMinor,
       currency,
       actionable: !hasParentTransaction && !isRefunded,
+      hasParentTransaction,
+      parentProviderTransactionId,
+      operationType,
+      refundedAmountMinor,
+      capturedAmountMinor,
+      isLive,
       safeMetadata: {
         providerTransactionId,
         providerOrderId,
@@ -671,8 +787,12 @@ export class PaymobPaymentProviderService {
         hasParentTransaction,
         isAuth,
         isCapture,
+        isRefund,
+        isVoid,
         isRefunded,
         isVoided,
+        parentProviderTransactionId,
+        operationType,
         pending,
         success,
         sourceType: this.nonEmptyString(sourceData.type),
@@ -845,6 +965,7 @@ export class PaymobPaymentProviderService {
       amountMinor,
       currency,
       actionable: !hasParentTransaction,
+      hasParentTransaction,
       safeMetadata: {
         providerTransactionId,
         providerOrderId,
