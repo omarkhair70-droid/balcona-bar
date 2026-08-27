@@ -441,6 +441,49 @@ enum OnlinePaymentOperationStatus {
   failed
 }
 
+enum OnlinePaymentReconciliationSource {
+  provider_inquiry
+  settlement_statement
+}
+
+enum OnlinePaymentReconciliationRunStatus {
+  running
+  matched
+  mismatch
+  failed
+}
+
+enum OnlinePaymentReconciliationMovementType {
+  sale
+  refund
+  void
+}
+
+enum OnlinePaymentReconciliationMatchStatus {
+  matched
+  provider_pending
+  mismatch
+}
+
+enum OnlinePaymentReconciliationIssueType {
+  provider_transaction_missing
+  provider_status_mismatch
+  amount_mismatch
+  currency_mismatch
+  operation_type_mismatch
+  settlement_status_mismatch
+  statement_line_missing
+  statement_only_transaction
+  statement_total_mismatch
+  statement_net_mismatch
+}
+
+enum OnlinePaymentReconciliationIssueStatus {
+  open
+  acknowledged
+  resolved
+}
+
 enum OnlinePaymentEventType {
   intent_created
   provider_webhook_received
@@ -797,6 +840,10 @@ enum AuditAction {
   online_payment_refunded
   online_payment_voided
   online_payment_captured
+  online_payment_reconciliation_run
+  online_payment_settlement_imported
+  online_payment_reconciliation_issue_acknowledged
+  online_payment_reconciliation_issue_resolved
   menu_changed
   experience_changed
   media_changed
@@ -908,6 +955,10 @@ model Company {
   onlinePaymentIntents          OnlinePaymentIntent[]
   onlinePaymentEvents           OnlinePaymentEvent[]
   onlinePaymentOperations       OnlinePaymentOperation[]
+  onlinePaymentReconciliationRuns OnlinePaymentReconciliationRun[]
+  onlinePaymentReconciliationEntries OnlinePaymentReconciliationEntry[]
+  onlinePaymentReconciliationIssues OnlinePaymentReconciliationIssue[]
+  onlinePaymentSettlementBatches OnlinePaymentSettlementBatch[]
   cashierShifts                 CashierShift[]
   cashDrawerTransactions        CashDrawerTransaction[]
   cashierShiftReports           CashierShiftReport[]
@@ -1045,6 +1096,10 @@ model Branch {
   onlinePaymentIntents      OnlinePaymentIntent[]
   onlinePaymentEvents       OnlinePaymentEvent[]
   onlinePaymentOperations   OnlinePaymentOperation[]
+  onlinePaymentReconciliationRuns OnlinePaymentReconciliationRun[]
+  onlinePaymentReconciliationEntries OnlinePaymentReconciliationEntry[]
+  onlinePaymentReconciliationIssues OnlinePaymentReconciliationIssue[]
+  onlinePaymentSettlementBatches OnlinePaymentSettlementBatch[]
   cashierShifts             CashierShift[]
   cashDrawerTransactions    CashDrawerTransaction[]
   cashierShiftReports       CashierShiftReport[]
@@ -1146,6 +1201,10 @@ model StaffUser {
   preparationTaskEvents    PreparationTaskEvent[]
   requestedPrintJobs       PrintJob[]              @relation("PrintJobRequestedByStaff")
   onlinePaymentOperations  OnlinePaymentOperation[] @relation("OnlinePaymentOperationRequestedByStaff")
+  requestedPaymentReconciliationRuns OnlinePaymentReconciliationRun[] @relation("OnlinePaymentReconciliationRunRequestedByStaff")
+  importedPaymentSettlementBatches OnlinePaymentSettlementBatch[] @relation("OnlinePaymentSettlementBatchImportedByStaff")
+  acknowledgedPaymentReconciliationIssues OnlinePaymentReconciliationIssue[] @relation("OnlinePaymentReconciliationIssueAcknowledgedByStaff")
+  resolvedPaymentReconciliationIssues OnlinePaymentReconciliationIssue[] @relation("OnlinePaymentReconciliationIssueResolvedByStaff")
   printJobEvents           PrintJobEvent[]
   waiterCallEvents         WaiterCallEvent[]
   auditLogs                AuditLog[]
@@ -2695,6 +2754,7 @@ model OnlinePaymentIntent {
   bill         Bill                 @relation(fields: [billId], references: [id], onDelete: Cascade)
   events       OnlinePaymentEvent[]
   operations   OnlinePaymentOperation[]
+  reconciliationEntries OnlinePaymentReconciliationEntry[]
 
   @@index([companyId])
   @@index([branchId])
@@ -2739,6 +2799,7 @@ model OnlinePaymentOperation {
   branch               Branch              @relation(fields: [branchId], references: [id], onDelete: Cascade)
   bill                 Bill                @relation(fields: [billId], references: [id], onDelete: Cascade)
   requestedByStaffUser StaffUser           @relation("OnlinePaymentOperationRequestedByStaff", fields: [requestedByStaffUserId], references: [id], onDelete: Restrict)
+  reconciliationEntries OnlinePaymentReconciliationEntry[]
 
   @@unique([provider, providerTransactionId])
   @@index([onlinePaymentIntentId])
@@ -2752,6 +2813,196 @@ model OnlinePaymentOperation {
   @@index([completedAt])
   @@index([createdAt])
   @@index([onlinePaymentIntentId, type, status])
+}
+
+model OnlinePaymentSettlementBatch {
+  id                     String                @id @default(uuid())
+  companyId              String
+  branchId               String
+  provider               OnlinePaymentProvider
+  externalReference      String
+  payoutReference        String?
+  currency               String
+  periodStart            DateTime
+  periodEnd              DateTime
+  settledAt              DateTime?
+  grossMinor             Int
+  adjustmentMinor        Int
+  feeMinor               Int
+  netMinor               Int
+  sourceHash             String
+  importedByStaffUserId  String
+  metadata               Json?
+  createdAt              DateTime              @default(now())
+  updatedAt              DateTime              @updatedAt
+
+  company         Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  branch          Branch    @relation(fields: [branchId], references: [id], onDelete: Cascade)
+  importedByStaffUser StaffUser @relation("OnlinePaymentSettlementBatchImportedByStaff", fields: [importedByStaffUserId], references: [id], onDelete: Restrict)
+  lines           OnlinePaymentSettlementLine[]
+  reconciliationRuns OnlinePaymentReconciliationRun[]
+
+  @@unique([provider, branchId, externalReference])
+  @@unique([provider, branchId, sourceHash])
+  @@index([companyId])
+  @@index([branchId])
+  @@index([provider])
+  @@index([periodStart, periodEnd])
+  @@index([settledAt])
+  @@index([createdAt])
+}
+
+model OnlinePaymentSettlementLine {
+  id                     String                              @id @default(uuid())
+  settlementBatchId      String
+  providerTransactionId  String
+  movementType           OnlinePaymentReconciliationMovementType
+  amountMinor            Int
+  feeMinor               Int                                 @default(0)
+  netMinor               Int
+  currency               String
+  settlementReference    String?
+  settledAt              DateTime?
+  metadata               Json?
+  createdAt              DateTime                            @default(now())
+
+  settlementBatch OnlinePaymentSettlementBatch @relation(fields: [settlementBatchId], references: [id], onDelete: Cascade)
+  reconciliationEntries OnlinePaymentReconciliationEntry[]
+
+  @@unique([settlementBatchId, providerTransactionId])
+  @@index([providerTransactionId])
+  @@index([movementType])
+  @@index([settledAt])
+}
+
+model OnlinePaymentReconciliationRun {
+  id                       String                                  @id @default(uuid())
+  companyId                String
+  branchId                 String
+  provider                 OnlinePaymentProvider
+  source                   OnlinePaymentReconciliationSource
+  status                   OnlinePaymentReconciliationRunStatus    @default(running)
+  idempotencyKey           String                                  @unique
+  periodStart              DateTime
+  periodEnd                DateTime
+  currency                 String
+  settlementBatchId        String?
+  requestedByStaffUserId   String?
+  localGrossMinor          Int                                     @default(0)
+  localAdjustmentMinor     Int                                     @default(0)
+  localNetBeforeFeesMinor  Int                                     @default(0)
+  providerGrossMinor       Int?
+  providerAdjustmentMinor  Int?
+  providerFeeMinor         Int?
+  providerNetMinor         Int?
+  matchedCount             Int                                     @default(0)
+  pendingCount             Int                                     @default(0)
+  mismatchCount            Int                                     @default(0)
+  startedAt                DateTime                                @default(now())
+  completedAt              DateTime?
+  failureCode              String?
+  failureMessage           String?
+  metadata                 Json?
+  createdAt                DateTime                                @default(now())
+  updatedAt                DateTime                                @updatedAt
+
+  company      Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  branch       Branch   @relation(fields: [branchId], references: [id], onDelete: Cascade)
+  settlementBatch OnlinePaymentSettlementBatch? @relation(fields: [settlementBatchId], references: [id], onDelete: SetNull)
+  requestedByStaffUser StaffUser? @relation("OnlinePaymentReconciliationRunRequestedByStaff", fields: [requestedByStaffUserId], references: [id], onDelete: SetNull)
+  entries      OnlinePaymentReconciliationEntry[]
+  issues       OnlinePaymentReconciliationIssue[]
+
+  @@index([companyId])
+  @@index([branchId])
+  @@index([provider])
+  @@index([source])
+  @@index([status])
+  @@index([periodStart, periodEnd])
+  @@index([settlementBatchId])
+  @@index([createdAt])
+}
+
+model OnlinePaymentReconciliationEntry {
+  id                         String                                      @id @default(uuid())
+  reconciliationRunId        String
+  companyId                  String
+  branchId                   String
+  provider                   OnlinePaymentProvider
+  movementType               OnlinePaymentReconciliationMovementType
+  onlinePaymentIntentId      String?
+  onlinePaymentOperationId   String?
+  providerTransactionId      String
+  parentProviderTransactionId String?
+  localAmountMinor           Int
+  currency                   String
+  providerAmountMinor        Int?
+  providerSettled            Boolean?
+  providerFeeMinor           Int?
+  providerSettlementDate     DateTime?
+  providerSettlementReference String?
+  settlementLineId           String?
+  matchStatus                OnlinePaymentReconciliationMatchStatus
+  mismatchCode               String?
+  metadata                   Json?
+  createdAt                  DateTime                                    @default(now())
+  updatedAt                  DateTime                                    @updatedAt
+
+  reconciliationRun OnlinePaymentReconciliationRun @relation(fields: [reconciliationRunId], references: [id], onDelete: Cascade)
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  branch Branch @relation(fields: [branchId], references: [id], onDelete: Cascade)
+  onlinePaymentIntent OnlinePaymentIntent? @relation(fields: [onlinePaymentIntentId], references: [id], onDelete: SetNull)
+  onlinePaymentOperation OnlinePaymentOperation? @relation(fields: [onlinePaymentOperationId], references: [id], onDelete: SetNull)
+  settlementLine OnlinePaymentSettlementLine? @relation(fields: [settlementLineId], references: [id], onDelete: SetNull)
+  issues OnlinePaymentReconciliationIssue[]
+
+  @@unique([reconciliationRunId, providerTransactionId])
+  @@index([companyId])
+  @@index([branchId])
+  @@index([provider])
+  @@index([movementType])
+  @@index([onlinePaymentIntentId])
+  @@index([onlinePaymentOperationId])
+  @@index([settlementLineId])
+  @@index([matchStatus])
+  @@index([providerSettlementDate])
+}
+
+model OnlinePaymentReconciliationIssue {
+  id                    String                                    @id @default(uuid())
+  reconciliationRunId   String
+  reconciliationEntryId String?
+  companyId             String
+  branchId              String
+  provider              OnlinePaymentProvider
+  type                  OnlinePaymentReconciliationIssueType
+  status                OnlinePaymentReconciliationIssueStatus    @default(open)
+  message               String
+  details               Json?
+  detectedAt            DateTime                                  @default(now())
+  acknowledgedAt        DateTime?
+  acknowledgedByStaffUserId String?
+  resolvedAt            DateTime?
+  resolvedByStaffUserId String?
+  resolutionNote        String?
+  createdAt             DateTime                                  @default(now())
+  updatedAt             DateTime                                  @updatedAt
+
+  reconciliationRun OnlinePaymentReconciliationRun @relation(fields: [reconciliationRunId], references: [id], onDelete: Cascade)
+  reconciliationEntry OnlinePaymentReconciliationEntry? @relation(fields: [reconciliationEntryId], references: [id], onDelete: Cascade)
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  branch Branch @relation(fields: [branchId], references: [id], onDelete: Cascade)
+  acknowledgedByStaffUser StaffUser? @relation("OnlinePaymentReconciliationIssueAcknowledgedByStaff", fields: [acknowledgedByStaffUserId], references: [id], onDelete: SetNull)
+  resolvedByStaffUser StaffUser? @relation("OnlinePaymentReconciliationIssueResolvedByStaff", fields: [resolvedByStaffUserId], references: [id], onDelete: SetNull)
+
+  @@index([reconciliationRunId])
+  @@index([reconciliationEntryId])
+  @@index([companyId])
+  @@index([branchId])
+  @@index([provider])
+  @@index([type])
+  @@index([status])
+  @@index([detectedAt])
 }
 
 model OnlinePaymentEvent {
