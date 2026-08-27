@@ -82,12 +82,15 @@ export class OnlinePaymentReconciliationScheduler
 
     try {
       if (provider === "fawry") {
-        const intents =
-          await this.onlinePaymentsService.reconcilePendingFawryIntents();
+        const [intents, operations] = await Promise.all([
+          this.onlinePaymentsService.reconcilePendingFawryIntents(),
+          this.onlinePaymentsService.reconcilePendingFawryOperations(),
+        ]);
         this.logger.log({
           message: "payments.reconciliation_completed",
           provider,
           intents,
+          operations,
         });
       } else if (provider === "paymob") {
         const [intents, operations] = await Promise.all([
