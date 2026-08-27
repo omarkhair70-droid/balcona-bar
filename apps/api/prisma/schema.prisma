@@ -2957,7 +2957,7 @@ model OnlinePaymentReconciliationEntry {
   settlementLine OnlinePaymentSettlementLine? @relation(fields: [settlementLineId], references: [id], onDelete: SetNull)
   issues OnlinePaymentReconciliationIssue[]
 
-  @@unique([reconciliationRunId, providerTransactionId])
+  @@index([reconciliationRunId, providerTransactionId])
   @@index([companyId])
   @@index([branchId])
   @@index([provider])
