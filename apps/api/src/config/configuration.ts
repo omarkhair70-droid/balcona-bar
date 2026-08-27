@@ -93,6 +93,31 @@ export default () => ({
       appEnvironment() !== "production",
     checkoutBaseUrl:
       process.env.ONLINE_PAYMENT_CHECKOUT_BASE_URL ?? "http://localhost:3001",
+    paymob: {
+      baseUrl: process.env.PAYMOB_BASE_URL ?? "https://accept.paymob.com",
+      secretKey: process.env.PAYMOB_SECRET_KEY || undefined,
+      publicKey: process.env.PAYMOB_PUBLIC_KEY || undefined,
+      hmacSecret: process.env.PAYMOB_HMAC_SECRET || undefined,
+      integrationIds: (process.env.PAYMOB_INTEGRATION_IDS ?? "")
+        .split(",")
+        .map((value) => Number.parseInt(value.trim(), 10))
+        .filter((value) => Number.isInteger(value) && value > 0),
+      notificationUrl: process.env.PAYMOB_NOTIFICATION_URL || undefined,
+      allowedReturnOrigins: (
+        process.env.PAYMOB_ALLOWED_RETURN_ORIGINS ??
+        process.env.CORS_ORIGINS ??
+        ""
+      )
+        .split(",")
+        .map((value) => value.trim())
+        .filter(Boolean),
+      timeoutMs: Number.parseInt(process.env.PAYMOB_TIMEOUT_MS ?? "10000", 10),
+      expirationSeconds: Number.parseInt(
+        process.env.PAYMOB_INTENTION_EXPIRATION_SECONDS ?? "900",
+        10,
+      ),
+      expectedLive: process.env.PAYMOB_EXPECT_LIVE === "true",
+    },
   },
   smokeBootstrap: {
     enabled: process.env.SMOKE_BOOTSTRAP_ENABLED === "true",
