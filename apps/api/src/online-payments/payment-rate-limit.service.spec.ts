@@ -8,6 +8,7 @@ function config(environment = "test") {
     "onlinePayments.rateLimit.windowSeconds": 60,
     "onlinePayments.rateLimit.customerCreateMax": 2,
     "onlinePayments.rateLimit.customerReadMax": 5,
+    "onlinePayments.rateLimit.staffRecoveryMax": 3,
   };
 
   return {
@@ -54,6 +55,25 @@ describe("PaymentRateLimitService", () => {
       limit: 2,
       remaining: 0,
       retryAfterSeconds: 44,
+    });
+  });
+
+  it("uses the dedicated staff recovery limit", async () => {
+    const redis = {
+      eval: jest.fn().mockResolvedValue([3, 39]),
+    };
+    const service = new PaymentRateLimitService(
+      redis as never,
+      config(),
+    );
+
+    await expect(
+      service.consume("staff_recover", "staff-1", "provider-recovery"),
+    ).resolves.toEqual({
+      allowed: true,
+      limit: 3,
+      remaining: 0,
+      retryAfterSeconds: 39,
     });
   });
 
