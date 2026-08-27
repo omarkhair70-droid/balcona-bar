@@ -15,6 +15,7 @@ function config(overrides: Record<string, unknown> = {}) {
     "onlinePayments.paymob.timeoutMs": 10000,
     "onlinePayments.paymob.expirationSeconds": 900,
     "onlinePayments.paymob.expectedLive": false,
+    "app.environment": "development",
     ...overrides,
   };
 
@@ -173,6 +174,65 @@ describe("PaymobPaymentProviderService", () => {
     ).rejects.toMatchObject({
       name: "PaymentProviderError",
       code: "invalid_request",
+    });
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  it("fails closed when a return URL is supplied without an origin allowlist", async () => {
+    const fetchSpy = jest.spyOn(global, "fetch");
+    const service = new PaymobPaymentProviderService(
+      config({
+        "onlinePayments.paymob.allowedReturnOrigins": [],
+      }),
+    );
+
+    await expect(service.createPayment(input())).rejects.toMatchObject({
+      name: "PaymentProviderError",
+      code: "invalid_request",
+    });
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  it("rejects test-mode Paymob configuration in production", async () => {
+    const fetchSpy = jest.spyOn(global, "fetch");
+    const service = new PaymobPaymentProviderService(
+      config({
+        "app.environment": "production",
+        "onlinePayments.paymob.expectedLive": false,
+      }),
+    );
+
+    await expect(
+      service.createPayment({
+        ...input(),
+        customerReturnUrl: "https://app.example.com/payment",
+      }),
+    ).rejects.toMatchObject({
+      name: "PaymentProviderError",
+      code: "environment_mismatch",
+    });
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  it("requires HTTPS provider callback configuration in production", async () => {
+    const fetchSpy = jest.spyOn(global, "fetch");
+    const service = new PaymobPaymentProviderService(
+      config({
+        "app.environment": "production",
+        "onlinePayments.paymob.expectedLive": true,
+        "onlinePayments.paymob.notificationUrl":
+          "http://api.example.com/api/v1/online-payments/webhooks/paymob",
+      }),
+    );
+
+    await expect(
+      service.createPayment({
+        ...input(),
+        customerReturnUrl: "https://app.example.com/payment",
+      }),
+    ).rejects.toMatchObject({
+      name: "PaymentProviderError",
+      code: "environment_mismatch",
     });
     expect(fetchSpy).not.toHaveBeenCalled();
   });
