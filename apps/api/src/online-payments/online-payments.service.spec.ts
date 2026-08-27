@@ -1133,6 +1133,114 @@ describe("OnlinePaymentsService", () => {
     );
   });
 
+  it("rejects Paymob void for a non-card transaction before mutation", async () => {
+    const context = createService("paymob");
+    const { service, paymobPaymentProviderService } = context;
+    setupOperationHarness(
+      context,
+      OnlinePaymentOperationType.void,
+      OnlinePaymentIntentStatus.succeeded,
+    );
+
+    paymobPaymentProviderService.inquireTransactionById.mockResolvedValueOnce(
+      providerState({
+        safeMetadata: {
+          sourceType: "wallet",
+          pending: false,
+          success: true,
+          errorOccurred: false,
+        },
+      }),
+    );
+
+    await expect(
+      service.voidPaymobIntent("intent-1", "staff-1", {
+        idempotencyKey: "void-wallet",
+      }),
+    ).rejects.toThrow(
+      "Paymob payment operation is not valid for the current transaction state",
+    );
+
+    expect(paymobPaymentProviderService.voidTransaction).not.toHaveBeenCalled();
+  });
+
+  it("uses a child webhook only as a trigger and finalizes the pending refund from authoritative inquiry", async () => {
+    const context = createService("paymob");
+    const {
+      service,
+      tx,
+      billsService,
+      paymobPaymentProviderService,
+    } = context;
+    const harness = setupOperationHarness(
+      context,
+      OnlinePaymentOperationType.refund,
+      OnlinePaymentIntentStatus.succeeded,
+    );
+    const pendingOperation = operation(
+      OnlinePaymentOperationType.refund,
+      OnlinePaymentOperationStatus.pending,
+      {
+        providerTransactionId: null,
+        onlinePaymentIntent: harness.getIntent(),
+      },
+    );
+    harness.setOperation(pendingOperation);
+    tx.onlinePaymentOperation.findFirst.mockResolvedValueOnce(
+      pendingOperation,
+    );
+
+    paymobPaymentProviderService.verifyTransactionWebhook.mockReturnValueOnce({
+      provider: OnlinePaymentProvider.paymob,
+      providerEventId: "paymob_tx_555010_verified",
+      providerTransactionId: "555010",
+      providerOrderId: "12345",
+      merchantReference: "intent-1",
+      integrationId: 101,
+      status: OnlinePaymentIntentStatus.succeeded,
+      amountMinor: 5000,
+      currency: "EGP",
+      actionable: false,
+      hasParentTransaction: true,
+      safeMetadata: {
+        hasParentTransaction: true,
+        pending: false,
+        success: true,
+      },
+    });
+    paymobPaymentProviderService.inquireTransactionById.mockResolvedValueOnce(
+      providerState({
+        providerEventId: "paymob_inquiry_555010_refund",
+        providerTransactionId: "555010",
+        amountMinor: 5000,
+        hasParentTransaction: true,
+        parentProviderTransactionId: "555001",
+        operationType: OnlinePaymentOperationType.refund,
+        actionable: false,
+        safeMetadata: {
+          sourceType: "card",
+          pending: false,
+          success: true,
+          errorOccurred: false,
+          isRefund: true,
+        },
+      }),
+    );
+
+    const result = await service.processPaymobWebhook(
+      "verified-hmac",
+      { child: "callback" },
+    );
+
+    expect(
+      paymobPaymentProviderService.inquireTransactionById,
+    ).toHaveBeenCalledWith("555010");
+    expect(
+      billsService.refreshReceiptForOnlinePaymentAdjustment,
+    ).toHaveBeenCalledWith("bill-1", tx);
+    expect(result.outcome).toBe("succeeded");
+  });
+
   it("settles a verified Paymob success exactly through the existing guarded bill settlement", async () => {
     const {
       service,
