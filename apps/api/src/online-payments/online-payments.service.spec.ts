@@ -225,6 +225,64 @@ describe("OnlinePaymentsService", () => {
     expect(result.outcome).toBe("created");
   });
 
+  it("rejects a stale active intent whose amount no longer matches the bill", async () => {
+    const { service, tx } = createService("mock");
+    tx.bill.findUnique.mockResolvedValueOnce({
+      id: "bill-1",
+      companyId: "company-1",
+      branchId: "branch-1",
+      tableSessionId: "session-1",
+      status: BillStatus.payment_pending,
+      currency: "EGP",
+      totalMinor: 12500,
+      balanceDueMinor: 12500,
+    });
+    tx.onlinePaymentIntent.findFirst.mockResolvedValueOnce(
+      intent(
+        OnlinePaymentIntentStatus.pending,
+        OnlinePaymentProvider.mock,
+        { amountMinor: 10000 },
+      ),
+    );
+
+    await expect(
+      service.createIntentForCustomer("session-1", "bill-1"),
+    ).rejects.toThrow(
+      "Bill amount or currency changed while an online payment is active",
+    );
+
+    expect(tx.$executeRaw).toHaveBeenCalledTimes(1);
+    expect(tx.onlinePaymentIntent.create).not.toHaveBeenCalled();
+  });
+
+  it("rejects an active intent owned by another configured provider", async () => {
+    const { service, tx } = createService("mock");
+    tx.bill.findUnique.mockResolvedValueOnce({
+      id: "bill-1",
+      companyId: "company-1",
+      branchId: "branch-1",
+      tableSessionId: "session-1",
+      status: BillStatus.payment_pending,
+      currency: "EGP",
+      totalMinor: 12500,
+      balanceDueMinor: 12500,
+    });
+    tx.onlinePaymentIntent.findFirst.mockResolvedValueOnce(
+      intent(
+        OnlinePaymentIntentStatus.pending,
+        OnlinePaymentProvider.paymob,
+      ),
+    );
+
+    await expect(
+      service.createIntentForCustomer("session-1", "bill-1"),
+    ).rejects.toThrow(
+      "Bill already has an active online payment with another provider",
+    );
+
+    expect(tx.onlinePaymentIntent.create).not.toHaveBeenCalled();
+  });
+
   it("requires billing data before Paymob checkout initialization", async () => {
     const { service, tx, paymobPaymentProviderService } = createService("paymob");
 
