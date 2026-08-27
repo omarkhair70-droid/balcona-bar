@@ -118,6 +118,20 @@ export default () => ({
       ),
       expectedLive: process.env.PAYMOB_EXPECT_LIVE === "true",
     },
+    rateLimit: {
+      windowSeconds: Number.parseInt(
+        process.env.ONLINE_PAYMENT_RATE_LIMIT_WINDOW_SECONDS ?? "60",
+        10,
+      ),
+      customerCreateMax: Number.parseInt(
+        process.env.ONLINE_PAYMENT_CREATE_RATE_LIMIT_MAX ?? "6",
+        10,
+      ),
+      customerReadMax: Number.parseInt(
+        process.env.ONLINE_PAYMENT_READ_RATE_LIMIT_MAX ?? "60",
+        10,
+      ),
+    },
   },
   smokeBootstrap: {
     enabled: process.env.SMOKE_BOOTSTRAP_ENABLED === "true",
