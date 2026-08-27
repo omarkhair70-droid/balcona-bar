@@ -253,7 +253,7 @@ export class OnlinePaymentsController {
 
   @Post("online-payment-intents/:intentId/refund")
   @UseGuards(StaffSessionGuard, StaffPaymentOperationRateLimitGuard)
-  async refundPaymobIntent(
+  async refundProviderIntent(
     @CurrentStaff() currentStaff: StaffAuthContext,
     @Param() params: OnlinePaymentIntentIdParamDto,
     @Body() body: RefundOnlinePaymentDto,
@@ -264,7 +264,7 @@ export class OnlinePaymentsController {
       params.intentId,
     );
 
-    return this.onlinePaymentsService.refundPaymobIntent(
+    return this.onlinePaymentsService.refundProviderIntent(
       params.intentId,
       currentStaff.staffUser.id,
       body,
@@ -313,7 +313,7 @@ export class OnlinePaymentsController {
 
   @Post("online-payment-operations/:operationId/recover")
   @UseGuards(StaffSessionGuard, StaffPaymentOperationRateLimitGuard)
-  async recoverPaymobOperation(
+  async recoverProviderOperation(
     @CurrentStaff() currentStaff: StaffAuthContext,
     @Param() params: OnlinePaymentOperationIdParamDto,
   ) {
@@ -323,7 +323,7 @@ export class OnlinePaymentsController {
       params.operationId,
     );
 
-    return this.onlinePaymentsService.recoverPaymobOperation(
+    return this.onlinePaymentsService.recoverProviderOperation(
       params.operationId,
       "staff_manual",
     );
