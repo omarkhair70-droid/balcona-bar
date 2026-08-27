@@ -158,6 +158,98 @@ describe("API runtime configuration", () => {
     });
   });
 
+  it("accepts Fawry staging runtime with hosted checkout credentials", () => {
+    withEnv({
+      NODE_ENV: "production",
+      APP_ENV: "staging",
+      DATABASE_URL: "postgresql://user:password@localhost:5432/balcona",
+      ONLINE_PAYMENTS_ENABLED: "true",
+      ONLINE_PAYMENT_PROVIDER: "fawry",
+      FAWRY_MERCHANT_CODE: "merchant-code",
+      FAWRY_SECURE_KEY: "secure-key",
+      FAWRY_NOTIFICATION_URL:
+        "https://api.example.com/api/v1/online-payments/webhooks/fawry",
+      FAWRY_RETURN_URL: "https://app.example.com/payment/return",
+      FAWRY_ALLOWED_RETURN_ORIGINS: "https://app.example.com",
+    });
+
+    expect(() => validateEnvironment(process.env)).not.toThrow();
+
+    const config = configuration();
+
+    expect(config.onlinePayments.fawry).toMatchObject({
+      merchantCode: "merchant-code",
+      secureKey: "secure-key",
+      notificationUrl:
+        "https://api.example.com/api/v1/online-payments/webhooks/fawry",
+      returnUrl: "https://app.example.com/payment/return",
+      expectedLive: false,
+    });
+  });
+
+  it("rejects production Fawry when live provider configuration is incomplete", () => {
+    withEnv({
+      NODE_ENV: "production",
+      APP_ENV: "production",
+      DATABASE_URL: "postgresql://user:password@localhost:5432/balcona",
+      ONLINE_PAYMENTS_ENABLED: "true",
+      ONLINE_PAYMENT_PROVIDER: "fawry",
+      FAWRY_MERCHANT_CODE: "merchant-code",
+      FAWRY_SECURE_KEY: "secure-key",
+      FAWRY_NOTIFICATION_URL:
+        "https://api.example.com/api/v1/online-payments/webhooks/fawry",
+      FAWRY_RETURN_URL: "https://app.example.com/payment/return",
+      FAWRY_EXPECT_LIVE: "false",
+    });
+
+    expect(() => validateEnvironment(process.env)).toThrow(
+      "Fawry production payments require merchant code, secure key, checkout/status URLs, notification URL, and return URL",
+    );
+  });
+
+  it("rejects production Fawry when staging mode is still expected", () => {
+    withEnv({
+      NODE_ENV: "production",
+      APP_ENV: "production",
+      DATABASE_URL: "postgresql://user:password@localhost:5432/balcona",
+      ONLINE_PAYMENTS_ENABLED: "true",
+      ONLINE_PAYMENT_PROVIDER: "fawry",
+      FAWRY_CHECKOUT_URL: "https://www.atfawry.com/live-checkout",
+      FAWRY_STATUS_URL:
+        "https://www.atfawry.com/ECommerceWeb/Fawry/payments/status/v2",
+      FAWRY_MERCHANT_CODE: "merchant-code",
+      FAWRY_SECURE_KEY: "secure-key",
+      FAWRY_NOTIFICATION_URL:
+        "https://api.example.com/api/v1/online-payments/webhooks/fawry",
+      FAWRY_RETURN_URL: "https://app.example.com/payment/return",
+      FAWRY_EXPECT_LIVE: "false",
+    });
+
+    expect(() => validateEnvironment(process.env)).toThrow(
+      "FAWRY_EXPECT_LIVE=true is required for production Fawry payments",
+    );
+  });
+
+  it("allows Fawry pull-based reconciliation with signed status credentials", () => {
+    withEnv({
+      NODE_ENV: "production",
+      APP_ENV: "staging",
+      DATABASE_URL: "postgresql://user:password@localhost:5432/balcona",
+      ONLINE_PAYMENTS_ENABLED: "true",
+      ONLINE_PAYMENT_PROVIDER: "fawry",
+      ONLINE_PAYMENT_RECONCILIATION_ENABLED: "true",
+      FAWRY_MERCHANT_CODE: "merchant-code",
+      FAWRY_SECURE_KEY: "secure-key",
+      FAWRY_STATUS_URL:
+        "https://atfawry.fawrystaging.com/ECommerceWeb/Fawry/payments/status/v2",
+      FAWRY_NOTIFICATION_URL:
+        "https://api.example.com/api/v1/online-payments/webhooks/fawry",
+      FAWRY_RETURN_URL: "https://app.example.com/payment/return",
+    });
+
+    expect(() => validateEnvironment(process.env)).not.toThrow();
+  });
+
   it("requires PAYMOB_API_KEY when Paymob scheduled reconciliation is enabled", () => {
     withEnv({
       NODE_ENV: "production",
