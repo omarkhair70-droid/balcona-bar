@@ -894,6 +894,9 @@ export class PaymentReconciliationService {
       }
     } else {
       counters.providerAdjustmentMinor += movement.amountMinor;
+      // Refund/void fee effects are statement/acquirer dependent. Do not
+      // fabricate provider net from transaction inquiry alone.
+      counters.providerFeeComplete = false;
     }
   }
 
