@@ -271,6 +271,32 @@ class EnvironmentVariables {
 
   @IsBooleanString()
   @IsOptional()
+  ONLINE_PAYMENT_SETTLEMENT_RECONCILIATION_ENABLED?: string;
+
+  @IsInt()
+  @Min(300)
+  @Max(86400)
+  @IsOptional()
+  ONLINE_PAYMENT_SETTLEMENT_RECONCILIATION_INTERVAL_SECONDS?: number;
+
+  @IsString()
+  @IsOptional()
+  ONLINE_PAYMENT_SETTLEMENT_RECONCILIATION_TIMEZONE?: string;
+
+  @IsInt()
+  @Min(1)
+  @Max(5000)
+  @IsOptional()
+  ONLINE_PAYMENT_SETTLEMENT_RECONCILIATION_MAX_ENTRIES?: number;
+
+  @IsInt()
+  @Min(1)
+  @Max(500)
+  @IsOptional()
+  ONLINE_PAYMENT_SETTLEMENT_RECONCILIATION_MAX_SCOPES?: number;
+
+  @IsBooleanString()
+  @IsOptional()
   ONLINE_PAYMENT_RECONCILIATION_ENABLED?: string;
 
   @IsInt()
@@ -385,6 +411,40 @@ export function validateEnvironment(config: Record<string, unknown>) {
     throw new Error(
       "PAYMOB_API_KEY is required for production Paymob recovery",
     );
+  }
+
+  if (
+    validatedConfig.ONLINE_PAYMENT_SETTLEMENT_RECONCILIATION_ENABLED === "true"
+  ) {
+    if (!onlinePaymentsEnabled) {
+      throw new Error(
+        "Settlement reconciliation requires ONLINE_PAYMENTS_ENABLED=true",
+      );
+    }
+
+    if (effectivePaymentProvider !== OnlinePaymentProvider.Paymob) {
+      throw new Error(
+        "Settlement reconciliation currently requires ONLINE_PAYMENT_PROVIDER=paymob",
+      );
+    }
+
+    if (!validatedConfig.PAYMOB_API_KEY) {
+      throw new Error(
+        "PAYMOB_API_KEY is required when settlement reconciliation is enabled",
+      );
+    }
+
+    const timezone =
+      validatedConfig.ONLINE_PAYMENT_SETTLEMENT_RECONCILIATION_TIMEZONE ??
+      "Africa/Cairo";
+
+    try {
+      new Intl.DateTimeFormat("en-US", { timeZone: timezone }).format();
+    } catch {
+      throw new Error(
+        "ONLINE_PAYMENT_SETTLEMENT_RECONCILIATION_TIMEZONE is invalid",
+      );
+    }
   }
 
   if (validatedConfig.ONLINE_PAYMENT_RECONCILIATION_ENABLED === "true") {
