@@ -429,6 +429,34 @@ export class SmokeResetService {
         run: async (tx: Prisma.TransactionClient, deleted: DeleteCounts) => {
           await this.deleteAndCount(
             deleted,
+            "onlinePaymentReconciliationIssues",
+            tx.onlinePaymentReconciliationIssue.deleteMany({
+              where: { companyId, branchId },
+            }),
+          );
+          await this.deleteAndCount(
+            deleted,
+            "onlinePaymentReconciliationEntries",
+            tx.onlinePaymentReconciliationEntry.deleteMany({
+              where: { companyId, branchId },
+            }),
+          );
+          await this.deleteAndCount(
+            deleted,
+            "onlinePaymentReconciliationRuns",
+            tx.onlinePaymentReconciliationRun.deleteMany({
+              where: { companyId, branchId },
+            }),
+          );
+          await this.deleteAndCount(
+            deleted,
+            "onlinePaymentSettlementBatches",
+            tx.onlinePaymentSettlementBatch.deleteMany({
+              where: { companyId, branchId },
+            }),
+          );
+          await this.deleteAndCount(
+            deleted,
             "onlinePaymentEvents",
             tx.onlinePaymentEvent.deleteMany({
               where: {
@@ -442,6 +470,13 @@ export class SmokeResetService {
                   { billId: { in: ids.billIds } },
                 ],
               },
+            }),
+          );
+          await this.deleteAndCount(
+            deleted,
+            "onlinePaymentOperations",
+            tx.onlinePaymentOperation.deleteMany({
+              where: { companyId, branchId },
             }),
           );
           await this.deleteAndCount(

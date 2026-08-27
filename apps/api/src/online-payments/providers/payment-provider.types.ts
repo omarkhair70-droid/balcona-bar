@@ -76,6 +76,10 @@ export type ProviderTransactionState = {
   refundedAmountMinor?: number;
   capturedAmountMinor?: number;
   isLive?: boolean;
+  providerSettled?: boolean;
+  providerReportedFeeMinor?: number;
+  providerSettlementDate?: string;
+  providerSettlementReference?: string;
   safeMetadata: Record<string, unknown>;
 };
 

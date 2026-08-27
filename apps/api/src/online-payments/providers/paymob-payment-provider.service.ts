@@ -738,6 +738,36 @@ export class PaymobPaymentProviderService {
     const capturedAmountMinor =
       isCapture ? amountMinor : this.integerValue(obj.captured_amount);
     const updatedAt = this.nonEmptyString(obj.updated_at);
+    const providerSettled = this.booleanValue(obj.is_settled);
+    const merchantCommissionMinor =
+      this.integerValue(obj.merchant_commission) ??
+      this.integerValue(order.commission_fees);
+    const providerReportedFeeMinor =
+      merchantCommissionMinor !== undefined && merchantCommissionMinor >= 0
+        ? merchantCommissionMinor
+        : undefined;
+    const providerData =
+      obj.data && typeof obj.data === "object" && !Array.isArray(obj.data)
+        ? (obj.data as Record<string, unknown>)
+        : {};
+    const migsTransaction =
+      providerData.migs_transaction &&
+      typeof providerData.migs_transaction === "object" &&
+      !Array.isArray(providerData.migs_transaction)
+        ? (providerData.migs_transaction as Record<string, unknown>)
+        : {};
+    const acquirer =
+      migsTransaction.acquirer &&
+      typeof migsTransaction.acquirer === "object" &&
+      !Array.isArray(migsTransaction.acquirer)
+        ? (migsTransaction.acquirer as Record<string, unknown>)
+        : {};
+    const providerSettlementDate =
+      this.nonEmptyString(acquirer.settlementDate) ??
+      this.nonEmptyString(providerData.settlement_date);
+    const providerSettlementReference =
+      this.identifierString(acquirer.batch) ??
+      this.identifierString(providerData.batch_no);
     const fingerprint = createHash("sha256")
       .update(
         JSON.stringify([
@@ -754,6 +784,10 @@ export class PaymobPaymentProviderService {
           isRefunded,
           hasParentTransaction,
           isLive,
+          providerSettled ?? null,
+          providerReportedFeeMinor ?? null,
+          providerSettlementDate ?? null,
+          providerSettlementReference ?? null,
           updatedAt ?? null,
         ]),
       )
@@ -777,6 +811,10 @@ export class PaymobPaymentProviderService {
       refundedAmountMinor,
       capturedAmountMinor,
       isLive,
+      providerSettled,
+      providerReportedFeeMinor,
+      providerSettlementDate,
+      providerSettlementReference,
       safeMetadata: {
         providerTransactionId,
         providerOrderId,
@@ -784,6 +822,11 @@ export class PaymobPaymentProviderService {
         inquiry: true,
         isLive,
         updatedAt,
+        providerSettled,
+        providerReportedFeeMinor,
+        providerSettlementDate,
+        providerSettlementReference,
+        billBalanced: this.booleanValue(obj.bill_balanced),
         errorOccurred: this.booleanValue(obj.error_occured),
         hasParentTransaction,
         isAuth,

@@ -97,6 +97,67 @@ describe("API runtime configuration", () => {
     );
   });
 
+  it("requires PAYMOB_API_KEY when PAY-6 settlement reconciliation is enabled", () => {
+    withEnv({
+      NODE_ENV: "production",
+      APP_ENV: "staging",
+      DATABASE_URL: "postgresql://user:password@localhost:5432/balcona",
+      ONLINE_PAYMENTS_ENABLED: "true",
+      ONLINE_PAYMENT_PROVIDER: "paymob",
+      ONLINE_PAYMENT_SETTLEMENT_RECONCILIATION_ENABLED: "true",
+      PAYMOB_API_KEY: "",
+    });
+
+    expect(() => validateEnvironment(process.env)).toThrow(
+      "PAYMOB_API_KEY is required when settlement reconciliation is enabled",
+    );
+  });
+
+  it("rejects an invalid PAY-6 reconciliation timezone", () => {
+    withEnv({
+      NODE_ENV: "production",
+      APP_ENV: "staging",
+      DATABASE_URL: "postgresql://user:password@localhost:5432/balcona",
+      ONLINE_PAYMENTS_ENABLED: "true",
+      ONLINE_PAYMENT_PROVIDER: "paymob",
+      ONLINE_PAYMENT_SETTLEMENT_RECONCILIATION_ENABLED: "true",
+      ONLINE_PAYMENT_SETTLEMENT_RECONCILIATION_TIMEZONE: "Mars/Olympus",
+      PAYMOB_API_KEY: "server-api-key",
+    });
+
+    expect(() => validateEnvironment(process.env)).toThrow(
+      "ONLINE_PAYMENT_SETTLEMENT_RECONCILIATION_TIMEZONE is invalid",
+    );
+  });
+
+  it("accepts PAY-6 settlement reconciliation with explicit Cairo runtime limits", () => {
+    withEnv({
+      NODE_ENV: "production",
+      APP_ENV: "staging",
+      DATABASE_URL: "postgresql://user:password@localhost:5432/balcona",
+      ONLINE_PAYMENTS_ENABLED: "true",
+      ONLINE_PAYMENT_PROVIDER: "paymob",
+      ONLINE_PAYMENT_SETTLEMENT_RECONCILIATION_ENABLED: "true",
+      ONLINE_PAYMENT_SETTLEMENT_RECONCILIATION_INTERVAL_SECONDS: "3600",
+      ONLINE_PAYMENT_SETTLEMENT_RECONCILIATION_TIMEZONE: "Africa/Cairo",
+      ONLINE_PAYMENT_SETTLEMENT_RECONCILIATION_MAX_ENTRIES: "400",
+      ONLINE_PAYMENT_SETTLEMENT_RECONCILIATION_MAX_SCOPES: "40",
+      PAYMOB_API_KEY: "server-api-key",
+    });
+
+    expect(() => validateEnvironment(process.env)).not.toThrow();
+
+    const config = configuration();
+
+    expect(config.onlinePayments.settlementReconciliation).toMatchObject({
+      enabled: true,
+      intervalSeconds: 3600,
+      timezone: "Africa/Cairo",
+      maxEntriesPerRun: 400,
+      maxScopesPerTick: 40,
+    });
+  });
+
   it("requires PAYMOB_API_KEY when Paymob scheduled reconciliation is enabled", () => {
     withEnv({
       NODE_ENV: "production",

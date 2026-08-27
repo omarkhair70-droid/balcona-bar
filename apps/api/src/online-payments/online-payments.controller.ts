@@ -30,6 +30,16 @@ import {
   OnlinePaymentOperationIdParamDto,
 } from "./dto/online-payment-id-param.dto";
 import {
+  ImportOnlinePaymentSettlementDto,
+  OnlinePaymentReconciliationIssueIdParamDto,
+  OnlinePaymentReconciliationRunIdParamDto,
+  OnlinePaymentSettlementBatchIdParamDto,
+  ReconciliationIssueActionDto,
+  ReconciliationIssuesQueryDto,
+  ReconciliationRunsQueryDto,
+  StartOnlinePaymentReconciliationDto,
+} from "./dto/payment-reconciliation.dto";
+import {
   CaptureOnlinePaymentDto,
   RefundOnlinePaymentDto,
   VoidOnlinePaymentDto,
@@ -41,6 +51,7 @@ import {
 import { OnlinePaymentsService } from "./online-payments.service";
 import { PaymentRateLimit } from "./payment-rate-limit.decorator";
 import { PaymentRateLimitGuard } from "./payment-rate-limit.guard";
+import { PaymentReconciliationService } from "./payment-reconciliation.service";
 import { StaffPaymentOperationRateLimitGuard } from "./staff-payment-operation-rate-limit.guard";
 import { StaffPaymentRecoveryRateLimitGuard } from "./staff-payment-recovery-rate-limit.guard";
 
@@ -48,6 +59,7 @@ import { StaffPaymentRecoveryRateLimitGuard } from "./staff-payment-recovery-rat
 export class OnlinePaymentsController {
   constructor(
     private readonly onlinePaymentsService: OnlinePaymentsService,
+    private readonly paymentReconciliationService: PaymentReconciliationService,
     private readonly staffScopedAccessService: StaffScopedAccessService,
   ) {}
 
@@ -85,6 +97,142 @@ export class OnlinePaymentsController {
     return this.onlinePaymentsService.findForBranch(
       params.branchId,
       query ?? {},
+    );
+  }
+
+  @Post("branches/:branchId/online-payment-reconciliation/provider")
+  @UseGuards(
+    StaffSessionGuard,
+    StaffPermissionGuard,
+    StaffPaymentOperationRateLimitGuard,
+  )
+  @RequiredPermission("online_payments.manage", { branchIdParam: "branchId" })
+  runProviderReconciliation(
+    @CurrentStaff() currentStaff: StaffAuthContext,
+    @Param() params: BranchIdParamDto,
+    @Body() body: StartOnlinePaymentReconciliationDto,
+  ) {
+    return this.paymentReconciliationService.runPaymobProviderReconciliation(
+      params.branchId,
+      currentStaff.staffUser.id,
+      body,
+    );
+  }
+
+  @Post("branches/:branchId/online-payment-settlements/import")
+  @UseGuards(
+    StaffSessionGuard,
+    StaffPermissionGuard,
+    StaffPaymentOperationRateLimitGuard,
+  )
+  @RequiredPermission("online_payments.manage", { branchIdParam: "branchId" })
+  importSettlementBatch(
+    @CurrentStaff() currentStaff: StaffAuthContext,
+    @Param() params: BranchIdParamDto,
+    @Body() body: ImportOnlinePaymentSettlementDto,
+  ) {
+    return this.paymentReconciliationService.importSettlementBatch(
+      params.branchId,
+      currentStaff.staffUser.id,
+      body,
+    );
+  }
+
+  @Get("branches/:branchId/online-payment-reconciliation/runs")
+  @UseGuards(StaffSessionGuard, StaffPermissionGuard)
+  @RequiredPermission("online_payments.read", { branchIdParam: "branchId" })
+  findReconciliationRuns(
+    @Param() params: BranchIdParamDto,
+    @Query() query: ReconciliationRunsQueryDto = {},
+  ) {
+    return this.paymentReconciliationService.findRunsForBranch(
+      params.branchId,
+      query.limit,
+    );
+  }
+
+  @Get("branches/:branchId/online-payment-reconciliation/issues")
+  @UseGuards(StaffSessionGuard, StaffPermissionGuard)
+  @RequiredPermission("online_payments.read", { branchIdParam: "branchId" })
+  findReconciliationIssues(
+    @Param() params: BranchIdParamDto,
+    @Query() query: ReconciliationIssuesQueryDto = {},
+  ) {
+    return this.paymentReconciliationService.findIssuesForBranch(
+      params.branchId,
+      query,
+    );
+  }
+
+  @Get("online-payment-reconciliation/runs/:runId")
+  @UseGuards(StaffSessionGuard)
+  async findReconciliationRun(
+    @CurrentStaff() currentStaff: StaffAuthContext,
+    @Param() params: OnlinePaymentReconciliationRunIdParamDto,
+  ) {
+    await this.staffScopedAccessService.assertCanForOnlinePaymentReconciliationRun(
+      currentStaff.staffUser.id,
+      "online_payments.read",
+      params.runId,
+    );
+
+    return this.paymentReconciliationService.findRun(params.runId);
+  }
+
+  @Get("online-payment-settlements/:batchId")
+  @UseGuards(StaffSessionGuard)
+  async findSettlementBatch(
+    @CurrentStaff() currentStaff: StaffAuthContext,
+    @Param() params: OnlinePaymentSettlementBatchIdParamDto,
+  ) {
+    await this.staffScopedAccessService.assertCanForOnlinePaymentSettlementBatch(
+      currentStaff.staffUser.id,
+      "online_payments.read",
+      params.batchId,
+    );
+
+    return this.paymentReconciliationService.findSettlementBatch(
+      params.batchId,
+    );
+  }
+
+  @Post("online-payment-reconciliation/issues/:issueId/acknowledge")
+  @UseGuards(StaffSessionGuard, StaffPaymentOperationRateLimitGuard)
+  async acknowledgeReconciliationIssue(
+    @CurrentStaff() currentStaff: StaffAuthContext,
+    @Param() params: OnlinePaymentReconciliationIssueIdParamDto,
+    @Body() body: ReconciliationIssueActionDto = {},
+  ) {
+    await this.staffScopedAccessService.assertCanForOnlinePaymentReconciliationIssue(
+      currentStaff.staffUser.id,
+      "online_payments.manage",
+      params.issueId,
+    );
+
+    return this.paymentReconciliationService.acknowledgeIssue(
+      params.issueId,
+      currentStaff.staffUser.id,
+      body ?? {},
+    );
+  }
+
+  @Post("online-payment-reconciliation/issues/:issueId/resolve")
+  @UseGuards(StaffSessionGuard, StaffPaymentOperationRateLimitGuard)
+  async resolveReconciliationIssue(
+    @CurrentStaff() currentStaff: StaffAuthContext,
+    @Param() params: OnlinePaymentReconciliationIssueIdParamDto,
+    @Body() body: ReconciliationIssueActionDto = {},
+  ) {
+    await this.staffScopedAccessService.assertCanForOnlinePaymentReconciliationIssue(
+      currentStaff.staffUser.id,
+      "online_payments.manage",
+      params.issueId,
+    );
+
+    return this.paymentReconciliationService.resolveIssue(
+      params.issueId,
+      currentStaff.staffUser.id,
+      body ?? {},
     );
   }
 

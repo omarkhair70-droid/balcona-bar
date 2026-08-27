@@ -15,7 +15,12 @@ const operationalDeleteModels = [
   "preparationTask",
   "waiterCallEvent",
   "waiterCall",
+  "onlinePaymentReconciliationIssue",
+  "onlinePaymentReconciliationEntry",
+  "onlinePaymentReconciliationRun",
+  "onlinePaymentSettlementBatch",
   "onlinePaymentEvent",
+  "onlinePaymentOperation",
   "onlinePaymentIntent",
   "manualPayment",
   "billReceipt",
@@ -211,6 +216,17 @@ describe("SmokeResetService", () => {
     expect(tx.bill.deleteMany).toHaveBeenCalledWith({
       where: { companyId: "smoke-company", branchId: "smoke-branch" },
     });
+    expect(
+      tx.onlinePaymentReconciliationIssue.deleteMany,
+    ).toHaveBeenCalledWith({
+      where: { companyId: "smoke-company", branchId: "smoke-branch" },
+    });
+    expect(tx.onlinePaymentSettlementBatch.deleteMany).toHaveBeenCalledWith({
+      where: { companyId: "smoke-company", branchId: "smoke-branch" },
+    });
+    expect(tx.onlinePaymentOperation.deleteMany).toHaveBeenCalledWith({
+      where: { companyId: "smoke-company", branchId: "smoke-branch" },
+    });
     expect(tx.company.deleteMany).not.toHaveBeenCalled();
     expect(tx.branch.deleteMany).not.toHaveBeenCalled();
     expect(tx.menuItem.deleteMany).not.toHaveBeenCalled();
@@ -310,6 +326,21 @@ describe("SmokeResetService", () => {
 
     await service.reset("token");
 
+    expect(
+      tx.onlinePaymentReconciliationIssue.deleteMany.mock.invocationCallOrder[0],
+    ).toBeLessThan(
+      tx.onlinePaymentReconciliationRun.deleteMany.mock.invocationCallOrder[0],
+    );
+    expect(
+      tx.onlinePaymentReconciliationRun.deleteMany.mock.invocationCallOrder[0],
+    ).toBeLessThan(
+      tx.onlinePaymentSettlementBatch.deleteMany.mock.invocationCallOrder[0],
+    );
+    expect(
+      tx.onlinePaymentOperation.deleteMany.mock.invocationCallOrder[0],
+    ).toBeLessThan(
+      tx.onlinePaymentIntent.deleteMany.mock.invocationCallOrder[0],
+    );
     expect(
       tx.kitchenTicketItem.deleteMany.mock.invocationCallOrder[0],
     ).toBeLessThan(tx.kitchenTicket.deleteMany.mock.invocationCallOrder[0]);
