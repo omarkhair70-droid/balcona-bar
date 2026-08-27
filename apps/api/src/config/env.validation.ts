@@ -469,7 +469,7 @@ export function validateEnvironment(config: Record<string, unknown>) {
       !validatedConfig.FAWRY_RETURN_URL
     ) {
       throw new Error(
-        "Fawry production payments require merchant code, secure key, checkout/status URLs, and notification URL",
+        "Fawry production payments require merchant code, secure key, checkout/status URLs, notification URL, and return URL",
       );
     }
 
