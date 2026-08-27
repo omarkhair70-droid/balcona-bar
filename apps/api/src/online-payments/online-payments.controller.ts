@@ -25,6 +25,10 @@ import {
   CustomerOnlinePaymentIntentParamDto,
 } from "./dto/online-payment-customer-param.dto";
 import { OnlinePaymentIntentIdParamDto } from "./dto/online-payment-id-param.dto";
+import {
+  PaymobTransactionWebhookDto,
+  PaymobTransactionWebhookQueryDto,
+} from "./dto/paymob-transaction-webhook.dto";
 import { OnlinePaymentsService } from "./online-payments.service";
 
 @Controller()
@@ -98,5 +102,16 @@ export class OnlinePaymentsController {
   @Post("online-payments/webhooks/mock")
   processMockWebhook(@Body() body: MockOnlinePaymentWebhookDto) {
     return this.onlinePaymentsService.processMockWebhook(body);
+  }
+
+  @Post("online-payments/webhooks/paymob")
+  processPaymobWebhook(
+    @Query() query: PaymobTransactionWebhookQueryDto,
+    @Body() body: PaymobTransactionWebhookDto,
+  ) {
+    return this.onlinePaymentsService.processPaymobWebhook(
+      query.hmac,
+      body.obj,
+    );
   }
 }
