@@ -10,6 +10,8 @@ const now = new Date("2026-06-05T10:00:00.000Z");
 
 function intent(
   status: OnlinePaymentIntentStatus = OnlinePaymentIntentStatus.pending,
+  provider: OnlinePaymentProvider = OnlinePaymentProvider.mock,
+  overrides: Record<string, unknown> = {},
 ) {
   return {
     id: "intent-1",
@@ -17,9 +19,13 @@ function intent(
     branchId: "branch-1",
     tableSessionId: "session-1",
     billId: "bill-1",
-    provider: OnlinePaymentProvider.mock,
-    providerIntentId: "mock-intent-1",
-    providerCheckoutUrl: "http://localhost:3001/mock-payments/mock-intent-1",
+    provider,
+    providerIntentId:
+      provider === OnlinePaymentProvider.paymob ? "pi_test_123" : "mock-intent-1",
+    providerCheckoutUrl:
+      provider === OnlinePaymentProvider.paymob
+        ? "https://accept.paymob.com/unifiedcheckout/?publicKey=test-public&clientSecret=test-client"
+        : "http://localhost:3001/mock-payments/mock-intent-1",
     idempotencyKey: "key-1",
     status,
     amountMinor: 12500,
@@ -58,10 +64,11 @@ function intent(
       },
     },
     events: [],
+    ...overrides,
   };
 }
 
-function createService() {
+function createService(provider = "mock") {
   const tx = {
     onlinePaymentEvent: {
       findUnique: jest.fn().mockResolvedValue(null),
@@ -92,7 +99,7 @@ function createService() {
       }
 
       if (key === "onlinePayments.provider") {
-        return "mock";
+        return provider;
       }
 
       if (key === "onlinePayments.mockEnabled") {
@@ -121,15 +128,26 @@ function createService() {
   const saasService = {
     assertCompanyFeatureEnabled: jest.fn().mockResolvedValue(undefined),
   };
+  const paymobPaymentProviderService = {
+    createPayment: jest.fn(),
+  };
   const service = new OnlinePaymentsService(
     prisma as never,
     configService as never,
     billsService as never,
     realtimeEventsService as never,
     saasService as never,
+    paymobPaymentProviderService as never,
   );
 
-  return { service, tx, billsService, realtimeEventsService, saasService };
+  return {
+    service,
+    tx,
+    billsService,
+    realtimeEventsService,
+    saasService,
+    paymobPaymentProviderService,
+  };
 }
 
 describe("OnlinePaymentsService", () => {
@@ -153,6 +171,130 @@ describe("OnlinePaymentsService", () => {
       service.createIntentForCustomer("session-1", "bill-1"),
     ).rejects.toThrow("Your current plan does not include online payments.");
     expect(tx.onlinePaymentIntent.create).not.toHaveBeenCalled();
+  });
+
+  it("requires billing data before Paymob checkout initialization", async () => {
+    const { service, tx, paymobPaymentProviderService } = createService("paymob");
+
+    await expect(
+      service.createIntentForCustomer("session-1", "bill-1", {
+        idempotencyKey: "paymob-key-1",
+      }),
+    ).rejects.toThrow("Billing data is required to prepare Paymob checkout");
+
+    expect(tx.bill.findUnique).not.toHaveBeenCalled();
+    expect(paymobPaymentProviderService.createPayment).not.toHaveBeenCalled();
+  });
+
+  it("creates a local Paymob intent before the provider call and finalizes hosted checkout", async () => {
+    const {
+      service,
+      tx,
+      paymobPaymentProviderService,
+      realtimeEventsService,
+    } = createService("paymob");
+    const localIntent = intent(
+      OnlinePaymentIntentStatus.pending,
+      OnlinePaymentProvider.paymob,
+      {
+        providerIntentId: null,
+        providerCheckoutUrl: null,
+        checkoutExpiresAt: null,
+        idempotencyKey: "paymob-key-1",
+      },
+    );
+    const readyIntent = intent(
+      OnlinePaymentIntentStatus.pending,
+      OnlinePaymentProvider.paymob,
+      {
+        idempotencyKey: "paymob-key-1",
+      },
+    );
+
+    tx.bill.findUnique.mockResolvedValueOnce({
+      id: "bill-1",
+      companyId: "company-1",
+      branchId: "branch-1",
+      tableSessionId: "session-1",
+      status: BillStatus.presented,
+      currency: "EGP",
+      totalMinor: 12500,
+      balanceDueMinor: 12500,
+    });
+    tx.onlinePaymentIntent.findFirst.mockResolvedValueOnce(null);
+    tx.onlinePaymentIntent.create.mockResolvedValueOnce(localIntent);
+    tx.onlinePaymentIntent.findUnique
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce(readyIntent);
+    paymobPaymentProviderService.createPayment.mockResolvedValueOnce({
+      provider: OnlinePaymentProvider.paymob,
+      providerIntentId: "pi_test_123",
+      status: OnlinePaymentIntentStatus.pending,
+      checkoutUrl:
+        "https://accept.paymob.com/unifiedcheckout/?publicKey=test-public&clientSecret=test-client",
+      checkoutExpiresAt: new Date("2026-06-05T10:15:00.000Z"),
+      metadata: {
+        expectedLive: false,
+      },
+    });
+
+    const result = await service.createIntentForCustomer(
+      "session-1",
+      "bill-1",
+      {
+        idempotencyKey: "paymob-key-1",
+        customerReturnUrl: "https://app.example.com/payment/return",
+        billingData: {
+          firstName: "Omar",
+          lastName: "Khair",
+          email: "omar@example.com",
+          phoneNumber: "+201001234567",
+        },
+      },
+    );
+
+    expect(tx.onlinePaymentIntent.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          provider: OnlinePaymentProvider.paymob,
+          providerIntentId: null,
+          providerCheckoutUrl: null,
+          amountMinor: 12500,
+          currency: "EGP",
+        }),
+      }),
+    );
+    expect(paymobPaymentProviderService.createPayment).toHaveBeenCalledWith(
+      expect.objectContaining({
+        localIntentId: "intent-1",
+        amountMinor: 12500,
+        currency: "EGP",
+        billingData: expect.objectContaining({
+          email: "omar@example.com",
+        }),
+      }),
+    );
+    expect(tx.onlinePaymentIntent.updateMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          id: "intent-1",
+          provider: OnlinePaymentProvider.paymob,
+          providerIntentId: null,
+        }),
+        data: expect.objectContaining({
+          providerIntentId: "pi_test_123",
+          status: OnlinePaymentIntentStatus.pending,
+        }),
+      }),
+    );
+    expect(
+      realtimeEventsService.recordOnlinePaymentIntentCreated,
+    ).toHaveBeenCalledWith("intent-1", tx);
+    expect(result.checkout).toMatchObject({
+      provider: OnlinePaymentProvider.paymob,
+      url: readyIntent.providerCheckoutUrl,
+      requiresHostedCheckout: true,
+    });
   });
 
   it("settles a mock success webhook once through the guarded bill settlement", async () => {
