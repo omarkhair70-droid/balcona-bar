@@ -8,6 +8,7 @@ function config(overrides: Record<string, unknown> = {}) {
   const values: Record<string, unknown> = {
     "onlinePayments.paymob.baseUrl": "https://accept.paymob.com",
     "onlinePayments.paymob.secretKey": "test-secret",
+    "onlinePayments.paymob.apiKey": "test-api-key",
     "onlinePayments.paymob.publicKey": "test-public",
     "onlinePayments.paymob.hmacSecret": "test-hmac-secret",
     "onlinePayments.paymob.notificationUrl":
@@ -99,6 +100,41 @@ function paymobTransaction(overrides: Record<string, unknown> = {}) {
       type: "card",
     },
     success: true,
+    ...overrides,
+  };
+}
+
+function inquiryTransaction(overrides: Record<string, unknown> = {}) {
+  return {
+    id: 555001,
+    pending: false,
+    amount_cents: 12500,
+    success: true,
+    is_auth: false,
+    is_capture: false,
+    is_standalone_payment: true,
+    is_voided: false,
+    is_refunded: false,
+    is_3d_secure: true,
+    integration_id: 101,
+    has_parent_transaction: false,
+    order: {
+      id: 12345,
+      merchant_order_id: "intent-1",
+      currency: "EGP",
+      is_cancel: false,
+      is_canceled: false,
+    },
+    created_at: "2026-08-27T20:30:00.000000",
+    updated_at: "2026-08-27T20:31:00.000000",
+    currency: "EGP",
+    source_data: {
+      pan: "2346",
+      sub_type: "MasterCard",
+      type: "card",
+    },
+    error_occured: false,
+    is_live: false,
     ...overrides,
   };
 }
@@ -315,6 +351,170 @@ describe("PaymobPaymentProviderService", () => {
       code: "missing_config",
     });
     expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  it("authenticates with the Paymob API key and inquires by stored provider order id", async () => {
+    const fetchSpy = jest.spyOn(global, "fetch")
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ token: "inquiry-auth-token" }), {
+          status: 201,
+          headers: { "Content-Type": "application/json" },
+        }),
+      )
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify(inquiryTransaction()), {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        }),
+      );
+    const service = new PaymobPaymentProviderService(config());
+
+    const result = await service.inquireTransactionByOrder("12345");
+
+    expect(result).toMatchObject({
+      found: true,
+      provider: OnlinePaymentProvider.paymob,
+      providerOrderId: "12345",
+      transaction: {
+        providerTransactionId: "555001",
+        providerOrderId: "12345",
+        merchantReference: "intent-1",
+        integrationId: 101,
+        amountMinor: 12500,
+        currency: "EGP",
+        status: "succeeded",
+        actionable: true,
+      },
+    });
+    expect(result.found && result.transaction.safeMetadata).not.toHaveProperty(
+      "pan",
+    );
+    expect(fetchSpy).toHaveBeenNthCalledWith(
+      1,
+      "https://accept.paymob.com/api/auth/tokens",
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({ api_key: "test-api-key" }),
+      }),
+    );
+    expect(fetchSpy).toHaveBeenNthCalledWith(
+      2,
+      "https://accept.paymob.com/api/ecommerce/orders/transaction_inquiry",
+      expect.objectContaining({
+        method: "POST",
+        headers: expect.objectContaining({
+          Authorization: "Bearer inquiry-auth-token",
+        }),
+        body: JSON.stringify({ order_id: "12345" }),
+      }),
+    );
+  });
+
+  it("returns not-found when Paymob has no transaction for the order", async () => {
+    jest.spyOn(global, "fetch")
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ token: "inquiry-auth-token" }), {
+          status: 201,
+          headers: { "Content-Type": "application/json" },
+        }),
+      )
+      .mockResolvedValueOnce(new Response("", { status: 404 }));
+    const service = new PaymobPaymentProviderService(config());
+
+    await expect(service.inquireTransactionByOrder("12345")).resolves.toEqual({
+      found: false,
+      provider: OnlinePaymentProvider.paymob,
+      providerOrderId: "12345",
+    });
+  });
+
+  it("refreshes a rejected cached inquiry token exactly once", async () => {
+    const fetchSpy = jest.spyOn(global, "fetch")
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ token: "stale-token" }), {
+          status: 201,
+          headers: { "Content-Type": "application/json" },
+        }),
+      )
+      .mockResolvedValueOnce(new Response("", { status: 401 }))
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ token: "fresh-token" }), {
+          status: 201,
+          headers: { "Content-Type": "application/json" },
+        }),
+      )
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify(inquiryTransaction()), {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        }),
+      );
+    const service = new PaymobPaymentProviderService(config());
+
+    await expect(service.inquireTransactionByOrder("12345")).resolves.toMatchObject({
+      found: true,
+    });
+    expect(fetchSpy).toHaveBeenCalledTimes(4);
+    expect(fetchSpy.mock.calls[3]?.[1]).toMatchObject({
+      headers: expect.objectContaining({
+        Authorization: "Bearer fresh-token",
+      }),
+    });
+  });
+
+  it("rejects an inquiry transaction from the wrong live/test environment", async () => {
+    jest.spyOn(global, "fetch")
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ token: "inquiry-auth-token" }), {
+          status: 201,
+          headers: { "Content-Type": "application/json" },
+        }),
+      )
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify(inquiryTransaction({ is_live: true })),
+          {
+            status: 200,
+            headers: { "Content-Type": "application/json" },
+          },
+        ),
+      );
+    const service = new PaymobPaymentProviderService(config());
+
+    await expect(
+      service.inquireTransactionByOrder("12345"),
+    ).rejects.toMatchObject({
+      code: "environment_mismatch",
+    });
+  });
+
+  it("defers refunded or child inquiry transactions to PAY-5 instead of settling them", async () => {
+    jest.spyOn(global, "fetch")
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ token: "inquiry-auth-token" }), {
+          status: 201,
+          headers: { "Content-Type": "application/json" },
+        }),
+      )
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify(
+            inquiryTransaction({
+              is_refunded: true,
+              has_parent_transaction: true,
+            }),
+          ),
+          {
+            status: 200,
+            headers: { "Content-Type": "application/json" },
+          },
+        ),
+      );
+    const service = new PaymobPaymentProviderService(config());
+
+    const result = await service.inquireTransactionByOrder("12345");
+
+    expect(result.found && result.transaction.actionable).toBe(false);
   });
 
   it("verifies a Paymob transaction callback with the documented 20-field HMAC", () => {
