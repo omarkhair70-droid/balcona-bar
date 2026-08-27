@@ -119,6 +119,28 @@ export default () => ({
       ),
       expectedLive: process.env.PAYMOB_EXPECT_LIVE === "true",
     },
+    settlementReconciliation: {
+      enabled:
+        process.env.ONLINE_PAYMENT_SETTLEMENT_RECONCILIATION_ENABLED === "true",
+      intervalSeconds: Number.parseInt(
+        process.env.ONLINE_PAYMENT_SETTLEMENT_RECONCILIATION_INTERVAL_SECONDS ??
+          "3600",
+        10,
+      ),
+      timezone:
+        process.env.ONLINE_PAYMENT_SETTLEMENT_RECONCILIATION_TIMEZONE ??
+        "Africa/Cairo",
+      maxEntriesPerRun: Number.parseInt(
+        process.env.ONLINE_PAYMENT_SETTLEMENT_RECONCILIATION_MAX_ENTRIES ??
+          "500",
+        10,
+      ),
+      maxScopesPerTick: Number.parseInt(
+        process.env.ONLINE_PAYMENT_SETTLEMENT_RECONCILIATION_MAX_SCOPES ??
+          "50",
+        10,
+      ),
+    },
     reconciliation: {
       enabled: process.env.ONLINE_PAYMENT_RECONCILIATION_ENABLED === "true",
       intervalSeconds: Number.parseInt(
