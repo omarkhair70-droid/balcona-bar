@@ -189,10 +189,12 @@ export class PaymobPaymentProviderService {
   }
 
   private readConfig() {
-    const baseUrl = (
+    const configuredBaseUrl = (
       this.configService.get<string>("onlinePayments.paymob.baseUrl") ??
       DEFAULT_PAYMOB_BASE_URL
     ).replace(/\/+$/, "");
+    const appEnvironment =
+      this.configService.get<string>("app.environment") ?? "development";
     const secretKey = this.nonEmptyString(
       this.configService.get<string>("onlinePayments.paymob.secretKey"),
     );
@@ -234,11 +236,29 @@ export class PaymobPaymentProviderService {
       );
     }
 
+    if (appEnvironment === "production" && !expectedLive) {
+      throw new PaymentProviderError(
+        "Production Paymob configuration must use live credentials and integration IDs",
+        "environment_mismatch",
+      );
+    }
+
+    const baseUrl = this.validatedServerUrl(
+      configuredBaseUrl,
+      appEnvironment,
+      "Paymob base URL",
+    );
+    const safeNotificationUrl = this.validatedServerUrl(
+      notificationUrl,
+      appEnvironment,
+      "Paymob notification URL",
+    );
+
     return {
       baseUrl,
       secretKey,
       publicKey,
-      notificationUrl,
+      notificationUrl: safeNotificationUrl,
       integrationIds,
       allowedReturnOrigins,
       timeoutMs,
@@ -275,17 +295,63 @@ export class PaymobPaymentProviderService {
       );
     }
 
-    if (
-      config.allowedReturnOrigins.length > 0 &&
-      !config.allowedReturnOrigins.includes(url.origin)
-    ) {
+    if (config.allowedReturnOrigins.length === 0) {
+      throw new PaymentProviderError(
+        "Customer return URL cannot be used without an origin allowlist",
+        "invalid_request",
+      );
+    }
+
+    if (!config.allowedReturnOrigins.includes(url.origin)) {
       throw new PaymentProviderError(
         "Customer return URL origin is not allowed",
         "invalid_request",
       );
     }
 
+    const appEnvironment =
+      this.configService.get<string>("app.environment") ?? "development";
+    if (appEnvironment === "production" && url.protocol !== "https:") {
+      throw new PaymentProviderError(
+        "Customer return URL must use HTTPS in production",
+        "invalid_request",
+      );
+    }
+
     return url.toString();
+  }
+
+  private validatedServerUrl(
+    value: string,
+    appEnvironment: string,
+    label: string,
+  ) {
+    let url: URL;
+
+    try {
+      url = new URL(value);
+    } catch {
+      throw new PaymentProviderError(
+        `${label} is invalid`,
+        "missing_config",
+      );
+    }
+
+    if (!["http:", "https:"].includes(url.protocol)) {
+      throw new PaymentProviderError(
+        `${label} protocol is not allowed`,
+        "missing_config",
+      );
+    }
+
+    if (appEnvironment === "production" && url.protocol !== "https:") {
+      throw new PaymentProviderError(
+        `${label} must use HTTPS in production`,
+        "environment_mismatch",
+      );
+    }
+
+    return url.toString().replace(/\/+$/, "");
   }
 
   private errorForHttpStatus(status: number) {
