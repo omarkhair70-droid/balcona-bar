@@ -309,6 +309,12 @@ class EnvironmentVariables {
   @IsOptional()
   ONLINE_PAYMENT_READ_RATE_LIMIT_MAX?: number;
 
+  @IsInt()
+  @Min(1)
+  @Max(100)
+  @IsOptional()
+  ONLINE_PAYMENT_STAFF_RECOVERY_RATE_LIMIT_MAX?: number;
+
   @IsBooleanString()
   @IsOptional()
   SMOKE_BOOTSTRAP_ENABLED?: string;
