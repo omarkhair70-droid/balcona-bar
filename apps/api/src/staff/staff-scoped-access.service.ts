@@ -172,6 +172,60 @@ export class StaffScopedAccessService {
     return this.assertCanForRecord(staffUserId, permission, bill, "Bill");
   }
 
+  async assertCanForOnlinePaymentReconciliationRun(
+    staffUserId: string,
+    permission: StaffPermission,
+    runId: string,
+  ) {
+    const run = await this.prisma.onlinePaymentReconciliationRun.findUnique({
+      where: { id: runId },
+      select: { companyId: true, branchId: true },
+    });
+
+    return this.assertCanForRecord(
+      staffUserId,
+      permission,
+      run,
+      "Online payment reconciliation run",
+    );
+  }
+
+  async assertCanForOnlinePaymentSettlementBatch(
+    staffUserId: string,
+    permission: StaffPermission,
+    batchId: string,
+  ) {
+    const batch = await this.prisma.onlinePaymentSettlementBatch.findUnique({
+      where: { id: batchId },
+      select: { companyId: true, branchId: true },
+    });
+
+    return this.assertCanForRecord(
+      staffUserId,
+      permission,
+      batch,
+      "Online payment settlement batch",
+    );
+  }
+
+  async assertCanForOnlinePaymentReconciliationIssue(
+    staffUserId: string,
+    permission: StaffPermission,
+    issueId: string,
+  ) {
+    const issue = await this.prisma.onlinePaymentReconciliationIssue.findUnique({
+      where: { id: issueId },
+      select: { companyId: true, branchId: true },
+    });
+
+    return this.assertCanForRecord(
+      staffUserId,
+      permission,
+      issue,
+      "Online payment reconciliation issue",
+    );
+  }
+
   async assertCanForOnlinePaymentOperation(
     staffUserId: string,
     permission: StaffPermission,
