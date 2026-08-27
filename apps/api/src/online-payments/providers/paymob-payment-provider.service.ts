@@ -691,6 +691,7 @@ export class PaymobPaymentProviderService {
     const isCapture = this.booleanValue(obj.is_capture);
     const isVoided = this.booleanValue(obj.is_voided);
     const isRefunded = this.booleanValue(obj.is_refunded);
+    const isCaptured = this.booleanValue(obj.is_captured);
     const hasParentTransaction = this.booleanValue(
       obj.has_parent_transaction,
     );
@@ -787,6 +788,7 @@ export class PaymobPaymentProviderService {
         hasParentTransaction,
         isAuth,
         isCapture,
+        isCaptured,
         isRefund,
         isVoid,
         isRefunded,
@@ -1049,36 +1051,14 @@ export class PaymobPaymentProviderService {
       value,
       `Paymob ${input.type} response`,
     );
-    const providerTransactionId = this.identifierString(obj.id);
+    const providerTransactionId =
+      this.identifierString(obj.id) ?? input.parentProviderTransactionId;
     const parentProviderTransactionId =
       this.identifierString(obj.parent_transaction) ??
       input.parentProviderTransactionId;
     const integrationId = this.integerValue(obj.integration_id);
     const isLive = this.booleanValue(obj.is_live);
-    const pending = this.booleanValue(obj.pending);
-    const success = this.booleanValue(obj.success);
-    const errorOccurred = this.booleanValue(obj.error_occured) ?? false;
     const currency = this.nonEmptyString(obj.currency);
-    const responseAmount = this.integerValue(obj.amount_cents);
-    const isCapture = this.booleanValue(obj.is_capture) === true;
-    const isRefund = this.booleanValue(obj.is_refund) === true;
-    const isVoid = this.booleanValue(obj.is_void) === true;
-    const isCaptured = this.booleanValue(obj.is_captured) === true;
-    const isRefunded = this.booleanValue(obj.is_refunded) === true;
-    const isVoided = this.booleanValue(obj.is_voided) === true;
-
-    if (
-      !providerTransactionId ||
-      integrationId === undefined ||
-      isLive === undefined ||
-      pending === undefined ||
-      success === undefined
-    ) {
-      throw new PaymentProviderError(
-        `Paymob ${input.type} response is missing required values`,
-        "invalid_response",
-      );
-    }
 
     if (parentProviderTransactionId !== input.parentProviderTransactionId) {
       throw new PaymentProviderError(
@@ -1087,7 +1067,10 @@ export class PaymobPaymentProviderService {
       );
     }
 
-    if (!config.integrationIds.includes(integrationId)) {
+    if (
+      integrationId !== undefined &&
+      !config.integrationIds.includes(integrationId)
+    ) {
       throw new PaymentProviderError(
         `Paymob ${input.type} response uses an unconfigured integration`,
         "environment_mismatch",
@@ -1095,7 +1078,7 @@ export class PaymobPaymentProviderService {
       );
     }
 
-    if (isLive !== config.expectedLive) {
+    if (isLive !== undefined && isLive !== config.expectedLive) {
       throw new PaymentProviderError(
         `Paymob ${input.type} response environment does not match configuration`,
         "environment_mismatch",
@@ -1117,71 +1100,27 @@ export class PaymobPaymentProviderService {
       );
     }
 
-    const operationFlagMatches =
-      input.type === OnlinePaymentOperationType.refund
-        ? isRefund || isRefunded
-        : input.type === OnlinePaymentOperationType.void
-          ? isVoid || isVoided
-          : isCapture || isCaptured;
-
-    if (!operationFlagMatches) {
-      throw new PaymentProviderError(
-        `Paymob response does not represent the requested ${input.type} operation`,
-        "invalid_response",
-      );
-    }
-
-    if (
-      providerTransactionId !== input.parentProviderTransactionId &&
-      responseAmount !== undefined &&
-      responseAmount !== input.amountMinor
-    ) {
-      throw new PaymentProviderError(
-        `Paymob ${input.type} response amount does not match the requested amount`,
-        "amount_mismatch",
-        {
-          expectedAmountMinor: input.amountMinor,
-          receivedAmountMinor: responseAmount,
-        },
-      );
-    }
-
-    const status =
-      pending
-        ? OnlinePaymentOperationStatus.pending
-        : success && !errorOccurred
-          ? OnlinePaymentOperationStatus.succeeded
-          : OnlinePaymentOperationStatus.failed;
-    const order =
-      obj.order && typeof obj.order === "object" && !Array.isArray(obj.order)
-        ? (obj.order as Record<string, unknown>)
-        : undefined;
-    const providerOrderId = order
-      ? this.identifierString(order.id)
-      : this.identifierString(obj.order);
-
     return {
       provider: this.provider,
       type: input.type,
-      status,
+      status: OnlinePaymentOperationStatus.pending,
       parentProviderTransactionId,
       providerTransactionId,
-      providerOrderId,
       amountMinor: input.amountMinor,
       currency: currency ?? input.expectedCurrency,
       safeMetadata: {
+        responseAccepted: true,
         integrationId,
         isLive,
-        pending,
-        success,
-        errorOccurred,
-        isCapture,
-        isRefund,
-        isVoid,
-        isCaptured,
-        isRefunded,
-        isVoided,
-        providerOrderId,
+        pending: this.booleanValue(obj.pending),
+        success: this.booleanValue(obj.success),
+        errorOccurred: this.booleanValue(obj.error_occured),
+        isCapture: this.booleanValue(obj.is_capture),
+        isRefund: this.booleanValue(obj.is_refund),
+        isVoid: this.booleanValue(obj.is_void),
+        isCaptured: this.booleanValue(obj.is_captured),
+        isRefunded: this.booleanValue(obj.is_refunded),
+        isVoided: this.booleanValue(obj.is_voided),
       },
     };
   }
