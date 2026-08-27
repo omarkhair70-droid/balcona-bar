@@ -2035,7 +2035,7 @@ export type RecordManualPaymentPayload = {
   note?: string | null;
 };
 
-export type OnlinePaymentProvider = "mock" | "external";
+export type OnlinePaymentProvider = "mock" | "paymob" | "external";
 
 export type OnlinePaymentIntentStatus =
   | "pending"
@@ -2048,6 +2048,12 @@ export type OnlinePaymentIntentStatus =
 export type CreateOnlinePaymentIntentPayload = {
   idempotencyKey?: string;
   customerReturnUrl?: string;
+  billingData?: {
+    firstName: string;
+    lastName: string;
+    email: string;
+    phoneNumber: string;
+  };
 };
 
 export type OnlinePaymentIntentResult = Record<string, unknown> & {
