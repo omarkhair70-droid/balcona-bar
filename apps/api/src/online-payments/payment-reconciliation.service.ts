@@ -1369,10 +1369,6 @@ export class PaymentReconciliationService {
   }
 
   private async auditRun(runId: string, staffUserId?: string) {
-    if (!staffUserId) {
-      return;
-    }
-
     const run = await this.prisma.onlinePaymentReconciliationRun.findUnique({
       where: { id: runId },
     });
@@ -1384,7 +1380,9 @@ export class PaymentReconciliationService {
     await this.auditService.recordAuditLog({
       companyId: run.companyId,
       branchId: run.branchId,
-      actorType: AuditActorType.staff,
+      actorType: staffUserId
+        ? AuditActorType.staff
+        : AuditActorType.system,
       actorStaffUserId: staffUserId,
       targetType: "online_payment_reconciliation_run",
       targetId: run.id,
