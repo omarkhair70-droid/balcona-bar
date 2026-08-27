@@ -6,6 +6,7 @@ import {
   IsDateString,
   IsEnum,
   IsInt,
+  IsNotEmpty,
   IsOptional,
   IsString,
   IsUUID,
@@ -30,12 +31,14 @@ export class StartOnlinePaymentReconciliationDto {
   currency!: string;
 
   @IsString()
+  @IsNotEmpty()
   @MaxLength(160)
   idempotencyKey!: string;
 }
 
 export class SettlementStatementLineDto {
   @IsString()
+  @IsNotEmpty()
   @MaxLength(160)
   providerTransactionId!: string;
 
@@ -69,6 +72,7 @@ export class SettlementStatementLineDto {
 
 export class ImportOnlinePaymentSettlementDto {
   @IsString()
+  @IsNotEmpty()
   @MaxLength(200)
   externalReference!: string;
 
