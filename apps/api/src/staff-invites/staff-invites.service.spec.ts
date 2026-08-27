@@ -11,7 +11,8 @@ import { hashToken } from "../staff-auth/token-hash.util";
 import { StaffInvitesService } from "./staff-invites.service";
 
 const now = new Date("2026-06-07T10:00:00.000Z");
-// Keep the default pending invite valid regardless of the wall-clock date when CI runs.\nconst expiresAt = new Date("2100-06-14T10:00:00.000Z");
+// Keep the default pending invite valid regardless of the wall-clock date when CI runs.
+const expiresAt = new Date("2100-06-14T10:00:00.000Z");
 const company = {
   id: "company-1",
   name: "Test Cafe",
