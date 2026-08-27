@@ -309,15 +309,16 @@ export function validateEnvironment(config: Record<string, unknown>) {
     throw new Error(errors.toString());
   }
 
-  const effectiveAppEnvironment =
+  const effectiveAppEnvironment = String(
     validatedConfig.APP_ENV ??
-    validatedConfig.NODE_ENV ??
-    AppEnvironment.Development;
+      validatedConfig.NODE_ENV ??
+      AppEnvironment.Development,
+  );
   const effectivePaymentProvider =
     validatedConfig.ONLINE_PAYMENT_PROVIDER ?? OnlinePaymentProvider.Mock;
 
   if (
-    effectiveAppEnvironment === AppEnvironment.Production &&
+    effectiveAppEnvironment === "production" &&
     effectivePaymentProvider === OnlinePaymentProvider.Mock
   ) {
     throw new Error(
@@ -326,7 +327,7 @@ export function validateEnvironment(config: Record<string, unknown>) {
   }
 
   if (
-    effectiveAppEnvironment === AppEnvironment.Production &&
+    effectiveAppEnvironment === "production" &&
     validatedConfig.MOCK_ONLINE_PAYMENTS_ENABLED === "true"
   ) {
     throw new Error(
