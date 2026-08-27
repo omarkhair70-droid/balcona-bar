@@ -146,7 +146,9 @@ export class PaymentReconciliationService {
       const status =
         counters.mismatch > 0
           ? OnlinePaymentReconciliationRunStatus.mismatch
-          : OnlinePaymentReconciliationRunStatus.matched;
+          : counters.pending > 0
+            ? OnlinePaymentReconciliationRunStatus.pending
+            : OnlinePaymentReconciliationRunStatus.matched;
 
       await this.prisma.onlinePaymentReconciliationRun.update({
         where: { id: run.id },
@@ -873,6 +875,15 @@ export class PaymentReconciliationService {
       movement.providerTransactionId === movement.parentProviderTransactionId;
 
     if (movement.movementType === OnlinePaymentReconciliationMovementType.refund) {
+      if (state.status !== OnlinePaymentIntentStatus.succeeded) {
+        return {
+          code: "provider_status_mismatch",
+          type: OnlinePaymentReconciliationIssueType.provider_status_mismatch,
+          message: "Balcona refund is succeeded but Paymob does not report success",
+          details: { providerStatus: state.status },
+        };
+      }
+
       if (!parentState && state.operationType !== OnlinePaymentOperationType.refund) {
         return {
           code: "operation_type_mismatch",
