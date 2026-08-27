@@ -1768,6 +1768,78 @@ export class OnlinePaymentsService {
     };
   }
 
+  async reconcilePendingFawryOperations() {
+    if (
+      this.configService.get<boolean>(
+        "onlinePayments.reconciliation.enabled",
+        false,
+      ) !== true
+    ) {
+      return {
+        enabled: false,
+        attempted: 0,
+        recovered: 0,
+        failed: 0,
+      };
+    }
+
+    const staleSeconds = this.configService.get<number>(
+      "onlinePayments.reconciliation.staleSeconds",
+      120,
+    );
+    const batchSize = this.configService.get<number>(
+      "onlinePayments.reconciliation.batchSize",
+      25,
+    );
+    const staleBefore = new Date(Date.now() - staleSeconds * 1000);
+    const operations = await this.prisma.onlinePaymentOperation.findMany({
+      where: {
+        provider: OnlinePaymentProvider.fawry,
+        type: OnlinePaymentOperationType.refund,
+        status: OnlinePaymentOperationStatus.pending,
+        updatedAt: { lte: staleBefore },
+        metadata: {
+          path: ["fawryRefundRecovery"],
+          equals: "full_total_provable",
+        },
+      },
+      orderBy: [{ updatedAt: "asc" }, { id: "asc" }],
+      take: batchSize,
+      select: { id: true },
+    });
+
+    let recovered = 0;
+    let failed = 0;
+    const failures: Array<{ operationId: string; code: string }> = [];
+
+    for (const operation of operations) {
+      try {
+        await this.recoverFawryRefundOperation(
+          operation.id,
+          "scheduled_reconciliation",
+        );
+        recovered += 1;
+      } catch (error) {
+        failed += 1;
+        failures.push({
+          operationId: operation.id,
+          code:
+            error instanceof Error
+              ? error.name
+              : "unknown_error",
+        });
+      }
+    }
+
+    return {
+      enabled: true,
+      attempted: operations.length,
+      recovered,
+      failed,
+      failures,
+    };
+  }
+
   async reconcilePendingFawryIntents() {
     if (
       this.configService.get<boolean>(
@@ -3329,7 +3401,13 @@ export class OnlinePaymentsService {
     providerMetadata: Record<string, unknown>,
   ) {
     return this.prisma.$transaction(async (tx) => {
-      await tx.onlinePaymentOperation.updateMany({
+      const before = await this.loadOperationOrThrow(operationId, tx);
+
+      if (before.status !== OnlinePaymentOperationStatus.pending) {
+        return this.toOperationResult(before, "already_terminal");
+      }
+
+      const update = await tx.onlinePaymentOperation.updateMany({
         where: {
           id: operationId,
           provider: OnlinePaymentProvider.fawry,
@@ -3343,6 +3421,7 @@ export class OnlinePaymentsService {
           failureCode: null,
           failureMessage: null,
           metadata: this.toJsonValue({
+            ...this.jsonRecord(before.metadata),
             providerConfirmationSource: source,
             providerConfirmation: providerMetadata,
           }),
@@ -3351,7 +3430,10 @@ export class OnlinePaymentsService {
 
       const operation = await this.loadOperationOrThrow(operationId, tx);
 
-      if (operation.status !== OnlinePaymentOperationStatus.succeeded) {
+      if (
+        update.count !== 1 ||
+        operation.status !== OnlinePaymentOperationStatus.succeeded
+      ) {
         return this.toOperationResult(operation, "state_unchanged");
       }
 
