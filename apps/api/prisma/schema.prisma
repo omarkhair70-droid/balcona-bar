@@ -2648,6 +2648,7 @@ model OnlinePaymentIntent {
   billId              String
   provider            OnlinePaymentProvider     @default(mock)
   providerIntentId    String?                   @unique
+  providerOrderId     String?
   providerCheckoutUrl String?
   idempotencyKey      String                    @unique
   status              OnlinePaymentIntentStatus @default(pending)
@@ -2676,6 +2677,7 @@ model OnlinePaymentIntent {
   @@index([tableSessionId])
   @@index([billId])
   @@index([provider])
+  @@unique([provider, providerOrderId])
   @@index([status])
   @@index([createdAt])
   @@index([updatedAt])
