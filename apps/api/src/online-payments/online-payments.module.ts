@@ -11,6 +11,7 @@ import { OnlinePaymentsService } from "./online-payments.service";
 import { PaymobPaymentProviderService } from "./providers/paymob-payment-provider.service";
 import { PaymentRateLimitGuard } from "./payment-rate-limit.guard";
 import { PaymentRateLimitService } from "./payment-rate-limit.service";
+import { StaffPaymentRecoveryRateLimitGuard } from "./staff-payment-recovery-rate-limit.guard";
 
 @Module({
   imports: [
@@ -28,6 +29,7 @@ import { PaymentRateLimitService } from "./payment-rate-limit.service";
     PaymentRateLimitService,
     PaymentRateLimitGuard,
     OnlinePaymentReconciliationScheduler,
+    StaffPaymentRecoveryRateLimitGuard,
   ],
   exports: [OnlinePaymentsService],
 })
