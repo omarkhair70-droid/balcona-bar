@@ -14,6 +14,7 @@ import { StaffAuthContext } from "../staff-auth/staff-auth.types";
 import { RequiredPermission } from "../staff/required-permission.decorator";
 import { StaffPermissionGuard } from "../staff/staff-permission.guard";
 import { StaffScopedAccessService } from "../staff/staff-scoped-access.service";
+import { CustomerSessionAccessGuard } from "../table-sessions/guards/customer-session-access.guard";
 import { BranchOnlinePaymentsQueryDto } from "./dto/branch-online-payments-query.dto";
 import { CreateOnlinePaymentIntentDto } from "./dto/create-online-payment-intent.dto";
 import {
@@ -30,6 +31,8 @@ import {
   PaymobTransactionWebhookQueryDto,
 } from "./dto/paymob-transaction-webhook.dto";
 import { OnlinePaymentsService } from "./online-payments.service";
+import { PaymentRateLimit } from "./payment-rate-limit.decorator";
+import { PaymentRateLimitGuard } from "./payment-rate-limit.guard";
 
 @Controller()
 export class OnlinePaymentsController {
@@ -39,6 +42,8 @@ export class OnlinePaymentsController {
   ) {}
 
   @Post("customer/sessions/:sessionId/bills/:billId/online-payment-intents")
+  @UseGuards(CustomerSessionAccessGuard, PaymentRateLimitGuard)
+  @PaymentRateLimit("customer_create")
   createIntentForCustomer(
     @Param() params: CustomerBillOnlinePaymentParamDto,
     @Body() body: CreateOnlinePaymentIntentDto = {},
@@ -51,6 +56,8 @@ export class OnlinePaymentsController {
   }
 
   @Get("customer/sessions/:sessionId/online-payment-intents/:intentId")
+  @UseGuards(CustomerSessionAccessGuard, PaymentRateLimitGuard)
+  @PaymentRateLimit("customer_read")
   findIntentForCustomer(@Param() params: CustomerOnlinePaymentIntentParamDto) {
     return this.onlinePaymentsService.findIntentForCustomer(
       params.sessionId,
