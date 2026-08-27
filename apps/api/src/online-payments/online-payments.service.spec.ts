@@ -121,15 +121,26 @@ function createService() {
   const saasService = {
     assertCompanyFeatureEnabled: jest.fn().mockResolvedValue(undefined),
   };
+  const paymobPaymentProviderService = {
+    createPayment: jest.fn(),
+  };
   const service = new OnlinePaymentsService(
     prisma as never,
     configService as never,
     billsService as never,
     realtimeEventsService as never,
     saasService as never,
+    paymobPaymentProviderService as never,
   );
 
-  return { service, tx, billsService, realtimeEventsService, saasService };
+  return {
+    service,
+    tx,
+    billsService,
+    realtimeEventsService,
+    saasService,
+    paymobPaymentProviderService,
+  };
 }
 
 describe("OnlinePaymentsService", () => {
