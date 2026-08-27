@@ -938,7 +938,10 @@ export class OnlinePaymentsService {
       );
     } catch (error) {
       if (this.isProviderEventUniqueConstraintError(error)) {
-        return this.paymobDuplicateWebhookResult(verified.providerEventId);
+        return this.paymobDuplicateProviderStateResult(
+          verified.providerEventId,
+          "duplicate_event",
+        );
       }
 
       throw error;
@@ -1170,9 +1173,101 @@ export class OnlinePaymentsService {
   private async applyPaymobStatusUpdate(
     tx: Prisma.TransactionClient,
     intent: OnlinePaymentIntentRecord,
-    verified: VerifiedProviderTransactionWebhook,
+    verified: ProviderTransactionState,
+    options: {
+      allowTerminalRecovery?: boolean;
+      source?: string;
+    } = {},
   ) {
     if (!ACTIVE_ONLINE_PAYMENT_STATUSES.includes(intent.status)) {
+      if (
+        options.allowTerminalRecovery &&
+        ACTIVE_ONLINE_PAYMENT_STATUSES.includes(verified.status)
+      ) {
+        const competingActive = await tx.onlinePaymentIntent.findFirst({
+          where: {
+            billId: intent.billId,
+            id: { not: intent.id },
+            status: { in: ACTIVE_ONLINE_PAYMENT_STATUSES },
+          },
+          select: { id: true },
+        });
+
+        if (competingActive) {
+          await this.createOnlinePaymentEvent(
+            tx,
+            intent,
+            OnlinePaymentEventType.status_updated,
+            {
+              reason: "recovery_conflict_with_active_intent",
+              source: options.source,
+              competingIntentId: competingActive.id,
+              providerTransactionId: verified.providerTransactionId,
+              providerEventId: verified.providerEventId,
+            },
+          );
+
+          return this.toIntentResult(intent, "recovery_conflict", {
+            settled: false,
+            reason: "recovery_conflict",
+            message:
+              "Provider state is still active but another local payment intent is already active",
+          });
+        }
+
+        const recovered = await tx.onlinePaymentIntent.updateMany({
+          where: {
+            id: intent.id,
+            provider: OnlinePaymentProvider.paymob,
+            providerOrderId: verified.providerOrderId,
+            status: { not: OnlinePaymentIntentStatus.succeeded },
+          },
+          data: {
+            status: verified.status,
+            failedAt: null,
+            cancelledAt: null,
+            expiredAt: null,
+            failureCode: null,
+            failureMessage: null,
+            metadata: this.toJsonValue({
+              ...this.jsonRecord(intent.metadata),
+              paymobTransactionId: verified.providerTransactionId,
+              paymobLastVerifiedEventId: verified.providerEventId,
+              ...verified.safeMetadata,
+            }),
+          },
+        });
+
+        const latest = await this.loadIntentOrThrow(intent.id, tx);
+
+        if (recovered.count === 1) {
+          await tx.bill.updateMany({
+            where: {
+              id: intent.billId,
+              status: BillStatus.presented,
+              balanceDueMinor: intent.amountMinor,
+            },
+            data: { status: BillStatus.payment_pending },
+          });
+          await this.createOnlinePaymentEvent(
+            tx,
+            latest,
+            OnlinePaymentEventType.status_updated,
+            {
+              reason: "terminal_state_recovered_from_provider_inquiry",
+              source: options.source,
+              inquiryStatus: verified.status,
+              providerTransactionId: verified.providerTransactionId,
+              providerEventId: verified.providerEventId,
+            },
+          );
+        }
+
+        return this.toIntentResult(
+          latest,
+          recovered.count === 1 ? "status_recovered" : "state_unchanged",
+        );
+      }
       await this.createOnlinePaymentEvent(
         tx,
         intent,
@@ -1273,7 +1368,10 @@ export class OnlinePaymentsService {
     });
   }
 
-  private async paymobDuplicateWebhookResult(providerEventId: string) {
+  private async paymobDuplicateProviderStateResult(
+    providerEventId: string,
+    outcome = "duplicate_event",
+  ) {
     const event = await this.prisma.onlinePaymentEvent.findUnique({
       where: {
         provider_providerEventId: {
@@ -1301,10 +1399,10 @@ export class OnlinePaymentsService {
       );
     }
 
-    return this.toIntentResult(intent, "duplicate_event", {
+    return this.toIntentResult(intent, outcome, {
       settled: false,
-      reason: "duplicate_event",
-      message: "Paymob webhook event was already processed",
+      reason: outcome,
+      message: "Paymob provider state was already processed",
     });
   }
 
