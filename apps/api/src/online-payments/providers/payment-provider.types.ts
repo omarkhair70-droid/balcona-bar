@@ -21,6 +21,7 @@ export type CreateProviderPaymentInput = {
 export type CreateProviderPaymentResult = {
   provider: OnlinePaymentProvider;
   providerIntentId: string;
+  providerOrderId?: string;
   status: OnlinePaymentIntentStatus;
   checkoutUrl: string;
   checkoutExpiresAt?: Date;
@@ -38,6 +39,7 @@ export class PaymentProviderError extends Error {
       | "rate_limited"
       | "timeout"
       | "invalid_response"
+      | "signature_invalid"
       | "amount_mismatch"
       | "currency_mismatch"
       | "environment_mismatch",
@@ -47,3 +49,18 @@ export class PaymentProviderError extends Error {
     this.name = "PaymentProviderError";
   }
 }
+
+
+export type VerifiedProviderTransactionWebhook = {
+  provider: OnlinePaymentProvider;
+  providerEventId: string;
+  providerTransactionId: string;
+  providerOrderId: string;
+  merchantReference?: string;
+  integrationId: number;
+  status: OnlinePaymentIntentStatus;
+  amountMinor: number;
+  currency: string;
+  actionable: boolean;
+  safeMetadata: Record<string, unknown>;
+};
