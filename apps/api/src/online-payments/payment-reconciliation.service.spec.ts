@@ -140,6 +140,10 @@ function createHarness(options: {
     },
     onlinePaymentReconciliationRun: reconciliationRun,
     onlinePaymentReconciliationEntry: {
+      deleteMany: jest.fn(async () => {
+        entries.splice(0, entries.length);
+        return { count: 1 };
+      }),
       create: jest.fn(async ({ data }: any) => {
         const entry = {
           id: `entry-${entries.length + 1}`,
@@ -152,6 +156,10 @@ function createHarness(options: {
       }),
     },
     onlinePaymentReconciliationIssue: {
+      deleteMany: jest.fn(async () => {
+        issues.splice(0, issues.length);
+        return { count: 1 };
+      }),
       create: jest.fn(async ({ data }: any) => {
         const issue = {
           id: `issue-${issues.length + 1}`,
@@ -284,6 +292,67 @@ describe("PaymentReconciliationService", () => {
       mismatchCount: 0,
     });
     expect(issues).toHaveLength(0);
+  });
+
+  it("re-runs the same pending daily reconciliation until provider settlement becomes matched", async () => {
+    const {
+      service,
+      getRun,
+      entries,
+      paymobPaymentProviderService,
+      prisma,
+    } = createHarness();
+
+    paymobPaymentProviderService.inquireTransactionById
+      .mockReset()
+      .mockResolvedValueOnce(
+        providerState({ providerSettled: false }),
+      )
+      .mockResolvedValueOnce(
+        providerState({ providerSettled: true }),
+      );
+
+    await service.runPaymobProviderReconciliation(
+      "branch-1",
+      undefined,
+      {
+        periodStart,
+        periodEnd,
+        currency: "EGP",
+        idempotencyKey: "daily-paymob-settlement:2026-08-27:branch-1:EGP",
+      },
+    );
+
+    expect(getRun().status).toBe(
+      OnlinePaymentReconciliationRunStatus.pending,
+    );
+
+    const second = await service.runPaymobProviderReconciliation(
+      "branch-1",
+      undefined,
+      {
+        periodStart,
+        periodEnd,
+        currency: "EGP",
+        idempotencyKey: "daily-paymob-settlement:2026-08-27:branch-1:EGP",
+      },
+    );
+
+    expect(
+      prisma.onlinePaymentReconciliationEntry.deleteMany,
+    ).toHaveBeenCalledWith({
+      where: { reconciliationRunId: "run-1" },
+    });
+    expect(entries).toHaveLength(1);
+    expect(getRun()).toMatchObject({
+      status: OnlinePaymentReconciliationRunStatus.matched,
+      matchedCount: 1,
+      pendingCount: 0,
+      mismatchCount: 0,
+    });
+    expect(second.status).toBe(
+      OnlinePaymentReconciliationRunStatus.matched,
+    );
   });
 
   it("opens a mismatch issue when provider amount differs from Balcona", async () => {
