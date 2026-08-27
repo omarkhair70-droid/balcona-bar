@@ -640,9 +640,10 @@ export class CashierShiftsService {
       closeContext.countedCashMinor ?? shift.countedCashMinor ?? null;
     const cashOverShortMinor =
       countedCashMinor === null ? null : countedCashMinor - expectedCashMinor;
-    const uniqueBillIds = new Set(
-      manualPayments.map((payment) => payment.billId),
-    );
+    const uniqueBillIds = new Set([
+      ...manualPayments.map((payment) => payment.billId),
+      ...onlinePayments.map((payment) => payment.billId),
+    ]);
     const cashPaymentCount = this.countPaymentsByMethod(
       manualPayments,
       BillPaymentMethod.cash,
@@ -733,11 +734,14 @@ export class CashierShiftsService {
       },
       operational: {
         paidBills: Array.from(uniqueBillIds).map((billId) => {
-          const payment = manualPayments.find(
+          const manualPayment = manualPayments.find(
+            (candidate) => candidate.billId === billId,
+          );
+          const onlinePayment = onlinePayments.find(
             (candidate) => candidate.billId === billId,
           );
 
-          return payment?.bill ?? { id: billId };
+          return manualPayment?.bill ?? onlinePayment?.bill ?? { id: billId };
         }),
         manualPayments: manualPayments.map((payment) => ({
           id: payment.id,
