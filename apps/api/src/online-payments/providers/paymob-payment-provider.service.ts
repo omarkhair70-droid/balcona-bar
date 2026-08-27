@@ -307,7 +307,8 @@ export class PaymobPaymentProviderService {
       );
     }
 
-    let status = OnlinePaymentIntentStatus.failed;
+    let status: OnlinePaymentIntentStatus =
+      OnlinePaymentIntentStatus.failed;
 
     if (pending) {
       status = OnlinePaymentIntentStatus.pending;
