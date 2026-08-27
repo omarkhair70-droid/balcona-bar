@@ -232,6 +232,7 @@ export class PaymentReconciliationService {
     const branch = await this.loadBranch(branchId);
     const period = this.parsePeriod(body.periodStart, body.periodEnd);
     const currency = this.normalizeCurrency(body.currency);
+    this.assertMovementCountWithinLimit(body.lines.length);
     const lines = this.normalizeSettlementLines(body.lines, currency);
     const totals = this.statementTotals(lines);
 
