@@ -2,6 +2,8 @@ import {
   BillStatus,
   OnlinePaymentEventType,
   OnlinePaymentIntentStatus,
+  OnlinePaymentOperationStatus,
+  OnlinePaymentOperationType,
   OnlinePaymentProvider,
 } from "@prisma/client";
 import { OnlinePaymentsService } from "./online-payments.service";
@@ -67,6 +69,57 @@ function intent(
       },
     },
     events: [],
+    operations: [],
+    ...overrides,
+  };
+}
+
+function operation(
+  type: OnlinePaymentOperationType,
+  status: OnlinePaymentOperationStatus,
+  overrides: Record<string, unknown> = {},
+) {
+  const paymentIntent = intent(
+    type === OnlinePaymentOperationType.capture
+      ? OnlinePaymentIntentStatus.requires_action
+      : OnlinePaymentIntentStatus.succeeded,
+    OnlinePaymentProvider.paymob,
+    {
+      metadata: { paymobTransactionId: "555001" },
+    },
+  );
+
+  return {
+    id: "operation-1",
+    onlinePaymentIntentId: "intent-1",
+    companyId: "company-1",
+    branchId: "branch-1",
+    billId: "bill-1",
+    provider: OnlinePaymentProvider.paymob,
+    type,
+    status,
+    idempotencyKey: "operation-key-1",
+    parentProviderTransactionId: "555001",
+    providerTransactionId:
+      status === OnlinePaymentOperationStatus.pending ? null : "555010",
+    amountMinor:
+      type === OnlinePaymentOperationType.refund ? 5000 : 12500,
+    currency: "EGP",
+    reason: "customer request",
+    requestedByStaffUserId: "staff-1",
+    requestedAt: now,
+    completedAt:
+      status === OnlinePaymentOperationStatus.succeeded ? now : null,
+    failedAt: status === OnlinePaymentOperationStatus.failed ? now : null,
+    failureCode: null,
+    failureMessage: null,
+    metadata:
+      type === OnlinePaymentOperationType.refund
+        ? { previousRefundedMinor: 0, expectedRefundedMinor: 5000 }
+        : {},
+    createdAt: now,
+    updatedAt: now,
+    onlinePaymentIntent: paymentIntent,
     ...overrides,
   };
 }
@@ -87,6 +140,13 @@ function createService(provider = "mock", environment = "test") {
       updateMany: jest.fn().mockResolvedValue({ count: 1 }),
       count: jest.fn().mockResolvedValue(0),
       findMany: jest.fn().mockResolvedValue([]),
+    },
+    onlinePaymentOperation: {
+      findUnique: jest.fn().mockResolvedValue(null),
+      findFirst: jest.fn().mockResolvedValue(null),
+      findMany: jest.fn().mockResolvedValue([]),
+      create: jest.fn(),
+      updateMany: jest.fn().mockResolvedValue({ count: 1 }),
     },
     bill: {
       findUnique: jest.fn(),
@@ -127,6 +187,9 @@ function createService(provider = "mock", environment = "test") {
     }),
   };
   const billsService = {
+    refreshReceiptForOnlinePaymentAdjustment: jest
+      .fn()
+      .mockResolvedValue("receipt-1"),
     settleBillWithOnlinePayment: jest.fn().mockResolvedValue({
       settled: true,
       reason: "settled",
@@ -141,10 +204,17 @@ function createService(provider = "mock", environment = "test") {
   const saasService = {
     assertCompanyFeatureEnabled: jest.fn().mockResolvedValue(undefined),
   };
+  const auditService = {
+    recordAuditLog: jest.fn().mockResolvedValue({ id: "audit-1" }),
+  };
   const paymobPaymentProviderService = {
     createPayment: jest.fn(),
     verifyTransactionWebhook: jest.fn(),
     inquireTransactionByOrder: jest.fn(),
+    inquireTransactionById: jest.fn(),
+    refundTransaction: jest.fn(),
+    voidTransaction: jest.fn(),
+    captureTransaction: jest.fn(),
   };
   const service = new OnlinePaymentsService(
     prisma as never,
@@ -152,6 +222,7 @@ function createService(provider = "mock", environment = "test") {
     billsService as never,
     realtimeEventsService as never,
     saasService as never,
+    auditService as never,
     paymobPaymentProviderService as never,
   );
 
@@ -161,6 +232,7 @@ function createService(provider = "mock", environment = "test") {
     billsService,
     realtimeEventsService,
     saasService,
+    auditService,
     paymobPaymentProviderService,
   };
 }
