@@ -654,7 +654,7 @@ describe("OnlinePaymentsService", () => {
       }),
     );
     expect(billsService.settleBillWithOnlinePayment).toHaveBeenCalledTimes(1);
-    expect(result.settlement).toMatchObject({ settled: true });
+    expect(result).toMatchObject({ settlement: { settled: true } });
   });
 
   it("reactivates a locally failed intent when Paymob inquiry says it is still pending", async () => {
@@ -812,7 +812,7 @@ describe("OnlinePaymentsService", () => {
     );
 
     expect(billsService.settleBillWithOnlinePayment).not.toHaveBeenCalled();
-    expect(result.settlement).toMatchObject({ reason: "amount_mismatch" });
+    expect(result).toMatchObject({ settlement: { reason: "amount_mismatch" } });
   });
 
   it("blocks a new Paymob retry when inquiry recovers the previous attempt as pending", async () => {
@@ -1214,7 +1214,7 @@ describe("OnlinePaymentsService", () => {
     expect(
       realtimeEventsService.recordOnlinePaymentSucceeded,
     ).toHaveBeenCalledWith("intent-1", tx);
-    expect(result.settlement).toMatchObject({ settled: true });
+    expect(result).toMatchObject({ settlement: { settled: true } });
   });
 
   it("recovers a verified late Paymob success after an earlier local failed state", async () => {
@@ -1278,7 +1278,7 @@ describe("OnlinePaymentsService", () => {
       }),
     );
     expect(billsService.settleBillWithOnlinePayment).toHaveBeenCalledTimes(1);
-    expect(result.settlement).toMatchObject({ settled: true });
+    expect(result).toMatchObject({ settlement: { settled: true } });
   });
 
   it("rejects an invalid Paymob HMAC before reading or mutating payment state", async () => {
@@ -1415,7 +1415,7 @@ describe("OnlinePaymentsService", () => {
         }),
       }),
     );
-    expect(result.settlement).toMatchObject({ reason: "amount_mismatch" });
+    expect(result).toMatchObject({ settlement: { reason: "amount_mismatch" } });
   });
 
   it("keeps auth-only Paymob callbacks in requires_action and does not settle", async () => {
@@ -1528,7 +1528,7 @@ describe("OnlinePaymentsService", () => {
     expect(
       realtimeEventsService.recordOnlinePaymentSucceeded,
     ).toHaveBeenCalledWith("intent-1", tx);
-    expect(result.settlement).toMatchObject({ settled: true });
+    expect(result).toMatchObject({ settlement: { settled: true } });
   });
 
   it("ignores a duplicate mock webhook event without double-settling", async () => {
@@ -1574,7 +1574,7 @@ describe("OnlinePaymentsService", () => {
         }),
       }),
     );
-    expect(result.settlement).toMatchObject({
+    expect(result).toMatchObject({ settlement: {
       settled: false,
       reason: "bill_already_paid",
     });
