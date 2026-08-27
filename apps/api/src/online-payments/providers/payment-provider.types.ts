@@ -47,7 +47,10 @@ export class PaymentProviderError extends Error {
       | "signature_invalid"
       | "amount_mismatch"
       | "currency_mismatch"
-      | "environment_mismatch",
+      | "environment_mismatch"
+      | "transaction_not_found"
+      | "unsupported_operation"
+      | "provider_declined",
     readonly metadata: Record<string, unknown> = {},
   ) {
     super(message);
