@@ -1,4 +1,5 @@
 import { Module } from "@nestjs/common";
+import { AuditModule } from "../audit/audit.module";
 import { BillsModule } from "../bills/bills.module";
 import { PrismaModule } from "../prisma/prisma.module";
 import { RealtimeEventsModule } from "../realtime-events/realtime-events.module";
@@ -15,6 +16,7 @@ import { StaffPaymentRecoveryRateLimitGuard } from "./staff-payment-recovery-rat
 
 @Module({
   imports: [
+    AuditModule,
     PrismaModule,
     BillsModule,
     RealtimeEventsModule,
