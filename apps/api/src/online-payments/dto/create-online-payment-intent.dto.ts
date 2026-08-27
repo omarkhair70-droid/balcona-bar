@@ -1,4 +1,33 @@
-import { IsOptional, IsString, MaxLength } from "class-validator";
+import { Type } from "class-transformer";
+import {
+  IsEmail,
+  IsOptional,
+  IsString,
+  MaxLength,
+  MinLength,
+  ValidateNested,
+} from "class-validator";
+
+export class OnlinePaymentBillingDataDto {
+  @IsString()
+  @MinLength(1)
+  @MaxLength(80)
+  firstName!: string;
+
+  @IsString()
+  @MinLength(1)
+  @MaxLength(80)
+  lastName!: string;
+
+  @IsEmail()
+  @MaxLength(160)
+  email!: string;
+
+  @IsString()
+  @MinLength(3)
+  @MaxLength(32)
+  phoneNumber!: string;
+}
 
 export class CreateOnlinePaymentIntentDto {
   @IsOptional()
@@ -10,4 +39,9 @@ export class CreateOnlinePaymentIntentDto {
   @IsString()
   @MaxLength(500)
   customerReturnUrl?: string;
+
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => OnlinePaymentBillingDataDto)
+  billingData?: OnlinePaymentBillingDataDto;
 }
