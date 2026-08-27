@@ -524,11 +524,12 @@ export class OnlinePaymentsService {
       return;
     }
 
-    const terminalStatus = [
+    const terminalStatuses: OnlinePaymentIntentStatus[] = [
       OnlinePaymentIntentStatus.failed,
       OnlinePaymentIntentStatus.cancelled,
       OnlinePaymentIntentStatus.expired,
-    ].includes(latestIntent.status);
+    ];
+    const terminalStatus = terminalStatuses.includes(latestIntent.status);
     const activeCheckoutExpired =
       ACTIVE_ONLINE_PAYMENT_STATUSES.includes(latestIntent.status) &&
       Boolean(
