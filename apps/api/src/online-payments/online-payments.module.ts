@@ -7,6 +7,7 @@ import { SaasModule } from "../saas/saas.module";
 import { StaffModule } from "../staff/staff.module";
 import { TableSessionsModule } from "../table-sessions/table-sessions.module";
 import { OnlinePaymentReconciliationScheduler } from "./online-payment-reconciliation.scheduler";
+import { OnlinePaymentSettlementReconciliationScheduler } from "./online-payment-settlement-reconciliation.scheduler";
 import { OnlinePaymentsController } from "./online-payments.controller";
 import { OnlinePaymentsService } from "./online-payments.service";
 import { PaymobPaymentProviderService } from "./providers/paymob-payment-provider.service";
@@ -34,6 +35,7 @@ import { StaffPaymentRecoveryRateLimitGuard } from "./staff-payment-recovery-rat
     PaymentRateLimitGuard,
     PaymentReconciliationService,
     OnlinePaymentReconciliationScheduler,
+    OnlinePaymentSettlementReconciliationScheduler,
     StaffPaymentRecoveryRateLimitGuard,
     StaffPaymentOperationRateLimitGuard,
   ],
