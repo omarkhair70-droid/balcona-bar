@@ -216,6 +216,11 @@ function createService(provider = "mock", environment = "test") {
     voidTransaction: jest.fn(),
     captureTransaction: jest.fn(),
   };
+  const fawryPaymentProviderService = {
+    createPayment: jest.fn(),
+    verifyNotification: jest.fn(),
+    inquireByMerchantReference: jest.fn(),
+  };
   const service = new OnlinePaymentsService(
     prisma as never,
     configService as never,
@@ -224,6 +229,7 @@ function createService(provider = "mock", environment = "test") {
     saasService as never,
     auditService as never,
     paymobPaymentProviderService as never,
+    fawryPaymentProviderService as never,
   );
 
   return {
@@ -234,6 +240,7 @@ function createService(provider = "mock", environment = "test") {
     saasService,
     auditService,
     paymobPaymentProviderService,
+    fawryPaymentProviderService,
   };
 }
 
