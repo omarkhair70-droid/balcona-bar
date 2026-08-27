@@ -93,6 +93,37 @@ export default () => ({
       appEnvironment() !== "production",
     checkoutBaseUrl:
       process.env.ONLINE_PAYMENT_CHECKOUT_BASE_URL ?? "http://localhost:3001",
+    fawry: {
+      checkoutUrl:
+        process.env.FAWRY_CHECKOUT_URL ??
+        "https://atfawry.fawrystaging.com/fawrypay-api/api/payments/init",
+      statusUrl:
+        process.env.FAWRY_STATUS_URL ??
+        "https://atfawry.fawrystaging.com/ECommerceWeb/Fawry/payments/status/v2",
+      refundUrl:
+        process.env.FAWRY_REFUND_URL ??
+        "https://atfawry.fawrystaging.com/ECommerceWeb/Fawry/payments/refund",
+      cancelUrl:
+        process.env.FAWRY_CANCEL_URL ??
+        "https://atfawry.fawrystaging.com/ECommerceWeb/api/orders/cancel-unpaid-order",
+      merchantCode: process.env.FAWRY_MERCHANT_CODE || undefined,
+      secureKey: process.env.FAWRY_SECURE_KEY || undefined,
+      notificationUrl: process.env.FAWRY_NOTIFICATION_URL || undefined,
+      allowedReturnOrigins: (
+        process.env.FAWRY_ALLOWED_RETURN_ORIGINS ??
+        process.env.CORS_ORIGINS ??
+        ""
+      )
+        .split(",")
+        .map((value) => value.trim())
+        .filter(Boolean),
+      timeoutMs: Number.parseInt(process.env.FAWRY_TIMEOUT_MS ?? "10000", 10),
+      expirationSeconds: Number.parseInt(
+        process.env.FAWRY_CHECKOUT_EXPIRATION_SECONDS ?? "900",
+        10,
+      ),
+      expectedLive: process.env.FAWRY_EXPECT_LIVE === "true",
+    },
     paymob: {
       baseUrl: process.env.PAYMOB_BASE_URL ?? "https://accept.paymob.com",
       secretKey: process.env.PAYMOB_SECRET_KEY || undefined,
