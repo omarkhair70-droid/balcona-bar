@@ -231,6 +231,10 @@ class EnvironmentVariables {
 
   @IsString()
   @IsOptional()
+  PAYMOB_API_KEY?: string;
+
+  @IsString()
+  @IsOptional()
   PAYMOB_PUBLIC_KEY?: string;
 
   @IsString()
@@ -264,6 +268,28 @@ class EnvironmentVariables {
   @IsBooleanString()
   @IsOptional()
   PAYMOB_EXPECT_LIVE?: string;
+
+  @IsBooleanString()
+  @IsOptional()
+  ONLINE_PAYMENT_RECONCILIATION_ENABLED?: string;
+
+  @IsInt()
+  @Min(30)
+  @Max(3600)
+  @IsOptional()
+  ONLINE_PAYMENT_RECONCILIATION_INTERVAL_SECONDS?: number;
+
+  @IsInt()
+  @Min(30)
+  @Max(86400)
+  @IsOptional()
+  ONLINE_PAYMENT_RECONCILIATION_STALE_SECONDS?: number;
+
+  @IsInt()
+  @Min(1)
+  @Max(200)
+  @IsOptional()
+  ONLINE_PAYMENT_RECONCILIATION_BATCH_SIZE?: number;
 
   @IsInt()
   @Min(10)
@@ -335,6 +361,16 @@ export function validateEnvironment(config: Record<string, unknown>) {
   ) {
     throw new Error(
       "MOCK_ONLINE_PAYMENTS_ENABLED=true is forbidden when APP_ENV=production",
+    );
+  }
+
+  if (
+    validatedConfig.ONLINE_PAYMENT_RECONCILIATION_ENABLED === "true" &&
+    effectivePaymentProvider === OnlinePaymentProvider.Paymob &&
+    !validatedConfig.PAYMOB_API_KEY
+  ) {
+    throw new Error(
+      "PAYMOB_API_KEY is required when Paymob reconciliation is enabled",
     );
   }
 
