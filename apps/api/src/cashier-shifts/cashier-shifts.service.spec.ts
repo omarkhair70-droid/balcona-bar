@@ -96,6 +96,7 @@ function buildService(tx: any) {
     cashierShiftReport: tx.cashierShiftReport,
     manualPayment: tx.manualPayment,
     onlinePaymentIntent: tx.onlinePaymentIntent,
+    onlinePaymentOperation: tx.onlinePaymentOperation,
     staffUser: tx.staffUser,
   };
 
@@ -132,6 +133,9 @@ function buildTx(overrides: Record<string, unknown> = {}) {
       findMany: jest.fn().mockResolvedValue([]),
     },
     onlinePaymentIntent: {
+      findMany: jest.fn().mockResolvedValue([]),
+    },
+    onlinePaymentOperation: {
       findMany: jest.fn().mockResolvedValue([]),
     },
     cashierShiftReport: {
