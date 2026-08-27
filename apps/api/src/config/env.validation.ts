@@ -32,6 +32,7 @@ enum AiWaiterProvider {
 
 enum OnlinePaymentProvider {
   Mock = "mock",
+  Paymob = "paymob",
   External = "external",
 }
 
@@ -219,6 +220,50 @@ class EnvironmentVariables {
   @IsString()
   @IsOptional()
   ONLINE_PAYMENT_CHECKOUT_BASE_URL?: string;
+
+  @IsString()
+  @IsOptional()
+  PAYMOB_BASE_URL?: string;
+
+  @IsString()
+  @IsOptional()
+  PAYMOB_SECRET_KEY?: string;
+
+  @IsString()
+  @IsOptional()
+  PAYMOB_PUBLIC_KEY?: string;
+
+  @IsString()
+  @IsOptional()
+  PAYMOB_HMAC_SECRET?: string;
+
+  @IsString()
+  @IsOptional()
+  PAYMOB_INTEGRATION_IDS?: string;
+
+  @IsString()
+  @IsOptional()
+  PAYMOB_NOTIFICATION_URL?: string;
+
+  @IsString()
+  @IsOptional()
+  PAYMOB_ALLOWED_RETURN_ORIGINS?: string;
+
+  @IsInt()
+  @Min(1000)
+  @Max(60000)
+  @IsOptional()
+  PAYMOB_TIMEOUT_MS?: number;
+
+  @IsInt()
+  @Min(60)
+  @Max(3110400)
+  @IsOptional()
+  PAYMOB_INTENTION_EXPIRATION_SECONDS?: number;
+
+  @IsBooleanString()
+  @IsOptional()
+  PAYMOB_EXPECT_LIVE?: string;
 
   @IsBooleanString()
   @IsOptional()
