@@ -5,6 +5,7 @@ import {
   NotFoundException,
   ServiceUnavailableException,
 } from "@nestjs/common";
+import { ConfigService } from "@nestjs/config";
 import {
   AuditAction,
   AuditActorType,
@@ -71,6 +72,7 @@ type ReconciliationCounters = {
 export class PaymentReconciliationService {
   constructor(
     private readonly prisma: PrismaService,
+    private readonly configService: ConfigService,
     private readonly auditService: AuditService,
     private readonly paymobPaymentProviderService: PaymobPaymentProviderService,
   ) {}
@@ -111,6 +113,7 @@ export class PaymentReconciliationService {
       period.end,
       currency,
     );
+    this.assertMovementCountWithinLimit(movements.length);
     const localTotals = this.localTotals(movements);
     const run = await this.prisma.onlinePaymentReconciliationRun.create({
       data: {
@@ -371,6 +374,7 @@ export class PaymentReconciliationService {
       batch.periodEnd,
       batch.currency,
     );
+    this.assertMovementCountWithinLimit(movements.length);
     const localTotals = this.localTotals(movements);
     const run = await this.prisma.onlinePaymentReconciliationRun.create({
       data: {
@@ -536,6 +540,62 @@ export class PaymentReconciliationService {
 
     await this.auditRun(run.id, requestedByStaffUserId);
     return this.findRun(run.id);
+  }
+
+  async discoverPaymobReconciliationScopes(
+    periodStart: Date,
+    periodEnd: Date,
+    maxScopes?: number,
+  ) {
+    const limit =
+      maxScopes ??
+      this.configService.get<number>(
+        "onlinePayments.settlementReconciliation.maxScopesPerTick",
+        50,
+      );
+    const [paymentScopes, operationScopes] = await Promise.all([
+      this.prisma.onlinePaymentIntent.groupBy({
+        by: ["branchId", "currency"],
+        where: {
+          provider: OnlinePaymentProvider.paymob,
+          status: OnlinePaymentIntentStatus.succeeded,
+          succeededAt: { gte: periodStart, lt: periodEnd },
+        },
+      }),
+      this.prisma.onlinePaymentOperation.groupBy({
+        by: ["branchId", "currency"],
+        where: {
+          provider: OnlinePaymentProvider.paymob,
+          status: OnlinePaymentOperationStatus.succeeded,
+          type: {
+            in: [
+              OnlinePaymentOperationType.refund,
+              OnlinePaymentOperationType.void,
+            ],
+          },
+          completedAt: { gte: periodStart, lt: periodEnd },
+        },
+      }),
+    ]);
+    const scopes = new Map<string, { branchId: string; currency: string }>();
+
+    for (const scope of [...paymentScopes, ...operationScopes]) {
+      const currency = this.normalizeCurrency(scope.currency);
+      const key = `${scope.branchId}:${currency}`;
+      scopes.set(key, { branchId: scope.branchId, currency });
+
+      if (scopes.size > limit) {
+        throw new ConflictException(
+          "Settlement reconciliation scope count exceeds the configured per-tick limit",
+        );
+      }
+    }
+
+    return [...scopes.values()].sort(
+      (left, right) =>
+        left.branchId.localeCompare(right.branchId) ||
+        left.currency.localeCompare(right.currency),
+    );
   }
 
   findRunsForBranch(branchId: string, limit = 50) {
@@ -1340,6 +1400,19 @@ export class PaymentReconciliationService {
         mismatchCount: run.mismatchCount,
       },
     });
+  }
+
+  private assertMovementCountWithinLimit(count: number) {
+    const maxEntries = this.configService.get<number>(
+      "onlinePayments.settlementReconciliation.maxEntriesPerRun",
+      500,
+    );
+
+    if (count > maxEntries) {
+      throw new ConflictException(
+        "Reconciliation movement count exceeds the configured per-run limit",
+      );
+    }
   }
 
   private async loadBranch(branchId: string) {
