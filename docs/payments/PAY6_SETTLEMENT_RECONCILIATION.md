@@ -91,7 +91,9 @@ A missing settlement signal is deliberately not promoted to `matched`.
 
 Provider fee coverage is explicit.
 
-When all sale inquiries expose a usable provider fee:
+When all sale inquiries expose a usable provider fee and there are no
+refund/void movements whose fee treatment still depends on the settlement
+statement:
 
 - `providerFeeMinor` is recorded.
 - `providerNetMinor = providerGross - providerAdjustments - providerFee`.
@@ -123,14 +125,18 @@ The import stores:
 - external settlement reference.
 - optional payout/bank reference.
 - currency.
-- covered period.
-- settlement date.
+- transaction-activity coverage period.
+- settlement/payout date.
 - gross.
 - adjustments.
 - provider fees.
 - net.
 - source hash.
 - individual provider transaction lines.
+
+`periodStart` / `periodEnd` represent the local transaction-activity window
+being reconciled. A bank payout date can be later and belongs in
+`settledAt` / `payoutReference`.
 
 Each line contains:
 
