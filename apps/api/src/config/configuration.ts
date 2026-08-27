@@ -109,6 +109,7 @@ export default () => ({
       merchantCode: process.env.FAWRY_MERCHANT_CODE || undefined,
       secureKey: process.env.FAWRY_SECURE_KEY || undefined,
       notificationUrl: process.env.FAWRY_NOTIFICATION_URL || undefined,
+      returnUrl: process.env.FAWRY_RETURN_URL || undefined,
       allowedReturnOrigins: (
         process.env.FAWRY_ALLOWED_RETURN_ORIGINS ??
         process.env.CORS_ORIGINS ??
