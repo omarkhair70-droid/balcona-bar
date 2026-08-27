@@ -526,6 +526,78 @@ describe("PaymobPaymentProviderService", () => {
     expect(result.safeMetadata).not.toHaveProperty("pan");
   });
 
+  it("normalizes provider settlement signals from Paymob transaction inquiry", async () => {
+    jest.spyOn(global, "fetch")
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ token: "inquiry-auth-token" }), {
+          status: 201,
+          headers: { "Content-Type": "application/json" },
+        }),
+      )
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify(
+            inquiryTransaction({
+              is_settled: true,
+              merchant_commission: 250,
+              data: {
+                migs_transaction: {
+                  acquirer: {
+                    settlementDate: "2026-08-28",
+                    batch: 20260828,
+                  },
+                },
+              },
+            }),
+          ),
+          {
+            status: 200,
+            headers: { "Content-Type": "application/json" },
+          },
+        ),
+      );
+    const service = new PaymobPaymentProviderService(config());
+
+    const result = await service.inquireTransactionById("555001");
+
+    expect(result).toMatchObject({
+      providerSettled: true,
+      providerReportedFeeMinor: 250,
+      providerSettlementDate: "2026-08-28",
+      providerSettlementReference: "20260828",
+      safeMetadata: {
+        providerSettled: true,
+        providerReportedFeeMinor: 250,
+        providerSettlementDate: "2026-08-28",
+        providerSettlementReference: "20260828",
+      },
+    });
+  });
+
+  it("keeps provider settlement pending when Paymob explicitly reports is_settled=false", async () => {
+    jest.spyOn(global, "fetch")
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ token: "inquiry-auth-token" }), {
+          status: 201,
+          headers: { "Content-Type": "application/json" },
+        }),
+      )
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify(inquiryTransaction({ is_settled: false })),
+          {
+            status: 200,
+            headers: { "Content-Type": "application/json" },
+          },
+        ),
+      );
+    const service = new PaymobPaymentProviderService(config());
+
+    const result = await service.inquireTransactionById("555001");
+
+    expect(result.providerSettled).toBe(false);
+  });
+
   it("authenticates with the Paymob API key and inquires by stored provider order id", async () => {
     const fetchSpy = jest.spyOn(global, "fetch")
       .mockResolvedValueOnce(
