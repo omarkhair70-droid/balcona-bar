@@ -3,6 +3,7 @@ import {
   ForbiddenException,
   Injectable,
   NotFoundException,
+  ServiceUnavailableException,
 } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import {
@@ -24,6 +25,8 @@ import { MockOnlinePaymentWebhookDto } from "./dto/mock-online-payment-webhook.d
 import { PrismaService } from "../prisma/prisma.service";
 import { RealtimeEventsService } from "../realtime-events/realtime-events.service";
 import { SaasService } from "../saas/saas.service";
+import { PaymobPaymentProviderService } from "./providers/paymob-payment-provider.service";
+import { PaymentProviderError } from "./providers/payment-provider.types";
 
 const ACTIVE_ONLINE_PAYMENT_STATUSES: OnlinePaymentIntentStatus[] = [
   OnlinePaymentIntentStatus.pending,
@@ -75,6 +78,7 @@ export class OnlinePaymentsService {
     private readonly billsService: BillsService,
     private readonly realtimeEventsService: RealtimeEventsService,
     private readonly saasService: SaasService,
+    private readonly paymobPaymentProviderService: PaymobPaymentProviderService,
   ) {}
 
   async createIntentForCustomer(
@@ -84,6 +88,10 @@ export class OnlinePaymentsService {
   ) {
     this.assertOnlinePaymentsEnabled();
     const provider = this.getConfiguredProvider();
+
+    if (provider === OnlinePaymentProvider.paymob) {
+      return this.createPaymobIntentForCustomer(sessionId, billId, body);
+    }
 
     if (provider !== OnlinePaymentProvider.mock) {
       throw new BadRequestException(
@@ -203,6 +211,281 @@ export class OnlinePaymentsService {
 
       return this.toIntentResult(intent, "created");
     });
+  }
+
+  private async createPaymobIntentForCustomer(
+    sessionId: string,
+    billId: string,
+    body: CreateOnlinePaymentIntentDto,
+  ) {
+    const billingData = body.billingData;
+
+    if (!billingData) {
+      throw new BadRequestException(
+        "Billing data is required to prepare Paymob checkout",
+      );
+    }
+
+    const preparation = await this.prisma.$transaction(async (tx) => {
+      const bill = await tx.bill.findUnique({
+        where: { id: billId },
+        select: {
+          id: true,
+          companyId: true,
+          branchId: true,
+          tableSessionId: true,
+          status: true,
+          currency: true,
+          totalMinor: true,
+          balanceDueMinor: true,
+        },
+      });
+
+      if (!bill || bill.tableSessionId !== sessionId) {
+        throw new NotFoundException("Bill not found for this table session");
+      }
+
+      await this.saasService.assertCompanyFeatureEnabled(
+        bill.companyId,
+        SaasFeatureKey.online_payments,
+      );
+      this.assertBillCanStartOnlinePayment(bill);
+
+      if (body.idempotencyKey) {
+        const idempotentIntent = await tx.onlinePaymentIntent.findUnique({
+          where: { idempotencyKey: body.idempotencyKey },
+          include: this.intentInclude(),
+        });
+
+        if (idempotentIntent) {
+          if (
+            idempotentIntent.billId !== bill.id ||
+            idempotentIntent.tableSessionId !== sessionId ||
+            idempotentIntent.provider !== OnlinePaymentProvider.paymob
+          ) {
+            throw new BadRequestException(
+              "Idempotency key is already used for another online payment",
+            );
+          }
+
+          return {
+            kind: "existing" as const,
+            result: this.toIntentResult(idempotentIntent, "idempotent"),
+          };
+        }
+      }
+
+      const existingActiveIntent = await tx.onlinePaymentIntent.findFirst({
+        where: {
+          billId: bill.id,
+          tableSessionId: sessionId,
+          amountMinor: bill.balanceDueMinor,
+          status: { in: ACTIVE_ONLINE_PAYMENT_STATUSES },
+        },
+        orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+        include: this.intentInclude(),
+      });
+
+      if (existingActiveIntent) {
+        if (existingActiveIntent.provider !== OnlinePaymentProvider.paymob) {
+          throw new BadRequestException(
+            "Bill already has an active online payment with another provider",
+          );
+        }
+
+        return {
+          kind: "existing" as const,
+          result: this.toIntentResult(
+            existingActiveIntent,
+            "existing_active",
+          ),
+        };
+      }
+
+      const localIntent = await tx.onlinePaymentIntent.create({
+        data: {
+          companyId: bill.companyId,
+          branchId: bill.branchId,
+          tableSessionId: sessionId,
+          billId: bill.id,
+          provider: OnlinePaymentProvider.paymob,
+          providerIntentId: null,
+          providerCheckoutUrl: null,
+          idempotencyKey: body.idempotencyKey ?? `auto_${randomUUID()}`,
+          status: OnlinePaymentIntentStatus.pending,
+          amountMinor: bill.balanceDueMinor,
+          currency: bill.currency,
+          customerReturnUrl: this.normalizeOptionalText(body.customerReturnUrl),
+          metadata: this.toJsonValue({
+            source: "customer_pay_online",
+            provider: "paymob",
+            providerInitialization: "pending",
+          }),
+        },
+        include: this.intentInclude(),
+      });
+
+      await tx.bill.updateMany({
+        where: {
+          id: bill.id,
+          status: BillStatus.presented,
+          balanceDueMinor: bill.balanceDueMinor,
+        },
+        data: { status: BillStatus.payment_pending },
+      });
+      await this.createOnlinePaymentEvent(
+        tx,
+        localIntent,
+        OnlinePaymentEventType.intent_created,
+        {
+          provider: "paymob",
+          providerInitialization: "pending",
+        },
+      );
+      await this.realtimeEventsService.recordOnlinePaymentIntentCreated(
+        localIntent.id,
+        tx,
+      );
+
+      return {
+        kind: "created" as const,
+        intent: localIntent,
+      };
+    });
+
+    if (preparation.kind === "existing") {
+      return preparation.result;
+    }
+
+    const localIntent = preparation.intent;
+
+    try {
+      const providerPayment =
+        await this.paymobPaymentProviderService.createPayment({
+          localIntentId: localIntent.id,
+          companyId: localIntent.companyId,
+          branchId: localIntent.branchId,
+          billId: localIntent.billId,
+          amountMinor: localIntent.amountMinor,
+          currency: localIntent.currency,
+          billingData,
+          customerReturnUrl:
+            this.normalizeOptionalText(body.customerReturnUrl) ?? undefined,
+        });
+
+      return this.prisma.$transaction(async (tx) => {
+        await tx.onlinePaymentIntent.updateMany({
+          where: {
+            id: localIntent.id,
+            provider: OnlinePaymentProvider.paymob,
+            status: { in: ACTIVE_ONLINE_PAYMENT_STATUSES },
+            providerIntentId: null,
+          },
+          data: {
+            providerIntentId: providerPayment.providerIntentId,
+            providerCheckoutUrl: providerPayment.checkoutUrl,
+            checkoutExpiresAt: providerPayment.checkoutExpiresAt,
+            status: providerPayment.status,
+            metadata: this.toJsonValue({
+              ...this.jsonRecord(localIntent.metadata),
+              ...providerPayment.metadata,
+              providerInitialization: "ready",
+            }),
+          },
+        });
+
+        const readyIntent = await this.loadIntentOrThrow(localIntent.id, tx);
+
+        if (!readyIntent.providerIntentId || !readyIntent.providerCheckoutUrl) {
+          throw new ServiceUnavailableException(
+            "Online payment checkout could not be prepared",
+          );
+        }
+
+        await this.createOnlinePaymentEvent(
+          tx,
+          readyIntent,
+          OnlinePaymentEventType.status_updated,
+          {
+            provider: "paymob",
+            providerInitialization: "ready",
+            providerIntentId: readyIntent.providerIntentId,
+            checkoutExpiresAt: readyIntent.checkoutExpiresAt,
+          },
+        );
+
+        return this.toIntentResult(readyIntent, "created");
+      });
+    } catch (error) {
+      await this.markPaymobInitializationFailed(localIntent.id, error);
+      throw this.mapPaymobProviderError(error);
+    }
+  }
+
+  private async markPaymobInitializationFailed(
+    intentId: string,
+    error: unknown,
+  ) {
+    const providerCode =
+      error instanceof PaymentProviderError ? error.code : "provider_unavailable";
+
+    await this.prisma.$transaction(async (tx) => {
+      await tx.onlinePaymentIntent.updateMany({
+        where: {
+          id: intentId,
+          provider: OnlinePaymentProvider.paymob,
+          status: { in: ACTIVE_ONLINE_PAYMENT_STATUSES },
+          providerIntentId: null,
+        },
+        data: {
+          status: OnlinePaymentIntentStatus.failed,
+          failedAt: new Date(),
+          failureCode: `paymob_${providerCode}`,
+          failureMessage: "Paymob checkout initialization failed",
+          metadata: this.toJsonValue({
+            provider: "paymob",
+            providerInitialization: "failed",
+            providerErrorCode: providerCode,
+          }),
+        },
+      });
+
+      const failedIntent = await this.loadIntentOrThrow(intentId, tx);
+
+      if (failedIntent.status === OnlinePaymentIntentStatus.failed) {
+        await this.createOnlinePaymentEvent(
+          tx,
+          failedIntent,
+          OnlinePaymentEventType.status_updated,
+          {
+            provider: "paymob",
+            providerInitialization: "failed",
+            providerErrorCode: providerCode,
+          },
+        );
+        await this.restoreBillPresentedIfNoActiveOnlinePayment(
+          failedIntent.billId,
+          tx,
+        );
+        await this.realtimeEventsService.recordOnlinePaymentFailed(
+          failedIntent.id,
+          tx,
+        );
+      }
+    });
+  }
+
+  private mapPaymobProviderError(error: unknown) {
+    if (
+      error instanceof PaymentProviderError &&
+      error.code === "invalid_request"
+    ) {
+      return new BadRequestException("Online payment checkout request is invalid");
+    }
+
+    return new ServiceUnavailableException(
+      "Online payment checkout is temporarily unavailable",
+    );
   }
 
   async findIntentForCustomer(sessionId: string, intentId: string) {
@@ -638,10 +921,17 @@ export class OnlinePaymentsService {
   }
 
   private getConfiguredProvider() {
-    return this.configService.get<string>("onlinePayments.provider") ===
-      OnlinePaymentProvider.external
-      ? OnlinePaymentProvider.external
-      : OnlinePaymentProvider.mock;
+    const provider = this.configService.get<string>("onlinePayments.provider");
+
+    if (provider === OnlinePaymentProvider.paymob) {
+      return OnlinePaymentProvider.paymob;
+    }
+
+    if (provider === OnlinePaymentProvider.external) {
+      return OnlinePaymentProvider.external;
+    }
+
+    return OnlinePaymentProvider.mock;
   }
 
   private buildMockCheckoutUrl(providerIntentId: string) {
@@ -735,6 +1025,14 @@ export class OnlinePaymentsService {
     const normalizedValue = value.trim();
 
     return normalizedValue.length > 0 ? normalizedValue : null;
+  }
+
+  private jsonRecord(value: Prisma.JsonValue | null): Record<string, unknown> {
+    if (value && typeof value === "object" && !Array.isArray(value)) {
+      return value as Record<string, unknown>;
+    }
+
+    return {};
   }
 
   private toJsonValue(value: unknown): Prisma.InputJsonValue {
