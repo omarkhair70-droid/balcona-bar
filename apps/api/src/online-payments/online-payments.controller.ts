@@ -93,6 +93,24 @@ export class OnlinePaymentsController {
     return this.onlinePaymentsService.findOne(params.intentId);
   }
 
+  @Post("online-payment-intents/:intentId/recover")
+  @UseGuards(StaffSessionGuard)
+  async recoverPaymobIntent(
+    @CurrentStaff() currentStaff: StaffAuthContext,
+    @Param() params: OnlinePaymentIntentIdParamDto,
+  ) {
+    await this.staffScopedAccessService.assertCanForOnlinePaymentIntent(
+      currentStaff.staffUser.id,
+      "online_payments.manage",
+      params.intentId,
+    );
+
+    return this.onlinePaymentsService.recoverPaymobIntent(
+      params.intentId,
+      "staff_manual",
+    );
+  }
+
   @Post("online-payments/mock/:intentId/succeed")
   mockSucceed(@Param() params: OnlinePaymentIntentIdParamDto) {
     return this.onlinePaymentsService.mockSucceed(params.intentId);
