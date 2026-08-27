@@ -92,6 +92,7 @@ export class OnlinePaymentsService {
   ) {
     this.assertOnlinePaymentsEnabled();
     const provider = this.getConfiguredProvider();
+    this.assertConfiguredProviderAllowed(provider);
 
     if (provider === OnlinePaymentProvider.paymob) {
       return this.createPaymobIntentForCustomer(sessionId, billId, body);
@@ -127,6 +128,7 @@ export class OnlinePaymentsService {
         SaasFeatureKey.online_payments,
       );
       this.assertBillCanStartOnlinePayment(bill);
+      await this.lockBillForOnlinePayment(tx, bill.id);
 
       if (body.idempotencyKey) {
         const idempotentIntent = await tx.onlinePaymentIntent.findUnique({
@@ -254,6 +256,7 @@ export class OnlinePaymentsService {
         SaasFeatureKey.online_payments,
       );
       this.assertBillCanStartOnlinePayment(bill);
+      await this.lockBillForOnlinePayment(tx, bill.id);
 
       if (body.idempotencyKey) {
         const idempotentIntent = await tx.onlinePaymentIntent.findUnique({
@@ -1302,6 +1305,28 @@ export class OnlinePaymentsService {
           String(value).includes("providerEventId"),
       )
     );
+  }
+
+  private async lockBillForOnlinePayment(
+    tx: Prisma.TransactionClient,
+    billId: string,
+  ) {
+    await tx.$executeRaw`
+      SELECT pg_advisory_xact_lock(
+        hashtext(${`online-payment:${billId}`})::bigint
+      )
+    `;
+  }
+
+  private assertConfiguredProviderAllowed(provider: OnlinePaymentProvider) {
+    if (
+      this.configService.get<string>("app.environment") === "production" &&
+      provider === OnlinePaymentProvider.mock
+    ) {
+      throw new ServiceUnavailableException(
+        "Mock online payments are forbidden in production",
+      );
+    }
   }
 
   private assertOnlinePaymentsEnabled() {
