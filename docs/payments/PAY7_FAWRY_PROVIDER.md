@@ -159,8 +159,11 @@ Therefore:
   `PARTIAL_REFUNDED`; it remains pending until provider/dashboard/statement
   evidence resolves it.
 
-PAY-6 statement reconciliation can be used as financial evidence, but PAY-7
-does not fabricate an exact partial-refund amount from a status label.
+PAY-6 normalized settlement import now accepts `provider=fawry` and can
+match a Fawry sale and refund as distinct movement lines even when both carry
+the same Fawry reference. This statement/bank evidence can resolve operations
+questions, but PAY-7 still does not fabricate an exact partial-refund amount
+from a Status V2 label.
 
 ## Refund adjustment notifications
 
