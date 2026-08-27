@@ -16,6 +16,8 @@ export type PaymentRateLimitResult = {
   retryAfterSeconds: number;
 };
 
+const LOCAL_BUCKET_LIMIT = 5_000;
+
 const RATE_LIMIT_SCRIPT = `
 local current = redis.call("INCR", KEYS[1])
 if current == 1 then
@@ -109,6 +111,7 @@ export class PaymentRateLimitService {
     windowSeconds: number,
   ): PaymentRateLimitResult {
     const now = Date.now();
+    this.pruneLocalBuckets(now);
     const current = this.localBuckets.get(key);
 
     if (!current || current.expiresAt <= now) {
@@ -125,6 +128,26 @@ export class PaymentRateLimitService {
       limit,
       Math.max(1, Math.ceil((current.expiresAt - now) / 1000)),
     );
+  }
+
+  private pruneLocalBuckets(now: number) {
+    for (const [key, bucket] of this.localBuckets) {
+      if (bucket.expiresAt <= now) {
+        this.localBuckets.delete(key);
+      }
+    }
+
+    while (this.localBuckets.size >= LOCAL_BUCKET_LIMIT) {
+      const oldestKey = this.localBuckets.keys().next().value as
+        | string
+        | undefined;
+
+      if (!oldestKey) {
+        break;
+      }
+
+      this.localBuckets.delete(oldestKey);
+    }
   }
 
   private result(
