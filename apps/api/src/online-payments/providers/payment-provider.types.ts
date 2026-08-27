@@ -51,7 +51,7 @@ export class PaymentProviderError extends Error {
 }
 
 
-export type VerifiedProviderTransactionWebhook = {
+export type ProviderTransactionState = {
   provider: OnlinePaymentProvider;
   providerEventId: string;
   providerTransactionId: string;
@@ -64,3 +64,18 @@ export type VerifiedProviderTransactionWebhook = {
   actionable: boolean;
   safeMetadata: Record<string, unknown>;
 };
+
+export type VerifiedProviderTransactionWebhook = ProviderTransactionState;
+
+export type ProviderTransactionInquiryResult =
+  | {
+      found: false;
+      provider: OnlinePaymentProvider;
+      providerOrderId: string;
+    }
+  | {
+      found: true;
+      provider: OnlinePaymentProvider;
+      providerOrderId: string;
+      transaction: ProviderTransactionState;
+    };
