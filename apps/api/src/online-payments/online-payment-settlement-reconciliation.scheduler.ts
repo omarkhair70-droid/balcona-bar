@@ -205,28 +205,42 @@ export class OnlinePaymentSettlementReconciliationScheduler
       }> = [];
 
       for (const scope of scopes) {
-        const run =
-          await this.paymentReconciliationService.runPaymobProviderReconciliation(
-            scope.branchId,
-            undefined,
-            {
-              periodStart: range.start.toISOString(),
-              periodEnd: range.end.toISOString(),
-              currency: scope.currency,
-              idempotencyKey: [
-                "daily-paymob-settlement",
-                range.label,
-                scope.branchId,
-                scope.currency,
-              ].join(":"),
-            },
-          );
+        try {
+          const run =
+            await this.paymentReconciliationService.runPaymobProviderReconciliation(
+              scope.branchId,
+              undefined,
+              {
+                periodStart: range.start.toISOString(),
+                periodEnd: range.end.toISOString(),
+                currency: scope.currency,
+                idempotencyKey: [
+                  "daily-paymob-settlement",
+                  range.label,
+                  scope.branchId,
+                  scope.currency,
+                ].join(":"),
+              },
+            );
 
-        results.push({
-          branchId: scope.branchId,
-          currency: scope.currency,
-          status: run.status,
-        });
+          results.push({
+            branchId: scope.branchId,
+            currency: scope.currency,
+            status: run.status,
+          });
+        } catch (error) {
+          results.push({
+            branchId: scope.branchId,
+            currency: scope.currency,
+            status: "failed",
+          });
+          this.logger.warn({
+            message: "payments.settlement_reconciliation_scope_failed",
+            branchId: scope.branchId,
+            currency: scope.currency,
+            exception: error instanceof Error ? error.name : "UnknownError",
+          });
+        }
       }
 
       this.logger.log({
