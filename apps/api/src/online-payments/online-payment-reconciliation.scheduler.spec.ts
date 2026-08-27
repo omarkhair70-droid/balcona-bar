@@ -1,6 +1,6 @@
 import { OnlinePaymentReconciliationScheduler } from "./online-payment-reconciliation.scheduler";
 
-function config(enabled = true) {
+function config(enabled = true, provider = "paymob") {
   return {
     get: jest.fn((key: string, fallback?: unknown) => {
       if (key === "onlinePayments.reconciliation.enabled") {
@@ -9,6 +9,10 @@ function config(enabled = true) {
 
       if (key === "onlinePayments.reconciliation.intervalSeconds") {
         return 60;
+      }
+
+      if (key === "onlinePayments.provider") {
+        return provider;
       }
 
       return fallback;
@@ -39,6 +43,7 @@ describe("OnlinePaymentReconciliationScheduler", () => {
         recovered: 1,
         failed: 0,
       }),
+      reconcilePendingFawryIntents: jest.fn(),
     };
     const scheduler = new OnlinePaymentReconciliationScheduler(
       redis as never,
@@ -64,6 +69,47 @@ describe("OnlinePaymentReconciliationScheduler", () => {
     expect(redis.eval).toHaveBeenCalledTimes(1);
   });
 
+  it("runs Fawry stale-intent recovery without Paymob operation reconciliation", async () => {
+    const redis = {
+      set: jest.fn().mockResolvedValue("OK"),
+      eval: jest.fn().mockResolvedValue(1),
+    };
+    const onlinePaymentsService = {
+      reconcilePendingPaymobIntents: jest.fn(),
+      reconcilePendingPaymobOperations: jest.fn(),
+      reconcilePendingFawryIntents: jest.fn().mockResolvedValue({
+        enabled: true,
+        attempted: 2,
+        recovered: 2,
+        failed: 0,
+      }),
+    };
+    const scheduler = new OnlinePaymentReconciliationScheduler(
+      redis as never,
+      config(true, "fawry") as never,
+      onlinePaymentsService as never,
+    );
+
+    await (scheduler as any).runTick();
+
+    expect(redis.set).toHaveBeenCalledWith(
+      "balcona:payments:fawry-reconciliation:lock",
+      expect.any(String),
+      "PX",
+      120000,
+      "NX",
+    );
+    expect(
+      onlinePaymentsService.reconcilePendingFawryIntents,
+    ).toHaveBeenCalledTimes(1);
+    expect(
+      onlinePaymentsService.reconcilePendingPaymobIntents,
+    ).not.toHaveBeenCalled();
+    expect(
+      onlinePaymentsService.reconcilePendingPaymobOperations,
+    ).not.toHaveBeenCalled();
+  });
+
   it("skips reconciliation when another API instance owns the lock", async () => {
     const redis = {
       set: jest.fn().mockResolvedValue(null),
@@ -72,6 +118,7 @@ describe("OnlinePaymentReconciliationScheduler", () => {
     const onlinePaymentsService = {
       reconcilePendingPaymobIntents: jest.fn(),
       reconcilePendingPaymobOperations: jest.fn(),
+      reconcilePendingFawryIntents: jest.fn(),
     };
     const scheduler = new OnlinePaymentReconciliationScheduler(
       redis as never,
@@ -96,6 +143,7 @@ describe("OnlinePaymentReconciliationScheduler", () => {
     const onlinePaymentsService = {
       reconcilePendingPaymobIntents: jest.fn(),
       reconcilePendingPaymobOperations: jest.fn(),
+      reconcilePendingFawryIntents: jest.fn(),
     };
     const scheduler = new OnlinePaymentReconciliationScheduler(
       redis as never,
