@@ -2116,6 +2116,25 @@ export class OnlinePaymentsService {
         );
       }
 
+      const linkedOperation = await tx.onlinePaymentOperation.findFirst({
+        where: {
+          onlinePaymentIntentId: intent.id,
+          provider: OnlinePaymentProvider.paymob,
+          providerTransactionId: state.providerTransactionId,
+        },
+        include: onlinePaymentOperationInclude,
+      });
+
+      if (
+        linkedOperation &&
+        linkedOperation.status !== OnlinePaymentOperationStatus.pending
+      ) {
+        return this.toOperationResult(
+          linkedOperation,
+          "duplicate_child_operation",
+        );
+      }
+
       const operation = await tx.onlinePaymentOperation.findFirst({
         where: {
           onlinePaymentIntentId: intent.id,
