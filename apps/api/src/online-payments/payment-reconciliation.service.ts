@@ -104,7 +104,9 @@ export class PaymentReconciliationService {
         );
       }
 
-      return this.findRun(existing.id);
+      if (!this.shouldResumeRun(existing, true)) {
+        return this.findRun(existing.id);
+      }
     }
 
     const movements = await this.collectLocalMovements(
@@ -115,23 +117,30 @@ export class PaymentReconciliationService {
     );
     this.assertMovementCountWithinLimit(movements.length);
     const localTotals = this.localTotals(movements);
-    const run = await this.prisma.onlinePaymentReconciliationRun.create({
-      data: {
-        companyId: branch.companyId,
-        branchId,
-        provider: OnlinePaymentProvider.paymob,
-        source: OnlinePaymentReconciliationSource.provider_inquiry,
-        status: OnlinePaymentReconciliationRunStatus.running,
-        idempotencyKey: body.idempotencyKey,
-        periodStart: period.start,
-        periodEnd: period.end,
-        currency,
-        requestedByStaffUserId,
-        localGrossMinor: localTotals.grossMinor,
-        localAdjustmentMinor: localTotals.adjustmentMinor,
-        localNetBeforeFeesMinor: localTotals.netBeforeFeesMinor,
-      },
-    });
+    const run = existing
+      ? await this.resetRunForRetry(existing.id, {
+          requestedByStaffUserId,
+          localGrossMinor: localTotals.grossMinor,
+          localAdjustmentMinor: localTotals.adjustmentMinor,
+          localNetBeforeFeesMinor: localTotals.netBeforeFeesMinor,
+        })
+      : await this.prisma.onlinePaymentReconciliationRun.create({
+          data: {
+            companyId: branch.companyId,
+            branchId,
+            provider: OnlinePaymentProvider.paymob,
+            source: OnlinePaymentReconciliationSource.provider_inquiry,
+            status: OnlinePaymentReconciliationRunStatus.running,
+            idempotencyKey: body.idempotencyKey,
+            periodStart: period.start,
+            periodEnd: period.end,
+            currency,
+            requestedByStaffUserId,
+            localGrossMinor: localTotals.grossMinor,
+            localAdjustmentMinor: localTotals.adjustmentMinor,
+            localNetBeforeFeesMinor: localTotals.netBeforeFeesMinor,
+          },
+        });
 
     const counters: ReconciliationCounters = {
       matched: 0,
@@ -278,6 +287,7 @@ export class PaymentReconciliationService {
         );
       }
 
+      await this.reconcileSettlementBatch(existing.id, staffUserId);
       return this.findSettlementBatch(existing.id);
     }
 
@@ -364,7 +374,7 @@ export class PaymentReconciliationService {
       where: { idempotencyKey },
     });
 
-    if (existing) {
+    if (existing && !this.shouldResumeRun(existing, false)) {
       return this.findRun(existing.id);
     }
 
@@ -376,28 +386,39 @@ export class PaymentReconciliationService {
     );
     this.assertMovementCountWithinLimit(movements.length);
     const localTotals = this.localTotals(movements);
-    const run = await this.prisma.onlinePaymentReconciliationRun.create({
-      data: {
-        companyId: batch.companyId,
-        branchId: batch.branchId,
-        provider: OnlinePaymentProvider.paymob,
-        source: OnlinePaymentReconciliationSource.settlement_statement,
-        status: OnlinePaymentReconciliationRunStatus.running,
-        idempotencyKey,
-        periodStart: batch.periodStart,
-        periodEnd: batch.periodEnd,
-        currency: batch.currency,
-        settlementBatchId: batch.id,
-        requestedByStaffUserId,
-        localGrossMinor: localTotals.grossMinor,
-        localAdjustmentMinor: localTotals.adjustmentMinor,
-        localNetBeforeFeesMinor: localTotals.netBeforeFeesMinor,
-        providerGrossMinor: batch.grossMinor,
-        providerAdjustmentMinor: batch.adjustmentMinor,
-        providerFeeMinor: batch.feeMinor,
-        providerNetMinor: batch.netMinor,
-      },
-    });
+    const run = existing
+      ? await this.resetRunForRetry(existing.id, {
+          requestedByStaffUserId,
+          localGrossMinor: localTotals.grossMinor,
+          localAdjustmentMinor: localTotals.adjustmentMinor,
+          localNetBeforeFeesMinor: localTotals.netBeforeFeesMinor,
+          providerGrossMinor: batch.grossMinor,
+          providerAdjustmentMinor: batch.adjustmentMinor,
+          providerFeeMinor: batch.feeMinor,
+          providerNetMinor: batch.netMinor,
+        })
+      : await this.prisma.onlinePaymentReconciliationRun.create({
+          data: {
+            companyId: batch.companyId,
+            branchId: batch.branchId,
+            provider: OnlinePaymentProvider.paymob,
+            source: OnlinePaymentReconciliationSource.settlement_statement,
+            status: OnlinePaymentReconciliationRunStatus.running,
+            idempotencyKey,
+            periodStart: batch.periodStart,
+            periodEnd: batch.periodEnd,
+            currency: batch.currency,
+            settlementBatchId: batch.id,
+            requestedByStaffUserId,
+            localGrossMinor: localTotals.grossMinor,
+            localAdjustmentMinor: localTotals.adjustmentMinor,
+            localNetBeforeFeesMinor: localTotals.netBeforeFeesMinor,
+            providerGrossMinor: batch.grossMinor,
+            providerAdjustmentMinor: batch.adjustmentMinor,
+            providerFeeMinor: batch.feeMinor,
+            providerNetMinor: batch.netMinor,
+          },
+        });
 
     const lineByTransaction = new Map(
       batch.lines.map((line) => [line.providerTransactionId, line]),
@@ -1400,6 +1421,85 @@ export class PaymentReconciliationService {
         pendingCount: run.pendingCount,
         mismatchCount: run.mismatchCount,
       },
+    });
+  }
+
+  private shouldResumeRun(
+    run: {
+      status: OnlinePaymentReconciliationRunStatus;
+      updatedAt: Date;
+    },
+    resumePending: boolean,
+  ) {
+    if (run.status === OnlinePaymentReconciliationRunStatus.failed) {
+      return true;
+    }
+
+    if (
+      resumePending &&
+      run.status === OnlinePaymentReconciliationRunStatus.pending
+    ) {
+      return true;
+    }
+
+    if (run.status === OnlinePaymentReconciliationRunStatus.running) {
+      const staleAfterMs = 15 * 60 * 1000;
+
+      if (Date.now() - run.updatedAt.getTime() > staleAfterMs) {
+        return true;
+      }
+
+      throw new ConflictException(
+        "Reconciliation run is already in progress",
+      );
+    }
+
+    return false;
+  }
+
+  private resetRunForRetry(
+    runId: string,
+    data: {
+      requestedByStaffUserId?: string;
+      localGrossMinor: number;
+      localAdjustmentMinor: number;
+      localNetBeforeFeesMinor: number;
+      providerGrossMinor?: number | null;
+      providerAdjustmentMinor?: number | null;
+      providerFeeMinor?: number | null;
+      providerNetMinor?: number | null;
+    },
+  ) {
+    return this.prisma.$transaction(async (tx) => {
+      await tx.onlinePaymentReconciliationIssue.deleteMany({
+        where: { reconciliationRunId: runId },
+      });
+      await tx.onlinePaymentReconciliationEntry.deleteMany({
+        where: { reconciliationRunId: runId },
+      });
+
+      return tx.onlinePaymentReconciliationRun.update({
+        where: { id: runId },
+        data: {
+          status: OnlinePaymentReconciliationRunStatus.running,
+          requestedByStaffUserId: data.requestedByStaffUserId,
+          localGrossMinor: data.localGrossMinor,
+          localAdjustmentMinor: data.localAdjustmentMinor,
+          localNetBeforeFeesMinor: data.localNetBeforeFeesMinor,
+          providerGrossMinor: data.providerGrossMinor,
+          providerAdjustmentMinor: data.providerAdjustmentMinor,
+          providerFeeMinor: data.providerFeeMinor,
+          providerNetMinor: data.providerNetMinor,
+          matchedCount: 0,
+          pendingCount: 0,
+          mismatchCount: 0,
+          startedAt: new Date(),
+          completedAt: null,
+          failureCode: null,
+          failureMessage: null,
+          metadata: Prisma.JsonNull,
+        },
+      });
     });
   }
 
