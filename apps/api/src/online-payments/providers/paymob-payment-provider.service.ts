@@ -36,6 +36,15 @@ type PaymobIntentionResponse = {
   }>;
 };
 
+type PaymobInquiryConfig = {
+  baseUrl: string;
+  apiKey: string;
+  integrationIds: number[];
+  timeoutMs: number;
+  expectedLive: boolean;
+};
+
+
 @Injectable()
 export class PaymobPaymentProviderService {
   readonly provider = OnlinePaymentProvider.paymob;
@@ -265,7 +274,7 @@ export class PaymobPaymentProviderService {
   }
 
   private async getInquiryAuthToken(
-    config: ReturnType<PaymobPaymentProviderService["readInquiryConfig"]>,
+    config: PaymobInquiryConfig,
     forceRefresh = false,
   ) {
     const now = Date.now();
@@ -298,7 +307,7 @@ export class PaymobPaymentProviderService {
   }
 
   private async requestInquiryAuthToken(
-    config: ReturnType<PaymobPaymentProviderService["readInquiryConfig"]>,
+    config: PaymobInquiryConfig,
   ) {
     const response = await this.fetchWithTimeout(
       `${config.baseUrl}/api/auth/tokens`,
@@ -350,7 +359,7 @@ export class PaymobPaymentProviderService {
   }
 
   private fetchTransactionInquiry(
-    config: ReturnType<PaymobPaymentProviderService["readInquiryConfig"]>,
+    config: PaymobInquiryConfig,
     authToken: string,
     providerOrderId: string,
   ) {
@@ -402,7 +411,7 @@ export class PaymobPaymentProviderService {
   private normalizeInquiryTransaction(
     value: unknown,
     expectedProviderOrderId: string,
-    config: ReturnType<PaymobPaymentProviderService["readInquiryConfig"]>,
+    config: PaymobInquiryConfig,
   ): ProviderTransactionState {
     const obj = this.requireRecord(value, "Paymob transaction inquiry response");
     const order = this.requireRecord(
@@ -743,7 +752,7 @@ export class PaymobPaymentProviderService {
     };
   }
 
-  private readInquiryConfig() {
+  private readInquiryConfig(): PaymobInquiryConfig {
     const configuredBaseUrl = (
       this.configService.get<string>("onlinePayments.paymob.baseUrl") ??
       DEFAULT_PAYMOB_BASE_URL
