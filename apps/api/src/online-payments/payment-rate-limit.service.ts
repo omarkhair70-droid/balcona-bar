@@ -96,6 +96,16 @@ export class PaymentRateLimitService {
       };
     }
 
+    if (policy === "staff_recover") {
+      return {
+        limit: this.configService.get<number>(
+          "onlinePayments.rateLimit.staffRecoveryMax",
+          10,
+        ),
+        windowSeconds,
+      };
+    }
+
     return {
       limit: this.configService.get<number>(
         "onlinePayments.rateLimit.customerReadMax",
