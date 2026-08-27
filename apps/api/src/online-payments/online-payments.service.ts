@@ -1768,6 +1768,76 @@ export class OnlinePaymentsService {
     };
   }
 
+  async reconcilePendingFawryIntents() {
+    if (
+      this.configService.get<boolean>(
+        "onlinePayments.reconciliation.enabled",
+        false,
+      ) !== true
+    ) {
+      return {
+        enabled: false,
+        attempted: 0,
+        recovered: 0,
+        failed: 0,
+      };
+    }
+
+    const staleSeconds = this.configService.get<number>(
+      "onlinePayments.reconciliation.staleSeconds",
+      120,
+    );
+    const batchSize = this.configService.get<number>(
+      "onlinePayments.reconciliation.batchSize",
+      25,
+    );
+    const staleBefore = new Date(Date.now() - staleSeconds * 1000);
+    const intents = await this.prisma.onlinePaymentIntent.findMany({
+      where: {
+        provider: OnlinePaymentProvider.fawry,
+        providerOrderId: { not: null },
+        status: { in: ACTIVE_ONLINE_PAYMENT_STATUSES },
+        updatedAt: { lte: staleBefore },
+      },
+      orderBy: [{ updatedAt: "asc" }, { id: "asc" }],
+      take: batchSize,
+      select: { id: true },
+    });
+
+    let recovered = 0;
+    let failed = 0;
+    const failures: Array<{ intentId: string; code: string }> = [];
+
+    for (const candidate of intents) {
+      try {
+        await this.recoverFawryIntent(
+          candidate.id,
+          "scheduled_reconciliation",
+        );
+        recovered += 1;
+      } catch (error) {
+        failed += 1;
+        failures.push({
+          intentId: candidate.id,
+          code:
+            error instanceof PaymentProviderError
+              ? error.code
+              : error instanceof Error
+                ? error.name
+                : "unknown_error",
+        });
+      }
+    }
+
+    return {
+      enabled: true,
+      attempted: intents.length,
+      recovered,
+      failed,
+      failures,
+    };
+  }
+
   async reconcilePendingPaymobIntents() {
     if (
       this.configService.get<boolean>(
