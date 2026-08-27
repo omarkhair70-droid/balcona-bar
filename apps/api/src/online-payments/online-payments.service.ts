@@ -9,14 +9,19 @@ import {
 } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import {
+  AuditAction,
+  AuditActorType,
   OnlinePaymentEventType,
   OnlinePaymentIntentStatus,
+  OnlinePaymentOperationStatus,
+  OnlinePaymentOperationType,
   OnlinePaymentProvider,
   Prisma,
   BillStatus,
   SaasFeatureKey,
 } from "@prisma/client";
 import { randomUUID } from "crypto";
+import { AuditService } from "../audit/audit.service";
 import {
   BillsService,
   OnlinePaymentSettlementResult,
@@ -24,6 +29,11 @@ import {
 import { BranchOnlinePaymentsQueryDto } from "./dto/branch-online-payments-query.dto";
 import { CreateOnlinePaymentIntentDto } from "./dto/create-online-payment-intent.dto";
 import { MockOnlinePaymentWebhookDto } from "./dto/mock-online-payment-webhook.dto";
+import {
+  CaptureOnlinePaymentDto,
+  RefundOnlinePaymentDto,
+  VoidOnlinePaymentDto,
+} from "./dto/post-payment-operation.dto";
 import { PrismaService } from "../prisma/prisma.service";
 import { RealtimeEventsService } from "../realtime-events/realtime-events.service";
 import { SaasService } from "../saas/saas.service";
@@ -70,6 +80,28 @@ const onlinePaymentIntentInclude = {
   events: {
     orderBy: [{ createdAt: "asc" }, { id: "asc" }],
   },
+  operations: {
+    orderBy: [{ createdAt: "asc" }, { id: "asc" }],
+    select: {
+      id: true,
+      provider: true,
+      type: true,
+      status: true,
+      parentProviderTransactionId: true,
+      providerTransactionId: true,
+      amountMinor: true,
+      currency: true,
+      reason: true,
+      requestedAt: true,
+      completedAt: true,
+      failedAt: true,
+      failureCode: true,
+      failureMessage: true,
+      metadata: true,
+      createdAt: true,
+      updatedAt: true,
+    },
+  },
 } satisfies Prisma.OnlinePaymentIntentInclude;
 
 type OnlinePaymentIntentRecord = Prisma.OnlinePaymentIntentGetPayload<{
@@ -84,6 +116,7 @@ export class OnlinePaymentsService {
     private readonly billsService: BillsService,
     private readonly realtimeEventsService: RealtimeEventsService,
     private readonly saasService: SaasService,
+    private readonly auditService: AuditService,
     private readonly paymobPaymentProviderService: PaymobPaymentProviderService,
   ) {}
 
