@@ -170,6 +170,106 @@ export class FawryPaymentProviderService {
     };
   }
 
+  async refundPayment(input: {
+    referenceNumber: string;
+    amountMinor: number;
+    reason?: string;
+  }) {
+    const config = this.readConfig();
+    const referenceNumber = this.identifierString(input.referenceNumber);
+    const refundAmount = this.formatMinor(input.amountMinor);
+    const reason = input.reason?.trim() ?? "";
+
+    if (!referenceNumber) {
+      throw new PaymentProviderError(
+        "Fawry refund reference number is required",
+        "invalid_request",
+      );
+    }
+
+    const signature = this.sha256(
+      config.merchantCode +
+        referenceNumber +
+        refundAmount +
+        reason +
+        config.secureKey,
+    );
+    const response = await this.fetchWithTimeout(
+      config.refundUrl,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Accept: "application/json",
+        },
+        body: JSON.stringify({
+          merchantCode: config.merchantCode,
+          referenceNumber,
+          refundAmount,
+          ...(reason ? { reason } : {}),
+          signature,
+        }),
+      },
+      config.timeoutMs,
+      "Fawry refund request timed out",
+      "Fawry refund request failed",
+    );
+
+    if (!response.ok) {
+      throw this.errorForHttpStatus(response.status, "Fawry refund");
+    }
+
+    let value: unknown;
+
+    try {
+      value = await response.json();
+    } catch {
+      throw new PaymentProviderError(
+        "Fawry returned a non-JSON refund response",
+        "invalid_response",
+        { status: response.status },
+      );
+    }
+
+    const obj = this.requireRecord(value, "Fawry refund response");
+    const statusCode = this.integerValue(obj.statusCode);
+
+    if (statusCode !== 200) {
+      if (statusCode === 9935 || statusCode === 9954) {
+        throw new PaymentProviderError(
+          "Fawry rejected the refund for the current transaction state",
+          "provider_declined",
+          { statusCode },
+        );
+      }
+
+      if (statusCode === 9938) {
+        throw new PaymentProviderError(
+          "Fawry refund transaction was not found",
+          "transaction_not_found",
+          { statusCode },
+        );
+      }
+
+      throw new PaymentProviderError(
+        "Fawry refund response was not successful",
+        "invalid_response",
+        {
+          statusCode,
+          statusDescription: this.nonEmptyString(obj.statusDescription),
+        },
+      );
+    }
+
+    return {
+      accepted: true as const,
+      statusCode,
+      statusDescription: this.nonEmptyString(obj.statusDescription),
+      referenceNumber,
+      amountMinor: input.amountMinor,
+    };
+  }
+
   verifyNotification(value: unknown): ProviderTransactionState {
     const config = this.readWebhookConfig();
     const obj = this.requireRecord(value, "Fawry notification");
