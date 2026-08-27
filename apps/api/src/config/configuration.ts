@@ -147,6 +147,10 @@ export default () => ({
         process.env.ONLINE_PAYMENT_READ_RATE_LIMIT_MAX ?? "60",
         10,
       ),
+      staffRecoveryMax: Number.parseInt(
+        process.env.ONLINE_PAYMENT_STAFF_RECOVERY_RATE_LIMIT_MAX ?? "10",
+        10,
+      ),
     },
   },
   smokeBootstrap: {
