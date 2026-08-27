@@ -5,6 +5,7 @@ CREATE TYPE "OnlinePaymentReconciliationSource" AS ENUM (
 
 CREATE TYPE "OnlinePaymentReconciliationRunStatus" AS ENUM (
   'running',
+  'pending',
   'matched',
   'mismatch',
   'failed'
