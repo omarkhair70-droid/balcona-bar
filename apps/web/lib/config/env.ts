@@ -98,6 +98,6 @@ const apiBaseSafety = getApiBaseUrlSafety();
 
 if (isHostedStagingOrProduction() && apiBaseSafety.status === "temporary") {
   throw new Error(
-    `NEXT_PUBLIC_API_BASE_URL cannot use ${apiBaseSafety.host} for ${env.NEXT_PUBLIC_APP_ENV} web deployments. Use the permanent Railway API URL.`
+    `NEXT_PUBLIC_API_BASE_URL cannot use ${apiBaseSafety.host} for ${env.NEXT_PUBLIC_APP_ENV} web deployments. Use a stable public API URL.`
   );
 }
