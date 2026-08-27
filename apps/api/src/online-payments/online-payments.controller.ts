@@ -33,6 +33,7 @@ import {
 import { OnlinePaymentsService } from "./online-payments.service";
 import { PaymentRateLimit } from "./payment-rate-limit.decorator";
 import { PaymentRateLimitGuard } from "./payment-rate-limit.guard";
+import { StaffPaymentRecoveryRateLimitGuard } from "./staff-payment-recovery-rate-limit.guard";
 
 @Controller()
 export class OnlinePaymentsController {
@@ -91,6 +92,24 @@ export class OnlinePaymentsController {
     );
 
     return this.onlinePaymentsService.findOne(params.intentId);
+  }
+
+  @Post("online-payment-intents/:intentId/recover")
+  @UseGuards(StaffSessionGuard, StaffPaymentRecoveryRateLimitGuard)
+  async recoverPaymobIntent(
+    @CurrentStaff() currentStaff: StaffAuthContext,
+    @Param() params: OnlinePaymentIntentIdParamDto,
+  ) {
+    await this.staffScopedAccessService.assertCanForOnlinePaymentIntent(
+      currentStaff.staffUser.id,
+      "online_payments.manage",
+      params.intentId,
+    );
+
+    return this.onlinePaymentsService.recoverPaymobIntent(
+      params.intentId,
+      "staff_manual",
+    );
   }
 
   @Post("online-payments/mock/:intentId/succeed")

@@ -81,6 +81,55 @@ describe("API runtime configuration", () => {
     );
   });
 
+  it("rejects production Paymob when the inquiry recovery API key is missing", () => {
+    withEnv({
+      NODE_ENV: "production",
+      APP_ENV: "production",
+      DATABASE_URL: "postgresql://user:password@localhost:5432/balcona",
+      ONLINE_PAYMENTS_ENABLED: "true",
+      ONLINE_PAYMENT_PROVIDER: "paymob",
+      MOCK_ONLINE_PAYMENTS_ENABLED: "false",
+      PAYMOB_API_KEY: "",
+    });
+
+    expect(() => validateEnvironment(process.env)).toThrow(
+      "PAYMOB_API_KEY is required for production Paymob recovery",
+    );
+  });
+
+  it("requires PAYMOB_API_KEY when Paymob scheduled reconciliation is enabled", () => {
+    withEnv({
+      NODE_ENV: "production",
+      APP_ENV: "staging",
+      DATABASE_URL: "postgresql://user:password@localhost:5432/balcona",
+      ONLINE_PAYMENT_PROVIDER: "paymob",
+      ONLINE_PAYMENT_RECONCILIATION_ENABLED: "true",
+      PAYMOB_API_KEY: "",
+    });
+
+    expect(() => validateEnvironment(process.env)).toThrow(
+      "PAYMOB_API_KEY is required when Paymob reconciliation is enabled",
+    );
+  });
+
+  it("accepts Paymob reconciliation when the server API key is configured", () => {
+    withEnv({
+      NODE_ENV: "production",
+      APP_ENV: "staging",
+      DATABASE_URL: "postgresql://user:password@localhost:5432/balcona",
+      ONLINE_PAYMENT_PROVIDER: "paymob",
+      ONLINE_PAYMENT_RECONCILIATION_ENABLED: "true",
+      PAYMOB_API_KEY: "server-api-key",
+    });
+
+    expect(() => validateEnvironment(process.env)).not.toThrow();
+
+    const config = configuration();
+
+    expect(config.onlinePayments.paymob.apiKey).toBe("server-api-key");
+    expect(config.onlinePayments.reconciliation.enabled).toBe(true);
+  });
+
   it("keeps mock payment actions disabled for true production by default", () => {
     withEnv({
       NODE_ENV: "production",

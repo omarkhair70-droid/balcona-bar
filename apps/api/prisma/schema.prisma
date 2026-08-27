@@ -432,6 +432,7 @@ enum OnlinePaymentIntentStatus {
 enum OnlinePaymentEventType {
   intent_created
   provider_webhook_received
+  provider_inquiry_received
   status_updated
   settlement_completed
   settlement_skipped

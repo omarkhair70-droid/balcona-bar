@@ -6,8 +6,9 @@ Implementation progress:
 - PAY-0: merged to main in PR #109
 - PAY-1: merged to main in PR #109
 - PAY-2: merged to main in PR #110
-- PAY-3: implemented on branch `payments/customer-payment-hardening`
-- PAY-4 and later: pending
+- PAY-3: merged to main in PR #111
+- PAY-4: implemented on branch `payments/paymob-inquiry-recovery`
+- PAY-5 and later: pending
 
 Owner: Balcona engineering
 Baseline main: 23f52a530cc5f9372956405edaa29c3e8015f6a3
