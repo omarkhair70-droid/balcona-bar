@@ -2037,6 +2037,12 @@ export type RecordManualPaymentPayload = {
 
 export type OnlinePaymentProvider = "mock" | "paymob" | "fawry" | "maestr" | "external";
 
+export type ProviderCustomerAction =
+  | { type: "redirect"; url: string }
+  | { type: "deep_link"; url: string }
+  | { type: "qr"; value: string }
+  | { type: "display_reference"; reference: string };
+
 export type OnlinePaymentIntentStatus =
   | "pending"
   | "requires_action"
@@ -2062,6 +2068,7 @@ export type OnlinePaymentIntentResult = Record<string, unknown> & {
   checkout?: {
     provider?: OnlinePaymentProvider;
     url?: string | null;
+    customerAction?: ProviderCustomerAction;
     expiresAt?: string | null;
     requiresHostedCheckout?: boolean;
   } | null;
