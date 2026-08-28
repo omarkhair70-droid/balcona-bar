@@ -73,7 +73,13 @@ Definition of done: PAY-1 through PAY-7 behavior remains unchanged while the com
 
 ## PAY-8.2 — Create commercial IPN payment request
 
-Blocked on provider lock.
+Provider-neutral preparation completed:
+- [x] provider result no longer requires a fabricated checkout URL;
+- [x] typed redirect / deep-link / QR / display-reference customer actions;
+- [x] existing Paymob/Fawry redirects mapped through the generic action contract;
+- [x] API/web response contract supports generic customer actions.
+
+Provider-specific create remains blocked on merchant documentation confirming exact amount semantics and response shape.
 
 Required:
 - local intent persisted before provider call;
