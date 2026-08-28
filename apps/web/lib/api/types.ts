@@ -2035,7 +2035,7 @@ export type RecordManualPaymentPayload = {
   note?: string | null;
 };
 
-export type OnlinePaymentProvider = "mock" | "paymob" | "external";
+export type OnlinePaymentProvider = "mock" | "paymob" | "fawry" | "maestr" | "external";
 
 export type OnlinePaymentIntentStatus =
   | "pending"
