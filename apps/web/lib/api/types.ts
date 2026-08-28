@@ -2070,6 +2070,7 @@ export type OnlinePaymentIntentResult = Record<string, unknown> & {
     url?: string | null;
     customerAction?: ProviderCustomerAction;
     expiresAt?: string | null;
+    requiresCustomerAction?: boolean;
     requiresHostedCheckout?: boolean;
   } | null;
   settlement?: {
