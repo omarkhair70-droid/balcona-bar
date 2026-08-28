@@ -34,6 +34,7 @@ enum OnlinePaymentProvider {
   Mock = "mock",
   Paymob = "paymob",
   Fawry = "fawry",
+  Maestr = "maestr",
   External = "external",
 }
 
@@ -221,6 +222,20 @@ class EnvironmentVariables {
   @IsString()
   @IsOptional()
   ONLINE_PAYMENT_CHECKOUT_BASE_URL?: string;
+
+  @IsString()
+  @IsOptional()
+  MAESTR_API_URL?: string;
+
+  @IsString()
+  @IsOptional()
+  MAESTR_API_KEY?: string;
+
+  @IsInt()
+  @Min(1000)
+  @Max(60000)
+  @IsOptional()
+  MAESTR_TIMEOUT_MS?: number;
 
   @IsString()
   @IsOptional()
@@ -452,6 +467,16 @@ export function validateEnvironment(config: Record<string, unknown>) {
   ) {
     throw new Error(
       "MOCK_ONLINE_PAYMENTS_ENABLED=true is forbidden when APP_ENV=production",
+    );
+  }
+
+  if (
+    effectiveAppEnvironment === "production" &&
+    onlinePaymentsEnabled &&
+    effectivePaymentProvider === OnlinePaymentProvider.Maestr
+  ) {
+    throw new Error(
+      "Maestr production payments are disabled until the PAY-8 merchant API contract is complete",
     );
   }
 
