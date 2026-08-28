@@ -4863,19 +4863,16 @@ export class OnlinePaymentsService {
     }
   }
 
-  private getConfiguredProvider() {
+  private getConfiguredProvider(): OnlinePaymentProvider {
     const provider = this.configService.get<string>("onlinePayments.provider");
 
-    if (provider === OnlinePaymentProvider.paymob) {
-      return OnlinePaymentProvider.paymob;
-    }
-
-    if (provider === OnlinePaymentProvider.fawry) {
-      return OnlinePaymentProvider.fawry;
-    }
-
-    if (provider === OnlinePaymentProvider.external) {
-      return OnlinePaymentProvider.external;
+    if (
+      provider &&
+      Object.values(OnlinePaymentProvider).includes(
+        provider as OnlinePaymentProvider,
+      )
+    ) {
+      return provider as OnlinePaymentProvider;
     }
 
     return OnlinePaymentProvider.mock;
