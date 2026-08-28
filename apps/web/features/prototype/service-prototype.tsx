@@ -4,22 +4,12 @@ import {
   AlertTriangle,
   Banknote,
   BellRing,
-  CheckCircle2,
-  ChefHat,
-  ChevronDown,
-  CircleDollarSign,
-  Clock3,
   CreditCard,
-  HandPlatter,
   LayoutGrid,
   ListChecks,
   Radio,
   Receipt,
-  RefreshCw,
-  Search,
-  Users,
-  WalletCards,
-  X
+  RefreshCw
 } from "lucide-react";
 import { useState } from "react";
 
