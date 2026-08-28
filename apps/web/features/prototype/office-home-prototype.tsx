@@ -1318,6 +1318,34 @@ function HomeView({
 
       <MetricBand metrics={metrics} />
 
+      <section className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
+        {[
+          [Sparkles, L("Operations", "العمليات", locale), L("Orders, attention, shifts", "طلبات وتنبيهات وورديات", locale), "operations"],
+          [Boxes, L("Inventory", "المخزون", locale), L("Stock, suppliers, receiving", "مخزون وموردون واستلام", locale), "inventory"],
+          [CreditCard, L("Money", "المدفوعات", locale), L("Transactions, reconciliation", "معاملات ومطابقة", locale), "money"],
+          [MapPin, L("Locations", "الفروع", locale), L("Branches, tables, devices", "فروع وترابيزات وأجهزة", locale), "locations"]
+        ].map(([Icon, title, body, target]) => {
+          const I = Icon as typeof Sparkles;
+          return (
+            <button
+              key={String(title)}
+              type="button"
+              onClick={() => onNavigate(target as Domain)}
+              className="group flex items-center gap-3 rounded-lg border border-[#D9D9D4] bg-white px-3.5 py-3 text-start transition hover:border-[#BFBFB8] hover:bg-[#FAFAF8]"
+            >
+              <span className="flex size-8 shrink-0 items-center justify-center rounded-md border border-[#DADAD5] bg-[#F5F5F2] text-[#5E5E58]">
+                <I className="size-4" />
+              </span>
+              <span className="min-w-0">
+                <span className="block text-xs font-semibold text-[#2B2B27]">{String(title)}</span>
+                <span className="mt-0.5 block truncate text-[10px] text-[#7D7D77]">{String(body)}</span>
+              </span>
+              <ArrowUpRight className="ms-auto size-3.5 text-[#9A9A94] transition group-hover:text-[#55554F]" />
+            </button>
+          );
+        })}
+      </section>
+
       <div className="grid gap-4 xl:grid-cols-[minmax(0,1.35fr)_300px]">
         <section className="overflow-hidden rounded-lg border border-[#D9D9D4] bg-white">
           <div className="flex items-center justify-between border-b border-[#E7E7E2] px-4 py-3.5">
