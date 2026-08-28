@@ -170,7 +170,7 @@ const icons = [
   Boxes,
   MapPin,
   Users,
-  WalletCards,
+  CreditCard,
   PackageSearch,
   WandSparkles,
   Settings
