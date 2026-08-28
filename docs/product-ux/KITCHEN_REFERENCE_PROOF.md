@@ -155,3 +155,21 @@ Pass when:
 7. Arabic/RTL remains readable
 8. no Office or Service shell leaks into Kitchen
 9. every visible action maps to existing backend behavior
+
+
+## Prototype implementation status
+
+Prototype route implemented:
+- `/prototype/kitchen`
+
+Current proof includes:
+- Kitchen
+- Barista
+- Dessert
+- Expediter cross-station viewing mode
+- Board
+- Tickets
+- Print
+- Arabic / RTL
+
+This section also serves as the preview-deployment checkpoint for the complete Kitchen prototype tree.
