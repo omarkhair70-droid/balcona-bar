@@ -1,6 +1,7 @@
 import { Type } from "class-transformer";
 import {
   IsEmail,
+  IsEnum,
   IsOptional,
   IsString,
   MaxLength,
@@ -29,6 +30,13 @@ export class OnlinePaymentBillingDataDto {
   phoneNumber!: string;
 }
 
+export enum FawryHostedPaymentMethod {
+  Card = "CARD",
+  MobileWallet = "MWALLET",
+  PayAtFawry = "PayAtFawry",
+  Valu = "VALU",
+}
+
 export class CreateOnlinePaymentIntentDto {
   @IsOptional()
   @IsString()
@@ -44,4 +52,8 @@ export class CreateOnlinePaymentIntentDto {
   @ValidateNested()
   @Type(() => OnlinePaymentBillingDataDto)
   billingData?: OnlinePaymentBillingDataDto;
+
+  @IsOptional()
+  @IsEnum(FawryHostedPaymentMethod)
+  fawryPaymentMethod?: FawryHostedPaymentMethod;
 }

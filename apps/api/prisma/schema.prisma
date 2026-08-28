@@ -417,6 +417,7 @@ enum ManualPaymentStatus {
 enum OnlinePaymentProvider {
   mock
   paymob
+  fawry
   external
 }
 
@@ -2870,7 +2871,7 @@ model OnlinePaymentSettlementLine {
   settlementBatch OnlinePaymentSettlementBatch @relation(fields: [settlementBatchId], references: [id], onDelete: Cascade)
   reconciliationEntries OnlinePaymentReconciliationEntry[]
 
-  @@unique([settlementBatchId, providerTransactionId])
+  @@unique([settlementBatchId, providerTransactionId, movementType])
   @@index([providerTransactionId])
   @@index([movementType])
   @@index([settledAt])

@@ -5,6 +5,7 @@ import {
   IsArray,
   IsDateString,
   IsEnum,
+  IsIn,
   IsInt,
   IsNotEmpty,
   IsOptional,
@@ -15,6 +16,7 @@ import {
   ValidateNested,
 } from "class-validator";
 import {
+  OnlinePaymentProvider,
   OnlinePaymentReconciliationIssueStatus,
   OnlinePaymentReconciliationMovementType,
 } from "@prisma/client";
@@ -71,6 +73,13 @@ export class SettlementStatementLineDto {
 }
 
 export class ImportOnlinePaymentSettlementDto {
+  @IsOptional()
+  @IsIn([
+    OnlinePaymentProvider.paymob,
+    OnlinePaymentProvider.fawry,
+  ])
+  provider?: OnlinePaymentProvider;
+
   @IsString()
   @IsNotEmpty()
   @MaxLength(200)

@@ -24,13 +24,23 @@ function intent(
     billId: "bill-1",
     provider,
     providerIntentId:
-      provider === OnlinePaymentProvider.paymob ? "pi_test_123" : "mock-intent-1",
+      provider === OnlinePaymentProvider.paymob
+        ? "pi_test_123"
+        : provider === OnlinePaymentProvider.fawry
+          ? "fawry:intent-1"
+          : "mock-intent-1",
     providerOrderId:
-      provider === OnlinePaymentProvider.paymob ? "12345" : null,
+      provider === OnlinePaymentProvider.paymob
+        ? "12345"
+        : provider === OnlinePaymentProvider.fawry
+          ? "intent-1"
+          : null,
     providerCheckoutUrl:
       provider === OnlinePaymentProvider.paymob
         ? "https://accept.paymob.com/unifiedcheckout/?publicKey=test-public&clientSecret=test-client"
-        : "http://localhost:3001/mock-payments/mock-intent-1",
+        : provider === OnlinePaymentProvider.fawry
+          ? "https://atfawry.fawrystaging.com/checkout/session-1"
+          : "http://localhost:3001/mock-payments/mock-intent-1",
     idempotencyKey: "key-1",
     status,
     amountMinor: 12500,
@@ -216,6 +226,12 @@ function createService(provider = "mock", environment = "test") {
     voidTransaction: jest.fn(),
     captureTransaction: jest.fn(),
   };
+  const fawryPaymentProviderService = {
+    createPayment: jest.fn(),
+    verifyNotification: jest.fn(),
+    inquireByMerchantReference: jest.fn(),
+    refundPayment: jest.fn(),
+  };
   const service = new OnlinePaymentsService(
     prisma as never,
     configService as never,
@@ -224,6 +240,7 @@ function createService(provider = "mock", environment = "test") {
     saasService as never,
     auditService as never,
     paymobPaymentProviderService as never,
+    fawryPaymentProviderService as never,
   );
 
   return {
@@ -234,6 +251,31 @@ function createService(provider = "mock", environment = "test") {
     saasService,
     auditService,
     paymobPaymentProviderService,
+    fawryPaymentProviderService,
+  };
+}
+
+function fawryState(
+  overrides: Record<string, unknown> = {},
+) {
+  return {
+    provider: OnlinePaymentProvider.fawry,
+    providerEventId: "fawry_event_1",
+    providerTransactionId: "987654321",
+    providerOrderId: "intent-1",
+    merchantReference: "intent-1",
+    integrationId: 0,
+    status: OnlinePaymentIntentStatus.succeeded,
+    amountMinor: 12500,
+    currency: "EGP",
+    actionable: true,
+    safeMetadata: {
+      fawryRefNumber: "987654321",
+      merchantRefNumber: "intent-1",
+      orderStatus: "PAID",
+      paymentMethod: "CARD",
+    },
+    ...overrides,
   };
 }
 
@@ -458,6 +500,241 @@ describe("OnlinePaymentsService", () => {
     );
 
     expect(tx.onlinePaymentIntent.create).not.toHaveBeenCalled();
+  });
+
+  it("requires billing data before Fawry checkout initialization", async () => {
+    const { service, tx, fawryPaymentProviderService } =
+      createService("fawry");
+
+    await expect(
+      service.createIntentForCustomer("session-1", "bill-1", {
+        idempotencyKey: "fawry-key-1",
+      }),
+    ).rejects.toThrow("Billing data is required to prepare Fawry checkout");
+
+    expect(tx.bill.findUnique).not.toHaveBeenCalled();
+    expect(fawryPaymentProviderService.createPayment).not.toHaveBeenCalled();
+  });
+
+  it("persists Fawry merchant reference before provider initialization and finalizes hosted checkout", async () => {
+    const {
+      service,
+      tx,
+      fawryPaymentProviderService,
+      realtimeEventsService,
+    } = createService("fawry");
+    const localIntent = intent(
+      OnlinePaymentIntentStatus.pending,
+      OnlinePaymentProvider.fawry,
+      {
+        id: "intent-1",
+        providerIntentId: null,
+        providerOrderId: "intent-1",
+        providerCheckoutUrl: null,
+        checkoutExpiresAt: null,
+        idempotencyKey: "fawry-key-1",
+      },
+    );
+    const readyIntent = intent(
+      OnlinePaymentIntentStatus.pending,
+      OnlinePaymentProvider.fawry,
+      { idempotencyKey: "fawry-key-1" },
+    );
+
+    tx.onlinePaymentIntent.findFirst
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce(null);
+    tx.bill.findUnique.mockResolvedValueOnce({
+      id: "bill-1",
+      companyId: "company-1",
+      branchId: "branch-1",
+      tableSessionId: "session-1",
+      status: BillStatus.presented,
+      currency: "EGP",
+      totalMinor: 12500,
+      balanceDueMinor: 12500,
+    });
+    tx.onlinePaymentIntent.create.mockResolvedValueOnce(localIntent);
+    tx.onlinePaymentIntent.findUnique.mockResolvedValueOnce(readyIntent);
+    fawryPaymentProviderService.createPayment.mockResolvedValueOnce({
+      provider: OnlinePaymentProvider.fawry,
+      providerIntentId: "fawry:intent-1",
+      providerOrderId: "intent-1",
+      status: OnlinePaymentIntentStatus.pending,
+      checkoutUrl:
+        "https://atfawry.fawrystaging.com/checkout/session-1",
+      checkoutExpiresAt: new Date("2026-06-05T10:15:00.000Z"),
+      metadata: {
+        fawryPaymentMethod: "CARD",
+      },
+    });
+
+    const result = await service.createIntentForCustomer(
+      "session-1",
+      "bill-1",
+      {
+        billingData: {
+          firstName: "Omar",
+          lastName: "Khair",
+          email: "omar@example.com",
+          phoneNumber: "01001234567",
+        },
+        fawryPaymentMethod: "CARD" as never,
+      },
+    );
+
+    expect(tx.onlinePaymentIntent.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          id: expect.any(String),
+          provider: OnlinePaymentProvider.fawry,
+          providerOrderId: expect.any(String),
+          providerIntentId: null,
+          providerCheckoutUrl: null,
+          amountMinor: 12500,
+          currency: "EGP",
+        }),
+      }),
+    );
+    expect(tx.$executeRaw).toHaveBeenCalledTimes(1);
+    expect(fawryPaymentProviderService.createPayment).toHaveBeenCalledWith(
+      expect.objectContaining({
+        localIntentId: "intent-1",
+        amountMinor: 12500,
+        currency: "EGP",
+      }),
+      "CARD",
+    );
+    expect(
+      realtimeEventsService.recordOnlinePaymentIntentCreated,
+    ).toHaveBeenCalledWith("intent-1", tx);
+    expect(result.checkout).toMatchObject({
+      provider: OnlinePaymentProvider.fawry,
+      requiresHostedCheckout: true,
+    });
+  });
+
+  it("rejects an invalid Fawry signature before touching payment storage", async () => {
+    const { service, tx, fawryPaymentProviderService } =
+      createService("fawry");
+    fawryPaymentProviderService.verifyNotification.mockImplementationOnce(
+      () => {
+        throw new PaymentProviderError(
+          "bad signature",
+          "signature_invalid",
+        );
+      },
+    );
+
+    await expect(
+      service.processFawryWebhook({ messageSignature: "bad" }),
+    ).rejects.toThrow("Fawry notification signature is invalid");
+
+    expect(tx.onlinePaymentEvent.findUnique).not.toHaveBeenCalled();
+    expect(tx.onlinePaymentEvent.create).not.toHaveBeenCalled();
+  });
+
+  it("settles a verified Fawry PAID notification through the central bill guard", async () => {
+    const {
+      service,
+      tx,
+      billsService,
+      fawryPaymentProviderService,
+    } = createService("fawry");
+    const pendingIntent = intent(
+      OnlinePaymentIntentStatus.pending,
+      OnlinePaymentProvider.fawry,
+    );
+    const succeededIntent = intent(
+      OnlinePaymentIntentStatus.succeeded,
+      OnlinePaymentProvider.fawry,
+      {
+        metadata: {
+          fawryRefNumber: "987654321",
+          fawryLastVerifiedEventId: "fawry_event_1",
+        },
+      },
+    );
+    fawryPaymentProviderService.verifyNotification.mockReturnValueOnce(
+      fawryState(),
+    );
+    tx.onlinePaymentIntent.findUnique
+      .mockResolvedValueOnce(pendingIntent)
+      .mockResolvedValueOnce(succeededIntent)
+      .mockResolvedValueOnce(succeededIntent);
+
+    const result = await service.processFawryWebhook({
+      requestId: "request-1",
+    });
+
+    expect(billsService.settleBillWithOnlinePayment).toHaveBeenCalledTimes(1);
+    expect(tx.onlinePaymentEvent.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          type: OnlinePaymentEventType.provider_webhook_received,
+          providerEventId: "fawry_event_1",
+        }),
+      }),
+    );
+    expect(result).toMatchObject({
+      settlement: { settled: true },
+    });
+  });
+
+  it("does not settle a Fawry notification when the signed amount differs", async () => {
+    const {
+      service,
+      tx,
+      billsService,
+      fawryPaymentProviderService,
+    } = createService("fawry");
+    const pendingIntent = intent(
+      OnlinePaymentIntentStatus.pending,
+      OnlinePaymentProvider.fawry,
+    );
+    fawryPaymentProviderService.verifyNotification.mockReturnValueOnce(
+      fawryState({ amountMinor: 9900 }),
+    );
+    tx.onlinePaymentIntent.findUnique.mockResolvedValueOnce(pendingIntent);
+
+    const result = await service.processFawryWebhook({
+      requestId: "request-amount",
+    });
+
+    expect(billsService.settleBillWithOnlinePayment).not.toHaveBeenCalled();
+    expect(result).toMatchObject({
+      settlement: { reason: "amount_mismatch" },
+    });
+  });
+
+  it("preserves the original succeeded Fawry sale when a refund notification arrives", async () => {
+    const {
+      service,
+      tx,
+      billsService,
+      fawryPaymentProviderService,
+    } = createService("fawry");
+    const succeededIntent = intent(
+      OnlinePaymentIntentStatus.succeeded,
+      OnlinePaymentProvider.fawry,
+    );
+    fawryPaymentProviderService.verifyNotification.mockReturnValueOnce(
+      fawryState({
+        actionable: false,
+        safeMetadata: {
+          orderStatus: "PARTIAL_REFUNDED",
+          partialRefunded: true,
+        },
+      }),
+    );
+    tx.onlinePaymentIntent.findUnique.mockResolvedValueOnce(succeededIntent);
+
+    const result = await service.processFawryWebhook({
+      requestId: "request-refund",
+    });
+
+    expect(billsService.settleBillWithOnlinePayment).not.toHaveBeenCalled();
+    expect(result.outcome).toBe("provider_adjustment_observed");
   });
 
   it("requires billing data before Paymob checkout initialization", async () => {
@@ -884,6 +1161,215 @@ describe("OnlinePaymentsService", () => {
     expect(paymobPaymentProviderService.createPayment).not.toHaveBeenCalled();
     expect(tx.onlinePaymentIntent.create).not.toHaveBeenCalled();
     expect(result.outcome).toBe("existing_active");
+  });
+
+  it("completes a Fawry partial refund from the signed Refund API success response", async () => {
+    const {
+      service,
+      tx,
+      billsService,
+      auditService,
+      fawryPaymentProviderService,
+    } = createService("fawry");
+    const succeededIntent = intent(
+      OnlinePaymentIntentStatus.succeeded,
+      OnlinePaymentProvider.fawry,
+      {
+        metadata: { fawryRefNumber: "987654321" },
+      },
+    );
+    let currentOperation: any = null;
+
+    tx.onlinePaymentIntent.findUnique.mockResolvedValue(succeededIntent);
+    tx.onlinePaymentOperation.findUnique.mockImplementation(
+      async ({ where }: any) => {
+        if (where?.idempotencyKey) {
+          return null;
+        }
+
+        return currentOperation;
+      },
+    );
+    tx.onlinePaymentOperation.findFirst.mockResolvedValue(null);
+    tx.onlinePaymentOperation.findMany.mockResolvedValue([]);
+    tx.onlinePaymentOperation.create.mockImplementation(
+      async ({ data }: any) => {
+        currentOperation = {
+          id: "fawry-refund-1",
+          ...data,
+          providerTransactionId: null,
+          requestedAt: now,
+          completedAt: null,
+          failedAt: null,
+          failureCode: null,
+          failureMessage: null,
+          createdAt: now,
+          updatedAt: now,
+          onlinePaymentIntent: succeededIntent,
+        };
+        return currentOperation;
+      },
+    );
+    tx.onlinePaymentOperation.updateMany.mockImplementation(
+      async ({ data }: any) => {
+        currentOperation = {
+          ...currentOperation,
+          ...data,
+          onlinePaymentIntent: succeededIntent,
+        };
+        return { count: 1 };
+      },
+    );
+    fawryPaymentProviderService.refundPayment.mockResolvedValueOnce({
+      accepted: true,
+      statusCode: 200,
+      statusDescription: "Operation done successfully",
+      referenceNumber: "987654321",
+      amountMinor: 5000,
+    });
+
+    const result = await service.refundProviderIntent(
+      "intent-1",
+      "staff-1",
+      {
+        amountMinor: 5000,
+        idempotencyKey: "fawry-refund-key-1",
+        reason: "customer request",
+      },
+    );
+
+    expect(fawryPaymentProviderService.refundPayment).toHaveBeenCalledWith({
+      referenceNumber: "987654321",
+      amountMinor: 5000,
+      reason: "customer request",
+    });
+    expect(currentOperation.status).toBe(
+      OnlinePaymentOperationStatus.succeeded,
+    );
+    expect(
+      billsService.refreshReceiptForOnlinePaymentAdjustment,
+    ).toHaveBeenCalledWith("bill-1", tx);
+    expect(auditService.recordAuditLog).toHaveBeenCalledWith(
+      expect.objectContaining({
+        action: "online_payment_refunded",
+        actorStaffUserId: "staff-1",
+      }),
+      tx,
+    );
+    expect(result.outcome).toBe("succeeded");
+  });
+
+  it("rejects Fawry over-refund before calling the provider", async () => {
+    const { service, tx, fawryPaymentProviderService } =
+      createService("fawry");
+    const succeededIntent = intent(
+      OnlinePaymentIntentStatus.succeeded,
+      OnlinePaymentProvider.fawry,
+      {
+        metadata: { fawryRefNumber: "987654321" },
+      },
+    );
+    tx.onlinePaymentIntent.findUnique.mockResolvedValue(succeededIntent);
+    tx.onlinePaymentOperation.findUnique.mockResolvedValue(null);
+    tx.onlinePaymentOperation.findFirst.mockResolvedValue(null);
+    tx.onlinePaymentOperation.findMany.mockResolvedValue([
+      { amountMinor: 10000 },
+    ]);
+
+    await expect(
+      service.refundProviderIntent("intent-1", "staff-1", {
+        amountMinor: 3000,
+        idempotencyKey: "fawry-over-refund",
+      }),
+    ).rejects.toThrow(
+      "Refund amount exceeds the remaining refundable amount",
+    );
+
+    expect(fawryPaymentProviderService.refundPayment).not.toHaveBeenCalled();
+    expect(tx.onlinePaymentOperation.create).not.toHaveBeenCalled();
+  });
+
+  it("keeps an ambiguous Fawry refund timeout pending and blocks another refund", async () => {
+    const { service, tx, fawryPaymentProviderService } =
+      createService("fawry");
+    const succeededIntent = intent(
+      OnlinePaymentIntentStatus.succeeded,
+      OnlinePaymentProvider.fawry,
+      {
+        metadata: { fawryRefNumber: "987654321" },
+      },
+    );
+    let currentOperation: any = null;
+
+    tx.onlinePaymentIntent.findUnique.mockResolvedValue(succeededIntent);
+    tx.onlinePaymentOperation.findUnique.mockImplementation(
+      async ({ where }: any) => {
+        if (where?.idempotencyKey) {
+          return null;
+        }
+
+        return currentOperation;
+      },
+    );
+    tx.onlinePaymentOperation.findFirst.mockImplementation(
+      async () => currentOperation,
+    );
+    tx.onlinePaymentOperation.findMany.mockResolvedValue([]);
+    tx.onlinePaymentOperation.create.mockImplementation(
+      async ({ data }: any) => {
+        currentOperation = {
+          id: "fawry-refund-timeout",
+          ...data,
+          providerTransactionId: null,
+          requestedAt: now,
+          completedAt: null,
+          failedAt: null,
+          failureCode: null,
+          failureMessage: null,
+          createdAt: now,
+          updatedAt: now,
+          onlinePaymentIntent: succeededIntent,
+        };
+        return currentOperation;
+      },
+    );
+    tx.onlinePaymentOperation.updateMany.mockImplementation(
+      async ({ data }: any) => {
+        currentOperation = {
+          ...currentOperation,
+          ...data,
+          onlinePaymentIntent: succeededIntent,
+        };
+        return { count: 1 };
+      },
+    );
+    fawryPaymentProviderService.refundPayment.mockRejectedValueOnce(
+      new PaymentProviderError("timeout", "timeout"),
+    );
+
+    await expect(
+      service.refundProviderIntent("intent-1", "staff-1", {
+        amountMinor: 5000,
+        idempotencyKey: "fawry-refund-timeout-key",
+      }),
+    ).rejects.toThrow(
+      "Fawry refund outcome is uncertain and must be recovered before another refund",
+    );
+
+    expect(currentOperation.status).toBe(
+      OnlinePaymentOperationStatus.pending,
+    );
+    expect(currentOperation.failureCode).toBe("uncertain:timeout");
+
+    await expect(
+      service.refundProviderIntent("intent-1", "staff-1", {
+        amountMinor: 1000,
+        idempotencyKey: "fawry-second-refund-key",
+      }),
+    ).rejects.toThrow(
+      "Another payment operation is still awaiting provider confirmation",
+    );
+    expect(fawryPaymentProviderService.refundPayment).toHaveBeenCalledTimes(1);
   });
 
   it("completes a partial refund only after authoritative child inquiry", async () => {

@@ -16,6 +16,7 @@ export const ONLINE_PAYMENT_QUERY_PROVIDERS = [
   "all",
   "mock",
   "paymob",
+  "fawry",
   "external",
 ] as const;
 

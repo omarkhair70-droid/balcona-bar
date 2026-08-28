@@ -151,8 +151,18 @@ Each line contains:
 The batch totals must exactly equal totals derived from the supplied lines before
 Balcona persists the batch.
 
-The import is idempotent by external reference and canonical source hash. The
-same external reference with different contents is rejected.
+The normalized statement import supports both Paymob and Fawry provider
+batches. Paymob remains the only provider with PAY-6 automatic
+`is_settled` inquiry semantics; a Fawry statement is settlement/payout
+evidence rather than an inferred Status V2 settlement flag.
+
+The import is idempotent by provider + external reference and canonical source
+hash. The same provider/external reference with different contents is rejected.
+
+A provider transaction reference may appear more than once in the same batch
+when movement type differs (for example a Fawry sale and later refund sharing
+the original Fawry reference). Uniqueness is therefore
+`batch + providerTransactionId + movementType`.
 
 ## Statement reconciliation
 

@@ -9,8 +9,9 @@ Implementation progress:
 - PAY-3: merged to main in PR #111
 - PAY-4: merged to main in PR #112
 - PAY-5: merged to main in PR #113
-- PAY-6: implemented on branch `payments/paymob-settlement-reconciliation`
-- PAY-7 and later: pending
+- PAY-6: merged to main in PR #114
+- PAY-7: implemented on branch `payments/fawry-provider`
+- PAY-8 and later: pending
 
 Owner: Balcona engineering
 Baseline main: 23f52a530cc5f9372956405edaa29c3e8015f6a3

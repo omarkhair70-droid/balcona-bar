@@ -463,6 +463,116 @@ describe("PaymentReconciliationService", () => {
     expect(issues).toHaveLength(0);
   });
 
+  it("matches Fawry sale and refund statement lines that share the same Fawry reference", async () => {
+    const fawrySale = {
+      id: "intent-fawry-1",
+      amountMinor: 12500,
+      currency: "EGP",
+      succeededAt: new Date("2026-08-27T10:00:00.000Z"),
+      metadata: { fawryRefNumber: "987654321" },
+    };
+    const fawryRefund = {
+      id: "operation-fawry-refund-1",
+      onlinePaymentIntentId: "intent-fawry-1",
+      type: OnlinePaymentOperationType.refund,
+      amountMinor: 5000,
+      currency: "EGP",
+      parentProviderTransactionId: "987654321",
+      providerTransactionId: null,
+      completedAt: new Date("2026-08-27T14:00:00.000Z"),
+      onlinePaymentIntent: {
+        succeededAt: fawrySale.succeededAt,
+      },
+    };
+    const batch = {
+      id: "batch-fawry-1",
+      companyId: "company-1",
+      branchId: "branch-1",
+      provider: OnlinePaymentProvider.fawry,
+      externalReference: "FAWRY-SET-1",
+      payoutReference: "BANK-FAWRY-1",
+      currency: "EGP",
+      periodStart: new Date(periodStart),
+      periodEnd: new Date(periodEnd),
+      settledAt: new Date("2026-08-28T09:00:00.000Z"),
+      grossMinor: 12500,
+      adjustmentMinor: 5000,
+      feeMinor: 250,
+      netMinor: 7250,
+      sourceHash: "fawry-source-hash",
+      importedByStaffUserId: "staff-1",
+      lines: [
+        {
+          id: "fawry-sale-line",
+          settlementBatchId: "batch-fawry-1",
+          providerTransactionId: "987654321",
+          movementType: OnlinePaymentReconciliationMovementType.sale,
+          amountMinor: 12500,
+          feeMinor: 250,
+          netMinor: 12250,
+          currency: "EGP",
+          settlementReference: "FAWRY-BATCH-1",
+          settledAt: new Date("2026-08-28T09:00:00.000Z"),
+          metadata: null,
+          createdAt: new Date(),
+        },
+        {
+          id: "fawry-refund-line",
+          settlementBatchId: "batch-fawry-1",
+          providerTransactionId: "987654321",
+          movementType: OnlinePaymentReconciliationMovementType.refund,
+          amountMinor: 5000,
+          feeMinor: 0,
+          netMinor: -5000,
+          currency: "EGP",
+          settlementReference: "FAWRY-BATCH-1",
+          settledAt: new Date("2026-08-28T09:00:00.000Z"),
+          metadata: null,
+          createdAt: new Date(),
+        },
+      ],
+    };
+    const { service, getRun, entries, issues } = createHarness({
+      payments: [fawrySale],
+      operations: [fawryRefund],
+      settlementBatch: batch,
+    });
+
+    await service.reconcileSettlementBatch("batch-fawry-1", "staff-1");
+
+    expect(getRun()).toMatchObject({
+      provider: OnlinePaymentProvider.fawry,
+      source: OnlinePaymentReconciliationSource.settlement_statement,
+      status: OnlinePaymentReconciliationRunStatus.matched,
+      localGrossMinor: 12500,
+      localAdjustmentMinor: 5000,
+      localNetBeforeFeesMinor: 7500,
+      providerGrossMinor: 12500,
+      providerAdjustmentMinor: 5000,
+      providerFeeMinor: 250,
+      providerNetMinor: 7250,
+      matchedCount: 2,
+      mismatchCount: 0,
+    });
+    expect(entries).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          provider: OnlinePaymentProvider.fawry,
+          providerTransactionId: "987654321",
+          movementType: OnlinePaymentReconciliationMovementType.sale,
+          matchStatus: OnlinePaymentReconciliationMatchStatus.matched,
+        }),
+        expect.objectContaining({
+          provider: OnlinePaymentProvider.fawry,
+          providerTransactionId: "987654321",
+          movementType: OnlinePaymentReconciliationMovementType.refund,
+          matchStatus: OnlinePaymentReconciliationMatchStatus.matched,
+        }),
+      ]),
+    );
+    expect(issues).toHaveLength(0);
+  });
+
   it("audits acknowledgement and resolution of a reconciliation issue", async () => {
     const { service, auditService, setIssue } = createHarness();
     setIssue({

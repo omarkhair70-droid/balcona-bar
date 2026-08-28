@@ -53,7 +53,11 @@ export class OnlinePaymentReconciliationScheduler
 
   private async runTick() {
     const token = randomUUID();
-    const lockKey = "balcona:payments:paymob-reconciliation:lock";
+    const provider = this.configService.get<string>(
+      "onlinePayments.provider",
+      "mock",
+    );
+    const lockKey = `balcona:payments:${provider}-reconciliation:lock`;
     const lockTtlMs = Math.max(this.intervalSeconds() * 2, 60) * 1000;
 
     try {
@@ -77,15 +81,34 @@ export class OnlinePaymentReconciliationScheduler
     }
 
     try {
-      const [intents, operations] = await Promise.all([
-        this.onlinePaymentsService.reconcilePendingPaymobIntents(),
-        this.onlinePaymentsService.reconcilePendingPaymobOperations(),
-      ]);
-      this.logger.log({
-        message: "payments.reconciliation_completed",
-        intents,
-        operations,
-      });
+      if (provider === "fawry") {
+        const [intents, operations] = await Promise.all([
+          this.onlinePaymentsService.reconcilePendingFawryIntents(),
+          this.onlinePaymentsService.reconcilePendingFawryOperations(),
+        ]);
+        this.logger.log({
+          message: "payments.reconciliation_completed",
+          provider,
+          intents,
+          operations,
+        });
+      } else if (provider === "paymob") {
+        const [intents, operations] = await Promise.all([
+          this.onlinePaymentsService.reconcilePendingPaymobIntents(),
+          this.onlinePaymentsService.reconcilePendingPaymobOperations(),
+        ]);
+        this.logger.log({
+          message: "payments.reconciliation_completed",
+          provider,
+          intents,
+          operations,
+        });
+      } else {
+        this.logger.warn({
+          message: "payments.reconciliation_provider_unsupported",
+          provider,
+        });
+      }
     } catch (error) {
       this.logger.warn({
         message: "payments.reconciliation_failed",
