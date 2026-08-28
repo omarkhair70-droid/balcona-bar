@@ -153,7 +153,13 @@ A normalized provider success may be submitted to the Balcona settlement service
 
 ## Provider capabilities
 
-Each adapter should declare capabilities rather than making callers infer them:
+Each adapter should declare capabilities rather than making callers infer them.
+
+The code-level capability registry is fail-closed: newly introduced providers must explicitly opt into supported capabilities. Unsupported or undocumented capabilities remain `false`.
+
+A provider-native numeric integration identifier is optional. Providers that do not expose one must not fabricate sentinel values such as `0`; they may expose a provider-native string integration/rail/account reference instead.
+
+Each provider capability set covers:
 
 - hostedCheckout
 - embeddedCheckout
@@ -229,6 +235,12 @@ References:
 - https://docs.geidea.net/docs/geidea-checkout-v2
 - https://docs.geidea.net/docs/sample-callback-responses
 - https://docs.geidea.net/docs/refund-2
+
+## Provider transaction reference storage
+
+Provider transaction references used by reconciliation may be stored in the normalized `providerTransactionId` metadata key. PAY-8 keeps legacy provider-specific metadata fallbacks for existing Paymob/Fawry records.
+
+PAY-8 deliberately does not add a single first-class transaction-id column to `OnlinePaymentIntent` during provider-neutral cleanup: one intent can observe multiple provider events or child/adjustment transactions, and the current domain does not need to pretend one reference is universally canonical. `OnlinePaymentOperation` continues to keep its own first-class provider transaction reference for financial mutations.
 
 ## IPN mapping
 
