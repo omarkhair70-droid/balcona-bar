@@ -1,6 +1,6 @@
 # Balcona Service Prototype Closure
 
-Status: COMPLETE — PROTOTYPE APPROVED
+Status: SUPERSEDED — V0 CLOSURE REOPENED FOR VISUAL AUDIT
 Date: 2026-08-28
 PR: #120
 Head: 82f31ee30828cb2cf6d9c2892a5bbef83e066972
@@ -70,3 +70,13 @@ Service prototype phase is closed.
 
 Next surface:
 **Balcona Kitchen — KDS / Barista / Expediter**
+
+
+## Supersession note
+
+The original Service V0 closure is superseded by the fresh visual benchmark audit:
+- `docs/product-ux/SERVICE_VISUAL_BENCHMARK_AUDIT.md`
+
+Service has been revised to Evidence-led V1 and remains visually open until Omar reviews the new prototype.
+
+Do not treat this older closure record as current visual approval.
