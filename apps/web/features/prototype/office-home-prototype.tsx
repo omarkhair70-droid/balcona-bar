@@ -22,7 +22,6 @@ import {
   Sparkles,
   Users,
   WandSparkles,
-  WalletCards,
   XCircle
 } from "lucide-react";
 import { useMemo, useState } from "react";
