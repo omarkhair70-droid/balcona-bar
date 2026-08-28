@@ -5,7 +5,6 @@ import {
   IsArray,
   IsDateString,
   IsEnum,
-  IsIn,
   IsInt,
   IsNotEmpty,
   IsOptional,
@@ -74,10 +73,7 @@ export class SettlementStatementLineDto {
 
 export class ImportOnlinePaymentSettlementDto {
   @IsOptional()
-  @IsIn([
-    OnlinePaymentProvider.paymob,
-    OnlinePaymentProvider.fawry,
-  ])
+  @IsEnum(OnlinePaymentProvider)
   provider?: OnlinePaymentProvider;
 
   @IsString()
