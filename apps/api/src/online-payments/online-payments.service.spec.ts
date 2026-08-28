@@ -264,7 +264,6 @@ function fawryState(
     providerTransactionId: "987654321",
     providerOrderId: "intent-1",
     merchantReference: "intent-1",
-    integrationId: 0,
     status: OnlinePaymentIntentStatus.succeeded,
     amountMinor: 12500,
     currency: "EGP",
@@ -407,6 +406,19 @@ describe("OnlinePaymentsService", () => {
     await expect(
       service.createIntentForCustomer("session-1", "bill-1"),
     ).rejects.toThrow("Mock online payments are forbidden in production");
+
+    expect(tx.bill.findUnique).not.toHaveBeenCalled();
+    expect(tx.onlinePaymentIntent.create).not.toHaveBeenCalled();
+  });
+
+  it("fails closed before database access when Maestr create is selected without the merchant contract", async () => {
+    const { service, tx } = createService("maestr", "staging");
+
+    await expect(
+      service.createIntentForCustomer("session-1", "bill-1"),
+    ).rejects.toThrow(
+      "Maestr commercial IPN payments are not enabled until the PAY-8 merchant API contract is complete",
+    );
 
     expect(tx.bill.findUnique).not.toHaveBeenCalled();
     expect(tx.onlinePaymentIntent.create).not.toHaveBeenCalled();
