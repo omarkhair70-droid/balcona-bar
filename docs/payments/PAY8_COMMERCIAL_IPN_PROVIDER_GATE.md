@@ -10,7 +10,16 @@ This phase MUST NOT integrate a personal InstaPay account, scrape SMS notificati
 
 ## Current decision
 
-Preferred provider candidate: **Maestr / Jumia Electronic Payment Services**.
+Selected PAY-8 provider: **Maestr / Jumia Electronic Payment Services**.
+
+Selection basis:
+- Maestr publicly documents InstaPay/IPN as a commercial account-payment rail;
+- Maestr publicly documents idempotent REST payment-intent creation and signed webhook events;
+- Maestr identifies the registered Egyptian entity as Jumia Electronic Payment Services;
+- Jumia's 2025 annual filing identifies Jumia Electronic Payment Services S.A.E. in Egypt as a payment licensed entity and describes the Egypt payment-processing licence relationship through the National Bank of Egypt;
+- alternative public InstaPay API surfaces reviewed did not provide a stronger combination of Egyptian licensing evidence and merchant acceptance fit.
+
+Provider identity is selected. Individual financial capabilities remain fail-closed until the merchant-only integration contract proves them.
 
 Reason:
 - explicitly exposes InstaPay/IPN as a commercial national rail;
@@ -20,7 +29,7 @@ Reason:
 - sandbox and production are separate;
 - reporting/reconciliation is explicitly part of the platform surface.
 
-The public integration surface is enough to approve provider-neutral PAY-8 preparation, but it is **not yet sufficient to lock provider-specific settlement code**.
+The public integration surface is enough to lock the provider identity and create a fail-closed Maestr provider slot, but it is **not yet sufficient to enable provider-specific payment creation, settlement, recovery or refunds**.
 
 ## Publicly verified contract
 
@@ -97,6 +106,24 @@ PAY-8 must not assume card-style refund or reversal semantics. Provider capabili
 
 ## Gate outcome
 
-Current outcome: **PROVIDER CANDIDATE APPROVED; PROVIDER-SPECIFIC SETTLEMENT CONTRACT PENDING MERCHANT DOCUMENTATION.**
+Current outcome: **PROVIDER SELECTED: MAESTR; FINANCIAL CAPABILITIES REMAIN FAIL-CLOSED PENDING MERCHANT DOCUMENTATION.**
 
-Provider-neutral PAY-8 implementation may proceed. Provider-specific financial mutation/settlement code remains gated.
+Approved now:
+- provider enum / migration;
+- server-only `MAESTR_API_URL` and `MAESTR_API_KEY` configuration placeholders because those names are shown by the public developer example;
+- `bankTransferOrIpn=true` capability;
+- all undocumented capabilities remain false;
+- production Maestr activation is rejected at startup until this gate is completed.
+
+Still blocked:
+- PAY-8.2 provider payment creation response parsing;
+- PAY-8.3 canonical webhook verification;
+- PAY-8.4 authoritative inquiry;
+- refund/reversal;
+- provider statement import enablement.
+
+External references reviewed:
+- https://maestr.com/
+- https://www.sec.gov/Archives/edgar/data/1756708/000175670826000015/jmia-20251231.htm
+
+No personal InstaPay flow or undocumented financial behavior is acceptable.
