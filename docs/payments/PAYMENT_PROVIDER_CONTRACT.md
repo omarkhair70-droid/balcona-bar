@@ -49,10 +49,17 @@ Output:
 
 - provider
 - providerIntentId/reference
-- checkout URL or client secret
+- optional legacy hosted-checkout URL
+- optional typed customer action:
+  - redirect URL
+  - deep link
+  - QR payload
+  - display/payment reference
 - expiration when available
 - normalized initial status
 - safe provider metadata
+
+A provider that uses QR, deep-link or reference-based account payment must not fabricate a hosted checkout URL merely to satisfy a common type.
 
 ### verifyWebhook
 
