@@ -378,6 +378,42 @@ function setupOperationHarness(
 }
 
 describe("OnlinePaymentsService", () => {
+  it("returns a provider QR customer action without requiring a checkout URL", async () => {
+    const { service, tx } = createService("maestr", "staging");
+    tx.onlinePaymentIntent.findFirst.mockResolvedValueOnce(
+      intent(
+        OnlinePaymentIntentStatus.pending,
+        OnlinePaymentProvider.maestr,
+        {
+          providerIntentId: "maestr-payment-1",
+          providerOrderId: "intent-1",
+          providerCheckoutUrl: null,
+          metadata: {
+            providerCustomerAction: {
+              type: "qr",
+              value: "documented-provider-qr-payload",
+            },
+          },
+        },
+      ),
+    );
+
+    const result = await service.findIntentForCustomer(
+      "session-1",
+      "intent-1",
+    );
+
+    expect(result.checkout).toMatchObject({
+      provider: OnlinePaymentProvider.maestr,
+      url: null,
+      customerAction: {
+        type: "qr",
+        value: "documented-provider-qr-payload",
+      },
+      requiresHostedCheckout: true,
+    });
+  });
+
   it("blocks customer online payment creation when the plan does not include online payments", async () => {
     const { service, tx, saasService } = createService();
     tx.bill.findUnique.mockResolvedValueOnce({
