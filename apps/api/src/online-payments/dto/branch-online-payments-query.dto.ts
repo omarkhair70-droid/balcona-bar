@@ -1,3 +1,4 @@
+import { OnlinePaymentProvider } from "@prisma/client";
 import { Type } from "class-transformer";
 import { IsIn, IsInt, IsOptional, Max, Min } from "class-validator";
 
@@ -14,10 +15,7 @@ export const ONLINE_PAYMENT_QUERY_STATUSES = [
 
 export const ONLINE_PAYMENT_QUERY_PROVIDERS = [
   "all",
-  "mock",
-  "paymob",
-  "fawry",
-  "external",
+  ...Object.values(OnlinePaymentProvider),
 ] as const;
 
 export class BranchOnlinePaymentsQueryDto {
