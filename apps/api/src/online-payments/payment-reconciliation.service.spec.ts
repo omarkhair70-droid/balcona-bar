@@ -22,7 +22,7 @@ function sale() {
     amountMinor: 12500,
     currency: "EGP",
     succeededAt: new Date("2026-08-27T10:00:00.000Z"),
-    metadata: { paymobTransactionId: "555001" },
+    metadata: { providerTransactionId: "555001" },
   };
 }
 
@@ -406,6 +406,38 @@ describe("PaymentReconciliationService", () => {
         ],
       }),
     ).rejects.toBeInstanceOf(BadRequestException);
+
+    expect(prisma.onlinePaymentSettlementBatch.create).not.toHaveBeenCalled();
+  });
+
+  it("rejects settlement imports for providers without settlement-data capability", async () => {
+    const { service, prisma } = createHarness();
+
+    await expect(
+      service.importSettlementBatch("branch-1", "staff-1", {
+        provider: OnlinePaymentProvider.external,
+        externalReference: "EXTERNAL-SET-1",
+        periodStart,
+        periodEnd,
+        currency: "EGP",
+        grossMinor: 12500,
+        adjustmentMinor: 0,
+        feeMinor: 250,
+        netMinor: 12250,
+        lines: [
+          {
+            providerTransactionId: "external-transaction-1",
+            movementType: OnlinePaymentReconciliationMovementType.sale,
+            amountMinor: 12500,
+            feeMinor: 250,
+            netMinor: 12250,
+            currency: "EGP",
+          },
+        ],
+      }),
+    ).rejects.toThrow(
+      "Settlement statement import is not supported for this payment provider",
+    );
 
     expect(prisma.onlinePaymentSettlementBatch.create).not.toHaveBeenCalled();
   });
