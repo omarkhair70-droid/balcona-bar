@@ -1083,7 +1083,7 @@ export class PaymentReconciliationService {
         reconciliationRunId: runId,
         companyId,
         branchId,
-        provider: OnlinePaymentProvider.paymob,
+        provider,
         movementType: movement.movementType,
         onlinePaymentIntentId: movement.onlinePaymentIntentId,
         onlinePaymentOperationId: movement.onlinePaymentOperationId,
