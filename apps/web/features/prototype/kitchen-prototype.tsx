@@ -222,12 +222,6 @@ function stationLabel(locale: Locale, station: Station) {
   return L(locale, "Expediter", "الإكسبيدايتر");
 }
 
-function statusLabel(locale: Locale, status: TaskStatus) {
-  if (status === "new") return L(locale, "New", "جديد");
-  if (status === "in_progress") return L(locale, "In progress", "قيد التحضير");
-  return L(locale, "Ready", "جاهز");
-}
-
 function stationIcon(station: Station) {
   if (station === "barista") return Coffee;
   if (station === "dessert") return Dessert;
