@@ -1,6 +1,101 @@
-# balcona-bar
+# Balcona Bar
 
-Balcona Bar is organized as a monorepo for the Cafe AI Waiter App / Smart Cafe Operating System. The backend core is complete through Phase 24, UI Phase 1 adds the first Next.js web foundation for customer and staff experiences, UI Phase 2 adds the customer PWA core, UI Phase 3 adds the customer AI waiter experience, UI Phase 4 adds the cashier dashboard core, UI Phase 5 adds the kitchen/barista dashboard core, UI Phase 6 adds the waiter dashboard and attention queue, UI Phase 7 adds the owner/manager command center, UI Phase 8 adds full demo hardening plus Balkona demo mode, Production Phase 1 adds deployable platform foundation files, Production Phase 2 adds AWS infrastructure foundation scaffolding without deploying resources, Production Phase 3A adds public demo deploy readiness plus CI/CD guardrails without deploying resources, Production Phase 3B adds the first public AWS demo preflight deploy pack without deploying resources, Product Phase 4A starts the full Cafe OS product completion track, Product Phase 4B adds branch-scoped menu admin and availability management, Product Phase 4C adds branch, tables, and QR management, Product Phase 4E.G0-G3 add a Groq AI waiter provider with safe backend validation, deep menu grounding, and modifier-turn ordering intelligence, Product Phase 4S.0 enforces staff roles, permissions, and branch access on the current staff product surfaces, Product Phase 4O.0 hardens order lifecycle transitions across cashier, preparation, waiter, and customer status flows, Product Phase 4K.0 adds KDS kitchen tickets plus a mock printer foundation for station operations, Product Phase 4P.0 adds stable bills, manual cashier payments, and receipt foundations, Product Phase 4PAY.1 adds mock/provider-agnostic online payment intents for presented bills, Product Phase 4C.0 adds cashier shifts, cash drawer transactions, and X/Z reports, Product Phase 4A.0 adds branch-scoped owner analytics and daily reports from real orders, bills, payments, shifts, operations, and AI waiter records, Product Phase 4T.0 adds guarded tenant onboarding and company/branch setup readiness, Product Phase 4SaaS.0 adds internal plans, tenant limits, subscription status, and backend entitlement gates, Product Phase 4ONB.1 adds internal sales-led platform admin cafe bootstrap, Product Phase 4I.0 adds inventory and branch stock foundations for menu availability and accepted-order consumption, and Product Phase 4DEPLOY.0 adds a provider-agnostic staging deployment foundation.
+**A multi-location hospitality operating system for cafe service, ordering, kitchen operations, money, and business control.**
+
+[Live staging demo](https://balcona-bar-staging-web.vercel.app) · [Portfolio case study](https://omar-khair-portfolio.vercel.app/work/balcona)
+
+> **Current public status:** the staging web deployment is online. Stable `main` contains the working Guest/Service/Kitchen/Owner product foundations and payment work through PAY-7. PAY-8 commercial IPN work and the new Office UX/IA overhaul are active draft branches and are not represented here as shipped production behavior.
+
+<p align="center">
+  <img src="https://raw.githubusercontent.com/omarkhair70-droid/omar-khair-portfolio/main/public/work/balcona-bar/01-customer-entry.webp" alt="Balcona customer entry" width="70%" />
+</p>
+
+## What Balcona is
+
+Balcona started as a cafe QR ordering/AI-waiter product and grew into a broader hospitality operating system. The system connects the customer table journey to staff operations and business control instead of treating each screen as an isolated app.
+
+### Core operating journey
+
+```text
+Table / QR
+   ↓
+Guest menu + AI Waiter
+   ↓
+Cart + order
+   ↓
+Cashier / acceptance
+   ↓
+Kitchen / barista KDS
+   ↓
+Waiter / service attention
+   ↓
+Bill + payment
+   ↓
+Owner analytics / operations
+```
+
+## Product surfaces
+
+- **Guest** — table identity, menu, cart, ordering, AI waiter and bill/service requests.
+- **Service** — cashier workflows, shifts, cash drawer, payments, waiter attention and order lifecycle.
+- **Kitchen** — preparation tasks, KDS tickets, station operations and printer foundations.
+- **Owner / operations** — branch analytics, daily reporting, catalog/menu controls, availability and operational visibility.
+- **Platform foundations** — tenancy/onboarding, branch scoping, plans/limits, roles/access, inventory and deployment foundations.
+
+## Money & payment systems
+
+Balcona's stable payment work is intentionally defensive:
+
+- provider-neutral payment-intent architecture;
+- Paymob payment/recovery lifecycle;
+- refunds / void / capture operations;
+- settlement and payout reconciliation;
+- Fawry hosted checkout, verified server notifications, inquiry/recovery and refund integration;
+- exactly-once / idempotency guards and fail-closed financial behavior.
+
+**PAY-8 / commercial IPN:** currently draft and provider-contract gated. Undocumented financial behavior remains disabled rather than guessed.
+
+## Architecture
+
+```text
+Next.js web product
+        │
+        ▼
+NestJS API
+        │
+        ├── Prisma
+        ├── PostgreSQL
+        ├── Redis
+        ├── AI waiter provider boundary
+        └── payment-provider boundaries
+                │
+                ├── Paymob
+                └── Fawry
+
+Docker / deployment foundations
+CI + smoke / build gates
+```
+
+## Current UX/IA work
+
+The current product architecture is being reorganized into a clearer role model:
+
+- Balcona Guest
+- Balcona Service
+- Balcona Kitchen
+- Balcona Office
+- Balcona Setup
+- Balcona Platform
+
+The Office UX/IA research and prototype live in draft PRs and should be read as **active product-design work**, not as already-merged production UI.
+
+## Public demo
+
+The current staging deployment exposes the established demo surfaces, including the full demo launcher, customer journey and staff shells. The public deployment is useful as system proof; it is not presented as a real cafe production tenant with live merchant credentials.
+
+---
+
+## Detailed implementation & operations notes
 
 ## Layout
 
@@ -1758,3 +1853,4 @@ begin.
 - Product Phase 4ONB.1 sales-led cafe bootstrap and platform admin lite: `docs/architecture/product-phase-4onb1-sales-led-cafe-bootstrap-platform-admin-lite.md`
 - Product Phase 4I.0 inventory and stock foundation: `docs/architecture/product-phase-4i0-inventory-stock-foundation.md`
 - Real cafe readiness checklist: `docs/product/real-cafe-readiness-checklist.md`
+
