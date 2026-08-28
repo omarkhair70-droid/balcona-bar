@@ -623,7 +623,7 @@ export class PaymentReconciliationService {
       this.prisma.onlinePaymentIntent.groupBy({
         by: ["branchId", "currency"],
         where: {
-          provider,
+          provider: OnlinePaymentProvider.paymob,
           status: OnlinePaymentIntentStatus.succeeded,
           succeededAt: { gte: periodStart, lt: periodEnd },
         },
@@ -631,7 +631,7 @@ export class PaymentReconciliationService {
       this.prisma.onlinePaymentOperation.groupBy({
         by: ["branchId", "currency"],
         where: {
-          provider,
+          provider: OnlinePaymentProvider.paymob,
           status: OnlinePaymentOperationStatus.succeeded,
           type: {
             in: [
@@ -1083,7 +1083,7 @@ export class PaymentReconciliationService {
         reconciliationRunId: runId,
         companyId,
         branchId,
-        provider,
+        provider: OnlinePaymentProvider.paymob,
         movementType: movement.movementType,
         onlinePaymentIntentId: movement.onlinePaymentIntentId,
         onlinePaymentOperationId: movement.onlinePaymentOperationId,
