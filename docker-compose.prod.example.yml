@@ -58,6 +58,7 @@ services:
       # Production-safe default: do not start with the mock provider.
       # Set ONLINE_PAYMENTS_ENABLED=true + ONLINE_PAYMENT_PROVIDER=paymob|fawry only
       # after provider credentials/URLs are deliberately configured for the target.
+      # PAY-8 Maestr is present as a fail-closed provider slot and is not production-enabled yet.
       ONLINE_PAYMENTS_ENABLED: ${ONLINE_PAYMENTS_ENABLED:-false}
       ONLINE_PAYMENT_PROVIDER: ${ONLINE_PAYMENT_PROVIDER:-external}
       MOCK_ONLINE_PAYMENTS_ENABLED: "false"
@@ -67,6 +68,9 @@ services:
       ONLINE_PAYMENT_READ_RATE_LIMIT_MAX: ${ONLINE_PAYMENT_READ_RATE_LIMIT_MAX:-60}
       ONLINE_PAYMENT_STAFF_RECOVERY_RATE_LIMIT_MAX: ${ONLINE_PAYMENT_STAFF_RECOVERY_RATE_LIMIT_MAX:-10}
       ONLINE_PAYMENT_STAFF_OPERATION_RATE_LIMIT_MAX: ${ONLINE_PAYMENT_STAFF_OPERATION_RATE_LIMIT_MAX:-5}
+      MAESTR_API_URL: ${MAESTR_API_URL:-}
+      MAESTR_API_KEY: ${MAESTR_API_KEY:-}
+      MAESTR_TIMEOUT_MS: ${MAESTR_TIMEOUT_MS:-10000}
       FAWRY_CHECKOUT_URL: ${FAWRY_CHECKOUT_URL:-}
       FAWRY_STATUS_URL: ${FAWRY_STATUS_URL:-}
       FAWRY_REFUND_URL: ${FAWRY_REFUND_URL:-}
