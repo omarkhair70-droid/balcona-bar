@@ -23,7 +23,7 @@ import {
   Users,
   WandSparkles
 } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useState } from "react";
 
 type Locale = "en" | "ar";
 type Domain =
@@ -694,10 +694,10 @@ export function OfficeHomePrototype() {
   const sections = domain === "home" ? [] : subnav[domain];
   const section = sections[sectionIndex];
 
-  const model = useMemo(() => {
-    if (domain === "home") return null;
-    return makeModel(domain, L(section.en, section.ar, locale), locale, scope);
-  }, [domain, locale, scope, section]);
+  const model =
+    domain === "home"
+      ? null
+      : makeModel(domain, L(section.en, section.ar, locale), locale, scope);
 
   return (
     <div dir={locale === "ar" ? "rtl" : "ltr"} className="min-h-screen bg-[#F5F5F2] text-[#20201D]">
