@@ -410,6 +410,7 @@ describe("OnlinePaymentsService", () => {
         type: "qr",
         value: "documented-provider-qr-payload",
       },
+      requiresCustomerAction: true,
       requiresHostedCheckout: true,
     });
   });
@@ -662,6 +663,7 @@ describe("OnlinePaymentsService", () => {
         type: "redirect",
         url: readyIntent.providerCheckoutUrl,
       },
+      requiresCustomerAction: true,
       requiresHostedCheckout: true,
     });
   });
@@ -920,6 +922,7 @@ describe("OnlinePaymentsService", () => {
         type: "redirect",
         url: readyIntent.providerCheckoutUrl,
       },
+      requiresCustomerAction: true,
       requiresHostedCheckout: true,
     });
   });
