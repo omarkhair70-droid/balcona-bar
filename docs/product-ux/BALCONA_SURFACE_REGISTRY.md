@@ -380,3 +380,135 @@ Before R2 can be marked COMPLETE, audit:
 7. existing i18n/RTL behavior that constrains redesign
 
 No final IA decision is approved during R2.
+
+
+## R2 detail / interaction audit
+
+### Exact current sub-navigation
+
+Kitchen mode state:
+- Tasks
+- Tickets
+- Print
+
+Inventory mode state:
+- Overview
+- Items
+- Levels
+- Alerts
+- Adjustments
+- Suppliers
+- Purchase Orders
+- Receiving
+- Requirements
+- Availability
+- Movements
+
+Branch/Table admin tabs:
+- Branches
+- Floors
+- Tables
+- QR Links
+- Active Sessions
+- Setup Issues
+
+Menu admin tabs:
+- Overview
+- Categories
+- Items
+- Availability
+- Modifiers
+- Preview Issues
+
+Owner date scope defaults to Today and supports report-range behavior rather than separate analytics routes.
+
+### Detail-panel pattern
+
+Current feature code uses dedicated detail panels for:
+- customer menu item detail
+- cashier order detail
+- kitchen preparation task detail
+- waiter call detail
+- table attention detail
+
+This is a useful existing pattern for list/queue → focused action context.
+
+### Modal / confirmation pattern
+
+No shared Staff Dialog/Sheet/AlertDialog pattern was found in the current feature surfaces.
+
+Explicit browser-native confirmation usage was found in:
+- Branch/Table Admin
+- Inventory
+
+This is a UX-system gap for R9: destructive/irreversible actions need a consistent confirmation and consequence pattern rather than route-specific browser confirms.
+
+### i18n / RTL constraints
+
+- app-level direction handling exists
+- Arabic/RTL support exists in the i18n layer
+- language switching is present in the dashboard shell and guest shell/session surfaces
+- AI message/composer surfaces contain RTL-aware behavior
+
+R11 must preserve Arabic/RTL as a first-class layout requirement. The redesign cannot be validated only in English/LTR.
+
+### Device/context assumptions visible in current code
+
+- Guest is explicitly mobile-first with fixed bottom navigation and a constrained max-width session shell.
+- Staff uses a desktop-oriented dashboard shell with a persistent left rail on large screens and horizontal navigation on smaller screens.
+- Cashier, Kitchen, and Waiter currently inherit the same Staff shell even though their task/device contexts differ.
+- Platform Admin is desktop/back-office oriented and correctly separated from guest/staff.
+
+This confirms an R1 hypothesis: operational surfaces currently share a shell for implementation convenience, not because their jobs are equivalent.
+
+## R2 duplication / placement findings
+
+### D1 — Setup and Branches overlap
+Setup can create floors/tables in bulk and expose readiness/QR concerns, while Branches owns detailed branch/floor/table/QR/session administration.
+
+Interpretation:
+- Setup should likely orchestrate completion.
+- Locations/Branch administration should own ongoing maintenance.
+- Exact boundary will be defined in R7, not by deleting either capability.
+
+### D2 — Owner and Staff Overview overlap as dashboards
+Staff Overview is a capability launcher while Owner is a business analytics surface.
+
+Interpretation:
+A future role-aware Home should not require two dashboard concepts for an owner unless they serve clearly different decision contexts.
+
+### D3 — Cashier and Money overlap
+Cashier owns immediate bill/payment/shift actions while financial settlement/reconciliation capabilities exist outside this visible surface in the backend.
+
+Interpretation:
+Keep immediate payment execution close to cashier; move investigation/reconciliation/accounting to Back Office Money during R7/R10 if R3 confirms coverage.
+
+### D4 — Kitchen live work and print administration overlap
+Print failure/retry is currently inside the same kitchen route as preparation tasks and tickets.
+
+Interpretation:
+Some printer exceptions may belong in Kitchen; printer/device configuration and historical troubleshooting may belong elsewhere. Frequency/role mapping will decide.
+
+### D5 — Guest Service mixes service and financial completion
+Waiter calls, bill requests, bill state, and online payment initiation share one route.
+
+Interpretation:
+They are part of one end-of-meal journey, but R10 should decide whether one screen, progressive panels, or a distinct Bill/Pay state best serves the guest.
+
+## R2 completion gate
+
+R2 status: COMPLETE
+
+Completed:
+- all public/customer/staff/platform/demo route families inventoried
+- current navigation models recorded
+- major internal tabs/modes recorded
+- large multi-workflow surfaces identified
+- primary API actions by surface recorded
+- detail-panel pattern recorded
+- destructive-confirmation gap recorded
+- guest/staff/platform device assumptions recorded
+- i18n/RTL constraints recorded
+- major placement/duplication problems recorded
+
+R2 does not decide the replacement IA. The next phase is R3: backend feature registry, including capabilities that have no obvious current route.
