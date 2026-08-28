@@ -23,12 +23,36 @@ export type CreateProviderPaymentInput = {
   customerReturnUrl?: string;
 };
 
+export type ProviderCustomerAction =
+  | {
+      type: "redirect";
+      url: string;
+    }
+  | {
+      type: "deep_link";
+      url: string;
+    }
+  | {
+      type: "qr";
+      value: string;
+    }
+  | {
+      type: "display_reference";
+      reference: string;
+    };
+
 export type CreateProviderPaymentResult = {
   provider: OnlinePaymentProvider;
   providerIntentId: string;
   providerOrderId?: string;
   status: OnlinePaymentIntentStatus;
-  checkoutUrl: string;
+  /**
+   * Legacy hosted-checkout URL used by Paymob/Fawry. Commercial IPN providers
+   * are not required to fabricate a redirect when their documented customer
+   * action is a QR, deep link or payment reference.
+   */
+  checkoutUrl?: string;
+  customerAction?: ProviderCustomerAction;
   checkoutExpiresAt?: Date;
   metadata?: Record<string, unknown>;
 };
