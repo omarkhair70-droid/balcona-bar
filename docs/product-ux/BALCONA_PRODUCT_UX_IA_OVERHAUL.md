@@ -1,6 +1,6 @@
 # Balcona Product UX / IA Overhaul
 
-Status: RESEARCH / NO PRODUCTION UI CHANGES
+Status: R1-R11 COMPLETE / NO PRODUCTION UI CHANGES
 Branch: `ux/product-ia-overhaul`
 Baseline: `main@d9ea1b4f41a682c521af84200d36e4c657bed6e7`
 
@@ -38,7 +38,7 @@ Balcona is treated here as a multi-location hospitality operating system with di
 
 ## Phase plan
 
-### R1 — Competitive Research
+### R1 — Competitive Research ✅ COMPLETE
 Build an evidence matrix from official product/support documentation and current UI references. Capture navigation, task flows, scope models, device modes, onboarding, guest flow, and density patterns.
 
 Deliverables:
@@ -46,19 +46,19 @@ Deliverables:
 - reference source ledger
 - initial pattern library
 
-### R2 — Balcona Full Surface Audit
+### R2 — Balcona Full Surface Audit ✅ COMPLETE
 Inventory every current route, page, tab, modal, drawer, primary action, secondary action, and role gate across customer, staff, platform, and demo surfaces.
 
 Deliverable:
 - `BALCONA_SURFACE_REGISTRY.md`
 
-### R3 — Backend Feature Registry
+### R3 — Backend Feature Registry ✅ COMPLETE
 Inventory controllers, services, Prisma models/enums, jobs, permissions, realtime events, and major domain capabilities. Do not rely only on README phase notes.
 
 Deliverable:
 - `BACKEND_FEATURE_REGISTRY.md`
 
-### R4 — Coverage Gap
+### R4 — Coverage Gap ✅ COMPLETE
 Map backend capability to frontend exposure and classify each as:
 - strong coverage
 - weak coverage
@@ -70,13 +70,13 @@ Map backend capability to frontend exposure and classify each as:
 Deliverable:
 - `UX_COVERAGE_GAPS.md`
 
-### R5 — Role / Job Map
+### R5 — Role / Job Map ✅ COMPLETE
 Define jobs-to-be-done for owner/HQ, operations manager, branch manager, cashier, waiter/server, kitchen, barista, menu admin, inventory/procurement, finance, platform admin, and guest.
 
 Deliverable:
 - `ROLE_JOB_MAP.md`
 
-### R6 — Task / Frequency Map
+### R6 — Task / Frequency Map ✅ COMPLETE
 Classify tasks by context:
 - every minute
 - every shift
@@ -90,13 +90,13 @@ Use frequency to control navigation prominence and information density.
 Deliverable:
 - `TASK_FREQUENCY_MAP.md`
 
-### R7 — Information Architecture
+### R7 — Information Architecture ✅ COMPLETE
 Define the final workspace model, global scope controls, location hierarchy, navigation, account/settings split, and progressive disclosure rules.
 
 Deliverable:
 - `INFORMATION_ARCHITECTURE.md`
 
-### R8 — Reference Synthesis
+### R8 — Reference Synthesis ✅ COMPLETE
 For every important Balcona IA/UX decision record:
 - Balcona problem
 - competitor evidence
@@ -108,7 +108,7 @@ For every important Balcona IA/UX decision record:
 Deliverable:
 - `REFERENCE_SYNTHESIS.md`
 
-### R9 — UX System
+### R9 — UX System ✅ COMPLETE
 Define product-level behavior for:
 - navigation
 - command/search
@@ -129,13 +129,13 @@ Define product-level behavior for:
 Deliverable:
 - `UX_SYSTEM.md`
 
-### R10 — Screen Architecture
+### R10 — Screen Architecture ✅ COMPLETE
 Blueprint every required surface before visual styling. Each screen must state user, job, device, scope, data, primary action, states, backend capabilities, and reference evidence.
 
 Deliverable:
 - `SCREEN_BLUEPRINT.md`
 
-### R11 — Visual Direction
+### R11 — Visual Direction ✅ COMPLETE
 Define the visual system after IA and screen architecture. Preserve useful Balcona identity but stop forcing one decorative dashboard treatment onto guest, cashier, kitchen, and back-office workflows.
 
 Deliverable:
@@ -144,3 +144,25 @@ Deliverable:
 ## Implementation boundary
 
 Implementation is a separate phase after R1-R11. It must be split into bounded PRs by shell/workspace and workflow. The current research branch must not change backend business behavior.
+
+
+## Phase closure
+
+R1-R11 are complete.
+
+Approved outputs:
+- evidence-backed competitive reference matrix
+- complete current surface audit
+- backend capability registry
+- backend↔frontend coverage gap map
+- role/job map
+- task-frequency map
+- new product information architecture
+- competitor-reference synthesis
+- cross-surface UX system
+- screen architecture
+- visual direction
+
+No production UI or backend business behavior was changed.
+
+The next phase is implementation/prototyping. It must begin from the approved IA and screen blueprint rather than patching the existing flat Staff shell screen-by-screen.
