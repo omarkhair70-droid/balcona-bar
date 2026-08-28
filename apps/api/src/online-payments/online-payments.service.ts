@@ -4916,6 +4916,10 @@ export class OnlinePaymentsService {
           intent.providerCheckoutUrl,
         ),
         expiresAt: intent.checkoutExpiresAt,
+        requiresCustomerAction:
+          intent.status === OnlinePaymentIntentStatus.pending ||
+          intent.status === OnlinePaymentIntentStatus.requires_action,
+        // Backward-compatible legacy field for existing web clients.
         requiresHostedCheckout:
           intent.status === OnlinePaymentIntentStatus.pending ||
           intent.status === OnlinePaymentIntentStatus.requires_action,
