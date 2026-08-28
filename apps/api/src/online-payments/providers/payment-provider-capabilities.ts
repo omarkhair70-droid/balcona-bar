@@ -50,6 +50,10 @@ export const PAYMENT_PROVIDER_CAPABILITIES: Record<
     transactionInquiry: true,
     settlementData: true,
   },
+  [OnlinePaymentProvider.maestr]: {
+    ...NONE,
+    bankTransferOrIpn: true,
+  },
   [OnlinePaymentProvider.external]: {
     ...NONE,
   },
