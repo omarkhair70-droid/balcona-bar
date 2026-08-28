@@ -180,3 +180,21 @@ The prototype passes when:
 7. Arabic/RTL works
 8. no Office sidebar or Office density leaks in
 9. every visible job maps to existing backend capability
+
+
+## Prototype implementation status
+
+Prototype route implemented:
+- `/prototype/service`
+
+Current proof includes:
+- Cashier mode
+- Waiter / Floor mode
+- Floor
+- Orders
+- Attention
+- Bills
+- Shift
+- Arabic / RTL
+
+This section also serves as the preview-deployment checkpoint for the complete Service prototype tree.
