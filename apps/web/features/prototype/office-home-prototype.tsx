@@ -21,7 +21,8 @@ import {
   ShieldCheck,
   Sparkles,
   Users,
-  WandSparkles
+  WandSparkles,
+  X
 } from "lucide-react";
 import { useState } from "react";
 
@@ -202,10 +203,12 @@ function MetricBand({
 
 function DataPanel({
   model,
-  locale
+  locale,
+  onSelect
 }: {
   model: SectionModel;
   locale: Locale;
+  onSelect: (row: Row) => void;
 }) {
   return (
     <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_280px]">
@@ -239,7 +242,7 @@ function DataPanel({
             </thead>
             <tbody className="divide-y divide-[#ECECE8]">
               {model.rows.map((row) => (
-                <tr key={row.primary} className="hover:bg-[#FAFAF8]">
+                <tr key={row.primary} className="cursor-pointer hover:bg-[#FAFAF8]" onClick={() => onSelect(row)}>
                   <td className="px-4 py-3.5">
                     <button type="button" className="text-start font-semibold text-[#2A2A27] hover:underline">
                       {row.primary}
@@ -1151,12 +1154,111 @@ function getSectionSpecificModel(
   return base;
 }
 
+function DetailDrawer({
+  row,
+  model,
+  locale,
+  domainLabel,
+  scopeLabel,
+  onClose
+}: {
+  row: Row | null;
+  model: SectionModel | null;
+  locale: Locale;
+  domainLabel: string;
+  scopeLabel: string;
+  onClose: () => void;
+}) {
+  if (!row || !model) return null;
+
+  return (
+    <>
+      <button
+        type="button"
+        aria-label={L("Close detail", "إغلاق التفاصيل", locale)}
+        className="fixed inset-0 z-40 bg-black/15"
+        onClick={onClose}
+      />
+      <aside className="fixed inset-y-0 end-0 z-50 w-full max-w-md overflow-y-auto border-s border-[#D5D5D0] bg-[#FBFBF8] shadow-[-18px_0_50px_rgba(0,0,0,.12)]">
+        <div className="sticky top-0 flex items-start justify-between gap-4 border-b border-[#DEDED9] bg-[#FBFBF8]/96 px-5 py-4 backdrop-blur">
+          <div>
+            <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[#808078]">
+              {domainLabel} · {scopeLabel}
+            </p>
+            <h2 className="mt-1.5 text-lg font-semibold tracking-[-0.02em]">{row.primary}</h2>
+            {row.secondary ? <p className="mt-1 text-xs text-[#777771]">{row.secondary}</p> : null}
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="flex size-8 shrink-0 items-center justify-center rounded-md border border-[#D7D7D2] bg-white text-[#55554F]"
+          >
+            <X className="size-4" />
+          </button>
+        </div>
+
+        <div className="p-5">
+          <div className="rounded-lg border border-[#DADAD5] bg-white">
+            <div className="border-b border-[#E7E7E2] px-4 py-3">
+              <h3 className="text-xs font-semibold">{L("Record summary", "ملخص السجل", locale)}</h3>
+            </div>
+            <div className="divide-y divide-[#ECECE8]">
+              {model.columns.slice(1).map((column, index) => (
+                <div key={column} className="grid grid-cols-[128px_minmax(0,1fr)] gap-4 px-4 py-3 text-xs">
+                  <span className="text-[#7A7A74]">{column}</span>
+                  <span className="font-medium text-[#2E2E2A]">{row.values[index] ?? "—"}</span>
+                </div>
+              ))}
+              <div className="grid grid-cols-[128px_minmax(0,1fr)] gap-4 px-4 py-3 text-xs">
+                <span className="text-[#7A7A74]">{L("State", "الحالة", locale)}</span>
+                <span>
+                  <SectionStatus tone={row.tone}>
+                    {row.tone === "danger"
+                      ? L("Needs review", "يحتاج مراجعة", locale)
+                      : row.tone === "warn"
+                        ? L("Attention", "تنبيه", locale)
+                        : row.tone === "ok"
+                          ? L("Healthy", "سليم", locale)
+                          : L("Active", "نشط", locale)}
+                  </SectionStatus>
+                </span>
+              </div>
+            </div>
+          </div>
+
+          <div className="mt-4 rounded-lg border border-[#DADAD5] bg-white p-4">
+            <p className="text-xs font-semibold">{L("Prototype behavior", "سلوك النموذج", locale)}</p>
+            <p className="mt-1.5 text-xs leading-5 text-[#777771]">
+              {L(
+                "In production this panel becomes the fast investigation layer. Complex financial, procurement, and configuration records can continue into a full detail page.",
+                "في الإنتاج هذه اللوحة هي طبقة الفحص السريع، بينما السجلات المالية والمشتريات والإعدادات المعقدة يمكن فتحها في صفحة تفاصيل كاملة.",
+                locale
+              )}
+            </p>
+          </div>
+
+          <div className="mt-4 flex gap-2">
+            <button type="button" className="min-h-9 flex-1 rounded-md bg-[#292925] px-3 text-xs font-semibold text-white">
+              {L("Open full record", "فتح السجل كاملًا", locale)}
+            </button>
+            <button type="button" onClick={onClose} className="min-h-9 rounded-md border border-[#D5D5D0] bg-white px-3 text-xs font-semibold">
+              {L("Close", "إغلاق", locale)}
+            </button>
+          </div>
+        </div>
+      </aside>
+    </>
+  );
+}
+
 function HomeView({
   locale,
-  scope
+  scope,
+  onNavigate
 }: {
   locale: Locale;
   scope: Scope;
+  onNavigate: (domain: Domain) => void;
 }) {
   const locationRows = [
     { name: L("Balkona Main", "بلكونة الرئيسي", locale), collected: "42,680 EGP", orders: "391", attention: "3", stock: "2", payments: "1", tone: "danger" as const },
@@ -1191,13 +1293,13 @@ function HomeView({
         </div>
         <div className="grid divide-y divide-[#ECECE8] lg:grid-cols-3 lg:divide-x lg:divide-y-0 rtl:lg:divide-x-reverse">
           {[
-            [CreditCard, L("Payment needs review", "دفعة تحتاج مراجعة", locale), L("Balkona Main · state still unknown", "بلكونة الرئيسي · الحالة غير محسومة", locale), "danger"],
-            [Boxes, L("Stock blocks menu items", "المخزون موقف منتجات", locale), L("Branch 02 · 4 sellability alerts", "فرع 02 · 4 تنبيهات بيع", locale), "warn"],
-            [ChefHat, L("Urgent table attention", "تنبيه عاجل على ترابيزة", locale), L("Branch 03 · unresolved", "فرع 03 · غير محلول", locale), "warn"]
-          ].map(([Icon, title, body, tone]) => {
+            [CreditCard, L("Payment needs review", "دفعة تحتاج مراجعة", locale), L("Balkona Main · state still unknown", "بلكونة الرئيسي · الحالة غير محسومة", locale), "danger", "money"],
+            [Boxes, L("Stock blocks menu items", "المخزون موقف منتجات", locale), L("Branch 02 · 4 sellability alerts", "فرع 02 · 4 تنبيهات بيع", locale), "warn", "inventory"],
+            [ChefHat, L("Urgent table attention", "تنبيه عاجل على ترابيزة", locale), L("Branch 03 · unresolved", "فرع 03 · غير محلول", locale), "warn", "operations"]
+          ].map(([Icon, title, body, tone, target]) => {
             const I = Icon as typeof CreditCard;
             return (
-              <button key={String(title)} type="button" className="flex gap-3 px-4 py-4 text-start hover:bg-[#FAFAF8]">
+              <button key={String(title)} type="button" onClick={() => onNavigate(target as Domain)} className="flex gap-3 px-4 py-4 text-start hover:bg-[#FAFAF8]">
                 <span className="mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-md bg-[#F1F1ED] text-[#5F5F59]">
                   <I className="size-4" />
                 </span>
@@ -1275,10 +1377,10 @@ function HomeView({
 
         <div className="grid gap-4">
           {[
-            [CircleDollarSign, L("Money health", "صحة المدفوعات", locale), L("2 payments need review · 1 reconciliation issue", "دفعتان تحتاجان مراجعة · مشكلة مطابقة واحدة", locale)],
-            [Gauge, L("Operations health", "صحة العمليات", locale), L("1 urgent attention · 1 print failure", "تنبيه عاجل واحد · فشل طباعة واحد", locale)],
-            [Boxes, L("Stock health", "صحة المخزون", locale), L("6 alerts · 4 menu items affected", "6 تنبيهات · 4 منتجات متأثرة", locale)]
-          ].map(([Icon, title, body]) => {
+            [CircleDollarSign, L("Money health", "صحة المدفوعات", locale), L("2 payments need review · 1 reconciliation issue", "دفعتان تحتاجان مراجعة · مشكلة مطابقة واحدة", locale), "money"],
+            [Gauge, L("Operations health", "صحة العمليات", locale), L("1 urgent attention · 1 print failure", "تنبيه عاجل واحد · فشل طباعة واحد", locale), "operations"],
+            [Boxes, L("Stock health", "صحة المخزون", locale), L("6 alerts · 4 menu items affected", "6 تنبيهات · 4 منتجات متأثرة", locale), "inventory"]
+          ].map(([Icon, title, body, target]) => {
             const I = Icon as typeof CircleDollarSign;
             return (
               <article key={String(title)} className="rounded-lg border border-[#D9D9D4] bg-white p-4">
@@ -1289,7 +1391,7 @@ function HomeView({
                   </div>
                   <I className="size-4 text-[#72634F]" />
                 </div>
-                <button type="button" className="mt-3 inline-flex items-center gap-1.5 text-xs font-semibold text-[#565650] hover:underline">
+                <button type="button" onClick={() => onNavigate(target as Domain)} className="mt-3 inline-flex items-center gap-1.5 text-xs font-semibold text-[#565650] hover:underline">
                   {L("Investigate", "فتح التفاصيل", locale)} <ArrowUpRight className="size-3.5" />
                 </button>
               </article>
@@ -1350,6 +1452,7 @@ export function OfficeHomePrototype() {
   const [domain, setDomain] = useState<Domain>("home");
   const [scope, setScope] = useState<Scope>("all");
   const [activeSection, setActiveSection] = useState<Record<string, number>>({});
+  const [selectedRow, setSelectedRow] = useState<Row | null>(null);
 
   const selected = domains.find((item) => item.id === domain)!;
   const sectionIndex = activeSection[domain] ?? 0;
@@ -1389,7 +1492,10 @@ export function OfficeHomePrototype() {
                 <button
                   key={item.id}
                   type="button"
-                  onClick={() => setDomain(item.id)}
+                  onClick={() => {
+                    setDomain(item.id);
+                    setSelectedRow(null);
+                  }}
                   className={`flex min-h-9 items-center gap-2.5 rounded-md px-2.5 text-sm transition ${
                     active
                       ? "bg-white font-semibold text-[#20201D] shadow-[0_1px_0_rgba(0,0,0,.04)]"
@@ -1468,9 +1574,27 @@ export function OfficeHomePrototype() {
                 <span className="rounded-md border border-[#D7D7D2] bg-white px-3 py-2 text-[11px] font-semibold text-[#666660]">
                   {L("Today", "اليوم", locale)}
                 </span>
-                <button type="button" className="rounded-md bg-[#2A2A26] px-3 py-2 text-[11px] font-semibold text-white">
-                  {L("Primary action", "إجراء رئيسي", locale)}
-                </button>
+                {domain === "catalog" ? (
+                  <button type="button" className="rounded-md bg-[#2A2A26] px-3 py-2 text-[11px] font-semibold text-white">
+                    {L("New item", "منتج جديد", locale)}
+                  </button>
+                ) : domain === "inventory" ? (
+                  <button type="button" className="rounded-md bg-[#2A2A26] px-3 py-2 text-[11px] font-semibold text-white">
+                    {L("Adjust stock", "تعديل مخزون", locale)}
+                  </button>
+                ) : domain === "locations" ? (
+                  <button type="button" className="rounded-md bg-[#2A2A26] px-3 py-2 text-[11px] font-semibold text-white">
+                    {L("New branch", "فرع جديد", locale)}
+                  </button>
+                ) : domain === "team" ? (
+                  <button type="button" className="rounded-md bg-[#2A2A26] px-3 py-2 text-[11px] font-semibold text-white">
+                    {L("Invite staff", "دعوة موظف", locale)}
+                  </button>
+                ) : domain === "insights" || domain === "money" ? (
+                  <button type="button" className="rounded-md border border-[#D7D7D2] bg-white px-3 py-2 text-[11px] font-semibold text-[#55554F]">
+                    {L("Export", "تصدير", locale)}
+                  </button>
+                ) : null}
               </div>
             </section>
 
@@ -1495,14 +1619,30 @@ export function OfficeHomePrototype() {
 
             <div className="mt-4">
               {domain === "home" ? (
-                <HomeView locale={locale} scope={scope} />
+                <HomeView
+                  locale={locale}
+                  scope={scope}
+                  onNavigate={(nextDomain) => {
+                    setDomain(nextDomain);
+                    setSelectedRow(null);
+                  }}
+                />
               ) : model ? (
                 <div className="grid gap-4">
                   <MetricBand metrics={model.metrics} />
-                  <DataPanel model={model} locale={locale} />
+                  <DataPanel model={model} locale={locale} onSelect={setSelectedRow} />
                 </div>
               ) : null}
             </div>
+
+            <DetailDrawer
+              row={selectedRow}
+              model={model}
+              locale={locale}
+              domainLabel={L(selected.en, selected.ar, locale)}
+              scopeLabel={scope === "all" ? L("All locations", "كل الفروع", locale) : L("Balkona Main", "بلكونة الرئيسي", locale)}
+              onClose={() => setSelectedRow(null)}
+            />
 
             <footer className="mt-6 flex flex-wrap items-center justify-between gap-2 border-t border-[#DADAD5] pt-3 text-[10px] text-[#84847E]">
               <span>{L("Office visual direction A · locked", "اتجاه Office A · مثبت", locale)}</span>
