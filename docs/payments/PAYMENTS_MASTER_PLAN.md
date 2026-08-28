@@ -10,8 +10,9 @@ Implementation progress:
 - PAY-4: merged to main in PR #112
 - PAY-5: merged to main in PR #113
 - PAY-6: merged to main in PR #114
-- PAY-7: implemented on branch `payments/fawry-provider`
-- PAY-8 and later: pending
+- PAY-7: merged to main in PR #115
+- PAY-8: in progress on branch `payments/pay8-commercial-ipn` (provider gate + provider-neutral core cleanup)
+- PAY-9 and BILL-1: pending
 
 Owner: Balcona engineering
 Baseline main: 23f52a530cc5f9372956405edaa29c3e8015f6a3
@@ -289,7 +290,11 @@ Implement the same provider contract; do not duplicate settlement business logic
 
 ### PAY-8 — IPN commercial adapter
 
-Only after an approved commercial bank/PSP API and credentials exist.
+Implement commercial account-to-account/IPN acceptance only through a licensed bank/PSP integration. Personal InstaPay accounts, screenshot proof, SMS scraping and browser-only confirmation are forbidden.
+
+Provider-specific financial code remains gated on documented create, authenticated inquiry, signed webhook, expiry, terminal-state and reconciliation contracts. Provider-neutral core cleanup may proceed before live credentials exist.
+
+Current provider decision record: `PAY8_COMMERCIAL_IPN_PROVIDER_GATE.md`.
 
 ### PAY-9 — in-person terminal/SoftPOS
 
