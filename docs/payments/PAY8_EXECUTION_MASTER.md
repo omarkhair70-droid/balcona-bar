@@ -81,6 +81,11 @@ Provider-neutral preparation completed:
 
 Provider-specific create remains blocked on merchant documentation confirming exact amount semantics and response shape.
 
+Fail-closed activation:
+- [x] selecting `maestr` before the merchant contract is complete rejects customer create before any bill/intent database access;
+- [x] no placeholder Maestr provider payment or local pending intent is created;
+- [x] exact evidence requirements are tracked in `PAY8_MAESTR_MERCHANT_CONTRACT_CHECKLIST.md`.
+
 Required:
 - local intent persisted before provider call;
 - durable merchant reference;
