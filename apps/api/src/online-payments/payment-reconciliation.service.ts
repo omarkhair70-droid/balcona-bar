@@ -30,6 +30,7 @@ import {
   ReconciliationIssuesQueryDto,
   StartOnlinePaymentReconciliationDto,
 } from "./dto/payment-reconciliation.dto";
+import { paymentProviderCapabilities } from "./providers/payment-provider-capabilities";
 import {
   PaymentProviderError,
   ProviderTransactionState,
@@ -234,6 +235,13 @@ export class PaymentReconciliationService {
     const currency = this.normalizeCurrency(body.currency);
     const provider =
       body.provider ?? OnlinePaymentProvider.paymob;
+
+    if (!paymentProviderCapabilities(provider).settlementData) {
+      throw new BadRequestException(
+        "Settlement statement import is not supported for this payment provider",
+      );
+    }
+
     this.assertMovementCountWithinLimit(body.lines.length);
     const lines = this.normalizeSettlementLines(body.lines, currency);
     const totals = this.statementTotals(lines);
@@ -1280,11 +1288,9 @@ export class PaymentReconciliationService {
     const movements: LocalMovement[] = payments.map((payment) => ({
       movementType: OnlinePaymentReconciliationMovementType.sale,
       onlinePaymentIntentId: payment.id,
-      providerTransactionId: this.stringMetadata(
+      providerTransactionId: this.providerTransactionIdMetadata(
         payment.metadata,
-        provider === OnlinePaymentProvider.fawry
-          ? "fawryRefNumber"
-          : "paymobTransactionId",
+        provider,
       ),
       amountMinor: payment.amountMinor,
       currency: payment.currency,
@@ -1634,6 +1640,30 @@ export class PaymentReconciliationService {
   private parseOptionalProviderDate(value: string) {
     const parsed = new Date(value);
     return Number.isFinite(parsed.getTime()) ? parsed : null;
+  }
+
+  private providerTransactionIdMetadata(
+    value: Prisma.JsonValue | null,
+    provider: OnlinePaymentProvider,
+  ) {
+    const genericReference = this.stringMetadata(
+      value,
+      "providerTransactionId",
+    );
+
+    if (genericReference) {
+      return genericReference;
+    }
+
+    if (provider === OnlinePaymentProvider.paymob) {
+      return this.stringMetadata(value, "paymobTransactionId");
+    }
+
+    if (provider === OnlinePaymentProvider.fawry) {
+      return this.stringMetadata(value, "fawryRefNumber");
+    }
+
+    return undefined;
   }
 
   private stringMetadata(value: Prisma.JsonValue | null, key: string) {
