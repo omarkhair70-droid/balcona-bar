@@ -18,7 +18,7 @@ import {
   UtensilsCrossed,
   XCircle
 } from "lucide-react";
-import { useMemo, useState, type ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 
 type Locale = "en" | "ar";
 type Station = "kitchen" | "barista" | "dessert" | "expediter";
@@ -721,14 +721,15 @@ export function KitchenPrototype() {
     setPrintJobs((current) => current.map((job) => job.id === id ? { ...job, status: "failed", error: "Marked failed on device" } : job));
   };
 
-  const stationCounts = useMemo(() => {
-    const visible = station === "expediter" ? tasks : tasks.filter((task) => task.station === station);
-    return {
-      active: visible.filter((task) => task.status !== "ready").length,
-      late: visible.filter((task) => task.age >= 15 && task.status !== "ready").length,
-      ready: visible.filter((task) => task.status === "ready").length
-    };
-  }, [station, tasks]);
+  const visibleTasks =
+    station === "expediter"
+      ? tasks
+      : tasks.filter((task) => task.station === station);
+  const stationCounts = {
+    active: visibleTasks.filter((task) => task.status !== "ready").length,
+    late: visibleTasks.filter((task) => task.age >= 15 && task.status !== "ready").length,
+    ready: visibleTasks.filter((task) => task.status === "ready").length
+  };
 
   return (
     <div dir={locale === "ar" ? "rtl" : "ltr"} className="min-h-screen bg-[#12110F] text-[#FFF8F0]">
