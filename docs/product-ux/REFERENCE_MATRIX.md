@@ -170,3 +170,97 @@ R1 is not complete until each research track in the master plan has:
 - Balcona relevance notes
 - anti-patterns / what not to copy
 - enough evidence to support R7/R8 decisions later
+
+
+## Reference set — Batch 2
+
+### Toast — finance / reconciliation
+
+Official evidence:
+- Payments reports overview: https://support.toasttab.com/en/article/Finance-Reports
+
+Observed patterns:
+- Finance is its own reporting domain, not a generic analytics card.
+- Toast separates payment activity, deposits/payouts, reconciliation, chargebacks, billing activity, and cost breakdown.
+- This supports the idea that Balcona's Money surface should own settlement/reconciliation rather than burying them inside a cashier page.
+
+Balcona relevance:
+- Strong evidence for a dedicated Money/Finance workspace with operational drill-down and reconciliation states.
+
+### Lightspeed — users, reports, payments
+
+Official evidence:
+- POS users and user groups: https://k-series-support.lightspeedhq.com/hc/en-us/articles/1260804594570-About-users-and-user-groups
+- Back Office users: https://k-series-support.lightspeedhq.com/hc/en-us/articles/1260804647149-Managing-Back-Office-users
+- Reports overview: https://k-series-support.lightspeedhq.com/hc/en-us/articles/1260804657209-About-Reports
+- Payments report: https://k-series-support.lightspeedhq.com/hc/en-us/articles/4403189404699-Payments-report
+- POS reports: https://k-series-support.lightspeedhq.com/hc/en-us/articles/360050328874-About-POS-reports
+
+Observed patterns:
+- POS users and Back Office users are distinct concepts with distinct permission surfaces.
+- POS users are optimized for day-to-day floor responsibilities; Back Office access is separately granted.
+- Reporting exists at multiple contexts: quick operational reports at POS and deeper analysis in Back Office.
+- Payments reporting exposes transaction-level fields such as user, device, amount, method, and destination.
+- Drawer, shift, user, and fiscal reports are related but remain distinct operational/accounting concepts.
+
+Balcona relevance:
+- Strong evidence against one universal staff navigation.
+- Supports separating employee identity/permissions from workspace access and exposing shift/drawer reports near operations while keeping deeper finance in Back Office.
+
+### Square — close of day and service modes
+
+Official evidence:
+- Close of day report: https://squareup.com/help/us/en/article/6594-end-of-day-reporting-with-square-for-restaurants
+- Restaurant POS setup/modes: https://squareup.com/help/us/en/article/6390-set-up-your-point-of-sale-with-square-for-restaurants
+- Table management: https://squareup.com/help/us/en/article/8146-customize-table-management-settings
+
+Observed patterns:
+- Close of day is a guided operational procedure with configurable completion requirements.
+- Device modes can encode service style and operational settings once and apply them across devices.
+- Table state communicates time/attention directly in the floor plan.
+
+Balcona relevance:
+- Reference for shift-close orchestration, readiness gates, and operational attention design.
+- Suggests Balcona should not rely only on passive reports where an explicit close workflow is required.
+
+### Restaurant365 — purchasing / receiving specialist reference
+
+Official evidence:
+- Purchasing & Receiving: https://www.restaurant365.com/inventory/purchasing-receiving/
+
+Observed patterns:
+- Purchasing is treated as a workflow: demand/order → vendor → receiving → discrepancy/credit → inventory/financial impact.
+- Receiving accuracy and invoice discrepancy handling are first-class concepts.
+
+Balcona relevance:
+- Specialist reference for evaluating whether existing suppliers/purchase-order/receiving backend capabilities are represented as a coherent procurement workflow instead of isolated inventory forms.
+
+### MarketMan — procurement specialist reference
+
+Official evidence:
+- Purchasing & order management: https://www.marketman.com/platform/restaurant-purchasing-software-and-order-management
+
+Observed patterns:
+- Vendor-centric purchasing, fill-to-par ordering, PO submission, receiving, substitutions/shortages/credits, and real-time price tracking are one workflow family.
+- Mobile receiving and exception handling are emphasized over raw CRUD.
+
+Balcona relevance:
+- Reference for R2/R4 review of suppliers, POs, stock-in, and receiving screens.
+- Do not copy vendor-specific accounting complexity before checking Balcona's actual backend scope.
+
+## Cross-reference findings — Batch 2
+
+### Finding H — Money needs two contexts
+Operational payment/shift tasks belong near the restaurant workflow, while payouts, settlement, reconciliation, and finance investigation belong in management/back office. Balcona should test a split between operational tender handling and Money/Finance administration rather than flattening all payment features together.
+
+### Finding I — Reports should match the decision context
+Competitors expose quick shift/day reports at POS and deeper historical/multi-location analysis in Back Office. One generic Owner dashboard is unlikely to be enough for Balcona's current analytics, shifts, drawers, payments, and reconciliation backend.
+
+### Finding J — Permissions should control surfaces, not define the whole IA
+Lightspeed's explicit separation of POS and Back Office users reinforces that role/access is an authorization layer over task-specific products. Balcona's current role-named destinations must be audited for whether they are truly workspaces or merely permission shortcuts.
+
+### Finding K — Inventory CRUD is not procurement UX
+Specialist restaurant inventory products organize purchasing around vendor/order/receiving/exceptions. Balcona's existing supplier and purchase-order capabilities must be audited as an end-to-end job before visual redesign.
+
+### Finding L — Close-of-day is a workflow, not just a report
+Square and Lightspeed both show that shift/day closure has operational steps and permissions. Balcona's cashier shifts, drawer movements, X/Z reports, and payment state should be mapped as a close workflow during R2-R6.
