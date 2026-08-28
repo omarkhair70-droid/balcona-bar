@@ -548,7 +548,6 @@ export class FawryPaymentProviderService {
       providerTransactionId: values.fawryRefNumber,
       providerOrderId: values.merchantRefNumber,
       merchantReference: values.merchantRefNumber,
-      integrationId: 0,
       status,
       amountMinor: this.decimalNumberToMinor(values.orderAmount),
       currency: "EGP",
