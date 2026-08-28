@@ -33,6 +33,25 @@ export type CreateProviderPaymentResult = {
   metadata?: Record<string, unknown>;
 };
 
+export type PaymentProviderCapabilities = {
+  hostedCheckout: boolean;
+  embeddedCheckout: boolean;
+  cards: boolean;
+  mobileWallets: boolean;
+  kioskOrReference: boolean;
+  bankTransferOrIpn: boolean;
+  tokenization: boolean;
+  recurring: boolean;
+  authorizeCapture: boolean;
+  void: boolean;
+  partialRefund: boolean;
+  fullRefund: boolean;
+  transactionInquiry: boolean;
+  settlementData: boolean;
+  terminal: boolean;
+  softPos: boolean;
+};
+
 export class PaymentProviderError extends Error {
   constructor(
     message: string,
@@ -58,14 +77,24 @@ export class PaymentProviderError extends Error {
   }
 }
 
-
 export type ProviderTransactionState = {
   provider: OnlinePaymentProvider;
   providerEventId: string;
   providerTransactionId: string;
   providerOrderId: string;
   merchantReference?: string;
-  integrationId: number;
+  /**
+   * Provider-native numeric integration identifier when the provider exposes one.
+   *
+   * Paymob uses this field. Providers that do not expose a numeric integration
+   * identifier must leave it undefined rather than fabricating a sentinel value.
+   */
+  integrationId?: number;
+  /**
+   * Provider-native integration / rail / account reference when it is useful for
+   * verification but is not naturally represented as a numeric integration ID.
+   */
+  providerIntegrationReference?: string;
   status: OnlinePaymentIntentStatus;
   amountMinor: number;
   currency: string;
@@ -97,7 +126,6 @@ export type ProviderTransactionInquiryResult =
       providerOrderId: string;
       transaction: ProviderTransactionState;
     };
-
 
 export type ProviderPostPaymentOperationInput = {
   type: OnlinePaymentOperationType;
