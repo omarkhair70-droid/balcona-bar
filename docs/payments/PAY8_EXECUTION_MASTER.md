@@ -61,7 +61,7 @@ Gate state: **CANDIDATE APPROVED / PROVIDER-SPECIFIC SETTLEMENT GATED**.
 - [x] remove common provider-resolution, query-filter and settlement-import assumptions that only Paymob/Fawry can exist;
 - [x] decide transaction-reference storage: normalized metadata + legacy fallback; no intent schema migration in PAY-8.1;
 - [x] add/adjust tests for provider-neutral capability and reconciliation invariants;
-- [ ] build/typecheck gate.
+- [x] build/typecheck/test gate: web lint/typecheck/build, Prisma generate, API build/tests passed on PR #116.
 
 Definition of done: PAY-1 through PAY-7 behavior remains unchanged while the common contract can represent a commercial IPN provider without sentinel values or provider-specific type hacks.
 
