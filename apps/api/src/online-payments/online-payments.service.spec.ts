@@ -610,6 +610,10 @@ describe("OnlinePaymentsService", () => {
     ).toHaveBeenCalledWith("intent-1", tx);
     expect(result.checkout).toMatchObject({
       provider: OnlinePaymentProvider.fawry,
+      customerAction: {
+        type: "redirect",
+        url: readyIntent.providerCheckoutUrl,
+      },
       requiresHostedCheckout: true,
     });
   });
@@ -864,6 +868,10 @@ describe("OnlinePaymentsService", () => {
     expect(result.checkout).toMatchObject({
       provider: OnlinePaymentProvider.paymob,
       url: readyIntent.providerCheckoutUrl,
+      customerAction: {
+        type: "redirect",
+        url: readyIntent.providerCheckoutUrl,
+      },
       requiresHostedCheckout: true,
     });
   });
