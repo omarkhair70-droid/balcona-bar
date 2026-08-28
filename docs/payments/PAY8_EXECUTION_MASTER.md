@@ -57,10 +57,10 @@ Gate state: **CANDIDATE APPROVED / PROVIDER-SPECIFIC SETTLEMENT GATED**.
 - [x] add generic `providerIntegrationReference`;
 - [x] add explicit provider capability type;
 - [x] remove fake Fawry `integrationId=0`;
-- [ ] add conservative capability registry for existing providers;
-- [ ] remove remaining common-layer assumptions that only Paymob/Fawry can exist;
-- [ ] decide whether provider transaction reference belongs first-class on `OnlinePaymentIntent`;
-- [ ] add/adjust tests for provider-neutral invariants;
+- [x] add conservative capability registry for existing providers;
+- [x] remove common provider-resolution, query-filter and settlement-import assumptions that only Paymob/Fawry can exist;
+- [x] decide transaction-reference storage: normalized metadata + legacy fallback; no intent schema migration in PAY-8.1;
+- [x] add/adjust tests for provider-neutral capability and reconciliation invariants;
 - [ ] build/typecheck gate.
 
 Definition of done: PAY-1 through PAY-7 behavior remains unchanged while the common contract can represent a commercial IPN provider without sentinel values or provider-specific type hacks.
