@@ -23,7 +23,7 @@ Unknown financial behavior fails closed. No endpoint, signature formula, status 
 
 Goal: prove that the selected licensed PSP/bank exposes enough commercial IPN surface for a safe adapter.
 
-Current preferred candidate: Maestr / Jumia Electronic Payment Services.
+Selected provider: Maestr / Jumia Electronic Payment Services. Provider identity is locked; individual financial capabilities remain fail-closed until merchant documentation proves them.
 
 Verified public surface:
 - REST payment-intent creation;
@@ -49,7 +49,13 @@ Still required before provider lock:
 - reconciliation/export schema;
 - live/sandbox base URLs and key lifecycle.
 
-Gate state: **CANDIDATE APPROVED / PROVIDER-SPECIFIC SETTLEMENT GATED**.
+Gate state: **PROVIDER SELECTED / PROVIDER-SPECIFIC FINANCIAL CONTRACT GATED**.
+
+Implemented provider slot:
+- [x] Prisma `maestr` provider enum + migration;
+- [x] server-only public-contract config placeholders;
+- [x] `bankTransferOrIpn=true`, all undocumented capabilities false;
+- [x] production activation fail-closed until merchant contract completion.
 
 ## PAY-8.1 — Provider-neutral core cleanup
 
