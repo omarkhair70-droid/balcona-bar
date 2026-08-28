@@ -264,3 +264,179 @@ Specialist restaurant inventory products organize purchasing around vendor/order
 
 ### Finding L — Close-of-day is a workflow, not just a report
 Square and Lightspeed both show that shift/day closure has operational steps and permissions. Balcona's cashier shifts, drawer movements, X/Z reports, and payment state should be mapped as a close workflow during R2-R6.
+
+
+## Reference set — Batch 3
+
+### Toast — Back Office / analytics / multi-location / guest continuity
+
+Verified official evidence:
+- Analytics & reports overview: https://support.toasttab.com/en/article/Getting-Started-with-Analytics-and-Reports
+- Reporting dashboard: https://support.toasttab.com/en/article/How-to-Use-the-Toast-Reporting-Dashboard
+- Mobile Order & Pay setup: https://support.toasttab.com/en/article/Setting-Up-Toast-Mobile-Order-and-Pay
+- Guest experience: https://support.toasttab.com/en/article/Guest-Experience-for-Toast-Mobile-Order-Pay
+- Multilocation management: https://support.toasttab.com/en/article/Getting-Started-Master-Menu-Management
+- Cross-location menu management: https://support.toasttab.com/en/article/Copying-Menus-to-Other-Locations-Using-Multi-Location-Management
+- Location-specific pricing: https://support.toasttab.com/en/article/Location-Specific-Pricing-Master-Menu-Management-1492786563831
+
+Observed patterns:
+- Toast Web reports are grouped into business domains rather than one giant dashboard.
+- Dashboard overview is deliberately small and high-level; deeper questions live in reports.
+- Guest tabs can continue across guest and server surfaces: guests can reorder/pay from phone while staff can add to the same check.
+- Group ordering is a first-class guest behavior.
+- Multi-location configuration is shared centrally, with location-specific versions/overrides where required.
+- Location-specific pricing is permission-aware rather than duplicating the entire menu.
+
+Balcona relevance:
+- Strong proof for separating overview from investigation.
+- Strong proof for treating guest session, table check, staff service, and payment as one continuous hospitality session.
+- Strong proof for central definitions + local overrides rather than branch-by-branch duplication.
+
+### Lightspeed — Back Office / POS / KDS / permissions / money
+
+Verified official evidence:
+- Back Office introduction: https://k-series-support.lightspeedhq.com/hc/en-us/articles/360054950934-Introduction-to-the-Back-Office
+- Navigation redesign: https://k-series-support.lightspeedhq.com/hc/en-us/articles/36985562334363-About-Back-Office-navigation-changes
+- POS and Back Office user separation: https://k-series-support.lightspeedhq.com/hc/en-us/articles/1260804594570-About-users-and-user-groups
+- New POS navigation: https://k-series-support.lightspeedhq.com/hc/en-us/articles/43162671781659-About-the-new-POS-navigation
+- KDS 2.0: https://k-series-support.lightspeedhq.com/hc/en-us/articles/22168531609499-Setting-up-Kitchen-Display-System-2-0
+- Guest Order Anywhere: https://k-series-support.lightspeedhq.com/hc/en-us/articles/1260803553189-Placing-orders-using-Order-Anywhere
+- Payments report: https://k-series-support.lightspeedhq.com/hc/en-us/articles/4403189404699-Payments-report
+- Lightspeed Payments reporting: https://k-series-support.lightspeedhq.com/hc/en-us/articles/20584722767387-Reporting-with-Lightspeed-Payments
+
+Observed patterns:
+- Lightspeed explicitly redesigned Back Office navigation after product growth to reduce depth and group features by business relation.
+- POS users are not automatically Back Office users.
+- KDS screens are configured as named service stations such as Grill, Cold Service, or Bar, with routing to each station.
+- Financial Services has its own overview, transactions, payouts, fees, statements, and detail drill-down.
+- Guest Order Anywhere includes status/history and distinguishes failed orders/payments so users are not left unsure.
+
+Balcona relevance:
+- Primary evidence for separating Balcona Office from operational workspaces.
+- Strong evidence for station/device identity in Kitchen/Barista UX.
+- Strong evidence for a dedicated Money area rather than burying provider state in cashier screens.
+- Strong evidence that failure/unknown payment states require explicit customer-facing history and status.
+
+### Square — service mode / floor operations / close workflow / KDS
+
+Verified official evidence:
+- Restaurant POS setup: https://squareup.com/help/us/en/article/6390-set-up-your-point-of-sale-with-square-for-restaurants
+- Floor plans: https://squareup.com/help/us/en/article/6427-building-your-floor-plan
+- Table management: https://squareup.com/help/us/en/article/8146-customize-table-management-settings
+- KDS routing: https://squareup.com/help/us/en/article/7959-route-orders-with-your-kds
+- Coursing: https://squareup.com/help/us/en/article/7748-coursing-with-square-kds
+- Close of day: https://squareup.com/help/us/en/article/6594-end-of-day-reporting-with-square-for-restaurants
+
+Observed patterns:
+- Restaurant operation changes by mode: table service, counter service, bar/lounge.
+- Floor plans are live operational views with occupied state, elapsed-time attention indicators, sections, and table merging.
+- KDS routing is based on categories/order sources/station responsibility.
+- Coursing spans POS and KDS rather than being owned by one page.
+- Close of day is an executable checklist with blockers and explicit override authority.
+
+Balcona relevance:
+- Strong proof that service model should influence workspace defaults.
+- Strong reference for making table attention spatial and time-aware.
+- Strong reference for turning shift/day close into a guided workflow rather than only exposing reports.
+
+### Oracle Simphony — scope / hierarchy / roles
+
+Verified official evidence:
+- EMC overview: https://docs.oracle.com/en/industries/food-beverage/simphony/simcg/c_emc_basics.htm
+- Enterprise hierarchy: https://docs.oracle.com/en/industries/food-beverage/simphony/19.3/simcg/c_enterprise.htm
+- Inheritance & overrides: https://docs.oracle.com/en/industries/food-beverage/simphony/19.3/simcg/c_enterprise_inheritance_overrides.htm
+- Scope selector: https://docs.oracle.com/en/industries/food-beverage/simphony/simfl/c_scope_selector.htm
+- Roles: https://docs.oracle.com/en/industries/food-beverage/simphony/simcg/c_roles.htm
+
+Observed patterns:
+- Scope selection is structural: enterprise, location/property, revenue center.
+- Modules shown depend on selected scope and granted access.
+- Shared enterprise definitions are inherited and overridden closer to the operating location.
+- Roles combine administrative module access with operational transaction permissions.
+
+Balcona relevance:
+- Primary enterprise reference for future-proof multi-location scope and inheritance.
+- Anti-reference visually: do not copy legacy desktop density, terminology, or hierarchy complexity unless Balcona needs it.
+
+### Restaurant365 and MarketMan — specialist inventory / procurement
+
+Verified official evidence:
+- Restaurant365 purchasing & receiving: https://www.restaurant365.com/inventory/purchasing-receiving/
+- Restaurant365 inventory: https://www.restaurant365.com/inventory/
+- MarketMan purchasing/order management: https://www.marketman.com/platform/restaurant-purchasing-software-and-order-management
+- MarketMan platform: https://www.marketman.com/platform
+
+Observed patterns:
+- Procurement is a connected sequence: inventory/par → PO → supplier → delivery/receiving → discrepancy/credit → inventory and cost impact.
+- Suggested ordering and par-based workflows reduce repetitive entry.
+- Receiving is exception-oriented: shortages, substitutions, price changes, missing quantities.
+- Multi-location purchasing and reporting is centralized where possible.
+
+Balcona relevance:
+- Strong evidence that suppliers/PO/receiving should not be isolated CRUD cards.
+- R2/R4 must identify whether Balcona backend already supports enough state for an actual procurement workflow.
+
+## R1 anti-pattern register
+
+Do NOT carry these patterns into the final Balcona IA unless a later audit proves a specific need:
+
+1. Flat navigation where Cashier, Kitchen, Owner, Menu, Inventory, Billing, and Setup are sibling destinations.
+2. A universal decorative dashboard shell forced onto high-frequency operational surfaces.
+3. Exposing every backend module because it exists.
+4. Making role names the primary organization of Back Office information architecture.
+5. Requiring every branch to repeat configuration that should be inherited or cloned.
+6. Treating Setup as permanent daily navigation.
+7. Treating Guest as menu → cart only.
+8. Treating KDS as a generic staff webpage rather than a persistent station workspace.
+9. Mixing restaurant customer payments and Balcona SaaS subscription billing in one mental model.
+10. Using dashboards as feature directories instead of exception/decision surfaces.
+11. Hiding failed/unknown payment states instead of exposing recovery/status clarity.
+12. Designing procurement as raw item/supplier forms with no PO/receiving journey.
+13. Showing rare setup/emergency actions with the same prominence as minute-by-minute work.
+14. Copying Oracle-style enterprise complexity into single-location tenants.
+15. Copying competitor visual language instead of solving Balcona-specific jobs.
+
+## R1 pattern library — evidence-backed candidates
+
+Patterns to test against Balcona during R2-R6:
+
+- workspace separation: Office / Service / Kitchen / Guest / Platform
+- global company/location scope selector
+- role/permission-driven visibility inside task-oriented workspaces
+- device/station modes
+- high-frequency floor/table attention view
+- setup/readiness journey
+- reusable service profiles / operation modes
+- shared configuration with local overrides
+- central menu with channel/location visibility
+- guest session continuity across multiple rounds
+- guest order/payment history with explicit pending/failed states
+- domain-specific reports with a small decision-oriented Home
+- operational close-of-day checklist
+- Money workspace with transaction → payout → reconciliation drill-down
+- procurement workflow with receiving exceptions
+- command/search navigation for large Back Office
+- progressive disclosure by enabled feature, role, scope, and device
+
+## R1 track coverage gate
+
+| Research track | Evidence depth | Gate |
+|---|---|---|
+| Back Office / HQ | Toast + Lightspeed + Oracle | PASS |
+| POS / Cashier / Service | Toast + Lightspeed + Square | PASS |
+| KDS / Kitchen / Barista | Toast + Lightspeed + Square | PASS |
+| Guest Cafe Experience | Toast + Lightspeed + me&u | PASS |
+| Onboarding / Implementation | Toast + Lightspeed + Square setup patterns | PASS |
+| Multi-location / Enterprise | Toast + Oracle + TouchBistro | PASS |
+| Money / Payments / Reconciliation | Toast + Lightspeed + Square close workflow | PASS |
+| Inventory / Procurement | Restaurant365 + MarketMan + TouchBistro inventory | PASS |
+| Owner / Analytics | Toast + Lightspeed + TouchBistro multi-unit reporting | PASS |
+| Roles / Permissions / Device modes | Lightspeed + Oracle + Square | PASS |
+
+## R1 result
+
+Status: COMPLETE
+
+R1 is complete enough to start auditing Balcona. Competitor references now provide evidence for product separation, scope, device context, guest continuity, financial drill-down, onboarding, multi-location inheritance, procurement, permissions, and reporting.
+
+No final Balcona IA is approved yet. The provisional workspace model remains a hypothesis until R2-R6 expose the real surface/backend/role/frequency requirements.
