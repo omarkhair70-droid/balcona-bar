@@ -150,6 +150,12 @@ export class OnlinePaymentsService {
       return this.createFawryIntentForCustomer(sessionId, billId, body);
     }
 
+    if (provider === OnlinePaymentProvider.maestr) {
+      throw new ServiceUnavailableException(
+        "Maestr commercial IPN payments are not enabled until the PAY-8 merchant API contract is complete",
+      );
+    }
+
     if (provider !== OnlinePaymentProvider.mock) {
       throw new BadRequestException(
         "Online payment provider is not configured for live processing yet",
