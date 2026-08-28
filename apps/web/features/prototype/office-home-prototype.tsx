@@ -28,6 +28,7 @@ import { useMemo, useState } from "react";
 
 type Locale = "en" | "ar";
 type Scenario = "normal" | "critical" | "healthy" | "partial";
+type Direction = "A" | "B" | "C";
 
 type Copy = {
   office: string;
@@ -262,7 +263,58 @@ function IconButton({ children, label }: { children: React.ReactNode; label: str
 export function OfficeHomePrototype() {
   const [locale, setLocale] = useState<Locale>("en");
   const [scenario, setScenario] = useState<Scenario>("normal");
+  const [direction, setDirection] = useState<Direction>("C");
   const t = copy[locale];
+
+  const directionMeta = {
+    A: {
+      label: locale === "ar" ? "A · إدارة هادئة" : "A · Back Office",
+      note: locale === "ar" ? "أهدأ · أكثف · أقرب لإدارة احترافية" : "Calmer · denser · management-first",
+      root: "bg-[#F5F5F2] text-[#20201D]",
+      shell: "lg:grid-cols-[220px_minmax(0,1fr)]",
+      aside: "border-e border-[#D9D9D4] bg-[#ECECE8] px-3 py-4 text-[#2D2D29]",
+      activeNav: "bg-white font-semibold text-[#20201D] shadow-[0_1px_0_rgba(0,0,0,.04)]",
+      idleNav: "text-[#666660] hover:bg-[#E4E4DF] hover:text-[#20201D]",
+      navIconActive: "text-[#6A6A63]",
+      navIconIdle: "text-[#8A8A83]",
+      header: "border-b border-[#DDDDD8] bg-[#F7F7F4]/95",
+      main: "max-w-[1480px] px-4 py-5 md:px-6 lg:px-7",
+      panel: "rounded-lg border border-[#DADAD5] bg-white",
+      softPanel: "rounded-lg border border-[#DFDFDA] bg-[#FAFAF8]"
+    },
+    B: {
+      label: locale === "ar" ? "B · عمليات أولًا" : "B · Operations First",
+      note: locale === "ar" ? "انتباه أوضح · إيقاع أسرع · قرارات مباشرة" : "Stronger attention · faster rhythm · action-led",
+      root: "bg-[#F4EEE7] text-[#201812]",
+      shell: "lg:grid-cols-[252px_minmax(0,1fr)]",
+      aside: "border-e border-[#3A281D] bg-[#23170F] px-4 py-5 text-[#FFF5E9]",
+      activeNav: "bg-[#C78445] font-semibold text-[#1D130D]",
+      idleNav: "text-[#DBC9B8] hover:bg-[#302017] hover:text-white",
+      navIconActive: "text-[#1D130D]",
+      navIconIdle: "text-[#B89E87]",
+      header: "border-b border-[#DED0C2] bg-[#FBF5EE]/95",
+      main: "max-w-[1560px] px-4 py-6 md:px-6 lg:px-8",
+      panel: "rounded-xl border border-[#DECFC0] bg-[#FFFCF7]",
+      softPanel: "rounded-xl border border-[#E3D5C7] bg-[#F9F1E8]"
+    },
+    C: {
+      label: locale === "ar" ? "C · بلكونة هايبرد" : "C · Balcona Hybrid",
+      note: locale === "ar" ? "احتراف الإدارة + دفء الهوية + وضوح العمليات" : "Management clarity + hospitality warmth + operational focus",
+      root: "bg-[#F3F0E9] text-[#1C1916]",
+      shell: "lg:grid-cols-[248px_minmax(0,1fr)]",
+      aside: "border-e border-[#2C241E] bg-[#191512] px-4 py-5 text-[#F7F1E6]",
+      activeNav: "bg-[#30251D] font-semibold text-[#FFF9EF]",
+      idleNav: "text-[#CDBFB0] hover:bg-[#241D18] hover:text-white",
+      navIconActive: "text-[#D9A363]",
+      navIconIdle: "text-[#9F9184]",
+      header: "border-b border-[#DED8CE] bg-[#F8F5EF]/95",
+      main: "max-w-[1560px] px-4 py-6 md:px-6 lg:px-8",
+      panel: "rounded-2xl border border-[#DDD6CC] bg-white",
+      softPanel: "rounded-2xl border border-[#D9C9BA] bg-[#FFFDF8]"
+    }
+  } as const;
+
+  const d = directionMeta[direction];
 
   const issues = useMemo(() => {
     if (scenario === "healthy") {
@@ -316,10 +368,10 @@ export function OfficeHomePrototype() {
   return (
     <div
       dir={locale === "ar" ? "rtl" : "ltr"}
-      className="min-h-screen bg-[#F3F0E9] text-[#1C1916]"
+      className={`min-h-screen ${d.root}`}
     >
-      <div className="grid min-h-screen lg:grid-cols-[248px_minmax(0,1fr)]">
-        <aside className="border-e border-[#2C241E] bg-[#191512] px-4 py-5 text-[#F7F1E6]">
+      <div className={`grid min-h-screen ${d.shell}`}>
+        <aside className={d.aside}>
           <div className="flex items-center gap-3 px-2">
             <div className="flex size-9 items-center justify-center rounded-xl bg-[#C68A4A] text-sm font-black text-[#1B120C]">
               B
@@ -341,11 +393,11 @@ export function OfficeHomePrototype() {
                   type="button"
                   className={`flex min-h-10 w-full items-center gap-3 rounded-xl px-3 text-sm transition ${
                     active
-                      ? "bg-[#30251D] font-semibold text-[#FFF9EF]"
-                      : "text-[#CDBFB0] hover:bg-[#241D18] hover:text-white"
+                      ? d.activeNav
+                      : d.idleNav
                   }`}
                 >
-                  <Icon className={`size-4 ${active ? "text-[#D9A363]" : "text-[#9F9184]"}`} />
+                  <Icon className={`size-4 ${active ? d.navIconActive : d.navIconIdle}`} />
                   <span>{label}</span>
                 </button>
               );
@@ -360,7 +412,7 @@ export function OfficeHomePrototype() {
         </aside>
 
         <div className="min-w-0">
-          <header className="sticky top-0 z-20 flex min-h-16 items-center gap-3 border-b border-[#DED8CE] bg-[#F8F5EF]/95 px-4 backdrop-blur md:px-6">
+          <header className={`sticky top-0 z-20 flex min-h-16 items-center gap-3 px-4 backdrop-blur md:px-6 ${d.header}`}>
             <button
               type="button"
               className="flex min-h-10 min-w-[178px] items-center justify-between gap-3 rounded-xl border border-[#DCD5CA] bg-white px-3 text-sm font-semibold"
@@ -395,7 +447,33 @@ export function OfficeHomePrototype() {
             </button>
           </header>
 
-          <main className="mx-auto w-full max-w-[1560px] px-4 py-6 md:px-6 lg:px-8">
+          <main className={`mx-auto w-full ${d.main}`}>
+
+            <section className="mb-5 grid gap-3 rounded-xl border border-[#D9D2C8] bg-white/90 p-3 lg:grid-cols-[1fr_auto] lg:items-center">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[#8B6A4E]">
+                  Visual direction review
+                </p>
+                <p className="mt-1 text-sm font-medium">{d.note}</p>
+              </div>
+              <div className="grid grid-cols-3 gap-1 rounded-lg border border-[#DDD5CB] bg-[#F3EFE8] p-1">
+                {(["A", "B", "C"] as Direction[]).map((value) => (
+                  <button
+                    key={value}
+                    type="button"
+                    onClick={() => setDirection(value)}
+                    className={`rounded-md px-3 py-2 text-xs font-semibold transition ${
+                      direction === value
+                        ? "bg-[#211913] text-white shadow-sm"
+                        : "text-[#72685F] hover:bg-white"
+                    }`}
+                  >
+                    {directionMeta[value].label}
+                  </button>
+                ))}
+              </div>
+            </section>
+
             <section className="flex flex-col gap-4 border-b border-[#DCD5CA] pb-5 md:flex-row md:items-end md:justify-between">
               <div>
                 <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[#9A6C3F]">
@@ -434,7 +512,7 @@ export function OfficeHomePrototype() {
 
             <section className="mt-5">
               {issues.length > 0 ? (
-                <div className="overflow-hidden rounded-2xl border border-[#D9C9BA] bg-[#FFFDF8]">
+                <div className={`overflow-hidden ${d.softPanel}`}>
                   <div className="flex items-center justify-between border-b border-[#E5DDD4] px-4 py-3">
                     <div className="flex items-center gap-2">
                       <AlertTriangle className="size-4 text-[#A86434]" />
@@ -486,7 +564,7 @@ export function OfficeHomePrototype() {
               )}
             </section>
 
-            <section className="mt-5 grid overflow-hidden rounded-2xl border border-[#DDD6CC] bg-white md:grid-cols-4">
+            <section className={`mt-5 grid overflow-hidden md:grid-cols-4 ${d.panel}`}>
               {[
                 [t.collected, "101,830 EGP", "+8.4%", CircleDollarSign],
                 [t.orders, "921", "+5.1%", MenuSquare],
@@ -513,7 +591,7 @@ export function OfficeHomePrototype() {
             </section>
 
             <section className="mt-5 grid gap-5 xl:grid-cols-[minmax(0,1.5fr)_minmax(320px,0.72fr)]">
-              <div className="min-w-0 rounded-2xl border border-[#DDD6CC] bg-white">
+              <div className={`min-w-0 ${d.panel}`}>
                 <div className="flex items-center justify-between border-b border-[#ECE6DE] px-5 py-4">
                   <div>
                     <h2 className="text-base font-semibold">{t.locations}</h2>
@@ -565,7 +643,7 @@ export function OfficeHomePrototype() {
               </div>
 
               <div className="grid gap-5">
-                <article className="rounded-2xl border border-[#DDD6CC] bg-white p-5">
+                <article className={`${d.panel} p-5`}>
                   <div className="flex items-start justify-between gap-4">
                     <div>
                       <p className="text-sm font-semibold">{t.moneyHealth}</p>
@@ -606,7 +684,7 @@ export function OfficeHomePrototype() {
                   </button>
                 </article>
 
-                <article className="rounded-2xl border border-[#DDD6CC] bg-white p-5">
+                <article className={`${d.panel} p-5`}>
                   <div className="flex items-start justify-between gap-4">
                     <div>
                       <p className="text-sm font-semibold">{t.operationsHealth}</p>
@@ -636,7 +714,7 @@ export function OfficeHomePrototype() {
                   </button>
                 </article>
 
-                <article className="rounded-2xl border border-[#DDD6CC] bg-white p-5">
+                <article className={`${d.panel} p-5`}>
                   <div className="flex items-start justify-between gap-4">
                     <div>
                       <p className="text-sm font-semibold">{t.stockHealth}</p>
@@ -664,7 +742,7 @@ export function OfficeHomePrototype() {
             </section>
 
             <section className="mt-5 grid gap-5 xl:grid-cols-[minmax(0,1.2fr)_minmax(360px,0.8fr)]">
-              <article className="rounded-2xl border border-[#DDD6CC] bg-white p-5">
+              <article className={`${d.panel} p-5`}>
                 <div className="flex items-center justify-between">
                   <div>
                     <h2 className="text-base font-semibold">{t.trend}</h2>
@@ -690,7 +768,7 @@ export function OfficeHomePrototype() {
                 </div>
               </article>
 
-              <article className="rounded-2xl border border-[#DDD6CC] bg-white">
+              <article className={d.panel}>
                 <div className="border-b border-[#ECE6DE] px-5 py-4">
                   <h2 className="text-base font-semibold">{t.recent}</h2>
                 </div>
