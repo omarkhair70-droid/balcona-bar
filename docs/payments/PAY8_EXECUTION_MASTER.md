@@ -77,7 +77,9 @@ Provider-neutral preparation completed:
 - [x] provider result no longer requires a fabricated checkout URL;
 - [x] typed redirect / deep-link / QR / display-reference customer actions;
 - [x] existing Paymob/Fawry redirects mapped through the generic action contract;
-- [x] API/web response contract supports generic customer actions.
+- [x] API/web response contract supports generic customer actions;
+- [x] provider-neutral `requiresCustomerAction` exposed while legacy `requiresHostedCheckout` remains backward-compatible;
+- [x] QR customer action works without a checkout URL and is covered by service tests.
 
 Provider-specific create remains blocked on merchant documentation confirming exact amount semantics and response shape.
 
