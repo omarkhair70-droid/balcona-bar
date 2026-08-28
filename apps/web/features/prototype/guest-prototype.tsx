@@ -19,7 +19,7 @@ import {
   WalletCards,
   X
 } from "lucide-react";
-import { useState, type ReactNode } from "react";
+import { useState } from "react";
 
 type Locale = "en" | "ar";
 type View = "menu" | "order" | "service" | "bill";
