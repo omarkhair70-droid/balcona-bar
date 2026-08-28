@@ -26,6 +26,19 @@ describe("payment provider capabilities", () => {
     ).toBe(false);
   });
 
+  it("keeps Maestr fail-closed except for the verified commercial IPN rail", () => {
+    const capabilities = paymentProviderCapabilities(
+      OnlinePaymentProvider.maestr,
+    );
+
+    expect(capabilities.bankTransferOrIpn).toBe(true);
+    expect(capabilities.hostedCheckout).toBe(false);
+    expect(capabilities.transactionInquiry).toBe(false);
+    expect(capabilities.settlementData).toBe(false);
+    expect(capabilities.fullRefund).toBe(false);
+    expect(capabilities.partialRefund).toBe(false);
+  });
+
   it("keeps unsupported Fawry operations conservative", () => {
     const capabilities = paymentProviderCapabilities(
       OnlinePaymentProvider.fawry,
