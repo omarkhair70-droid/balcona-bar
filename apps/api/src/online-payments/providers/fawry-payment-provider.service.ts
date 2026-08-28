@@ -161,6 +161,10 @@ export class FawryPaymentProviderService {
       providerOrderId: input.localIntentId,
       status: OnlinePaymentIntentStatus.pending,
       checkoutUrl,
+      customerAction: {
+        type: "redirect",
+        url: checkoutUrl,
+      },
       checkoutExpiresAt,
       metadata: {
         fawryMerchantRefNumber: input.localIntentId,
