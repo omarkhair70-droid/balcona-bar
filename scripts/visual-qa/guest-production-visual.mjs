@@ -11,6 +11,50 @@ const OUTPUT_DIR = path.resolve("artifacts/guest-visual-qa");
 const SESSION_ID = "visual-session";
 const BRANCH_ID = "visual-branch";
 
+const startSessionResult = {
+  session: {
+    id: SESSION_ID,
+    companyId: "company-visual",
+    branchId: BRANCH_ID,
+    tableId: "table-12",
+    status: "active",
+    source: "qr",
+    startedAt: "2026-08-29T03:00:00.000Z"
+  },
+  company: {
+    id: "company-visual",
+    name: "Balcona",
+    slug: "balcona",
+    status: "active"
+  },
+  branch: {
+    id: BRANCH_ID,
+    companyId: "company-visual",
+    name: "Balcona Zamalek",
+    slug: "balcona-zamalek",
+    status: "active"
+  },
+  floor: {
+    id: "floor-main",
+    name: "Main",
+    sortOrder: 1
+  },
+  table: {
+    id: "table-12",
+    code: "T12",
+    displayName: "Table 12",
+    capacity: 4,
+    qrToken: "visual-table-12",
+    status: "active"
+  },
+  wasResumed: false,
+  customerAccess: {
+    customerAccessToken: "visual-token",
+    customerAccessTokenExpiresAt: "2099-01-01T00:00:00.000Z",
+    customerSessionIdentityId: "visual-identity"
+  }
+};
+
 const totals = {
   subtotalMinor: 23500,
   totalQuantity: 2,
@@ -303,6 +347,10 @@ async function installApiMocks(page) {
     const pathname = new URL(request.url()).pathname;
     const method = request.method();
 
+    if (pathname === "/api/v1/table-sessions/start" && method === "POST") {
+      return route.fulfill(json(startSessionResult));
+    }
+
     if (pathname === `/api/v1/branches/${BRANCH_ID}/experience/effective`) {
       return route.fulfill(json({
         company: { id: "company-visual", name: "Balcona", slug: "balcona" },
@@ -397,7 +445,7 @@ async function installApiMocks(page) {
   });
 }
 
-async function newContext(browser, locale = "en", expired = false) {
+async function newContext(browser, locale = "en") {
   const context = await browser.newContext({
     viewport: { width: 390, height: 844 },
     deviceScaleFactor: 1,
@@ -412,17 +460,6 @@ async function newContext(browser, locale = "en", expired = false) {
     }
   ]);
 
-  await context.addInitScript(
-    ({ localeValue, sessionValue }) => {
-      window.localStorage.setItem("balcona.locale", localeValue);
-      window.localStorage.setItem("balcona_customer_session", sessionValue);
-    },
-    {
-      localeValue: locale,
-      sessionValue: persistedSession(expired)
-    }
-  );
-
   return context;
 }
 
@@ -432,7 +469,7 @@ async function capture(browser, {
   locale = "en",
   expired = false
 }) {
-  const context = await newContext(browser, locale, expired);
+  const context = await newContext(browser, locale);
   const page = await context.newPage();
   const consoleErrors = [];
 
@@ -443,11 +480,53 @@ async function capture(browser, {
   });
 
   await installApiMocks(page);
-  await page.goto(`${BASE_URL}${route}`, {
-    waitUntil: "domcontentloaded",
-    timeout: 30000
-  });
-  await page.waitForTimeout(1200);
+
+  if (route.startsWith("/customer/session/")) {
+    await page.goto(`${BASE_URL}/customer/table/visual-table-12`, {
+      waitUntil: "domcontentloaded",
+      timeout: 30000
+    });
+    await page.waitForURL(`**/customer/session/${SESSION_ID}`, {
+      timeout: 15000
+    });
+
+    if (expired) {
+      await page.evaluate(() => {
+        const key = "balcona_customer_session";
+        const raw = window.localStorage.getItem(key);
+        if (!raw) {
+          throw new Error("customer session was not persisted after QR bootstrap");
+        }
+        const parsed = JSON.parse(raw);
+        parsed.state.customerAccessTokenExpiresAt = "2020-01-01T00:00:00.000Z";
+        window.localStorage.setItem(key, JSON.stringify(parsed));
+      });
+    }
+
+    await page.goto(`${BASE_URL}${route}`, {
+      waitUntil: "domcontentloaded",
+      timeout: 30000
+    });
+
+    await page.waitForFunction(
+      ({ expectExpired }) => {
+        const text = document.body.innerText;
+        if (expectExpired) {
+          return text.includes("expired") || text.includes("انته");
+        }
+        return !text.includes("Restoring your table") && !text.includes("استعادة");
+      },
+      { expectExpired: expired },
+      { timeout: 15000 }
+    );
+  } else {
+    await page.goto(`${BASE_URL}${route}`, {
+      waitUntil: "domcontentloaded",
+      timeout: 30000
+    });
+  }
+
+  await page.waitForTimeout(900);
 
   const metrics = await page.evaluate(() => ({
     innerWidth: window.innerWidth,
