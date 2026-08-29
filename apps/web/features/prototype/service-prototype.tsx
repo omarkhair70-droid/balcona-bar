@@ -757,7 +757,7 @@ function FloorView({
                   <span className="mt-0.5 text-2xl font-black leading-none">
                     {table.id.replace("T", "")}
                   </span>
-                  <span className="mt-1 max-w-full truncate text-[9px] font-semibold uppercase tracking-[0.05em] opacity-80">
+                  <span className="mt-1 max-w-full text-[8px] font-semibold uppercase tracking-[-0.02em] opacity-80 sm:text-[9px] sm:tracking-[0.05em]">
                     {table.state === "free"
                       ? L(locale, "Free", "فاضية")
                       : table.state === "bill"
@@ -1043,10 +1043,10 @@ function ShiftView({ locale }: { locale: Locale }) {
         <div className="mt-4 grid gap-4 lg:grid-cols-2">
           <section className="rounded-lg border border-[#3D322A] bg-[#211A15] p-4">
             <h2 className="text-sm font-semibold text-[#F4E7D8]">{L(locale, "Drawer adjustment", "تعديل الصندوق")}</h2>
-            <div className="mt-3 grid gap-2 sm:grid-cols-[1fr_1.4fr_auto]">
+            <div className="mt-3 grid gap-2 sm:grid-cols-[0.8fr_1.2fr]">
               <input placeholder="0.00" className="min-h-11 rounded-md border border-[#493B31] bg-[#18130F] px-3 text-sm text-[#FFF5E8] outline-none" />
               <input placeholder={L(locale, "Required note", "ملاحظة مطلوبة")} className="min-h-11 rounded-md border border-[#493B31] bg-[#18130F] px-3 text-sm text-[#FFF5E8] outline-none" />
-              <button type="button" className="min-h-11 rounded-md bg-[#342A23] px-4 text-xs font-semibold text-[#E7D8C9]">{L(locale, "Cash in", "إدخال كاش")}</button>
+              <button type="button" className="min-h-11 rounded-md bg-[#342A23] px-4 text-xs font-semibold text-[#E7D8C9] sm:col-span-2 sm:justify-self-start">{L(locale, "Cash in", "إدخال كاش")}</button>
             </div>
           </section>
 
