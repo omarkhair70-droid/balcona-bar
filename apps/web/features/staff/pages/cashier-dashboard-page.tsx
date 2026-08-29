@@ -1244,43 +1244,6 @@ function CashierDashboardContent() {
         />
       </section>
 
-      <div id="shift" className="scroll-mt-36">
-        <CashierShiftPanel
-        branchName={selectedBranch.name}
-        data={currentShiftQuery.data}
-        isLoading={currentShiftQuery.isPending}
-        error={currentShiftQuery.error ?? null}
-        report={shiftReport}
-        openPending={openShiftMutation.isPending}
-        adjustmentPending={cashAdjustmentMutation.isPending}
-        xReportPending={xReportMutation.isPending}
-        closePending={closeShiftMutation.isPending}
-        onOpen={(payload) => openShiftMutation.mutate(payload)}
-        onCashAdjustment={(payload) => {
-          if (currentShift?.id) {
-            cashAdjustmentMutation.mutate({
-              shiftId: currentShift.id,
-              payload,
-            });
-          }
-        }}
-        onXReport={() => {
-          if (currentShift?.id) {
-            xReportMutation.mutate(currentShift.id);
-          }
-        }}
-        onClose={(payload) => {
-          if (currentShift?.id) {
-            closeShiftMutation.mutate({
-              shiftId: currentShift.id,
-              payload,
-            });
-          }
-        }}
-        onClearReport={() => setShiftReport(null)}
-        />
-      </div>
-
       <section id="bills" className="scroll-mt-36 grid gap-5 xl:grid-cols-[1fr_22rem]">
         <BillRequestQueue
           billRequests={billRequests}
@@ -1358,6 +1321,44 @@ function CashierDashboardContent() {
           </CardContent>
         </Card>
       </section>
+
+      <div id="shift" className="scroll-mt-36">
+        <CashierShiftPanel
+        branchName={selectedBranch.name}
+        data={currentShiftQuery.data}
+        isLoading={currentShiftQuery.isPending}
+        error={currentShiftQuery.error ?? null}
+        report={shiftReport}
+        openPending={openShiftMutation.isPending}
+        adjustmentPending={cashAdjustmentMutation.isPending}
+        xReportPending={xReportMutation.isPending}
+        closePending={closeShiftMutation.isPending}
+        onOpen={(payload) => openShiftMutation.mutate(payload)}
+        onCashAdjustment={(payload) => {
+          if (currentShift?.id) {
+            cashAdjustmentMutation.mutate({
+              shiftId: currentShift.id,
+              payload,
+            });
+          }
+        }}
+        onXReport={() => {
+          if (currentShift?.id) {
+            xReportMutation.mutate(currentShift.id);
+          }
+        }}
+        onClose={(payload) => {
+          if (currentShift?.id) {
+            closeShiftMutation.mutate({
+              shiftId: currentShift.id,
+              payload,
+            });
+          }
+        }}
+        onClearReport={() => setShiftReport(null)}
+        />
+      </div>
+
     </div>
   );
 }
