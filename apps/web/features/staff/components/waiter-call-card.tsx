@@ -50,9 +50,9 @@ export function WaiterCallCard({
       aria-pressed={selected}
       onClick={() => waiterCallId && onSelect(waiterCallId)}
       className={cn(
-        "w-full rounded-card border bg-surface/75 p-4 text-start shadow-card transition hover:border-primary/55 hover:bg-surface",
-        selected ? "border-primary/70 bg-primary/10" : "border-border",
-        isHighPriority && !selected ? "border-warning/60" : ""
+        "w-full rounded-md border p-3 text-start transition",
+        selected ? "border-[#8A6239] bg-[#34271E]" : "border-[#3B3028] bg-[#211A15] hover:border-[#554238] hover:bg-[#292019]",
+        isHighPriority && !selected ? "border-[#7A3F3A]" : ""
       )}
     >
       <div className="flex items-start justify-between gap-3">
@@ -61,18 +61,18 @@ export function WaiterCallCard({
             <BellRing
               className={cn(
                 "size-4",
-                isHighPriority ? "text-warning" : "text-primary"
+                isHighPriority ? "text-[#F09C94]" : "text-[#C68A4A]"
               )}
               aria-hidden="true"
             />
-            <p className="text-base font-semibold text-foreground">
+            <p className="text-base font-semibold text-[#FFF4E6]">
               {getTableLabel(
                 getWaiterCallTable(waiterCall),
                 getWaiterCallFloor(waiterCall)
               )}
             </p>
           </div>
-          <p className="mt-2 text-xs text-muted-foreground">
+          <p className="mt-2 text-xs text-[#91857A]">
             {humanizeStatus(getWaiterCallType(waiterCall))} /{" "}
             {humanizeStatus(getWaiterCallSessionStatus(waiterCall))}
           </p>
@@ -82,20 +82,20 @@ export function WaiterCallCard({
 
       <dl className="mt-4 grid grid-cols-2 gap-3 text-xs">
         <div>
-          <dt className="text-muted-foreground">{t("waiter.priority")}</dt>
-          <dd className="mt-1 font-semibold text-foreground">
+          <dt className="text-[#91857A]">{t("waiter.priority")}</dt>
+          <dd className="mt-1 font-semibold text-[#FFF4E6]">
             {priority > 0 ? priority : t("waiter.standardPriority")}
           </dd>
         </div>
         <div>
-          <dt className="text-muted-foreground">{t("waiter.request")}</dt>
-          <dd className="mt-1 font-semibold text-foreground">
+          <dt className="text-[#91857A]">{t("waiter.request")}</dt>
+          <dd className="mt-1 font-semibold text-[#FFF4E6]">
             {humanizeStatus(getWaiterCallType(waiterCall))}
           </dd>
         </div>
       </dl>
 
-      <div className="mt-4 flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
+      <div className="mt-4 flex flex-wrap items-center gap-3 text-xs text-[#91857A]">
         <span className="inline-flex items-center gap-1.5">
           <Clock3 className="size-3.5" aria-hidden="true" />
           {formatDateTime(getWaiterCallCreatedAt(waiterCall))}
@@ -119,9 +119,9 @@ export function WaiterCallCard({
       ) : null}
 
       {message ? (
-        <p className="mt-3 line-clamp-2 rounded-card border border-primary/30 bg-primary/10 p-2 text-xs text-foreground">
+        <p className="mt-3 line-clamp-2 rounded-md border border-[#71413A] bg-[#321F1C] p-2 text-xs text-[#E4A199]">
           <MessageSquareText
-            className="me-1.5 inline size-3.5 text-primary"
+            className="me-1.5 inline size-3.5 text-[#C68A4A]"
             aria-hidden="true"
           />
           {message}

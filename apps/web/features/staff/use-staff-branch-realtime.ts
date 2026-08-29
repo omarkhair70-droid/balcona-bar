@@ -92,6 +92,9 @@ export function useStaffBranchRealtime(
           queryKey: staffQueryKeys.staffAttentionQueue(branchId)
         });
         void queryClient.invalidateQueries({
+          queryKey: ["staff", "branch-table-admin", "overview"]
+        });
+        void queryClient.invalidateQueries({
           queryKey: staffQueryKeys.staffOwnerOrders(branchId)
         });
         void queryClient.invalidateQueries({

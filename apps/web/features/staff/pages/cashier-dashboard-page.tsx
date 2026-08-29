@@ -31,7 +31,7 @@ import {
 import { EmptyState } from "@/components/ui/empty-state";
 import { Input } from "@/components/ui/input";
 import { MetricCard } from "@/components/ui/metric-card";
-import { StaffPageShell } from "@/features/staff/staff-page-shell";
+import { ServiceStaffShell } from "@/features/staff/service-staff-shell";
 import {
   getBillRequestStatus,
   getOrderId,
@@ -194,8 +194,8 @@ function NoticeBanner({ notice }: { notice?: Notice }) {
       role={isSuccess ? "status" : "alert"}
       className={
         isSuccess
-          ? "rounded-card border border-success bg-success/10 p-4 text-sm text-success"
-          : "rounded-card border border-danger bg-danger/10 p-4 text-sm text-danger"
+          ? "rounded-md border border-success bg-success/10 p-4 text-sm text-success"
+          : "rounded-md border border-[#7A3F3A] bg-[#3A211F] p-4 text-sm text-danger"
       }
     >
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -226,6 +226,7 @@ function CashierShiftReportSummary({
   snapshot: CashierShiftReportSnapshot;
   onClear: () => void;
 }) {
+  const t = useTranslations("staff");
   const currency =
     getRecordString(getSnapshotRecord(snapshot, "shift"), "currency") || "EGP";
   const reportType = getRecordString(snapshot, "reportType", "x_report");
@@ -253,15 +254,15 @@ function CashierShiftReportSummary({
   const paymentCount = getSnapshotNumber(snapshot, "counts", "paymentCount");
 
   return (
-    <div className="rounded-card border bg-background/50 p-4">
+    <div className="rounded-md border bg-background/50 p-4">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <p className="text-sm font-semibold text-foreground">
-            {reportType === "z_report" ? "Z report" : "X report"}{" "}
-            {reportNumber ? reportNumber : "preview"}
+          <p className="text-sm font-semibold text-[#F8EDDF]">
+            {reportType === "z_report" ? t("serviceShift.zReport") : t("serviceShift.xReportLower")}{" "}
+            {reportNumber ? reportNumber : t("serviceShift.preview")}
           </p>
-          <p className="mt-1 text-xs text-muted-foreground">
-            Generated {formatDateTime(getRecordString(snapshot, "generatedAt"))}
+          <p className="mt-1 text-xs text-[#91857A]">
+            {t("serviceShift.generated", { date: formatDateTime(getRecordString(snapshot, "generatedAt")) })}
           </p>
         </div>
         <Button type="button" size="sm" variant="ghost" onClick={onClear}>
@@ -270,33 +271,33 @@ function CashierShiftReportSummary({
       </div>
       <dl className="mt-4 grid gap-3 text-xs sm:grid-cols-4">
         <div>
-          <dt className="text-muted-foreground">Expected cash</dt>
-          <dd className="mt-1 font-semibold text-foreground">
+          <dt className="text-[#91857A]">{t("serviceShift.expectedCash")}</dt>
+          <dd className="mt-1 font-semibold text-[#F8EDDF]">
             {formatMoney(expectedCashMinor, currency)}
           </dd>
         </div>
         <div>
-          <dt className="text-muted-foreground">Collected</dt>
-          <dd className="mt-1 font-semibold text-foreground">
+          <dt className="text-[#91857A]">{t("serviceShift.collected")}</dt>
+          <dd className="mt-1 font-semibold text-[#F8EDDF]">
             {formatMoney(totalCollectedMinor, currency)}
           </dd>
         </div>
         <div>
-          <dt className="text-muted-foreground">Payments</dt>
-          <dd className="mt-1 font-semibold text-foreground">{paymentCount}</dd>
+          <dt className="text-[#91857A]">{t("serviceShift.payments")}</dt>
+          <dd className="mt-1 font-semibold text-[#F8EDDF]">{paymentCount}</dd>
         </div>
         <div>
-          <dt className="text-muted-foreground">Over / short</dt>
-          <dd className="mt-1 font-semibold text-foreground">
+          <dt className="text-[#91857A]">{t("serviceShift.overShort")}</dt>
+          <dd className="mt-1 font-semibold text-[#F8EDDF]">
             {reportType === "z_report"
               ? formatMoney(cashOverShortMinor, currency)
-              : "Z close only"}
+              : t("serviceShift.zCloseOnly")}
           </dd>
         </div>
       </dl>
       {reportType === "z_report" ? (
-        <p className="mt-3 text-xs text-muted-foreground">
-          Counted cash {formatMoney(countedCashMinor, currency)}.
+        <p className="mt-3 text-xs text-[#91857A]">
+          {t("serviceShift.countedCashSummary", { amount: formatMoney(countedCashMinor, currency) })}
         </p>
       ) : null}
     </div>
@@ -374,16 +375,16 @@ function CashierShiftPanel({
     adjustmentMinor > 0 && adjustmentNote.trim().length > 0;
 
   return (
-    <Card variant="glass" padding="lg">
-      <CardHeader className="gap-4 md:flex md:flex-row md:items-start md:justify-between md:space-y-0">
+    <Card variant="glass" padding="lg" className="min-w-0 border-[#3B3028] bg-[#1E1814] shadow-none">
+      <CardHeader className="gap-4 border-b border-[#342A23] md:flex md:flex-row md:items-start md:justify-between md:space-y-0">
         <div>
           <div className="flex flex-wrap items-center gap-2">
             <Badge variant={shift ? "success" : "warning"}>
-              {shift ? "Shift open" : "No open shift"}
+              {shift ? t("serviceShift.shiftOpen") : t("serviceShift.noOpenShift")}
             </Badge>
             <Badge variant="muted">{branchName}</Badge>
           </div>
-          <CardTitle className="mt-3">Cashier shift</CardTitle>
+          <CardTitle className="mt-3 text-[#FFF5E8]">{t("serviceShift.title")}</CardTitle>
           <CardDescription>
             {t("cashier.shiftManualPaymentsRequireOpen")}
           </CardDescription>
@@ -395,20 +396,20 @@ function CashierShiftPanel({
             onClick={onXReport}
             disabled={xReportPending}
           >
-            <FileText className="size-4" aria-hidden="true" />X Report
+            <FileText className="size-4" aria-hidden="true" />{t("serviceShift.xReport")}
           </Button>
         ) : null}
       </CardHeader>
       <CardContent className="grid gap-4">
         {isLoading ? (
-          <div className="rounded-card border bg-background/40 p-4 text-sm text-muted-foreground">
-            Loading cashier shift.
+          <div className="rounded-md border border-[#3A3028] bg-[#18130F] p-4 text-sm text-[#91857A]">
+            {t("serviceShift.loading")}
           </div>
         ) : null}
         {error ? (
           <div
             role="alert"
-            className="rounded-card border border-danger bg-danger/10 p-4 text-sm text-danger"
+            className="rounded-md border border-[#7A3F3A] bg-[#3A211F] p-4 text-sm text-danger"
           >
             {formatErrorMessage(error)}
           </div>
@@ -416,7 +417,7 @@ function CashierShiftPanel({
 
         {!isLoading && !error && !shift ? (
           <form
-            className="grid gap-3 md:grid-cols-[12rem_1fr_auto]"
+            className="grid gap-3 rounded-md border border-[#47392E] bg-[#18130F] p-3 md:grid-cols-[12rem_1fr_auto]"
             onSubmit={(event) => {
               event.preventDefault();
               onOpen({
@@ -425,25 +426,25 @@ function CashierShiftPanel({
               });
             }}
           >
-            <label className="grid gap-1 text-xs font-medium text-muted-foreground">
-              Opening float
+            <label className="grid gap-1 text-xs font-medium text-[#91857A]">
+              {t("serviceShift.openingFloat")}
               <Input
                 inputMode="decimal"
                 value={openingFloat}
                 onChange={(event) => setOpeningFloat(event.target.value)}
               />
             </label>
-            <label className="grid gap-1 text-xs font-medium text-muted-foreground">
-              Note
+            <label className="grid gap-1 text-xs font-medium text-[#91857A]">
+              {t("serviceShift.note")}
               <Input
                 value={openingNote}
                 onChange={(event) => setOpeningNote(event.target.value)}
-                placeholder="Optional opening note"
+                placeholder={t("serviceShift.optionalOpeningNote")}
               />
             </label>
             <Button type="submit" className="self-end" disabled={openPending}>
               <Banknote className="size-4" aria-hidden="true" />
-              Open shift
+              {t("serviceShift.openShift")}
             </Button>
           </form>
         ) : null}
@@ -452,14 +453,14 @@ function CashierShiftPanel({
           <>
             <dl className="grid gap-3 text-xs sm:grid-cols-2 lg:grid-cols-6">
               <div>
-                <dt className="text-muted-foreground">Opened</dt>
-                <dd className="mt-1 font-semibold text-foreground">
+                <dt className="text-[#91857A]">{t("serviceShift.opened")}</dt>
+                <dd className="mt-1 font-semibold text-[#F8EDDF]">
                   {formatDateTime(getRecordString(shift, "openedAt"))}
                 </dd>
               </div>
               <div>
-                <dt className="text-muted-foreground">Opening float</dt>
-                <dd className="mt-1 font-semibold text-foreground">
+                <dt className="text-[#91857A]">{t("serviceShift.openingFloat")}</dt>
+                <dd className="mt-1 font-semibold text-[#F8EDDF]">
                   {formatMoney(
                     getRecordNumber(shift, "openingFloatMinor"),
                     currency,
@@ -467,52 +468,52 @@ function CashierShiftPanel({
                 </dd>
               </div>
               <div>
-                <dt className="text-muted-foreground">Expected cash</dt>
-                <dd className="mt-1 font-semibold text-foreground">
+                <dt className="text-[#91857A]">{t("serviceShift.expectedCash")}</dt>
+                <dd className="mt-1 font-semibold text-[#F8EDDF]">
                   {formatMoney(expectedCashMinor, currency)}
                 </dd>
               </div>
               <div>
-                <dt className="text-muted-foreground">Collected</dt>
-                <dd className="mt-1 font-semibold text-foreground">
+                <dt className="text-[#91857A]">{t("serviceShift.collected")}</dt>
+                <dd className="mt-1 font-semibold text-[#F8EDDF]">
                   {formatMoney(totalCollectedMinor, currency)}
                 </dd>
               </div>
               <div>
-                <dt className="text-muted-foreground">Payments</dt>
-                <dd className="mt-1 font-semibold text-foreground">
+                <dt className="text-[#91857A]">{t("serviceShift.payments")}</dt>
+                <dd className="mt-1 font-semibold text-[#F8EDDF]">
                   {paymentCount}
                 </dd>
               </div>
               <div>
-                <dt className="text-muted-foreground">Bills</dt>
-                <dd className="mt-1 font-semibold text-foreground">
+                <dt className="text-[#91857A]">{t("serviceShift.bills")}</dt>
+                <dd className="mt-1 font-semibold text-[#F8EDDF]">
                   {billCount}
                 </dd>
               </div>
             </dl>
 
             <div className="grid gap-3 text-xs md:grid-cols-4">
-              <div className="rounded-card border bg-background/40 p-3">
-                Cash {formatMoney(cashMinor, currency)}
+              <div className="rounded-md border border-[#3A3028] bg-[#18130F] p-3">
+                {t("serviceShift.cash")} {formatMoney(cashMinor, currency)}
               </div>
-              <div className="rounded-card border bg-background/40 p-3">
-                Card POS {formatMoney(cardMinor, currency)}
+              <div className="rounded-md border border-[#3A3028] bg-[#18130F] p-3">
+                {t("serviceShift.cardPos")} {formatMoney(cardMinor, currency)}
               </div>
-              <div className="rounded-card border bg-background/40 p-3">
-                Wallet {formatMoney(walletMinor, currency)}
+              <div className="rounded-md border border-[#3A3028] bg-[#18130F] p-3">
+                {t("serviceShift.wallet")} {formatMoney(walletMinor, currency)}
               </div>
-              <div className="rounded-card border bg-background/40 p-3">
-                Other {formatMoney(otherMinor, currency)}
+              <div className="rounded-md border border-[#3A3028] bg-[#18130F] p-3">
+                {t("serviceShift.other")} {formatMoney(otherMinor, currency)}
               </div>
             </div>
 
             <form
-              className="grid gap-3 rounded-card border bg-background/40 p-3 md:grid-cols-[12rem_1fr_auto_auto]"
+              className="grid gap-3 rounded-md border border-[#47392E] bg-[#18130F] p-3 md:grid-cols-[12rem_1fr_auto_auto]"
               onSubmit={(event) => event.preventDefault()}
             >
-              <label className="grid gap-1 text-xs font-medium text-muted-foreground">
-                Drawer amount
+              <label className="grid gap-1 text-xs font-medium text-[#91857A]">
+                {t("serviceShift.drawerAmount")}
                 <Input
                   inputMode="decimal"
                   value={adjustmentAmount}
@@ -520,12 +521,12 @@ function CashierShiftPanel({
                   placeholder="0.00"
                 />
               </label>
-              <label className="grid gap-1 text-xs font-medium text-muted-foreground">
-                Adjustment note
+              <label className="grid gap-1 text-xs font-medium text-[#91857A]">
+                {t("serviceShift.adjustmentNote")}
                 <Input
                   value={adjustmentNote}
                   onChange={(event) => setAdjustmentNote(event.target.value)}
-                  placeholder="Required"
+                  placeholder={t("serviceShift.required")}
                 />
               </label>
               <Button
@@ -542,7 +543,7 @@ function CashierShiftPanel({
                 }
               >
                 <PlusCircle className="size-4" aria-hidden="true" />
-                Cash In
+                {t("serviceShift.cashIn")}
               </Button>
               <Button
                 type="button"
@@ -558,12 +559,12 @@ function CashierShiftPanel({
                 }
               >
                 <MinusCircle className="size-4" aria-hidden="true" />
-                Cash Out
+                {t("serviceShift.cashOut")}
               </Button>
             </form>
 
             <form
-              className="grid gap-3 rounded-card border bg-background/40 p-3 md:grid-cols-[12rem_1fr_auto]"
+              className="grid gap-3 rounded-md border border-[#3A3028] bg-[#18130F] p-3 md:grid-cols-[12rem_1fr_auto]"
               onSubmit={(event) => {
                 event.preventDefault();
 
@@ -577,8 +578,8 @@ function CashierShiftPanel({
                 });
               }}
             >
-              <label className="grid gap-1 text-xs font-medium text-muted-foreground">
-                Counted cash
+              <label className="grid gap-1 text-xs font-medium text-[#91857A]">
+                {t("serviceShift.countedCash")}
                 <Input
                   inputMode="decimal"
                   value={countedCash}
@@ -586,12 +587,12 @@ function CashierShiftPanel({
                   placeholder={minorToInput(expectedCashMinor)}
                 />
               </label>
-              <label className="grid gap-1 text-xs font-medium text-muted-foreground">
-                Closing note
+              <label className="grid gap-1 text-xs font-medium text-[#91857A]">
+                {t("serviceShift.closingNote")}
                 <Input
                   value={closingNote}
                   onChange={(event) => setClosingNote(event.target.value)}
-                  placeholder="Optional closing note"
+                  placeholder={t("serviceShift.optionalClosingNote")}
                 />
               </label>
               <Button
@@ -600,12 +601,14 @@ function CashierShiftPanel({
                 disabled={!countedCash.trim() || closePending}
               >
                 <CheckCircle2 className="size-4" aria-hidden="true" />
-                Close & Generate Z
+                {t("serviceShift.closeAndGenerateZ")}
               </Button>
               {countedCash.trim() ? (
-                <p className="md:col-span-3 text-xs text-muted-foreground">
-                  Expected {formatMoney(expectedCashMinor, currency)}. Over /
-                  short {formatMoney(overShortMinor, currency)}.
+                <p className="md:col-span-3 text-xs text-[#91857A]">
+                  {t("serviceShift.expectedOverShort", {
+                    expected: formatMoney(expectedCashMinor, currency),
+                    overShort: formatMoney(overShortMinor, currency)
+                  })}
                 </p>
               ) : null}
             </form>
@@ -1201,42 +1204,7 @@ function CashierDashboardContent() {
 
       <NoticeBanner notice={notice} />
 
-      <CashierShiftPanel
-        branchName={selectedBranch.name}
-        data={currentShiftQuery.data}
-        isLoading={currentShiftQuery.isPending}
-        error={currentShiftQuery.error ?? null}
-        report={shiftReport}
-        openPending={openShiftMutation.isPending}
-        adjustmentPending={cashAdjustmentMutation.isPending}
-        xReportPending={xReportMutation.isPending}
-        closePending={closeShiftMutation.isPending}
-        onOpen={(payload) => openShiftMutation.mutate(payload)}
-        onCashAdjustment={(payload) => {
-          if (currentShift?.id) {
-            cashAdjustmentMutation.mutate({
-              shiftId: currentShift.id,
-              payload,
-            });
-          }
-        }}
-        onXReport={() => {
-          if (currentShift?.id) {
-            xReportMutation.mutate(currentShift.id);
-          }
-        }}
-        onClose={(payload) => {
-          if (currentShift?.id) {
-            closeShiftMutation.mutate({
-              shiftId: currentShift.id,
-              payload,
-            });
-          }
-        }}
-        onClearReport={() => setShiftReport(null)}
-      />
-
-      <section className="grid gap-5 xl:grid-cols-[minmax(20rem,26rem)_1fr]">
+      <section id="orders" className="scroll-mt-36 grid gap-5 xl:grid-cols-[minmax(20rem,26rem)_1fr]">
         <CashierOrderQueue
           orders={orders}
           status={orderStatus}
@@ -1279,7 +1247,7 @@ function CashierDashboardContent() {
         />
       </section>
 
-      <section className="grid gap-5 xl:grid-cols-[1fr_22rem]">
+      <section id="bills" className="scroll-mt-36 grid gap-5 xl:grid-cols-[1fr_22rem]">
         <BillRequestQueue
           billRequests={billRequests}
           status={billStatus}
@@ -1321,7 +1289,7 @@ function CashierDashboardContent() {
           </CardHeader>
           <CardContent className="grid gap-3">
             {realtimeEventsQuery.isError ? (
-              <div className="rounded-card border border-warning bg-warning/10 p-3 text-sm text-warning">
+              <div className="rounded-md border border-warning bg-warning/10 p-3 text-sm text-warning">
                 <AlertTriangle
                   className="me-2 inline size-4"
                   aria-hidden="true"
@@ -1330,24 +1298,24 @@ function CashierDashboardContent() {
               </div>
             ) : null}
             {(realtimeEventsQuery.data?.events ?? []).length === 0 ? (
-              <p className="rounded-card border border-dashed bg-surface/70 p-4 text-sm text-muted-foreground">
+              <p className="rounded-md border border-dashed bg-surface/70 p-4 text-sm text-[#91857A]">
                 {t("cashier.activityEmpty")}
               </p>
             ) : null}
             {(realtimeEventsQuery.data?.events ?? []).map((event, index) => (
               <div
                 key={getRecordString(event, "id") || String(index)}
-                className="rounded-card border bg-surface/75 p-3"
+                className="rounded-md border bg-surface/75 p-3"
               >
-                <p className="text-sm font-semibold text-foreground">
+                <p className="text-sm font-semibold text-[#F8EDDF]">
                   {humanizeStatus(getRecordString(event, "type", "event"))}
                 </p>
-                <p className="mt-1 text-xs text-muted-foreground">
+                <p className="mt-1 text-xs text-[#91857A]">
                   {getRecordString(event, "channel", "system")} /{" "}
                   {formatDateTime(getRecordString(event, "createdAt"))}
                 </p>
                 {getRecordString(event, "orderId") ? (
-                  <p className="mt-2 text-xs text-muted-foreground">
+                  <p className="mt-2 text-xs text-[#91857A]">
                     Order {shortId(getRecordString(event, "orderId"))}
                   </p>
                 ) : null}
@@ -1356,6 +1324,44 @@ function CashierDashboardContent() {
           </CardContent>
         </Card>
       </section>
+
+      <div id="shift" className="scroll-mt-36">
+        <CashierShiftPanel
+        branchName={selectedBranch.name}
+        data={currentShiftQuery.data}
+        isLoading={currentShiftQuery.isPending}
+        error={currentShiftQuery.error ?? null}
+        report={shiftReport}
+        openPending={openShiftMutation.isPending}
+        adjustmentPending={cashAdjustmentMutation.isPending}
+        xReportPending={xReportMutation.isPending}
+        closePending={closeShiftMutation.isPending}
+        onOpen={(payload) => openShiftMutation.mutate(payload)}
+        onCashAdjustment={(payload) => {
+          if (currentShift?.id) {
+            cashAdjustmentMutation.mutate({
+              shiftId: currentShift.id,
+              payload,
+            });
+          }
+        }}
+        onXReport={() => {
+          if (currentShift?.id) {
+            xReportMutation.mutate(currentShift.id);
+          }
+        }}
+        onClose={(payload) => {
+          if (currentShift?.id) {
+            closeShiftMutation.mutate({
+              shiftId: currentShift.id,
+              payload,
+            });
+          }
+        }}
+        onClearReport={() => setShiftReport(null)}
+        />
+      </div>
+
     </div>
   );
 }
@@ -1364,7 +1370,8 @@ export function CashierDashboardPage() {
   const t = useTranslations("staff");
 
   return (
-    <StaffPageShell
+    <ServiceStaffShell
+      mode="cashier"
       title={t("cashier.dashboardTitle")}
       description={t("cashier.dashboardDescription")}
       actions={<CashierDashboardActions />}
@@ -1375,6 +1382,6 @@ export function CashierDashboardPage() {
       >
         <CashierDashboardContent />
       </StaffAuthGate>
-    </StaffPageShell>
+    </ServiceStaffShell>
   );
 }

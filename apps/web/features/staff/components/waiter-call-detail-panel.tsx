@@ -80,7 +80,7 @@ export function WaiterCallDetailPanel({
   const canCancel = status === "open" || status === "acknowledged";
 
   return (
-    <Card variant="glass" padding="lg" className="min-h-[34rem]">
+    <Card variant="glass" padding="lg" className="min-h-[34rem] min-w-0 border-[#3B3028] bg-[#1E1814] shadow-none">
       <CardHeader>
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
@@ -106,16 +106,16 @@ export function WaiterCallDetailPanel({
         ) : null}
         {waiterCall ? (
           <>
-            <div className="rounded-card border bg-surface/75 p-4">
+            <div className="rounded-md border border-[#3C3129] bg-[#211A15] p-4">
               <div className="flex flex-wrap items-start justify-between gap-4">
                 <div>
-                  <p className="text-lg font-semibold text-foreground">
+                  <p className="text-lg font-semibold text-[#F8EDDF]">
                     {getTableLabel(
                       getWaiterCallTable(waiterCall),
                       getWaiterCallFloor(waiterCall)
                     )}
                   </p>
-                  <p className="mt-1 text-sm text-muted-foreground">
+                  <p className="mt-1 text-sm text-[#91857A]">
                     {humanizeStatus(getWaiterCallType(waiterCall))} /{" "}
                     {t("waiter.sessionStatus", {
                       status: humanizeStatus(
@@ -125,12 +125,12 @@ export function WaiterCallDetailPanel({
                   </p>
                 </div>
                 <div className="text-end">
-                  <p className="text-sm font-semibold text-foreground">
+                  <p className="text-sm font-semibold text-[#F8EDDF]">
                     {t("waiter.priority")}{" "}
                     {getWaiterCallPriority(waiterCall) ||
                       t("waiter.priorityStandard")}
                   </p>
-                  <p className="mt-1 text-xs text-muted-foreground">
+                  <p className="mt-1 text-xs text-[#91857A]">
                     {t("waiter.callFallback", {
                       callId: shortId(getWaiterCallId(waiterCall)),
                     })}
@@ -138,7 +138,7 @@ export function WaiterCallDetailPanel({
                 </div>
               </div>
 
-              <div className="mt-4 grid gap-2 text-xs text-muted-foreground sm:grid-cols-2">
+              <div className="mt-4 grid gap-2 text-xs text-[#91857A] sm:grid-cols-2">
                 <span className="inline-flex items-center gap-1.5">
                   <Clock3 className="size-3.5" aria-hidden="true" />
                   {t("tasks.createdAt", {
@@ -163,7 +163,7 @@ export function WaiterCallDetailPanel({
               </div>
 
               {getWaiterCallOrderNumber(waiterCall) ? (
-                <p className="mt-4 inline-flex items-center gap-1.5 text-xs text-muted-foreground">
+                <p className="mt-4 inline-flex items-center gap-1.5 text-xs text-[#91857A]">
                   <Hash className="size-3.5" aria-hidden="true" />
                   {t("tasks.orderStatus", {
                     status: `${getWaiterCallOrderNumber(waiterCall)} / ${humanizeStatus(
@@ -174,7 +174,7 @@ export function WaiterCallDetailPanel({
               ) : null}
 
               {getWaiterCallMessage(waiterCall) ? (
-                <div className="mt-4 rounded-card border border-primary/30 bg-primary/10 p-3 text-sm text-foreground">
+                <div className="mt-4 rounded-md border border-[#71413A] bg-[#321F1C] p-3 text-sm text-[#E4A199]">
                   <MessageSquareText
                     className="me-2 inline size-4 text-primary"
                     aria-hidden="true"
@@ -184,7 +184,7 @@ export function WaiterCallDetailPanel({
               ) : null}
             </div>
 
-            <div className="rounded-card border bg-surface/75 p-4">
+            <div className="rounded-md border border-[#3C3129] bg-[#211A15] p-4">
               <div className="flex flex-wrap items-center gap-3">
                 <Button
                   onClick={onAcknowledge}
@@ -213,57 +213,57 @@ export function WaiterCallDetailPanel({
                 </Button>
               </div>
               {!canAcknowledge && !canResolve && !canCancel ? (
-                <p className="mt-3 text-xs text-muted-foreground">
+                <p className="mt-3 text-xs text-[#91857A]">
                   {t("waiter.closedWorkflow")}
                 </p>
               ) : null}
-              <label className="mt-4 grid gap-2 text-sm font-medium text-foreground">
+              <label className="mt-4 grid gap-2 text-sm font-medium text-[#F8EDDF]">
                 {t("waiter.resolutionNote")}
                 <textarea
                   value={resolutionNote}
                   onChange={(event) => setResolutionNote(event.target.value)}
                   rows={3}
                   placeholder={t("waiter.resolutionNotePlaceholder")}
-                  className="w-full resize-none rounded-button border bg-surface px-3 py-2 text-sm text-foreground outline-none transition placeholder:text-muted-foreground focus:border-primary focus:ring-2 focus:ring-primary/35 disabled:cursor-not-allowed disabled:opacity-60"
+                  className="w-full resize-none rounded-md border border-[#3B3028] bg-[#211A15] px-3 py-2 text-sm text-[#F6EBDD] outline-none transition placeholder:text-[#756A61] focus:border-[#C68A4A] focus:ring-2 focus:ring-[#C68A4A]/20 disabled:cursor-not-allowed disabled:opacity-60"
                   disabled={!canResolve || resolvePending}
                 />
               </label>
-              <label className="mt-4 grid gap-2 text-sm font-medium text-foreground">
+              <label className="mt-4 grid gap-2 text-sm font-medium text-[#F8EDDF]">
                 {t("waiter.cancelReason")}
                 <textarea
                   value={cancelReason}
                   onChange={(event) => setCancelReason(event.target.value)}
                   rows={2}
                   placeholder={t("waiter.cancelReasonPlaceholder")}
-                  className="w-full resize-none rounded-button border bg-surface px-3 py-2 text-sm text-foreground outline-none transition placeholder:text-muted-foreground focus:border-primary focus:ring-2 focus:ring-primary/35 disabled:cursor-not-allowed disabled:opacity-60"
+                  className="w-full resize-none rounded-md border border-[#3B3028] bg-[#211A15] px-3 py-2 text-sm text-[#F6EBDD] outline-none transition placeholder:text-[#756A61] focus:border-[#C68A4A] focus:ring-2 focus:ring-[#C68A4A]/20 disabled:cursor-not-allowed disabled:opacity-60"
                   disabled={!canCancel || cancelPending}
                 />
               </label>
             </div>
 
             <section className="grid gap-3">
-              <h3 className="text-sm font-semibold text-foreground">
+              <h3 className="text-sm font-semibold text-[#F8EDDF]">
                 {t("orders.timeline")}
               </h3>
               {events.length === 0 ? (
-                <p className="rounded-card border border-dashed bg-surface/70 p-4 text-sm text-muted-foreground">
+                <p className="rounded-md border border-dashed border-[#3A3028] bg-[#18130F] p-4 text-sm text-[#91857A]">
                   {t("waiter.emptyEvents")}
                 </p>
               ) : null}
               {events.map((event, index) => (
                 <div
                   key={getRecordString(event, "id") || String(index)}
-                  className="flex items-start justify-between gap-3 rounded-card border bg-surface/75 p-3"
+                  className="flex items-start justify-between gap-3 rounded-md border border-[#3A3028] bg-[#211A15] p-3"
                 >
                   <div>
-                    <p className="text-sm font-medium text-foreground">
+                    <p className="text-sm font-medium text-[#F8EDDF]">
                       {humanizeStatus(getRecordString(event, "type", "event"))}
                     </p>
-                    <p className="mt-1 text-xs text-muted-foreground">
+                    <p className="mt-1 text-xs text-[#91857A]">
                       {getRecordString(event, "actorType", "system")}
                     </p>
                   </div>
-                  <p className="text-xs text-muted-foreground">
+                  <p className="text-xs text-[#91857A]">
                     {formatDateTime(getRecordString(event, "createdAt"))}
                   </p>
                 </div>

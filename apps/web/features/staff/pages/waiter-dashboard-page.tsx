@@ -7,15 +7,12 @@ import {
   AlertTriangle,
   BellRing,
   CheckCircle2,
-  ChefHat,
   ClipboardList,
   Footprints,
   HandPlatter,
-  LayoutDashboard,
   LogIn,
   LogOut,
   Radio,
-  Receipt,
   RefreshCw
 } from "lucide-react";
 import { useMemo, useState } from "react";
@@ -48,7 +45,7 @@ import {
   getTicketStation,
   getTicketStatus
 } from "@/features/staff/kds-data";
-import { StaffPageShell } from "@/features/staff/staff-page-shell";
+import { ServiceStaffShell } from "@/features/staff/service-staff-shell";
 import {
   formatDateTime,
   getRecordString,
@@ -67,6 +64,7 @@ import {
   cancelWaiterCall,
   getBranchAttentionQueue,
   getBranchRealtimeEvents,
+  getBranchTableAdminOverview,
   getBranchWaiterCalls,
   getReadyToServeOrders,
   getTableSessionAttention,
@@ -94,6 +92,7 @@ import { AttentionDetailPanel } from "../components/attention-detail-panel";
 import { StaffAuthGate } from "../components/staff-auth-gate";
 import { StaffBranchSelector } from "../components/staff-branch-selector";
 import { StaffRealtimeStatus } from "../components/staff-realtime-status";
+import { ServiceFloorBoard } from "../components/service-floor-board";
 import { WaiterCallDetailPanel } from "../components/waiter-call-detail-panel";
 import { WaiterCallQueue } from "../components/waiter-call-queue";
 
@@ -217,24 +216,6 @@ function WaiterDashboardActions() {
 
   return (
     <>
-      <Link href="/staff" className={buttonVariants({ variant: "ghost" })}>
-        <LayoutDashboard className="size-4" aria-hidden="true" />
-        {t("actions.overview")}
-      </Link>
-      <Link
-        href="/staff/cashier"
-        className={buttonVariants({ variant: "ghost" })}
-      >
-        <Receipt className="size-4" aria-hidden="true" />
-        {t("actions.cashier")}
-      </Link>
-      <Link
-        href="/staff/kitchen"
-        className={buttonVariants({ variant: "ghost" })}
-      >
-        <ChefHat className="size-4" aria-hidden="true" />
-        {t("actions.kitchen")}
-      </Link>
       <StaffBranchSelector
         access={effectiveAccess}
         selectedBranchId={selectedBranchId}
@@ -275,6 +256,7 @@ function WaiterDashboardContent() {
     (entry) => entry.branch.id === selectedBranchId
   );
   const selectedBranch = selectedBranchAccess?.branch;
+  const selectedCompanyId = selectedBranchAccess?.company.id;
   const realtime = useStaffBranchRealtime(selectedBranchId, accessToken);
   const allWaiterCallsQuery = useQuery({
     queryKey: staffQueryKeys.staffWaiterCalls(selectedBranchId, "all", "all"),
@@ -334,6 +316,20 @@ function WaiterDashboardContent() {
         accessToken
       ),
     enabled: Boolean(selectedBranchId && accessToken),
+    staleTime: 10_000
+  });
+  const floorOverviewQuery = useQuery({
+    queryKey: staffQueryKeys.branchTableAdminOverview(
+      selectedCompanyId,
+      selectedBranchId
+    ),
+    queryFn: () =>
+      getBranchTableAdminOverview(
+        selectedCompanyId ?? "",
+        selectedBranchId,
+        accessToken
+      ),
+    enabled: Boolean(selectedCompanyId && selectedBranchId && accessToken),
     staleTime: 10_000
   });
   const realtimeEventsQuery = useQuery({
@@ -422,6 +418,12 @@ function WaiterDashboardContent() {
     void queryClient.invalidateQueries({
       queryKey: staffQueryKeys.branchRealtime(selectedBranchId)
     });
+    void queryClient.invalidateQueries({
+      queryKey: staffQueryKeys.branchTableAdminOverview(
+        selectedCompanyId,
+        selectedBranchId
+      )
+    });
   };
   const invalidateWaiterState = (
     waiterCallId?: string,
@@ -435,6 +437,12 @@ function WaiterDashboardContent() {
     });
     void queryClient.invalidateQueries({
       queryKey: staffQueryKeys.branchRealtime(selectedBranchId)
+    });
+    void queryClient.invalidateQueries({
+      queryKey: staffQueryKeys.branchTableAdminOverview(
+        selectedCompanyId,
+        selectedBranchId
+      )
     });
 
     if (waiterCallId) {
@@ -456,6 +464,12 @@ function WaiterDashboardContent() {
     void queryClient.invalidateQueries({
       queryKey: staffQueryKeys.branchRealtime(selectedBranchId)
     });
+    void queryClient.invalidateQueries({
+      queryKey: staffQueryKeys.branchTableAdminOverview(
+        selectedCompanyId,
+        selectedBranchId
+      )
+    });
 
     if (orderId) {
       void queryClient.invalidateQueries({
@@ -472,6 +486,12 @@ function WaiterDashboardContent() {
     });
     void queryClient.invalidateQueries({
       queryKey: staffQueryKeys.branchRealtime(selectedBranchId)
+    });
+    void queryClient.invalidateQueries({
+      queryKey: staffQueryKeys.branchTableAdminOverview(
+        selectedCompanyId,
+        selectedBranchId
+      )
     });
 
     if (sessionId) {
@@ -755,6 +775,102 @@ function WaiterDashboardContent() {
 
       <NoticeBanner notice={notice} />
 
+      <div id="floor" className="scroll-mt-36">
+        <ServiceFloorBoard
+          overview={floorOverviewQuery.data}
+          isLoading={floorOverviewQuery.isPending}
+          error={floorOverviewQuery.error ?? undefined}
+          selectedSessionId={selectedSessionId}
+          onSelectSession={setUserSelectedSessionId}
+        />
+      </div>
+
+      <section id="attention" className="scroll-mt-36 grid gap-5 xl:grid-cols-[minmax(20rem,28rem)_1fr]">
+        <AttentionQueue
+          attentionQueue={attentionQueue}
+          status={attentionStatus}
+          priority={attentionPriority}
+          selectedSessionId={selectedSessionId}
+          isLoading={attentionQueueQuery.isPending}
+          error={attentionQueueQuery.error ?? undefined}
+          onStatusChange={setAttentionStatus}
+          onPriorityChange={setAttentionPriority}
+          onSelectAttention={setUserSelectedSessionId}
+          onRefresh={refreshBranch}
+        />
+        <AttentionDetailPanel
+          attention={attentionDetailQuery.data}
+          isLoading={attentionDetailQuery.isPending && Boolean(selectedSessionId)}
+          error={attentionDetailQuery.error ?? undefined}
+          resolvePending={resolveAttentionMutation.isPending}
+          mutePending={muteAttentionMutation.isPending}
+          recalculatePending={recalculateAttentionMutation.isPending}
+          onResolve={(note) => {
+            if (selectedSessionId) {
+              resolveAttentionMutation.mutate({ sessionId: selectedSessionId, note });
+            }
+          }}
+          onMute={(minutes, note) => {
+            if (selectedSessionId) {
+              muteAttentionMutation.mutate({
+                sessionId: selectedSessionId,
+                minutes,
+                note
+              });
+            }
+          }}
+          onRecalculate={() => {
+            if (selectedSessionId) {
+              recalculateAttentionMutation.mutate(selectedSessionId);
+            }
+          }}
+        />
+      </section>
+
+      <section className="grid gap-5 xl:grid-cols-[minmax(20rem,28rem)_1fr]">
+        <WaiterCallQueue
+          waiterCalls={waiterCalls}
+          status={waiterCallStatus}
+          type={waiterCallType}
+          selectedWaiterCallId={selectedWaiterCallId}
+          isLoading={waiterCallsQuery.isPending}
+          error={waiterCallsQuery.error ?? undefined}
+          onStatusChange={setWaiterCallStatus}
+          onTypeChange={setWaiterCallType}
+          onSelectWaiterCall={setUserSelectedWaiterCallId}
+          onRefresh={refreshBranch}
+        />
+        <WaiterCallDetailPanel
+          waiterCall={waiterCallDetailQuery.data}
+          isLoading={waiterCallDetailQuery.isPending && Boolean(selectedWaiterCallId)}
+          error={waiterCallDetailQuery.error ?? undefined}
+          acknowledgePending={acknowledgeMutation.isPending}
+          resolvePending={resolveWaiterCallMutation.isPending}
+          cancelPending={cancelWaiterCallMutation.isPending}
+          onAcknowledge={() => {
+            if (selectedWaiterCallId) {
+              acknowledgeMutation.mutate(selectedWaiterCallId);
+            }
+          }}
+          onResolve={(resolutionNote) => {
+            if (selectedWaiterCallId) {
+              resolveWaiterCallMutation.mutate({
+                waiterCallId: selectedWaiterCallId,
+                resolutionNote
+              });
+            }
+          }}
+          onCancel={(reason) => {
+            if (selectedWaiterCallId) {
+              cancelWaiterCallMutation.mutate({
+                waiterCallId: selectedWaiterCallId,
+                reason
+              });
+            }
+          }}
+        />
+      </section>
+
       <Card variant="quiet">
         <CardHeader>
           <CardTitle>{t("waiter.readyOrdersTitle")}</CardTitle>
@@ -833,92 +949,6 @@ function WaiterDashboardContent() {
         </CardContent>
       </Card>
 
-      <section className="grid gap-5 xl:grid-cols-[minmax(20rem,28rem)_1fr]">
-        <WaiterCallQueue
-          waiterCalls={waiterCalls}
-          status={waiterCallStatus}
-          type={waiterCallType}
-          selectedWaiterCallId={selectedWaiterCallId}
-          isLoading={waiterCallsQuery.isPending}
-          error={waiterCallsQuery.error ?? undefined}
-          onStatusChange={setWaiterCallStatus}
-          onTypeChange={setWaiterCallType}
-          onSelectWaiterCall={setUserSelectedWaiterCallId}
-          onRefresh={refreshBranch}
-        />
-        <WaiterCallDetailPanel
-          waiterCall={waiterCallDetailQuery.data}
-          isLoading={waiterCallDetailQuery.isPending && Boolean(selectedWaiterCallId)}
-          error={waiterCallDetailQuery.error ?? undefined}
-          acknowledgePending={acknowledgeMutation.isPending}
-          resolvePending={resolveWaiterCallMutation.isPending}
-          cancelPending={cancelWaiterCallMutation.isPending}
-          onAcknowledge={() => {
-            if (selectedWaiterCallId) {
-              acknowledgeMutation.mutate(selectedWaiterCallId);
-            }
-          }}
-          onResolve={(resolutionNote) => {
-            if (selectedWaiterCallId) {
-              resolveWaiterCallMutation.mutate({
-                waiterCallId: selectedWaiterCallId,
-                resolutionNote
-              });
-            }
-          }}
-          onCancel={(reason) => {
-            if (selectedWaiterCallId) {
-              cancelWaiterCallMutation.mutate({
-                waiterCallId: selectedWaiterCallId,
-                reason
-              });
-            }
-          }}
-        />
-      </section>
-
-      <section className="grid gap-5 xl:grid-cols-[minmax(20rem,28rem)_1fr]">
-        <AttentionQueue
-          attentionQueue={attentionQueue}
-          status={attentionStatus}
-          priority={attentionPriority}
-          selectedSessionId={selectedSessionId}
-          isLoading={attentionQueueQuery.isPending}
-          error={attentionQueueQuery.error ?? undefined}
-          onStatusChange={setAttentionStatus}
-          onPriorityChange={setAttentionPriority}
-          onSelectAttention={setUserSelectedSessionId}
-          onRefresh={refreshBranch}
-        />
-        <AttentionDetailPanel
-          attention={attentionDetailQuery.data}
-          isLoading={attentionDetailQuery.isPending && Boolean(selectedSessionId)}
-          error={attentionDetailQuery.error ?? undefined}
-          resolvePending={resolveAttentionMutation.isPending}
-          mutePending={muteAttentionMutation.isPending}
-          recalculatePending={recalculateAttentionMutation.isPending}
-          onResolve={(note) => {
-            if (selectedSessionId) {
-              resolveAttentionMutation.mutate({ sessionId: selectedSessionId, note });
-            }
-          }}
-          onMute={(minutes, note) => {
-            if (selectedSessionId) {
-              muteAttentionMutation.mutate({
-                sessionId: selectedSessionId,
-                minutes,
-                note
-              });
-            }
-          }}
-          onRecalculate={() => {
-            if (selectedSessionId) {
-              recalculateAttentionMutation.mutate(selectedSessionId);
-            }
-          }}
-        />
-      </section>
-
       <Card variant="quiet">
         <CardHeader>
           <CardTitle>{t("waiter.activityTitle")}</CardTitle>
@@ -974,7 +1004,8 @@ export function WaiterDashboardPage() {
   const t = useTranslations("staff");
 
   return (
-    <StaffPageShell
+    <ServiceStaffShell
+      mode="waiter"
       title={t("waiter.dashboardTitle")}
       description={t("waiter.dashboardDescription")}
       actions={<WaiterDashboardActions />}
@@ -982,6 +1013,6 @@ export function WaiterDashboardPage() {
       <StaffAuthGate requiredPermissions={["waiter_calls.read"]} branchScoped>
         <WaiterDashboardContent />
       </StaffAuthGate>
-    </StaffPageShell>
+    </ServiceStaffShell>
   );
 }

@@ -45,6 +45,8 @@ export function AttentionCard({
   const reasons = getAttentionReasons(attention);
   const actions = getAttentionRecommendedActions(attention);
   const isUrgent = status === "urgent" || priority === "urgent";
+  const isDue =
+    !isUrgent && (priority === "high" || status === "needs_attention");
 
   return (
     <button
@@ -52,68 +54,84 @@ export function AttentionCard({
       aria-pressed={selected}
       onClick={() => sessionId && onSelect(sessionId)}
       className={cn(
-        "w-full rounded-card border bg-surface/75 p-4 text-start shadow-card transition hover:border-primary/55 hover:bg-surface",
-        selected ? "border-primary/70 bg-primary/10" : "border-border",
-        isUrgent && !selected ? "border-danger/70 bg-danger/10" : ""
+        "relative w-full overflow-hidden rounded-md border p-3 text-start transition",
+        selected
+          ? "border-[#8A6239] bg-[#34271E]"
+          : "border-[#3B3028] bg-[#211A15] hover:border-[#554238] hover:bg-[#292019]"
       )}
     >
-      <div className="flex items-start justify-between gap-3">
+      <span
+        className={cn(
+          "absolute inset-y-0 start-0 w-1",
+          isUrgent
+            ? "bg-[#C85E52]"
+            : isDue
+              ? "bg-[#D6A34C]"
+              : "bg-[#6D7A72]"
+        )}
+        aria-hidden="true"
+      />
+
+      <div className="flex items-start justify-between gap-3 ps-1">
         <div className="min-w-0">
-          <div className="flex flex-wrap items-center gap-2">
+          <div className="flex items-center gap-2">
             <AlertTriangle
               className={cn(
-                "size-4",
-                isUrgent ? "text-danger" : "text-primary"
+                "size-4 shrink-0",
+                isUrgent
+                  ? "text-[#F09C94]"
+                  : isDue
+                    ? "text-[#F0C66E]"
+                    : "text-[#AFA195]"
               )}
               aria-hidden="true"
             />
-            <p className="text-base font-semibold text-foreground">
+            <p className="truncate text-sm font-semibold text-[#FFF4E6]">
               {getTableLabel(
                 getAttentionTable(attention),
                 getAttentionFloor(attention)
               )}
             </p>
           </div>
-          <p className="mt-2 text-xs text-muted-foreground">
+          <p className="mt-1 text-[11px] text-[#91857A]">
             {t("attention.cardSession", {
               sessionId: shortId(sessionId),
-              status: humanizeStatus(status),
+              status: humanizeStatus(status)
             })}
           </p>
         </div>
-        <div className="flex flex-wrap justify-end gap-2">
+        <div className="flex shrink-0 flex-wrap justify-end gap-1.5">
           <AttentionStatusPill status={status} />
           <AttentionPriorityPill priority={priority} />
         </div>
       </div>
 
-      <dl className="mt-4 grid grid-cols-2 gap-3 text-xs">
-        <div>
-          <dt className="text-muted-foreground">{t("attention.score")}</dt>
-          <dd className="mt-1 inline-flex items-center gap-1.5 font-semibold text-foreground">
-            <Gauge className="size-3.5" aria-hidden="true" />
-            {score}
-          </dd>
-        </div>
-        <div>
-          <dt className="text-muted-foreground">{t("attention.updated")}</dt>
-          <dd className="mt-1 inline-flex items-center gap-1.5 font-semibold text-foreground">
-            <Clock3 className="size-3.5" aria-hidden="true" />
-            {formatDateTime(getAttentionLastEvaluatedAt(attention))}
-          </dd>
-        </div>
-      </dl>
-
       {reasons[0] ? (
-        <p className="mt-3 line-clamp-2 rounded-card border border-warning/40 bg-warning/10 p-2 text-xs text-warning">
+        <p className="mt-3 line-clamp-2 ps-1 text-xs leading-5 text-[#D9CCC0]">
           {getAttentionReasonMessage(reasons[0])}
         </p>
       ) : null}
 
+      <div className="mt-3 flex items-end justify-between gap-3 ps-1">
+        <div className="flex flex-wrap items-center gap-3 text-[11px] text-[#8F8176]">
+          <span className="inline-flex items-center gap-1.5">
+            <Gauge className="size-3.5" aria-hidden="true" />
+            {t("attention.score")} {score}
+          </span>
+          <span className="inline-flex items-center gap-1.5">
+            <Clock3 className="size-3.5" aria-hidden="true" />
+            {formatDateTime(getAttentionLastEvaluatedAt(attention))}
+          </span>
+        </div>
+      </div>
+
       {actions.length > 0 ? (
-        <div className="mt-3 flex flex-wrap gap-2">
+        <div className="mt-3 flex flex-wrap gap-1.5 ps-1">
           {actions.slice(0, 3).map((action, index) => (
-            <Badge key={`${getAttentionActionLabel(action)}-${index}`} variant="muted">
+            <Badge
+              key={`${getAttentionActionLabel(action)}-${index}`}
+              variant="muted"
+            >
               {getAttentionActionLabel(action)}
             </Badge>
           ))}
