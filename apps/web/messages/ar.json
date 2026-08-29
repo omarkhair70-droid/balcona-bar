@@ -681,7 +681,17 @@
       "statusPending": "جديد",
       "statusPreparing": "قيد التحضير",
       "statusReady": "جاهز",
-      "statusCancelled": "ملغي"
+      "statusCancelled": "ملغي",
+      "ticketStatusQueued": "في الانتظار",
+      "ticketStatusInProgress": "قيد التحضير",
+      "ticketStatusReady": "جاهز",
+      "ticketStatusServed": "تم التقديم",
+      "ticketStatusCancelled": "ملغي",
+      "printStatusPending": "معلق",
+      "printStatusPrinting": "قيد الطباعة",
+      "printStatusPrinted": "تمت الطباعة",
+      "printStatusFailed": "فشل",
+      "printStatusCancelled": "ملغي"
     },
     "navigation": {
       "billing": "الحسابات",
