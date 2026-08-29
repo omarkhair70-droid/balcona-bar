@@ -235,8 +235,10 @@ export function CustomerServicePage({ sessionId }: CustomerServicePageProps) {
   const latestOnlinePaymentProvider = getRecordString(
     latestOnlinePaymentIntent,
     "provider",
-    "mock"
+    ""
   );
+  const isMockOnlinePayment =
+    latestOnlinePaymentProvider.toLowerCase() === "mock";
   const latestOnlinePaymentCheckoutUrl = getRecordString(
     latestOnlinePaymentIntent,
     "providerCheckoutUrl",
@@ -532,7 +534,8 @@ export function CustomerServicePage({ sessionId }: CustomerServicePageProps) {
                             </p>
                           ) : null}
                           {latestOnlinePaymentCheckoutUrl &&
-                          hasActiveOnlinePayment ? (
+                          hasActiveOnlinePayment &&
+                          isMockOnlinePayment ? (
                             <p className="mt-2 break-all text-xs text-muted-foreground">
                               {t("bill.mockCheckoutUrl", {
                                 url: latestOnlinePaymentCheckoutUrl
@@ -557,7 +560,9 @@ export function CustomerServicePage({ sessionId }: CustomerServicePageProps) {
                             >
                               {onlinePaymentButtonLabel}
                             </Button>
-                            {hasActiveOnlinePayment && latestOnlinePaymentId ? (
+                            {hasActiveOnlinePayment &&
+                            isMockOnlinePayment &&
+                            latestOnlinePaymentId ? (
                               <Button
                                 size="sm"
                                 variant="secondary"
