@@ -220,7 +220,7 @@ async function newContext(browser, locale, viewport) {
   return context;
 }
 
-async function capture(browser, { label, locale="en", viewport={width:1440,height:1000}, target }) {
+async function capture(browser, { label, locale="en", viewport={width:1440,height:1000}, phaseLabel }) {
   const context = await newContext(browser, locale, viewport);
   const page = await context.newPage();
   const consoleErrors = [];
@@ -240,11 +240,14 @@ async function capture(browser, { label, locale="en", viewport={width:1440,heigh
     throw new Error(`${label}: expected 10 Setup phases, got ${await phaseLinks.count()}`);
   }
 
-  if (target) {
-    await page.locator(target).scrollIntoViewIfNeeded();
+  if (phaseLabel) {
+    const phaseButton = page.locator('nav[aria-label] button').filter({ hasText: phaseLabel }).first();
+    await phaseButton.waitFor({ state:"visible", timeout:5000 });
+    await phaseButton.click();
+    await page.waitForTimeout(250);
   }
 
-  await page.waitForTimeout(500);
+  await page.waitForTimeout(350);
 
   const metrics = await page.evaluate(() => ({
     innerWidth: window.innerWidth,
@@ -267,7 +270,7 @@ async function capture(browser, { label, locale="en", viewport={width:1440,heigh
   await page.screenshot({ path:screenshot, fullPage:true });
 
   await context.close();
-  return { label, locale, viewport, target, metrics, consoleErrors, screenshot };
+  return { label, locale, viewport, phaseLabel, metrics, consoleErrors, screenshot };
 }
 
 await mkdir(OUTPUT_DIR, { recursive:true });
@@ -275,10 +278,10 @@ const browser = await chromium.launch({ headless:true });
 const results = [];
 
 try {
-  results.push(await capture(browser, { label:"01-setup-desktop", target:"#setup-foundation" }));
-  results.push(await capture(browser, { label:"02-setup-final-desktop", target:"#setup-final" }));
-  results.push(await capture(browser, { label:"03-setup-mobile-390", viewport:{width:390,height:844}, target:"#setup-tables" }));
-  results.push(await capture(browser, { label:"04-setup-ar-rtl-390", locale:"ar", viewport:{width:390,height:844}, target:"#setup-final" }));
+  results.push(await capture(browser, { label:"01-setup-business-desktop", phaseLabel:"Business" }));
+  results.push(await capture(browser, { label:"02-setup-final-desktop", phaseLabel:"Final readiness" }));
+  results.push(await capture(browser, { label:"03-setup-tables-mobile-390", viewport:{width:390,height:844}, phaseLabel:"Tables & QR" }));
+  results.push(await capture(browser, { label:"04-setup-final-ar-rtl-390", locale:"ar", viewport:{width:390,height:844}, phaseLabel:"الجاهزية النهائية" }));
 } finally {
   await browser.close();
 }
