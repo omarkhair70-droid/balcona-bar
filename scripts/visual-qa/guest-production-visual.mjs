@@ -6,7 +6,6 @@ const require = createRequire("/tmp/balcona-visual-qa/package.json");
 const { chromium } = require("playwright");
 
 const BASE_URL = process.env.BALCONA_VISUAL_BASE_URL ?? "http://127.0.0.1:3001";
-const API_ORIGIN = "http://127.0.0.1:3999";
 const OUTPUT_DIR = path.resolve("artifacts/guest-visual-qa");
 const SESSION_ID = "visual-session";
 const BRANCH_ID = "visual-branch";
@@ -342,7 +341,7 @@ function json(body, status = 200) {
 }
 
 async function installApiMocks(page) {
-  await page.route(`${API_ORIGIN}/api/v1/**`, async (route) => {
+  await page.route("**/api/v1/**", async (route) => {
     const request = route.request();
     const pathname = new URL(request.url()).pathname;
     const method = request.method();
@@ -472,10 +471,16 @@ async function capture(browser, {
   const context = await newContext(browser, locale);
   const page = await context.newPage();
   const consoleErrors = [];
+  const apiRequests = [];
 
   page.on("console", (message) => {
     if (message.type() === "error") {
       consoleErrors.push(message.text());
+    }
+  });
+  page.on("request", (request) => {
+    if (request.url().includes("/api/v1/")) {
+      apiRequests.push(`${request.method()} ${request.url()}`);
     }
   });
 
@@ -486,9 +491,17 @@ async function capture(browser, {
       waitUntil: "domcontentloaded",
       timeout: 30000
     });
-    await page.waitForURL(`**/customer/session/${SESSION_ID}`, {
-      timeout: 15000
-    });
+
+    try {
+      await page.waitForURL(`**/customer/session/${SESSION_ID}`, {
+        timeout: 15000
+      });
+    } catch (error) {
+      const bodyText = (await page.locator("body").innerText()).slice(0, 3000);
+      throw new Error(
+        `QR bootstrap did not reach customer session. url=${page.url()} apiRequests=${JSON.stringify(apiRequests)} body=${JSON.stringify(bodyText)} cause=${String(error)}`
+      );
+    }
 
     if (expired) {
       await page.evaluate(() => {
@@ -558,7 +571,8 @@ async function capture(browser, {
     expired,
     screenshot,
     metrics,
-    consoleErrors: consoleErrors.slice(0, 20)
+    consoleErrors: consoleErrors.slice(0, 20),
+    apiRequests: apiRequests.slice(0, 40)
   };
 }
 
