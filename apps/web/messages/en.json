@@ -701,7 +701,18 @@
       "printKindBaristaTicket": "Barista ticket",
       "printKindDessertTicket": "Dessert ticket",
       "printKindReceipt": "Receipt",
-      "printKindVoidTicket": "Void ticket"
+      "printKindVoidTicket": "Void ticket",
+      "activityPreparation": "Preparation",
+      "activityTaskLabel": "Task",
+      "activityOrderLabel": "Order",
+      "activityEventTaskCreated": "Preparation task created",
+      "activityEventTaskStarted": "Preparation task started",
+      "activityEventTaskReady": "Preparation task ready",
+      "activityEventTaskCancelled": "Preparation task cancelled",
+      "activityEventTicketCreated": "Kitchen ticket created",
+      "activityEventPrintCreated": "Print job created",
+      "activityEventPrintFailed": "Print job failed",
+      "activityEventPrintPrinted": "Print job printed"
     },
     "navigation": {
       "billing": "Billing",
