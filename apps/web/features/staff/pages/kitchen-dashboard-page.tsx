@@ -530,7 +530,7 @@ function KitchenDashboardContent() {
   const effectiveAccess = useStaffAuthStore((state) => state.effectiveAccess);
   const selectedBranchId = useStaffAuthStore((state) => state.selectedBranchId);
   const [station, setStation] = useState<PreparationStation>("all");
-  const [status, setStatus] = useState<PreparationTaskStatus>("pending");
+  const [status, setStatus] = useState<PreparationTaskStatus>("all");
   const [mode, setMode] = useState<KdsMode>("tasks");
   const [ticketStatus, setTicketStatus] = useState("all");
   const [printStatus, setPrintStatus] = useState("pending");
