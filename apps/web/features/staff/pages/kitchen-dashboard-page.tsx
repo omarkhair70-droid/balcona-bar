@@ -69,7 +69,7 @@ import {
   shortId
 } from "@/features/staff/staff-format";
 import { useStaffBranchRealtime } from "@/features/staff/use-staff-branch-realtime";
-import { useTranslations } from "@/lib/i18n/i18n-provider";
+import { useTranslations } from "@/lib/i18n/i18n-provider";\nimport { cn } from "@/lib/utils/cn";
 import {
   cancelPreparationTask,
   getBranchKitchenTickets,
@@ -159,21 +159,26 @@ function KdsModeTabs({
   ];
 
   return (
-    <div className="flex flex-wrap gap-2">
+    <div className="flex gap-1 overflow-x-auto rounded-md border border-[#34312E] bg-[#171513] p-1">
       {modes.map((entry) => {
         const Icon = entry.icon;
         const active = mode === entry.value;
 
         return (
-          <Button
+          <button
             key={entry.value}
             type="button"
-            variant={active ? "primary" : "secondary"}
             onClick={() => onChange(entry.value)}
+            className={cn(
+              "flex min-h-10 min-w-[108px] shrink-0 items-center justify-center gap-2 rounded-md px-3 text-xs font-black transition",
+              active
+                ? "bg-[#C68A4A] text-[#17110C]"
+                : "text-[#AAA39C] hover:bg-[#24211E] hover:text-[#F1EAE3]"
+            )}
           >
             <Icon className="size-4" aria-hidden="true" />
             {t(entry.labelKey)}
-          </Button>
+          </button>
         );
       })}
     </div>
@@ -373,20 +378,7 @@ function PrintJobCard({
           <Button
             type="button"
             size="sm"
-            variant="ghost"
-            disabled={!printJobId || !canRetry || actionPending}
-            onClick={() => printJobId && onRetry(printJobId)}
-          >
-            <RefreshCw className="size-4" aria-hidden="true" />
-            {t("actions.retry")}
-          </Button>
-        </div>
-      </CardContent>
-    </Card>
-  );
-}
-
-function KdsFilterBar({
+            variafunction KdsFilterBar({
   station,
   status,
   statusOptions,
@@ -399,6 +391,7 @@ function KdsFilterBar({
   onStationChange: (station: PreparationStation) => void;
   onStatusChange: (status: string) => void;
 }) {
+  const t = useTranslations("staff");
   const stationOptions: PreparationStation[] = [
     "all",
     "barista",
@@ -406,23 +399,69 @@ function KdsFilterBar({
     "dessert"
   ];
 
+  const stationLabel = (value: PreparationStation) => {
+    if (value === "barista") return t("kitchen.stationBarista");
+    if (value === "kitchen") return t("kitchen.stationKitchen");
+    if (value === "dessert") return t("kitchen.stationDessert");
+    return t("kitchen.stationAll");
+  };
+
+  const statusLabel = (value: string) => {
+    const labels: Record<string, string> = {
+      all: t("kitchen.statusAll"),
+      queued: t("kitchen.ticketStatusQueued"),
+      in_progress: t("kitchen.ticketStatusInProgress"),
+      ready: t("kitchen.ticketStatusReady"),
+      served: t("kitchen.ticketStatusServed"),
+      pending: t("kitchen.printStatusPending"),
+      printing: t("kitchen.printStatusPrinting"),
+      printed: t("kitchen.printStatusPrinted"),
+      failed: t("kitchen.printStatusFailed"),
+      cancelled: t("kitchen.printStatusCancelled")
+    };
+
+    return labels[value] ?? value;
+  };
+
   return (
-    <div className="flex flex-wrap items-center justify-between gap-3 rounded-card border bg-surface/75 p-3">
-      <div className="flex flex-wrap gap-2">
+    <div className="grid gap-2 border border-[#302D29] bg-[#171513] p-3 lg:grid-cols-[1fr_auto]">
+      <div className="flex gap-2 overflow-x-auto pb-1">
         {stationOptions.map((option) => (
-          <Button
+          <button
             key={option}
             type="button"
-            size="sm"
-            variant={station === option ? "primary" : "secondary"}
             onClick={() => onStationChange(option)}
+            className={cn(
+              "min-h-9 shrink-0 rounded-md border px-3 text-xs font-bold transition",
+              station === option
+                ? "border-[#C68A4A] bg-[#C68A4A] text-[#17110C]"
+                : "border-[#3E3A36] bg-[#1B1917] text-[#AAA39C] hover:border-[#5A544E] hover:text-[#F1EAE3]"
+            )}
           >
-            {humanizeStatus(option)}
-          </Button>
+            {stationLabel(option)}
+          </button>
         ))}
       </div>
-      <div className="flex flex-wrap gap-2">
+      <div className="flex gap-2 overflow-x-auto pb-1">
         {statusOptions.map((option) => (
+          <button
+            key={option}
+            type="button"
+            onClick={() => onStatusChange(option)}
+            className={cn(
+              "min-h-9 shrink-0 rounded-md border px-3 text-xs font-bold transition",
+              status === option
+                ? "border-[#6E624F] bg-[#2B2723] text-[#FFF8F0]"
+                : "border-[#34312E] bg-[#151412] text-[#8E8882] hover:border-[#4A4540] hover:text-[#DAD3CC]"
+            )}
+          >
+            {statusLabel(option)}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}) => (
           <Button
             key={option}
             type="button"
