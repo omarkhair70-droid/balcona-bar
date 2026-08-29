@@ -1,0 +1,98 @@
+name: Oracle Public Probe
+
+on:
+  push:
+    branches:
+      - ops/oracle-public-probe
+
+permissions:
+  contents: read
+
+jobs:
+  probe:
+    name: Oracle DNS TLS Health Probe
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    env:
+      BALCONA_API_HOST: balcona-api.158.101.254.30.sslip.io
+      BALCONA_API_ORIGIN: https://balcona-api.158.101.254.30.sslip.io
+
+    steps:
+      - name: Resolve DNS
+        run: |
+          set -euo pipefail
+          mkdir -p artifacts/oracle-public-probe
+          {
+            echo "# DNS"
+            date -u +"UTC %Y-%m-%dT%H:%M:%SZ"
+            getent ahosts "$BALCONA_API_HOST"
+          } | tee artifacts/oracle-public-probe/dns.txt
+
+      - name: Inspect TLS certificate
+        run: |
+          set -euo pipefail
+          {
+            echo "# TLS"
+            echo | openssl s_client \
+              -connect "$BALCONA_API_HOST:443" \
+              -servername "$BALCONA_API_HOST" \
+              -showcerts 2>/dev/null \
+              | openssl x509 -noout -subject -issuer -dates -ext subjectAltName
+          } | tee artifacts/oracle-public-probe/tls.txt
+
+      - name: Verify HTTP redirects to HTTPS
+        run: |
+          set -euo pipefail
+          {
+            echo "# HTTP redirect"
+            curl -sS -o /dev/null -D - \
+              --connect-timeout 10 \
+              --max-time 20 \
+              "http://$BALCONA_API_HOST/health"
+          } | tee artifacts/oracle-public-probe/http-redirect.txt
+
+      - name: Probe API health
+        run: |
+          set -euo pipefail
+          {
+            echo "# HTTPS /health"
+            curl -fsS \
+              --connect-timeout 10 \
+              --max-time 20 \
+              -D - \
+              "$BALCONA_API_ORIGIN/health"
+          } | tee artifacts/oracle-public-probe/health.txt
+
+      - name: Probe API system info
+        run: |
+          set -euo pipefail
+          {
+            echo "# HTTPS /api/v1/system/info"
+            curl -fsS \
+              --connect-timeout 10 \
+              --max-time 20 \
+              -D - \
+              "$BALCONA_API_ORIGIN/api/v1/system/info"
+          } | tee artifacts/oracle-public-probe/system-info.txt
+
+      - name: Record response timing
+        run: |
+          set -euo pipefail
+          {
+            echo "# Timing"
+            curl -fsS -o /dev/null \
+              --connect-timeout 10 \
+              --max-time 20 \
+              -w 'health_code=%{http_code}\ndns=%{time_namelookup}\nconnect=%{time_connect}\ntls=%{time_appconnect}\nttfb=%{time_starttransfer}\ntotal=%{time_total}\nremote_ip=%{remote_ip}\n' \
+              "$BALCONA_API_ORIGIN/health"
+          } | tee artifacts/oracle-public-probe/timing.txt
+
+      - name: Upload public probe evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: oracle-public-probe
+          path: artifacts/oracle-public-probe
+          if-no-files-found: error
+          retention-days: 14
