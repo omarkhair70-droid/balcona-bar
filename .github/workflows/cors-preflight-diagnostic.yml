@@ -1,0 +1,30 @@
+name: CORS Preflight Diagnostic
+
+on:
+  push:
+    branches:
+      - production/oracle-runtime-qa
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  cors-diagnostic:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Probe simple CORS and browser preflight
+        run: |
+          set -euxo pipefail
+          api="https://balcona-api.158.101.254.30.sslip.io"
+          origin="https://balcona-bar-staging-web.vercel.app"
+
+          echo "=== SIMPLE GET ==="
+          curl -sS -D - -o /dev/null             -H "Origin: $origin"             "$api/api/v1/system/info"
+
+          echo "=== OPTIONS table-sessions/start ==="
+          curl -sS -D - -o /dev/null -X OPTIONS             -H "Origin: $origin"             -H "Access-Control-Request-Method: POST"             -H "Access-Control-Request-Headers: content-type"             "$api/api/v1/table-sessions/start"
+
+          echo "=== OPTIONS staff auth ==="
+          curl -sS -D - -o /dev/null -X OPTIONS             -H "Origin: $origin"             -H "Access-Control-Request-Method: POST"             -H "Access-Control-Request-Headers: content-type"             "$api/api/v1/staff-auth/login"
