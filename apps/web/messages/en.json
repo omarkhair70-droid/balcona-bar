@@ -899,7 +899,13 @@
       "cashier": "Cashier",
       "waiter": "Waiter / Floor",
       "cashierEyebrow": "Cashier operations",
-      "waiterEyebrow": "Waiter / floor operations"
+      "waiterEyebrow": "Waiter / floor operations",
+      "viewNavigation": "Service views",
+      "floor": "Floor",
+      "orders": "Orders",
+      "attention": "Attention",
+      "bills": "Bills",
+      "shift": "Shift"
     },
     "serviceFloor": {
       "eyebrow": "Live floor",
