@@ -50,11 +50,11 @@ const officeDomains: Array<{
   { id: "catalog", labelKey: "office.catalog", icon: MenuSquare, href: "/staff/menu" },
   { id: "inventory", labelKey: "office.inventory", icon: Boxes, href: "/staff/inventory" },
   { id: "locations", labelKey: "office.locations", icon: MapPin, href: "/staff/branches" },
-  { id: "team", labelKey: "office.team", icon: Users },
+  { id: "team", labelKey: "office.team", icon: Users, href: "/staff/owner#team" },
   { id: "money", labelKey: "office.money", icon: CreditCard, href: "/staff/owner#money" },
   { id: "insights", labelKey: "office.insights", icon: PackageSearch, href: "/staff/owner#insights" },
-  { id: "experience", labelKey: "office.experience", icon: WandSparkles },
-  { id: "settings", labelKey: "office.settings", icon: Settings }
+  { id: "experience", labelKey: "office.experience", icon: WandSparkles, href: "/staff/owner#experience" },
+  { id: "settings", labelKey: "office.settings", icon: Settings, href: "/staff/owner#settings" }
 ];
 
 export function OfficeStaffShell({
@@ -85,7 +85,13 @@ export function OfficeStaffShell({
           ? "money"
           : hash === "#insights"
             ? "insights"
-            : undefined
+            : hash === "#team"
+              ? "team"
+              : hash === "#experience"
+                ? "experience"
+                : hash === "#settings"
+                  ? "settings"
+                  : undefined
       : undefined;
   const effectiveActiveDomain = hashDomain ?? activeDomain;
 
