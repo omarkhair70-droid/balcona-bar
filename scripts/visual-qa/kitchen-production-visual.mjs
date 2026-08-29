@@ -609,18 +609,46 @@ async function capture(browser, {
 
   await page.waitForTimeout(700);
 
-  const metrics = await page.evaluate(() => ({
-    innerWidth: window.innerWidth,
-    clientWidth: document.documentElement.clientWidth,
-    scrollWidth: document.documentElement.scrollWidth,
-    bodyScrollWidth: document.body.scrollWidth,
-    dir: document.documentElement.dir,
-    lang: document.documentElement.lang
-  }));
+  const metrics = await page.evaluate(() => {
+    const innerWidth = window.innerWidth;
+    const offenders = Array.from(document.querySelectorAll("*"))
+      .map((element) => {
+        const rect = element.getBoundingClientRect();
+        return {
+          tag: element.tagName.toLowerCase(),
+          id: element.id || "",
+          className:
+            typeof element.className === "string"
+              ? element.className.slice(0, 180)
+              : "",
+          left: Math.round(rect.left),
+          right: Math.round(rect.right),
+          width: Math.round(rect.width),
+          scrollWidth: element.scrollWidth
+        };
+      })
+      .filter(
+        (entry) =>
+          entry.width > 0 &&
+          (entry.right > innerWidth + 1 || entry.left < -1)
+      )
+      .sort((a, b) => Math.max(b.right - innerWidth, -b.left) - Math.max(a.right - innerWidth, -a.left))
+      .slice(0, 12);
+
+    return {
+      innerWidth,
+      clientWidth: document.documentElement.clientWidth,
+      scrollWidth: document.documentElement.scrollWidth,
+      bodyScrollWidth: document.body.scrollWidth,
+      dir: document.documentElement.dir,
+      lang: document.documentElement.lang,
+      offenders
+    };
+  });
 
   if (metrics.scrollWidth > metrics.clientWidth + 1) {
     throw new Error(
-      `${label}: document overflow ${metrics.scrollWidth}px > ${metrics.clientWidth}px`
+      `${label}: document overflow ${metrics.scrollWidth}px > ${metrics.clientWidth}px; offenders=${JSON.stringify(metrics.offenders)}`
     );
   }
 
