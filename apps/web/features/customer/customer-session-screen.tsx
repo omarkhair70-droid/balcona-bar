@@ -14,6 +14,7 @@ import {
 import { useCustomerSessionStore } from "@/lib/customer/customer-session-store";
 import { useTranslations } from "@/lib/i18n/i18n-provider";
 import { CustomerBottomNav } from "./customer-bottom-nav";
+import { guestThemeStyle } from "./customer-theme";
 import { CustomerSessionGate } from "./customer-session-gate";
 import { CustomerThemeLoader } from "./customer-theme-loader";
 import { getCartItemCount } from "./customer-format";
@@ -73,8 +74,13 @@ export function CustomerSessionScreen({
   });
 
   return (
-    <main className="mx-auto min-h-screen w-full max-w-md bg-background px-4 pb-28 text-foreground shadow-sm">
-      <CustomerThemeLoader branchId={branchId} />
+    <div
+      data-customer-theme-root
+      style={guestThemeStyle}
+      className="min-h-screen w-full bg-background text-foreground"
+    >
+      <main className="mx-auto min-h-screen w-full max-w-md bg-background px-4 pb-28 text-foreground">
+        <CustomerThemeLoader branchId={branchId} />
 
       <header className="sticky top-0 z-30 -mx-4 flex min-h-14 items-center justify-between gap-3 border-b border-border bg-background/95 px-4 backdrop-blur">
         <Link href="/" className="min-w-0">
@@ -108,11 +114,12 @@ export function CustomerSessionScreen({
 
       <CustomerSessionGate sessionId={sessionId}>{children}</CustomerSessionGate>
 
-      <CustomerBottomNav
-        sessionId={sessionId}
-        active={active}
-        cartCount={getCartItemCount(cartQuery.data)}
-      />
-    </main>
+        <CustomerBottomNav
+          sessionId={sessionId}
+          active={active}
+          cartCount={getCartItemCount(cartQuery.data)}
+        />
+      </main>
+    </div>
   );
 }
