@@ -32,6 +32,7 @@ import {
 import { EmptyState } from "@/components/ui/empty-state";
 import { LoadingState } from "@/components/ui/loading-state";
 import { MetricCard } from "@/components/ui/metric-card";
+import { OfficeFoundationPanels } from "@/features/staff/components/office-foundation-panels";
 import { OfficeStaffShell } from "@/features/staff/office-staff-shell";
 import {
   formatDateTime,
@@ -946,6 +947,8 @@ function OwnerDashboardContent() {
       </section>
 
       <DailyReportPanel report={reportQuery.data} currency={currency} />
+
+      <OfficeFoundationPanels />
 
       <Card variant="quiet">
         <CardHeader className="gap-4 md:flex md:flex-row md:items-center md:justify-between md:space-y-0">
