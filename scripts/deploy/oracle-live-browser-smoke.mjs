@@ -13,8 +13,7 @@ await mkdir(OUT, { recursive: true });
 const browser = await chromium.launch({ headless: true });
 const context = await browser.newContext({
   viewport: { width: 390, height: 844 },
-  locale: "en-US",
-  ignoreHTTPSErrors: process.env.BALCONA_IGNORE_HTTPS_ERRORS === "true"
+  locale: "en-US"
 });
 const page = await context.newPage();
 

@@ -1,4 +1,4 @@
-name: Oracle Production Preflight
+name: Production Hybrid Preflight
 
 on:
   push:
@@ -10,8 +10,8 @@ permissions:
   contents: read
 
 jobs:
-  oracle-preflight:
-    name: Oracle API + TLS + Live Web Smoke
+  production-preflight:
+    name: Vercel Web + Oracle API Production Smoke
     runs-on: ubuntu-latest
     timeout-minutes: 20
 
@@ -19,31 +19,17 @@ jobs:
       - name: Check out repository
         uses: actions/checkout@v4
 
-      - name: Run Oracle API production preflight
+      - name: Verify Oracle API production and Vercel CORS
         env:
           API_ORIGIN: https://balcona-api.158.101.254.30.sslip.io
-          WEB_ORIGIN: https://balcona.158.101.254.30.sslip.io
+          WEB_ORIGIN: https://balcona-bar-staging-web.vercel.app
         run: bash scripts/deploy/oracle-production-preflight.sh
 
-      - name: Probe Web TLS trust
-        id: tls
-        continue-on-error: true
-        run: |
-          curl --fail --silent --show-error --location --max-time 20 \
-            https://balcona.158.101.254.30.sslip.io/ > /dev/null
-
-      - name: Run public Web route diagnostics through current TLS
-        run: |
-          set -euo pipefail
-          base="https://balcona.158.101.254.30.sslip.io"
-          for route in / /platform/login /platform/companies /platform/status /platform/companies/new /staff/login /staff/setup /staff/menu /staff/inventory /staff/branches /staff/billing /customer/table/balcona-main-t01; do
-            echo "Checking $route"
-            curl --insecure --fail --silent --show-error --location --max-time 20 "$base$route" > /tmp/page
-            if grep -Fq "[object Object]" /tmp/page; then
-              echo "Rendered [object Object] on $route" >&2
-              exit 1
-            fi
-          done
+      - name: Run public production route smoke
+        env:
+          WEB_BASE_URL: https://balcona-bar-staging-web.vercel.app
+          API_BASE_URL: https://balcona-api.158.101.254.30.sslip.io/api/v1
+        run: bash scripts/deploy/staging-smoke.sh
 
       - name: Install isolated Playwright
         run: |
@@ -55,21 +41,14 @@ jobs:
 
       - name: Run live browser smoke
         env:
-          BALCONA_LIVE_WEB_URL: https://balcona.158.101.254.30.sslip.io
-          BALCONA_IGNORE_HTTPS_ERRORS: "true"
+          BALCONA_LIVE_WEB_URL: https://balcona-bar-staging-web.vercel.app
         run: node scripts/deploy/oracle-live-browser-smoke.mjs
 
       - name: Upload live browser evidence
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: oracle-live-browser-smoke
+          name: production-hybrid-live-browser-smoke
           path: artifacts/oracle-live-smoke
           if-no-files-found: warn
           retention-days: 14
-
-      - name: Enforce trusted Web TLS
-        if: steps.tls.outcome != 'success'
-        run: |
-          echo "WEB_TLS_NOT_TRUSTED: public Web domain is serving an untrusted/self-signed certificate." >&2
-          exit 44
