@@ -758,12 +758,12 @@
       "commandDescription": "Branch-aware staff operations with cashier, kitchen, waiter, and owner dashboards connected to live backend workflows.",
       "commandTitle": "Staff command surface",
       "defaultCashierScope": "Default cashier scope",
-    "demo": "Demo",
-    "demoDescription": "Presentation launcher",
-    "demoLauncherBadge": "Balkona demo",
-    "demoLauncherDescription": "Launch the guided customer-to-owner flow, local credentials, readiness checklist, and setup diagnostics from one place.",
-    "demoLauncherTitle": "Balkona Bar Full Operating Demo",
-    "demoOpen": "Open",
+      "demo": "Demo",
+      "demoDescription": "Presentation launcher",
+      "demoLauncherBadge": "Balkona demo",
+      "demoLauncherDescription": "Launch the guided customer-to-owner flow, local credentials, readiness checklist, and setup diagnostics from one place.",
+      "demoLauncherTitle": "Balkona Bar Full Operating Demo",
+      "demoOpen": "Open",
       "live": "Live",
       "new": "New",
       "notActiveDescription": "Sign in to select a branch and open the cashier dashboard.",
@@ -892,6 +892,14 @@
       "sessionStatus": "Session {status}",
       "standardPriority": "Standard",
       "viewingDescription": "{name} is viewing live waiter calls and table attention for the selected branch."
+    },
+    "serviceShell": {
+      "productLabel": "Balcona Service",
+      "subtitle": "Live venue operations",
+      "cashier": "Cashier",
+      "waiter": "Waiter / Floor",
+      "cashierEyebrow": "Cashier operations",
+      "waiterEyebrow": "Waiter / floor operations"
     }
   },
   "cashier": {
