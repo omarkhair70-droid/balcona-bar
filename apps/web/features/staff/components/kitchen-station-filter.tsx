@@ -5,7 +5,6 @@ import type {
   PreparationTaskStatus
 } from "@/lib/api/types";
 import { cn } from "@/lib/utils/cn";
-import { humanizeStatus } from "@/features/staff/staff-format";
 import { useTranslations } from "@/lib/i18n/i18n-provider";
 
 type KitchenStationFilterProps = {
@@ -44,10 +43,10 @@ function FilterButton({
       type="button"
       onClick={onClick}
       className={cn(
-        "min-h-9 whitespace-nowrap rounded-button border px-3 text-xs font-semibold transition",
+        "min-h-9 shrink-0 whitespace-nowrap rounded-md border px-3 text-xs font-bold transition",
         active
-          ? "border-primary bg-primary text-primary-foreground"
-          : "border-border bg-muted text-muted-foreground hover:text-foreground"
+          ? "border-[#C68A4A] bg-[#C68A4A] text-[#17110C]"
+          : "border-[#3E3A36] bg-[#1B1917] text-[#AAA39C] hover:border-[#5A544E] hover:bg-[#24211E] hover:text-[#F1EAE3]"
       )}
     >
       {label}
@@ -62,11 +61,37 @@ export function KitchenStationFilter({
   onStatusChange
 }: KitchenStationFilterProps) {
   const t = useTranslations("staff");
+  const stationLabel = (value: PreparationStation) => {
+    switch (value) {
+      case "barista":
+        return t("kitchen.stationBarista");
+      case "kitchen":
+        return t("kitchen.stationKitchen");
+      case "dessert":
+        return t("kitchen.stationDessert");
+      default:
+        return t("kitchen.stationAll");
+    }
+  };
+  const statusLabel = (value: PreparationTaskStatus) => {
+    switch (value) {
+      case "pending":
+        return t("kitchen.statusPending");
+      case "preparing":
+        return t("kitchen.statusPreparing");
+      case "ready":
+        return t("kitchen.statusReady");
+      case "cancelled":
+        return t("kitchen.statusCancelled");
+      default:
+        return t("kitchen.statusAll");
+    }
+  };
 
   return (
     <div className="grid gap-3">
       <div>
-        <p className="mb-2 text-xs font-semibold uppercase text-muted-foreground">
+        <p className="mb-2 text-[10px] font-bold uppercase tracking-[0.12em] text-[#817B75]">
           {t("tasks.filterStation")}
         </p>
         <div className="flex gap-2 overflow-x-auto pb-1">
@@ -74,14 +99,14 @@ export function KitchenStationFilter({
             <FilterButton
               key={option}
               active={station === option}
-              label={humanizeStatus(option)}
+              label={stationLabel(option)}
               onClick={() => onStationChange(option)}
             />
           ))}
         </div>
       </div>
       <div>
-        <p className="mb-2 text-xs font-semibold uppercase text-muted-foreground">
+        <p className="mb-2 text-[10px] font-bold uppercase tracking-[0.12em] text-[#817B75]">
           {t("tasks.filterStatus")}
         </p>
         <div className="flex gap-2 overflow-x-auto pb-1">
@@ -89,7 +114,7 @@ export function KitchenStationFilter({
             <FilterButton
               key={option}
               active={status === option}
-              label={humanizeStatus(option)}
+              label={statusLabel(option)}
               onClick={() => onStatusChange(option)}
             />
           ))}
