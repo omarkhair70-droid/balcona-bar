@@ -71,7 +71,7 @@ export function CustomerSessionGate({
         <div className="mt-5 grid gap-2">
           <Link
             href="/customer"
-            className={buttonVariants({ className: "min-h-11 w-full rounded-xl" })}
+            className={`${buttonVariants()} min-h-11 w-full rounded-xl !bg-primary !text-primary-foreground`}
           >
             {t("gate.openTableEntry")}
           </Link>
