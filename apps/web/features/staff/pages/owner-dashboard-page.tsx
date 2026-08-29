@@ -10,7 +10,6 @@ import {
   ChefHat,
   CreditCard,
   Download,
-  LayoutDashboard,
   LogIn,
   LogOut,
   Receipt,
@@ -33,7 +32,7 @@ import {
 import { EmptyState } from "@/components/ui/empty-state";
 import { LoadingState } from "@/components/ui/loading-state";
 import { MetricCard } from "@/components/ui/metric-card";
-import { StaffPageShell } from "@/features/staff/staff-page-shell";
+import { OfficeStaffShell } from "@/features/staff/office-staff-shell";
 import {
   formatDateTime,
   formatMoney,
@@ -101,45 +100,15 @@ function OwnerDashboardActions() {
 
   return (
     <>
-      <Link href="/staff" className={buttonVariants({ variant: "ghost" })}>
-        <LayoutDashboard className="size-4" aria-hidden="true" />
-        {t("actions.overview")}
-      </Link>
-      <Link
-        href="/staff/billing"
-        className={buttonVariants({ variant: "ghost" })}
-      >
-        <CreditCard className="size-4" aria-hidden="true" />
-        {t("actions.billing")}
-      </Link>
-      <Link
-        href="/staff/cashier"
-        className={buttonVariants({ variant: "ghost" })}
-      >
-        <Receipt className="size-4" aria-hidden="true" />
-        {t("actions.cashier")}
-      </Link>
-      <Link
-        href="/staff/kitchen"
-        className={buttonVariants({ variant: "ghost" })}
-      >
-        <ChefHat className="size-4" aria-hidden="true" />
-        {t("actions.kitchen")}
-      </Link>
-      <Link
-        href="/staff/waiter"
-        className={buttonVariants({ variant: "ghost" })}
-      >
-        <UserRoundCheck className="size-4" aria-hidden="true" />
-        {t("actions.waiter")}
-      </Link>
       <StaffBranchSelector
         access={effectiveAccess}
         selectedBranchId={selectedBranchId}
         onChange={setSelectedBranchId}
+        className="normal-case text-[#777771] [&_select]:rounded-md [&_select]:border-[#D6D6D1] [&_select]:bg-white [&_select]:text-[#2A2A27] [&_select]:shadow-none"
       />
       <Button
         variant="ghost"
+        className="text-[#64645E] hover:bg-[#E9E9E4] hover:text-[#20201D]"
         onClick={() => logoutMutation.mutate()}
         disabled={logoutMutation.isPending}
       >
@@ -1004,7 +973,8 @@ export function OwnerDashboardPage() {
   const t = useTranslations("owner");
 
   return (
-    <StaffPageShell
+    <OfficeStaffShell
+      activeDomain="home"
       title={t("dashboard.title")}
       description={t("dashboard.description")}
       actions={<OwnerDashboardActions />}
@@ -1012,6 +982,6 @@ export function OwnerDashboardPage() {
       <StaffAuthGate requiredPermissions={["owner_analytics.read"]} branchScoped>
         <OwnerDashboardContent />
       </StaffAuthGate>
-    </StaffPageShell>
+    </OfficeStaffShell>
   );
 }
