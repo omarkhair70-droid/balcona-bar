@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { type ReactNode } from "react";
 import { LanguageSwitcher } from "@/components/i18n/language-switcher";
+import { useTranslations } from "@/lib/i18n/i18n-provider";
 import { cn } from "@/lib/utils/cn";
 
 type ServiceMode = "cashier" | "waiter";
@@ -18,17 +19,17 @@ type ServiceStaffShellProps = {
 const modes: Array<{
   id: ServiceMode;
   href: string;
-  label: string;
+  labelKey: "serviceShell.cashier" | "serviceShell.waiter";
 }> = [
   {
     id: "cashier",
     href: "/staff/cashier",
-    label: "Cashier"
+    labelKey: "serviceShell.cashier"
   },
   {
     id: "waiter",
     href: "/staff/waiter",
-    label: "Waiter / Floor"
+    labelKey: "serviceShell.waiter"
   }
 ];
 
@@ -39,6 +40,8 @@ export function ServiceStaffShell({
   actions,
   children
 }: ServiceStaffShellProps) {
+  const t = useTranslations("staff");
+
   return (
     <main className="min-h-screen bg-[#17120F] text-[#FFF5E8]">
       <header className="sticky top-0 z-40 border-b border-[#352B24] bg-[#18130F]/96 backdrop-blur">
@@ -53,10 +56,10 @@ export function ServiceStaffShell({
             </span>
             <span className="hidden sm:block">
               <span className="block text-sm font-semibold text-[#FFF6E9]">
-                Balcona Service
+                {t("serviceShell.productLabel")}
               </span>
               <span className="block text-[10px] text-[#9F9184]">
-                Live venue operations
+                {t("serviceShell.subtitle")}
               </span>
             </span>
           </Link>
@@ -80,7 +83,7 @@ export function ServiceStaffShell({
                       : "text-[#BFB0A2] hover:bg-[#2B221C] hover:text-[#F6EBDD]"
                   )}
                 >
-                  {entry.label}
+                  {t(entry.labelKey)}
                 </Link>
               );
             })}
@@ -99,7 +102,7 @@ export function ServiceStaffShell({
       <section className="border-b border-[#342A23] bg-[#1C1612] px-3 py-4 sm:px-4">
         <div className="mx-auto max-w-[1600px]">
           <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[#9D856D]">
-            {mode === "cashier" ? "Cashier operations" : "Waiter / floor operations"}
+            {mode === "cashier" ? t("serviceShell.cashierEyebrow") : t("serviceShell.waiterEyebrow")}
           </p>
           <h1 className="mt-1 text-xl font-semibold tracking-[-0.02em] text-[#FFF4E6] sm:text-2xl">
             {title}
