@@ -14,7 +14,7 @@ import {
   Users,
   WandSparkles
 } from "lucide-react";
-import { type ReactNode, useEffect, useState } from "react";
+import { type CSSProperties, type ReactNode, useEffect, useState } from "react";
 import { LanguageSwitcher } from "@/components/i18n/language-switcher";
 import { useTranslations } from "@/lib/i18n/i18n-provider";
 import { cn } from "@/lib/utils/cn";
@@ -57,6 +57,30 @@ const officeDomains: Array<{
   { id: "settings", labelKey: "office.settings", icon: Settings, href: "/staff/owner#settings" }
 ];
 
+const officeThemeStyle = {
+  "--background": "#F5F5F2",
+  "--foreground": "#22221F",
+  "--surface": "#FFFFFF",
+  "--surface-2": "#F7F7F4",
+  "--surface-raised": "#FFFFFF",
+  "--surface-overlay": "rgba(255,255,255,0.94)",
+  "--primary": "#6E6256",
+  "--primary-foreground": "#FFFFFF",
+  "--accent": "#8A7462",
+  "--accent-foreground": "#FFFFFF",
+  "--muted": "#F0F0EC",
+  "--muted-foreground": "#72726C",
+  "--border": "#D9D9D4",
+  "--ring": "#9A8B7A",
+  "--danger": "#A84F46",
+  "--success": "#4F7652",
+  "--warning": "#8A6A2C",
+  "--shadow-card": "0 1px 2px rgba(0,0,0,0.04)",
+  "--shadow-elevated": "0 12px 32px rgba(31,31,28,0.08)",
+  "--shadow-glow": "0 0 0 1px rgba(110,98,86,0.06)",
+  colorScheme: "light"
+} as CSSProperties;
+
 export function OfficeStaffShell({
   activeDomain,
   title,
@@ -96,7 +120,7 @@ export function OfficeStaffShell({
   const effectiveActiveDomain = hashDomain ?? activeDomain;
 
   return (
-    <main className="min-h-screen bg-[#F5F5F2] text-[#20201D]">
+    <main style={officeThemeStyle} className="min-h-screen bg-[#F5F5F2] text-[#20201D]">
       <div className="grid min-h-screen min-w-0 lg:grid-cols-[220px_minmax(0,1fr)]">
         <aside className="min-w-0 overflow-hidden border-b border-[#D8D8D3] bg-[#ECECE8] px-3 py-3 lg:overflow-visible lg:border-b-0 lg:border-e lg:py-4">
           <Link
