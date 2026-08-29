@@ -899,7 +899,13 @@
       "cashier": "الكاشير",
       "waiter": "الويتر / الصالة",
       "cashierEyebrow": "تشغيل الكاشير",
-      "waiterEyebrow": "تشغيل الويتر / الصالة"
+      "waiterEyebrow": "تشغيل الويتر / الصالة",
+      "viewNavigation": "أقسام الخدمة",
+      "floor": "الصالة",
+      "orders": "الطلبات",
+      "attention": "التنبيهات",
+      "bills": "الفواتير",
+      "shift": "الوردية"
     },
     "serviceFloor": {
       "eyebrow": "الصالة المباشرة",
