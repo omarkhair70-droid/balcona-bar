@@ -31,7 +31,7 @@ import {
 import { EmptyState } from "@/components/ui/empty-state";
 import { Input } from "@/components/ui/input";
 import { MetricCard } from "@/components/ui/metric-card";
-import { StaffPageShell } from "@/features/staff/staff-page-shell";
+import { ServiceStaffShell } from "@/features/staff/service-staff-shell";
 import {
   getBillRequestStatus,
   getOrderId,
@@ -1364,7 +1364,8 @@ export function CashierDashboardPage() {
   const t = useTranslations("staff");
 
   return (
-    <StaffPageShell
+    <ServiceStaffShell
+      mode="cashier"
       title={t("cashier.dashboardTitle")}
       description={t("cashier.dashboardDescription")}
       actions={<CashierDashboardActions />}
@@ -1375,6 +1376,6 @@ export function CashierDashboardPage() {
       >
         <CashierDashboardContent />
       </StaffAuthGate>
-    </StaffPageShell>
+    </ServiceStaffShell>
   );
 }
