@@ -681,7 +681,17 @@
       "statusPending": "New",
       "statusPreparing": "In progress",
       "statusReady": "Ready",
-      "statusCancelled": "Cancelled"
+      "statusCancelled": "Cancelled",
+      "ticketStatusQueued": "Queued",
+      "ticketStatusInProgress": "In progress",
+      "ticketStatusReady": "Ready",
+      "ticketStatusServed": "Served",
+      "ticketStatusCancelled": "Cancelled",
+      "printStatusPending": "Pending",
+      "printStatusPrinting": "Printing",
+      "printStatusPrinted": "Printed",
+      "printStatusFailed": "Failed",
+      "printStatusCancelled": "Cancelled"
     },
     "navigation": {
       "billing": "Billing",
