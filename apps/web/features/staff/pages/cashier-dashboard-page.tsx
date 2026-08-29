@@ -194,8 +194,8 @@ function NoticeBanner({ notice }: { notice?: Notice }) {
       role={isSuccess ? "status" : "alert"}
       className={
         isSuccess
-          ? "rounded-card border border-success bg-success/10 p-4 text-sm text-success"
-          : "rounded-card border border-danger bg-danger/10 p-4 text-sm text-danger"
+          ? "rounded-md border border-success bg-success/10 p-4 text-sm text-success"
+          : "rounded-md border border-[#7A3F3A] bg-[#3A211F] p-4 text-sm text-danger"
       }
     >
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -253,14 +253,14 @@ function CashierShiftReportSummary({
   const paymentCount = getSnapshotNumber(snapshot, "counts", "paymentCount");
 
   return (
-    <div className="rounded-card border bg-background/50 p-4">
+    <div className="rounded-md border bg-background/50 p-4">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <p className="text-sm font-semibold text-foreground">
+          <p className="text-sm font-semibold text-[#F8EDDF]">
             {reportType === "z_report" ? "Z report" : "X report"}{" "}
             {reportNumber ? reportNumber : "preview"}
           </p>
-          <p className="mt-1 text-xs text-muted-foreground">
+          <p className="mt-1 text-xs text-[#91857A]">
             Generated {formatDateTime(getRecordString(snapshot, "generatedAt"))}
           </p>
         </div>
@@ -270,24 +270,24 @@ function CashierShiftReportSummary({
       </div>
       <dl className="mt-4 grid gap-3 text-xs sm:grid-cols-4">
         <div>
-          <dt className="text-muted-foreground">Expected cash</dt>
-          <dd className="mt-1 font-semibold text-foreground">
+          <dt className="text-[#91857A]">Expected cash</dt>
+          <dd className="mt-1 font-semibold text-[#F8EDDF]">
             {formatMoney(expectedCashMinor, currency)}
           </dd>
         </div>
         <div>
-          <dt className="text-muted-foreground">Collected</dt>
-          <dd className="mt-1 font-semibold text-foreground">
+          <dt className="text-[#91857A]">Collected</dt>
+          <dd className="mt-1 font-semibold text-[#F8EDDF]">
             {formatMoney(totalCollectedMinor, currency)}
           </dd>
         </div>
         <div>
-          <dt className="text-muted-foreground">Payments</dt>
-          <dd className="mt-1 font-semibold text-foreground">{paymentCount}</dd>
+          <dt className="text-[#91857A]">Payments</dt>
+          <dd className="mt-1 font-semibold text-[#F8EDDF]">{paymentCount}</dd>
         </div>
         <div>
-          <dt className="text-muted-foreground">Over / short</dt>
-          <dd className="mt-1 font-semibold text-foreground">
+          <dt className="text-[#91857A]">Over / short</dt>
+          <dd className="mt-1 font-semibold text-[#F8EDDF]">
             {reportType === "z_report"
               ? formatMoney(cashOverShortMinor, currency)
               : "Z close only"}
@@ -295,7 +295,7 @@ function CashierShiftReportSummary({
         </div>
       </dl>
       {reportType === "z_report" ? (
-        <p className="mt-3 text-xs text-muted-foreground">
+        <p className="mt-3 text-xs text-[#91857A]">
           Counted cash {formatMoney(countedCashMinor, currency)}.
         </p>
       ) : null}
@@ -374,8 +374,8 @@ function CashierShiftPanel({
     adjustmentMinor > 0 && adjustmentNote.trim().length > 0;
 
   return (
-    <Card variant="glass" padding="lg">
-      <CardHeader className="gap-4 md:flex md:flex-row md:items-start md:justify-between md:space-y-0">
+    <Card variant="glass" padding="lg" className="min-w-0 border-[#3B3028] bg-[#1E1814] shadow-none">
+      <CardHeader className="gap-4 border-b border-[#342A23] md:flex md:flex-row md:items-start md:justify-between md:space-y-0">
         <div>
           <div className="flex flex-wrap items-center gap-2">
             <Badge variant={shift ? "success" : "warning"}>
@@ -383,7 +383,7 @@ function CashierShiftPanel({
             </Badge>
             <Badge variant="muted">{branchName}</Badge>
           </div>
-          <CardTitle className="mt-3">Cashier shift</CardTitle>
+          <CardTitle className="mt-3 text-[#FFF5E8]">Cashier shift</CardTitle>
           <CardDescription>
             {t("cashier.shiftManualPaymentsRequireOpen")}
           </CardDescription>
@@ -401,14 +401,14 @@ function CashierShiftPanel({
       </CardHeader>
       <CardContent className="grid gap-4">
         {isLoading ? (
-          <div className="rounded-card border bg-background/40 p-4 text-sm text-muted-foreground">
+          <div className="rounded-md border border-[#3A3028] bg-[#18130F] p-4 text-sm text-[#91857A]">
             Loading cashier shift.
           </div>
         ) : null}
         {error ? (
           <div
             role="alert"
-            className="rounded-card border border-danger bg-danger/10 p-4 text-sm text-danger"
+            className="rounded-md border border-[#7A3F3A] bg-[#3A211F] p-4 text-sm text-danger"
           >
             {formatErrorMessage(error)}
           </div>
@@ -416,7 +416,7 @@ function CashierShiftPanel({
 
         {!isLoading && !error && !shift ? (
           <form
-            className="grid gap-3 md:grid-cols-[12rem_1fr_auto]"
+            className="grid gap-3 rounded-md border border-[#47392E] bg-[#18130F] p-3 md:grid-cols-[12rem_1fr_auto]"
             onSubmit={(event) => {
               event.preventDefault();
               onOpen({
@@ -425,7 +425,7 @@ function CashierShiftPanel({
               });
             }}
           >
-            <label className="grid gap-1 text-xs font-medium text-muted-foreground">
+            <label className="grid gap-1 text-xs font-medium text-[#91857A]">
               Opening float
               <Input
                 inputMode="decimal"
@@ -433,7 +433,7 @@ function CashierShiftPanel({
                 onChange={(event) => setOpeningFloat(event.target.value)}
               />
             </label>
-            <label className="grid gap-1 text-xs font-medium text-muted-foreground">
+            <label className="grid gap-1 text-xs font-medium text-[#91857A]">
               Note
               <Input
                 value={openingNote}
@@ -452,14 +452,14 @@ function CashierShiftPanel({
           <>
             <dl className="grid gap-3 text-xs sm:grid-cols-2 lg:grid-cols-6">
               <div>
-                <dt className="text-muted-foreground">Opened</dt>
-                <dd className="mt-1 font-semibold text-foreground">
+                <dt className="text-[#91857A]">Opened</dt>
+                <dd className="mt-1 font-semibold text-[#F8EDDF]">
                   {formatDateTime(getRecordString(shift, "openedAt"))}
                 </dd>
               </div>
               <div>
-                <dt className="text-muted-foreground">Opening float</dt>
-                <dd className="mt-1 font-semibold text-foreground">
+                <dt className="text-[#91857A]">Opening float</dt>
+                <dd className="mt-1 font-semibold text-[#F8EDDF]">
                   {formatMoney(
                     getRecordNumber(shift, "openingFloatMinor"),
                     currency,
@@ -467,51 +467,51 @@ function CashierShiftPanel({
                 </dd>
               </div>
               <div>
-                <dt className="text-muted-foreground">Expected cash</dt>
-                <dd className="mt-1 font-semibold text-foreground">
+                <dt className="text-[#91857A]">Expected cash</dt>
+                <dd className="mt-1 font-semibold text-[#F8EDDF]">
                   {formatMoney(expectedCashMinor, currency)}
                 </dd>
               </div>
               <div>
-                <dt className="text-muted-foreground">Collected</dt>
-                <dd className="mt-1 font-semibold text-foreground">
+                <dt className="text-[#91857A]">Collected</dt>
+                <dd className="mt-1 font-semibold text-[#F8EDDF]">
                   {formatMoney(totalCollectedMinor, currency)}
                 </dd>
               </div>
               <div>
-                <dt className="text-muted-foreground">Payments</dt>
-                <dd className="mt-1 font-semibold text-foreground">
+                <dt className="text-[#91857A]">Payments</dt>
+                <dd className="mt-1 font-semibold text-[#F8EDDF]">
                   {paymentCount}
                 </dd>
               </div>
               <div>
-                <dt className="text-muted-foreground">Bills</dt>
-                <dd className="mt-1 font-semibold text-foreground">
+                <dt className="text-[#91857A]">Bills</dt>
+                <dd className="mt-1 font-semibold text-[#F8EDDF]">
                   {billCount}
                 </dd>
               </div>
             </dl>
 
             <div className="grid gap-3 text-xs md:grid-cols-4">
-              <div className="rounded-card border bg-background/40 p-3">
+              <div className="rounded-md border border-[#3A3028] bg-[#18130F] p-3">
                 Cash {formatMoney(cashMinor, currency)}
               </div>
-              <div className="rounded-card border bg-background/40 p-3">
+              <div className="rounded-md border border-[#3A3028] bg-[#18130F] p-3">
                 Card POS {formatMoney(cardMinor, currency)}
               </div>
-              <div className="rounded-card border bg-background/40 p-3">
+              <div className="rounded-md border border-[#3A3028] bg-[#18130F] p-3">
                 Wallet {formatMoney(walletMinor, currency)}
               </div>
-              <div className="rounded-card border bg-background/40 p-3">
+              <div className="rounded-md border border-[#3A3028] bg-[#18130F] p-3">
                 Other {formatMoney(otherMinor, currency)}
               </div>
             </div>
 
             <form
-              className="grid gap-3 rounded-card border bg-background/40 p-3 md:grid-cols-[12rem_1fr_auto_auto]"
+              className="grid gap-3 rounded-md border border-[#47392E] bg-[#18130F] p-3 md:grid-cols-[12rem_1fr_auto_auto]"
               onSubmit={(event) => event.preventDefault()}
             >
-              <label className="grid gap-1 text-xs font-medium text-muted-foreground">
+              <label className="grid gap-1 text-xs font-medium text-[#91857A]">
                 Drawer amount
                 <Input
                   inputMode="decimal"
@@ -520,7 +520,7 @@ function CashierShiftPanel({
                   placeholder="0.00"
                 />
               </label>
-              <label className="grid gap-1 text-xs font-medium text-muted-foreground">
+              <label className="grid gap-1 text-xs font-medium text-[#91857A]">
                 Adjustment note
                 <Input
                   value={adjustmentNote}
@@ -563,7 +563,7 @@ function CashierShiftPanel({
             </form>
 
             <form
-              className="grid gap-3 rounded-card border bg-background/40 p-3 md:grid-cols-[12rem_1fr_auto]"
+              className="grid gap-3 rounded-md border border-[#3A3028] bg-[#18130F] p-3 md:grid-cols-[12rem_1fr_auto]"
               onSubmit={(event) => {
                 event.preventDefault();
 
@@ -577,7 +577,7 @@ function CashierShiftPanel({
                 });
               }}
             >
-              <label className="grid gap-1 text-xs font-medium text-muted-foreground">
+              <label className="grid gap-1 text-xs font-medium text-[#91857A]">
                 Counted cash
                 <Input
                   inputMode="decimal"
@@ -586,7 +586,7 @@ function CashierShiftPanel({
                   placeholder={minorToInput(expectedCashMinor)}
                 />
               </label>
-              <label className="grid gap-1 text-xs font-medium text-muted-foreground">
+              <label className="grid gap-1 text-xs font-medium text-[#91857A]">
                 Closing note
                 <Input
                   value={closingNote}
@@ -603,7 +603,7 @@ function CashierShiftPanel({
                 Close & Generate Z
               </Button>
               {countedCash.trim() ? (
-                <p className="md:col-span-3 text-xs text-muted-foreground">
+                <p className="md:col-span-3 text-xs text-[#91857A]">
                   Expected {formatMoney(expectedCashMinor, currency)}. Over /
                   short {formatMoney(overShortMinor, currency)}.
                 </p>
@@ -1323,7 +1323,7 @@ function CashierDashboardContent() {
           </CardHeader>
           <CardContent className="grid gap-3">
             {realtimeEventsQuery.isError ? (
-              <div className="rounded-card border border-warning bg-warning/10 p-3 text-sm text-warning">
+              <div className="rounded-md border border-warning bg-warning/10 p-3 text-sm text-warning">
                 <AlertTriangle
                   className="me-2 inline size-4"
                   aria-hidden="true"
@@ -1332,24 +1332,24 @@ function CashierDashboardContent() {
               </div>
             ) : null}
             {(realtimeEventsQuery.data?.events ?? []).length === 0 ? (
-              <p className="rounded-card border border-dashed bg-surface/70 p-4 text-sm text-muted-foreground">
+              <p className="rounded-md border border-dashed bg-surface/70 p-4 text-sm text-[#91857A]">
                 {t("cashier.activityEmpty")}
               </p>
             ) : null}
             {(realtimeEventsQuery.data?.events ?? []).map((event, index) => (
               <div
                 key={getRecordString(event, "id") || String(index)}
-                className="rounded-card border bg-surface/75 p-3"
+                className="rounded-md border bg-surface/75 p-3"
               >
-                <p className="text-sm font-semibold text-foreground">
+                <p className="text-sm font-semibold text-[#F8EDDF]">
                   {humanizeStatus(getRecordString(event, "type", "event"))}
                 </p>
-                <p className="mt-1 text-xs text-muted-foreground">
+                <p className="mt-1 text-xs text-[#91857A]">
                   {getRecordString(event, "channel", "system")} /{" "}
                   {formatDateTime(getRecordString(event, "createdAt"))}
                 </p>
                 {getRecordString(event, "orderId") ? (
-                  <p className="mt-2 text-xs text-muted-foreground">
+                  <p className="mt-2 text-xs text-[#91857A]">
                     Order {shortId(getRecordString(event, "orderId"))}
                   </p>
                 ) : null}
