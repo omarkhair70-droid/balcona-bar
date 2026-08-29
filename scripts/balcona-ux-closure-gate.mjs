@@ -23,7 +23,7 @@ const surfaces=[
     lang:'AR', rtlExpect:'التذاكر'
   },
   {
-    id:'office', path:'/prototype/office/home', expect:'Business today',
+    id:'office', path:'/prototype/office/home', expect:'Home',
     action:{name:'Money', expect:'Operational finance'},
     lang:'العربية', rtlExpect:'المدفوعات'
   },
