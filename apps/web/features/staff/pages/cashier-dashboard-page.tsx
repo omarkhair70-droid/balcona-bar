@@ -1201,7 +1201,7 @@ function CashierDashboardContent() {
 
       <NoticeBanner notice={notice} />
 
-      <section className="grid gap-5 xl:grid-cols-[minmax(20rem,26rem)_1fr]">
+      <section id="orders" className="scroll-mt-36 grid gap-5 xl:grid-cols-[minmax(20rem,26rem)_1fr]">
         <CashierOrderQueue
           orders={orders}
           status={orderStatus}
@@ -1244,7 +1244,8 @@ function CashierDashboardContent() {
         />
       </section>
 
-      <CashierShiftPanel
+      <div id="shift" className="scroll-mt-36">
+        <CashierShiftPanel
         branchName={selectedBranch.name}
         data={currentShiftQuery.data}
         isLoading={currentShiftQuery.isPending}
@@ -1277,9 +1278,10 @@ function CashierDashboardContent() {
           }
         }}
         onClearReport={() => setShiftReport(null)}
-      />
+        />
+      </div>
 
-      <section className="grid gap-5 xl:grid-cols-[1fr_22rem]">
+      <section id="bills" className="scroll-mt-36 grid gap-5 xl:grid-cols-[1fr_22rem]">
         <BillRequestQueue
           billRequests={billRequests}
           status={billStatus}
