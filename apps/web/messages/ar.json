@@ -691,7 +691,12 @@
       "printStatusPrinting": "قيد الطباعة",
       "printStatusPrinted": "تمت الطباعة",
       "printStatusFailed": "فشل",
-      "printStatusCancelled": "ملغي"
+      "printStatusCancelled": "ملغي",
+      "timelineStarted": "بدأ {date}",
+      "timelineReady": "جاهز {date}",
+      "timelineCancelled": "أُلغي {date}",
+      "actorStaff": "فريق العمل",
+      "actorSystem": "النظام"
     },
     "navigation": {
       "billing": "الحسابات",
