@@ -423,7 +423,7 @@ export function CustomerServicePage({ sessionId }: CustomerServicePageProps) {
           </CardContent>
         </Card>
 
-        <Card variant="glass" padding="lg">
+        <Card id="bill" variant="glass" padding="lg" className="scroll-mt-20">
           <CardHeader>
             <div className="text-primary">
               <ReceiptText className="size-6" aria-hidden="true" />
