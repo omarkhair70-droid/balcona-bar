@@ -15,8 +15,6 @@ import {
   ShieldCheck
 } from "lucide-react";
 import {
-  type FormEvent,
-  useEffect,
   useMemo,
   useState
 } from "react";
@@ -286,13 +284,17 @@ function StaffSetupContent() {
   const onboarding = branchQuery.data;
   const launchSummary = checklistQuery.data?.launchSummary ?? onboarding?.launchSummary;
 
-  const [companyForm, setCompanyForm] = useState({ name: "", slug: "", status: "active" });
-  const [branchForm, setBranchForm] = useState({
-    name: "",
-    slug: "",
-    address: "",
-    status: "active"
-  });
+  const [companyDraft, setCompanyDraft] = useState<Partial<{
+    name: string;
+    slug: string;
+    status: string;
+  }>>({});
+  const [branchDraft, setBranchDraft] = useState<Partial<{
+    name: string;
+    slug: string;
+    address: string;
+    status: string;
+  }>>({});
   const [floorForm, setFloorForm] = useState({ name: "", sortOrder: "0" });
   const [tableForm, setTableForm] = useState({
     floorLabel: "Main Floor",
@@ -310,25 +312,19 @@ function StaffSetupContent() {
   const [copied, setCopied] = useState(false);
   const [acknowledgedMessage, setAcknowledgedMessage] = useState<string | null>(null);
 
-  useEffect(() => {
-    if (!onboarding) return;
-
-    setCompanyForm({
-      name: onboarding.company.name,
-      slug: onboarding.company.slug,
-      status: onboarding.company.status === "inactive" ? "inactive" : "active"
-    });
-    setBranchForm({
-      name: onboarding.branch.name,
-      slug: onboarding.branch.slug,
-      address: onboarding.branch.address ?? "",
-      status: onboarding.branch.status === "inactive" ? "inactive" : "active"
-    });
-    setTableForm((current) => ({
-      ...current,
-      floorLabel: onboarding.tables.floors[0]?.name ?? current.floorLabel
-    }));
-  }, [onboarding]);
+  const companyForm = {
+    name: onboarding?.company.name ?? "",
+    slug: onboarding?.company.slug ?? "",
+    status: onboarding?.company.status === "inactive" ? "inactive" : "active",
+    ...companyDraft
+  };
+  const branchForm = {
+    name: onboarding?.branch.name ?? "",
+    slug: onboarding?.branch.slug ?? "",
+    address: onboarding?.branch.address ?? "",
+    status: onboarding?.branch.status === "inactive" ? "inactive" : "active",
+    ...branchDraft
+  };
 
   function refresh() {
     if (!selectedBranchId) return;
@@ -512,7 +508,7 @@ function StaffSetupContent() {
                   value={companyForm.name}
                   disabled={!canManageCompany}
                   onChange={(event) =>
-                    setCompanyForm((current) => ({ ...current, name: event.target.value }))
+                    setCompanyDraft((current) => ({ ...current, name: event.target.value }))
                   }
                 />
               </Field>
@@ -523,7 +519,7 @@ function StaffSetupContent() {
                     value={companyForm.slug}
                     disabled={!canManageCompany}
                     onChange={(event) =>
-                      setCompanyForm((current) => ({ ...current, slug: event.target.value }))
+                      setCompanyDraft((current) => ({ ...current, slug: event.target.value }))
                     }
                   />
                 </Field>
@@ -533,7 +529,7 @@ function StaffSetupContent() {
                     value={companyForm.status}
                     disabled={!canManageCompany}
                     onChange={(event) =>
-                      setCompanyForm((current) => ({ ...current, status: event.target.value }))
+                      setCompanyDraft((current) => ({ ...current, status: event.target.value }))
                     }
                   >
                     <option value="active">{L(locale, "Active", "نشط")}</option>
@@ -570,7 +566,7 @@ function StaffSetupContent() {
                   value={branchForm.name}
                   disabled={!canManageBranch}
                   onChange={(event) =>
-                    setBranchForm((current) => ({ ...current, name: event.target.value }))
+                    setBranchDraft((current) => ({ ...current, name: event.target.value }))
                   }
                 />
               </Field>
@@ -580,7 +576,7 @@ function StaffSetupContent() {
                   value={branchForm.address}
                   disabled={!canManageBranch}
                   onChange={(event) =>
-                    setBranchForm((current) => ({ ...current, address: event.target.value }))
+                    setBranchDraft((current) => ({ ...current, address: event.target.value }))
                   }
                 />
               </Field>
@@ -591,7 +587,7 @@ function StaffSetupContent() {
                     value={branchForm.slug}
                     disabled={!canManageBranch}
                     onChange={(event) =>
-                      setBranchForm((current) => ({ ...current, slug: event.target.value }))
+                      setBranchDraft((current) => ({ ...current, slug: event.target.value }))
                     }
                   />
                 </Field>
@@ -601,7 +597,7 @@ function StaffSetupContent() {
                     value={branchForm.status}
                     disabled={!canManageBranch}
                     onChange={(event) =>
-                      setBranchForm((current) => ({ ...current, status: event.target.value }))
+                      setBranchDraft((current) => ({ ...current, status: event.target.value }))
                     }
                   >
                     <option value="active">{L(locale, "Active", "نشط")}</option>
