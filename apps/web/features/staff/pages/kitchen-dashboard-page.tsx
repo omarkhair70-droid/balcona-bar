@@ -636,6 +636,24 @@ function KitchenDashboardActions() {
 
 function KitchenDashboardContent() {
   const t = useTranslations("staff");
+  const activityEventLabel = (eventType: string) => {
+    const labels: Record<string, string> = {
+      preparation_task_created: t("kitchen.activityEventTaskCreated"),
+      preparation_task_started: t("kitchen.activityEventTaskStarted"),
+      preparation_task_ready: t("kitchen.activityEventTaskReady"),
+      preparation_task_cancelled: t("kitchen.activityEventTaskCancelled"),
+      kitchen_ticket_created: t("kitchen.activityEventTicketCreated"),
+      print_job_created: t("kitchen.activityEventPrintCreated"),
+      print_job_failed: t("kitchen.activityEventPrintFailed"),
+      print_job_printed: t("kitchen.activityEventPrintPrinted")
+    };
+
+    return labels[eventType] ?? humanizeStatus(eventType);
+  };
+  const activityChannelLabel = (channel: string) =>
+    channel === "preparation"
+      ? t("kitchen.activityPreparation")
+      : humanizeStatus(channel);
   const queryClient = useQueryClient();
   const accessToken = useStaffAuthStore((state) => state.accessToken);
   const staffUser = useStaffAuthStore((state) => state.staffUser);
@@ -977,10 +995,7 @@ function KitchenDashboardContent() {
               <span className="rounded-full border border-[#45403B] bg-[#23211F] px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.06em] text-[#C8C2BC]">
                 {t("kitchen.badge")}
               </span>
-              <StaffRealtimeStatus
-                state={realtime.state}
-                lastEventType={realtime.lastEventType}
-              />
+              <StaffRealtimeStatus state={realtime.state} />
             </div>
             <h2 className="mt-2 truncate text-lg font-black text-[#FFF8F0]">
               {selectedBranch.name}
@@ -1045,7 +1060,7 @@ function KitchenDashboardContent() {
       <NoticeBanner notice={notice} />
 
       {mode === "tasks" ? (
-        <section className="grid gap-5 xl:grid-cols-[minmax(20rem,27rem)_1fr]">
+        <section className="grid gap-5 xl:grid-cols-[minmax(0,1.55fr)_minmax(28rem,0.85fr)]">
           <KitchenTaskBoard
             tasks={tasks}
             station={station}
@@ -1219,20 +1234,20 @@ function KitchenDashboardContent() {
               className="rounded-card border bg-surface/75 p-3"
             >
               <p className="text-sm font-semibold text-foreground">
-                {humanizeStatus(getRecordString(event, "type", "event"))}
+                {activityEventLabel(getRecordString(event, "type", "event"))}
               </p>
               <p className="mt-1 text-xs text-muted-foreground">
-                {getRecordString(event, "channel", "system")} /{" "}
+                {activityChannelLabel(getRecordString(event, "channel", "system"))} /{" "}
                 {formatDateTime(getRecordString(event, "createdAt"))}
               </p>
               {getRecordString(event, "preparationTaskId") ? (
                 <p className="mt-2 text-xs text-muted-foreground">
-                  Task {shortId(getRecordString(event, "preparationTaskId"))}
+                  {t("kitchen.activityTaskLabel")} {shortId(getRecordString(event, "preparationTaskId"))}
                 </p>
               ) : null}
               {getRecordString(event, "orderId") ? (
                 <p className="mt-1 text-xs text-muted-foreground">
-                  Order {shortId(getRecordString(event, "orderId"))}
+                  {t("kitchen.activityOrderLabel")} {shortId(getRecordString(event, "orderId"))}
                 </p>
               ) : null}
             </div>
