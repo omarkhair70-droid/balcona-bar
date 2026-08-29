@@ -11,16 +11,44 @@ permissions:
 
 jobs:
   oracle-preflight:
-    name: Oracle API + CORS Preflight
+    name: Oracle API + CORS + Live Web Smoke
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 20
 
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
 
-      - name: Run Oracle production preflight
+      - name: Run Oracle API production preflight
         env:
           API_ORIGIN: https://balcona-api.158.101.254.30.sslip.io
           WEB_ORIGIN: https://balcona.158.101.254.30.sslip.io
         run: bash scripts/deploy/oracle-production-preflight.sh
+
+      - name: Run public production route smoke
+        env:
+          WEB_BASE_URL: https://balcona.158.101.254.30.sslip.io
+          API_BASE_URL: https://balcona-api.158.101.254.30.sslip.io/api/v1
+        run: bash scripts/deploy/staging-smoke.sh
+
+      - name: Install isolated Playwright
+        run: |
+          mkdir -p /tmp/balcona-live-smoke
+          cd /tmp/balcona-live-smoke
+          npm init -y
+          npm install --no-audit --no-fund playwright@1.55.0
+          npx playwright install --with-deps chromium
+
+      - name: Run live browser smoke
+        env:
+          BALCONA_LIVE_WEB_URL: https://balcona.158.101.254.30.sslip.io
+        run: node scripts/deploy/oracle-live-browser-smoke.mjs
+
+      - name: Upload live browser evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: oracle-live-browser-smoke
+          path: artifacts/oracle-live-smoke
+          if-no-files-found: error
+          retention-days: 14
