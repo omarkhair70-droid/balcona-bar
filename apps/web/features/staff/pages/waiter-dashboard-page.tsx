@@ -67,6 +67,7 @@ import {
   cancelWaiterCall,
   getBranchAttentionQueue,
   getBranchRealtimeEvents,
+  getBranchTableAdminOverview,
   getBranchWaiterCalls,
   getReadyToServeOrders,
   getTableSessionAttention,
@@ -94,6 +95,7 @@ import { AttentionDetailPanel } from "../components/attention-detail-panel";
 import { StaffAuthGate } from "../components/staff-auth-gate";
 import { StaffBranchSelector } from "../components/staff-branch-selector";
 import { StaffRealtimeStatus } from "../components/staff-realtime-status";
+import { ServiceFloorBoard } from "../components/service-floor-board";
 import { WaiterCallDetailPanel } from "../components/waiter-call-detail-panel";
 import { WaiterCallQueue } from "../components/waiter-call-queue";
 
@@ -275,6 +277,7 @@ function WaiterDashboardContent() {
     (entry) => entry.branch.id === selectedBranchId
   );
   const selectedBranch = selectedBranchAccess?.branch;
+  const selectedCompanyId = selectedBranchAccess?.company.id;
   const realtime = useStaffBranchRealtime(selectedBranchId, accessToken);
   const allWaiterCallsQuery = useQuery({
     queryKey: staffQueryKeys.staffWaiterCalls(selectedBranchId, "all", "all"),
@@ -334,6 +337,20 @@ function WaiterDashboardContent() {
         accessToken
       ),
     enabled: Boolean(selectedBranchId && accessToken),
+    staleTime: 10_000
+  });
+  const floorOverviewQuery = useQuery({
+    queryKey: staffQueryKeys.branchTableAdminOverview(
+      selectedCompanyId,
+      selectedBranchId
+    ),
+    queryFn: () =>
+      getBranchTableAdminOverview(
+        selectedCompanyId ?? "",
+        selectedBranchId,
+        accessToken
+      ),
+    enabled: Boolean(selectedCompanyId && selectedBranchId && accessToken),
     staleTime: 10_000
   });
   const realtimeEventsQuery = useQuery({
@@ -422,6 +439,12 @@ function WaiterDashboardContent() {
     void queryClient.invalidateQueries({
       queryKey: staffQueryKeys.branchRealtime(selectedBranchId)
     });
+    void queryClient.invalidateQueries({
+      queryKey: staffQueryKeys.branchTableAdminOverview(
+        selectedCompanyId,
+        selectedBranchId
+      )
+    });
   };
   const invalidateWaiterState = (
     waiterCallId?: string,
@@ -435,6 +458,12 @@ function WaiterDashboardContent() {
     });
     void queryClient.invalidateQueries({
       queryKey: staffQueryKeys.branchRealtime(selectedBranchId)
+    });
+    void queryClient.invalidateQueries({
+      queryKey: staffQueryKeys.branchTableAdminOverview(
+        selectedCompanyId,
+        selectedBranchId
+      )
     });
 
     if (waiterCallId) {
@@ -456,6 +485,12 @@ function WaiterDashboardContent() {
     void queryClient.invalidateQueries({
       queryKey: staffQueryKeys.branchRealtime(selectedBranchId)
     });
+    void queryClient.invalidateQueries({
+      queryKey: staffQueryKeys.branchTableAdminOverview(
+        selectedCompanyId,
+        selectedBranchId
+      )
+    });
 
     if (orderId) {
       void queryClient.invalidateQueries({
@@ -472,6 +507,12 @@ function WaiterDashboardContent() {
     });
     void queryClient.invalidateQueries({
       queryKey: staffQueryKeys.branchRealtime(selectedBranchId)
+    });
+    void queryClient.invalidateQueries({
+      queryKey: staffQueryKeys.branchTableAdminOverview(
+        selectedCompanyId,
+        selectedBranchId
+      )
     });
 
     if (sessionId) {
@@ -754,6 +795,14 @@ function WaiterDashboardContent() {
       </Card>
 
       <NoticeBanner notice={notice} />
+
+      <ServiceFloorBoard
+        overview={floorOverviewQuery.data}
+        isLoading={floorOverviewQuery.isPending}
+        error={floorOverviewQuery.error ?? undefined}
+        selectedSessionId={selectedSessionId}
+        onSelectSession={setUserSelectedSessionId}
+      />
 
       <section className="grid gap-5 xl:grid-cols-[minmax(20rem,28rem)_1fr]">
         <AttentionQueue
