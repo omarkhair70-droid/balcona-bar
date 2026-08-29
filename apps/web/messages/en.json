@@ -1030,7 +1030,13 @@
       "inventoryTitle": "Inventory",
       "inventoryDescription": "Stock levels, adjustments, suppliers, purchase orders, requirements, and menu availability.",
       "locationsTitle": "Locations",
-      "locationsDescription": "Branches, floors, tables, QR tokens, active sessions, and operational readiness."
+      "locationsDescription": "Branches, floors, tables, QR tokens, active sessions, and operational readiness.",
+      "operationsTitle": "Operations",
+      "operationsDescription": "Order flow, service demand, preparation, kitchen tickets, print health, and lifecycle timing.",
+      "moneyTitle": "Money",
+      "moneyDescription": "Restaurant revenue, collections, tender mix, average ticket, and cashier shift movement.",
+      "insightsTitle": "Insights",
+      "insightsDescription": "Top items, AI waiter performance, daily reporting, and operating signals for decisions."
     }
   },
   "cashier": {
