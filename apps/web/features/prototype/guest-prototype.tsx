@@ -576,6 +576,7 @@ function ItemSheet({
           <span className="h-1 w-12 rounded-full bg-[#D9CEC4]" />
           <button
             type="button"
+            aria-label={L(locale, "Close", "إغلاق")}
             onClick={onClose}
             className="flex size-9 items-center justify-center rounded-full border border-[#E1D7CD] bg-white text-[#6F5E52]"
           >
@@ -749,6 +750,7 @@ function CartSheet({
           </div>
           <button
             type="button"
+            aria-label={L(locale, "Close", "إغلاق")}
             onClick={onClose}
             className="flex size-9 items-center justify-center rounded-full border border-[#E1D7CD] bg-white"
           >
@@ -1363,6 +1365,7 @@ function AiSheet({
           </div>
           <button
             type="button"
+            aria-label={L(locale, "Close", "إغلاق")}
             onClick={onClose}
             className="flex size-9 items-center justify-center rounded-full border border-[#E1D7CD] bg-white"
           >
