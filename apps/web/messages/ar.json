@@ -701,7 +701,18 @@
       "printKindBaristaTicket": "تذكرة البار",
       "printKindDessertTicket": "تذكرة الحلويات",
       "printKindReceipt": "إيصال",
-      "printKindVoidTicket": "تذكرة إلغاء"
+      "printKindVoidTicket": "تذكرة إلغاء",
+      "activityPreparation": "التحضير",
+      "activityTaskLabel": "مهمة",
+      "activityOrderLabel": "طلب",
+      "activityEventTaskCreated": "تم إنشاء مهمة تحضير",
+      "activityEventTaskStarted": "بدأت مهمة التحضير",
+      "activityEventTaskReady": "مهمة التحضير جاهزة",
+      "activityEventTaskCancelled": "أُلغيت مهمة التحضير",
+      "activityEventTicketCreated": "تم إنشاء تذكرة مطبخ",
+      "activityEventPrintCreated": "تم إنشاء مهمة طباعة",
+      "activityEventPrintFailed": "فشلت مهمة الطباعة",
+      "activityEventPrintPrinted": "تمت طباعة المهمة"
     },
     "navigation": {
       "billing": "الحسابات",
