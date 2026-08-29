@@ -187,7 +187,16 @@ async function runWebSurfaceSmoke(run) {
     { label: "Customer table page", path: `/customer/table/${run.config.tableQrToken ?? "balcona-main-t01"}` },
     ...customerSessionPages,
     { label: "Staff login page", path: "/staff/login" },
-    { label: "Staff cashier page", path: "/staff/cashier" },
+    {
+      label: "Staff cashier page",
+      path: "/staff/cashier",
+      coverage: { category: "Staff Ops", name: "web cashier route" }
+    },
+    {
+      label: "Staff waiter page",
+      path: "/staff/waiter",
+      coverage: { category: "Staff Ops", name: "web waiter route" }
+    },
     { label: "Staff kitchen page", path: "/staff/kitchen" },
     { label: "Staff owner page", path: "/staff/owner" },
     { label: "Platform login page", path: "/platform/login" },
