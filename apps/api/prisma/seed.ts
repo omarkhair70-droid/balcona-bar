@@ -7,21 +7,22 @@ import {
   PrismaClient,
   SaasPlanStatus,
   StaffRole,
-} from '@prisma/client';
-import * as bcrypt from 'bcryptjs';
+} from "@prisma/client";
+import * as bcrypt from "bcryptjs";
+import { seedRealCafeDemo } from "./seed-real-cafe-demo";
 
 const prisma = new PrismaClient();
 const PASSWORD_HASH_ROUNDS = 12;
 
-const companySlug = 'balcona-bar';
-const branchSlug = 'main-branch';
+const companySlug = "balcona-bar";
+const branchSlug = "main-branch";
 
 type MenuItemSeed = {
   categorySlug: string;
   name: string;
   slug: string;
-  description?: string;
-  imageUrl?: string;
+  description: string;
+  imageUrl: string;
   basePriceMinor: number;
   station: PreparationStation;
   sortOrder: number;
@@ -30,19 +31,35 @@ type MenuItemSeed = {
 };
 
 const staffSeed: Array<{ email: string; name: string; role: StaffRole }> = [
-  { email: 'owner@balcona.local', name: 'Balcona Owner', role: 'owner' },
-  { email: 'manager@balcona.local', name: 'Main Branch Manager', role: 'branch_manager' },
-  { email: 'cashier@balcona.local', name: 'Main Branch Cashier', role: 'cashier' },
-  { email: 'waiter@balcona.local', name: 'Main Branch Waiter', role: 'waiter' },
-  { email: 'kitchen@balcona.local', name: 'Main Branch Kitchen', role: 'kitchen' },
-  { email: 'barista@balcona.local', name: 'Main Branch Barista', role: 'barista' },
+  { email: "owner@balcona.local", name: "Balcona Owner", role: "owner" },
+  {
+    email: "manager@balcona.local",
+    name: "Main Branch Manager",
+    role: "branch_manager",
+  },
+  {
+    email: "cashier@balcona.local",
+    name: "Main Branch Cashier",
+    role: "cashier",
+  },
+  { email: "waiter@balcona.local", name: "Main Branch Waiter", role: "waiter" },
+  {
+    email: "kitchen@balcona.local",
+    name: "Main Branch Kitchen",
+    role: "kitchen",
+  },
+  {
+    email: "barista@balcona.local",
+    name: "Main Branch Barista",
+    role: "barista",
+  },
 ];
 
 const saasPlanSeed = [
   {
-    code: 'pilot',
-    name: 'Pilot',
-    description: 'Generous local/demo pilot plan for onboarding cafes.',
+    code: "pilot",
+    name: "Pilot",
+    description: "Generous local/demo pilot plan for onboarding cafes.",
     monthlyPriceMinor: null,
     maxBranches: 3,
     maxTables: 100,
@@ -61,9 +78,9 @@ const saasPlanSeed = [
     sortOrder: 1,
   },
   {
-    code: 'starter',
-    name: 'Starter',
-    description: 'Single-branch cafe operations with essential limits.',
+    code: "starter",
+    name: "Starter",
+    description: "Single-branch cafe operations with essential limits.",
     monthlyPriceMinor: 150000,
     maxBranches: 1,
     maxTables: 20,
@@ -82,9 +99,10 @@ const saasPlanSeed = [
     sortOrder: 2,
   },
   {
-    code: 'growth',
-    name: 'Growth',
-    description: 'Growing cafes with inventory, online payments, and AI capacity.',
+    code: "growth",
+    name: "Growth",
+    description:
+      "Growing cafes with inventory, online payments, and AI capacity.",
     monthlyPriceMinor: 350000,
     maxBranches: 3,
     maxTables: 75,
@@ -103,9 +121,9 @@ const saasPlanSeed = [
     sortOrder: 3,
   },
   {
-    code: 'enterprise',
-    name: 'Enterprise',
-    description: 'Sales-led plan with unlimited operating limits.',
+    code: "enterprise",
+    name: "Enterprise",
+    description: "Sales-led plan with unlimited operating limits.",
     monthlyPriceMinor: null,
     maxBranches: null,
     maxTables: null,
@@ -126,109 +144,399 @@ const saasPlanSeed = [
 ] as const;
 
 const categorySeed = [
-  { name: 'Coffee', slug: 'coffee', sortOrder: 1 },
-  { name: 'Cold Drinks', slug: 'cold-drinks', sortOrder: 2 },
-  { name: 'Desserts', slug: 'desserts', sortOrder: 3 },
-  { name: 'Bakery', slug: 'bakery', sortOrder: 4 },
+  { name: "Balcona Signatures", slug: "signatures", sortOrder: 1 },
+  { name: "Espresso Bar", slug: "coffee", sortOrder: 2 },
+  { name: "Cold & Sparkling", slug: "cold-drinks", sortOrder: 3 },
+  { name: "Breakfast & Bakery", slug: "bakery", sortOrder: 4 },
+  { name: "Dessert Counter", slug: "desserts", sortOrder: 5 },
 ];
 
 const itemSeed: readonly MenuItemSeed[] = [
-  { categorySlug: 'coffee', name: 'Espresso', slug: 'espresso', basePriceMinor: 6500, station: 'barista', sortOrder: 1, isFeatured: true },
-  { categorySlug: 'coffee', name: 'Americano', slug: 'americano', basePriceMinor: 7500, station: 'barista', sortOrder: 2 },
-  { categorySlug: 'coffee', name: 'Cappuccino', slug: 'cappuccino', basePriceMinor: 9000, station: 'barista', sortOrder: 3, isFeatured: true },
-  { categorySlug: 'coffee', name: 'Latte', slug: 'latte', basePriceMinor: 9500, station: 'barista', sortOrder: 4 },
-  { categorySlug: 'coffee', name: 'Spanish Latte', slug: 'spanish-latte', basePriceMinor: 11500, station: 'barista', sortOrder: 5, isFeatured: true },
-  { categorySlug: 'cold-drinks', name: 'Iced Latte', slug: 'iced-latte', basePriceMinor: 10500, station: 'barista', sortOrder: 1 },
-  { categorySlug: 'cold-drinks', name: 'Iced Spanish Latte', slug: 'iced-spanish-latte', basePriceMinor: 12500, station: 'barista', sortOrder: 2, isFeatured: true },
-  { categorySlug: 'cold-drinks', name: 'Lemon Mint', slug: 'lemon-mint', basePriceMinor: 8500, station: 'barista', sortOrder: 3 },
-  { categorySlug: 'cold-drinks', name: 'Peach Iced Tea', slug: 'peach-iced-tea', basePriceMinor: 9000, station: 'barista', sortOrder: 4 },
-  { categorySlug: 'desserts', name: 'Chocolate Cake', slug: 'chocolate-cake', basePriceMinor: 12000, station: 'dessert', sortOrder: 1, isFeatured: true },
-  { categorySlug: 'desserts', name: 'Cheesecake', slug: 'cheesecake', basePriceMinor: 13000, station: 'dessert', sortOrder: 2 },
-  { categorySlug: 'desserts', name: 'Brownie', slug: 'brownie', basePriceMinor: 8000, station: 'dessert', sortOrder: 3 },
-  { categorySlug: 'bakery', name: 'Croissant', slug: 'croissant', basePriceMinor: 7000, station: 'kitchen', sortOrder: 1 },
-  { categorySlug: 'bakery', name: 'Cheese Croissant', slug: 'cheese-croissant', basePriceMinor: 8500, station: 'kitchen', sortOrder: 2 },
+  {
+    categorySlug: "signatures",
+    name: "Balcona Spanish Latte",
+    slug: "balcona-spanish-latte",
+    description:
+      "Double espresso, silky milk and our toasted condensed-milk blend.",
+    imageUrl: "/menu/signature-latte.webp",
+    basePriceMinor: 14500,
+    station: "barista",
+    sortOrder: 1,
+    isFeatured: true,
+  },
+  {
+    categorySlug: "signatures",
+    name: "Cardamom Flat White",
+    slug: "cardamom-flat-white",
+    description:
+      "Velvety flat white with green cardamom and a quiet honey finish.",
+    imageUrl: "/menu/signature-latte.webp",
+    basePriceMinor: 13000,
+    station: "barista",
+    sortOrder: 2,
+    isFeatured: true,
+  },
+  {
+    categorySlug: "signatures",
+    name: "Pistachio Latte",
+    slug: "pistachio-latte",
+    description: "House pistachio cream, espresso and textured milk.",
+    imageUrl: "/menu/signature-latte.webp",
+    basePriceMinor: 15500,
+    station: "barista",
+    sortOrder: 3,
+    isFeatured: true,
+  },
+  {
+    categorySlug: "signatures",
+    name: "Orange Espresso Tonic",
+    slug: "orange-espresso-tonic",
+    description: "Bright espresso, tonic and fresh orange over crystal ice.",
+    imageUrl: "/menu/cold-drinks.webp",
+    basePriceMinor: 15000,
+    station: "barista",
+    sortOrder: 4,
+    isFeatured: true,
+  },
+  {
+    categorySlug: "coffee",
+    name: "Espresso",
+    slug: "espresso",
+    description: "Balanced house espresso with cocoa and roasted almond notes.",
+    imageUrl: "/menu/signature-latte.webp",
+    basePriceMinor: 7500,
+    station: "barista",
+    sortOrder: 1,
+  },
+  {
+    categorySlug: "coffee",
+    name: "Double Espresso",
+    slug: "double-espresso",
+    description: "A focused double shot of our seasonal house blend.",
+    imageUrl: "/menu/signature-latte.webp",
+    basePriceMinor: 9500,
+    station: "barista",
+    sortOrder: 2,
+  },
+  {
+    categorySlug: "coffee",
+    name: "Cortado",
+    slug: "cortado",
+    description: "Equal parts espresso and warm textured milk.",
+    imageUrl: "/menu/signature-latte.webp",
+    basePriceMinor: 10500,
+    station: "barista",
+    sortOrder: 3,
+  },
+  {
+    categorySlug: "coffee",
+    name: "Flat White",
+    slug: "flat-white",
+    description: "Double ristretto with a thin layer of silky microfoam.",
+    imageUrl: "/menu/signature-latte.webp",
+    basePriceMinor: 12000,
+    station: "barista",
+    sortOrder: 4,
+  },
+  {
+    categorySlug: "coffee",
+    name: "Cappuccino",
+    slug: "cappuccino",
+    description: "Espresso, steamed milk and a generous cap of microfoam.",
+    imageUrl: "/menu/signature-latte.webp",
+    basePriceMinor: 12500,
+    station: "barista",
+    sortOrder: 5,
+  },
+  {
+    categorySlug: "coffee",
+    name: "V60 Filter",
+    slug: "v60-filter",
+    description: "Hand-brewed seasonal coffee with a clean, expressive finish.",
+    imageUrl: "/menu/signature-latte.webp",
+    basePriceMinor: 14500,
+    station: "barista",
+    sortOrder: 6,
+  },
+  {
+    categorySlug: "cold-drinks",
+    name: "Iced Spanish Latte",
+    slug: "iced-spanish-latte",
+    description: "Our signature Spanish latte poured over ice.",
+    imageUrl: "/menu/cold-drinks.webp",
+    basePriceMinor: 15000,
+    station: "barista",
+    sortOrder: 1,
+  },
+  {
+    categorySlug: "cold-drinks",
+    name: "Cold Brew",
+    slug: "cold-brew",
+    description:
+      "Slow-steeped for 18 hours; chocolatey, smooth and refreshing.",
+    imageUrl: "/menu/cold-drinks.webp",
+    basePriceMinor: 13500,
+    station: "barista",
+    sortOrder: 2,
+  },
+  {
+    categorySlug: "cold-drinks",
+    name: "Hibiscus Lemonade",
+    slug: "hibiscus-lemonade",
+    description: "Tart karkade, fresh lemon and a light sparkling lift.",
+    imageUrl: "/menu/cold-drinks.webp",
+    basePriceMinor: 11000,
+    station: "barista",
+    sortOrder: 3,
+    isFeatured: true,
+  },
+  {
+    categorySlug: "cold-drinks",
+    name: "Lemon Mint",
+    slug: "lemon-mint",
+    description: "Fresh lemon, garden mint and crushed ice.",
+    imageUrl: "/menu/cold-drinks.webp",
+    basePriceMinor: 10500,
+    station: "barista",
+    sortOrder: 4,
+  },
+  {
+    categorySlug: "cold-drinks",
+    name: "Peach Iced Tea",
+    slug: "peach-iced-tea",
+    description: "Black tea, ripe peach and citrus served long over ice.",
+    imageUrl: "/menu/cold-drinks.webp",
+    basePriceMinor: 11500,
+    station: "barista",
+    sortOrder: 5,
+  },
+  {
+    categorySlug: "bakery",
+    name: "Butter Croissant",
+    slug: "butter-croissant",
+    description: "Flaky all-butter croissant, baked fresh every morning.",
+    imageUrl: "/menu/bakery.webp",
+    basePriceMinor: 8000,
+    station: "kitchen",
+    sortOrder: 1,
+  },
+  {
+    categorySlug: "bakery",
+    name: "Halloumi Croissant",
+    slug: "halloumi-croissant",
+    description: "Warm croissant, grilled halloumi, tomato and zaatar.",
+    imageUrl: "/menu/bakery.webp",
+    basePriceMinor: 14500,
+    station: "kitchen",
+    sortOrder: 2,
+    isFeatured: true,
+  },
+  {
+    categorySlug: "bakery",
+    name: "Shakshuka Focaccia",
+    slug: "shakshuka-focaccia",
+    description: "Soft eggs, slow tomato and herbs on toasted focaccia.",
+    imageUrl: "/menu/bakery.webp",
+    basePriceMinor: 17500,
+    station: "kitchen",
+    sortOrder: 3,
+  },
+  {
+    categorySlug: "bakery",
+    name: "Turkey Brioche",
+    slug: "turkey-brioche",
+    description: "Smoked turkey, aged cheese and mustard in toasted brioche.",
+    imageUrl: "/menu/bakery.webp",
+    basePriceMinor: 18500,
+    station: "kitchen",
+    sortOrder: 4,
+  },
+  {
+    categorySlug: "bakery",
+    name: "Granola Bowl",
+    slug: "granola-bowl",
+    description: "Greek yoghurt, house granola, seasonal fruit and honey.",
+    imageUrl: "/menu/bakery.webp",
+    basePriceMinor: 16500,
+    station: "kitchen",
+    sortOrder: 5,
+  },
+  {
+    categorySlug: "desserts",
+    name: "Basque Cheesecake",
+    slug: "basque-cheesecake",
+    description: "Burnished top, creamy centre and a whisper of sea salt.",
+    imageUrl: "/menu/pistachio-tiramisu.webp",
+    basePriceMinor: 16500,
+    station: "dessert",
+    sortOrder: 1,
+    isFeatured: true,
+  },
+  {
+    categorySlug: "desserts",
+    name: "Date Toffee Pudding",
+    slug: "date-toffee-pudding",
+    description: "Warm date sponge, toffee sauce and vanilla cream.",
+    imageUrl: "/menu/pistachio-tiramisu.webp",
+    basePriceMinor: 14500,
+    station: "dessert",
+    sortOrder: 2,
+  },
+  {
+    categorySlug: "desserts",
+    name: "Dark Chocolate Brownie",
+    slug: "dark-chocolate-brownie",
+    description: "Fudgy dark chocolate brownie with roasted hazelnut.",
+    imageUrl: "/menu/pistachio-tiramisu.webp",
+    basePriceMinor: 12000,
+    station: "dessert",
+    sortOrder: 3,
+  },
+  {
+    categorySlug: "desserts",
+    name: "Pistachio Tiramisu",
+    slug: "pistachio-tiramisu",
+    description: "Espresso-soaked layers with mascarpone and pistachio.",
+    imageUrl: "/menu/pistachio-tiramisu.webp",
+    basePriceMinor: 18000,
+    station: "dessert",
+    sortOrder: 4,
+    isFeatured: true,
+  },
 ];
 
 const modifierGroupSeed = [
   {
-    name: 'Size',
-    slug: 'size',
-    selectionType: 'single',
+    name: "Size",
+    slug: "size",
+    selectionType: "single",
     isRequired: true,
     minSelections: 1,
     maxSelections: 1,
     sortOrder: 1,
     options: [
-      { name: 'Small', slug: 'small', priceDeltaMinor: 0, sortOrder: 1 },
-      { name: 'Medium', slug: 'medium', priceDeltaMinor: 1000, sortOrder: 2 },
-      { name: 'Large', slug: 'large', priceDeltaMinor: 2000, sortOrder: 3 },
+      { name: "Small", slug: "small", priceDeltaMinor: 0, sortOrder: 1 },
+      { name: "Medium", slug: "medium", priceDeltaMinor: 1000, sortOrder: 2 },
+      { name: "Large", slug: "large", priceDeltaMinor: 2000, sortOrder: 3 },
     ],
   },
   {
-    name: 'Temperature',
-    slug: 'temperature',
-    selectionType: 'single',
+    name: "Temperature",
+    slug: "temperature",
+    selectionType: "single",
     isRequired: true,
     minSelections: 1,
     maxSelections: 1,
     sortOrder: 2,
     options: [
-      { name: 'Hot', slug: 'hot', priceDeltaMinor: 0, sortOrder: 1 },
-      { name: 'Iced', slug: 'iced', priceDeltaMinor: 0, sortOrder: 2 },
+      { name: "Hot", slug: "hot", priceDeltaMinor: 0, sortOrder: 1 },
+      { name: "Iced", slug: "iced", priceDeltaMinor: 0, sortOrder: 2 },
     ],
   },
   {
-    name: 'Sugar Level',
-    slug: 'sugar-level',
-    selectionType: 'single',
+    name: "Sugar Level",
+    slug: "sugar-level",
+    selectionType: "single",
     isRequired: false,
     minSelections: 0,
     maxSelections: 1,
     sortOrder: 3,
     options: [
-      { name: 'No sugar', slug: 'no-sugar', priceDeltaMinor: 0, sortOrder: 1 },
-      { name: 'Less sugar', slug: 'less-sugar', priceDeltaMinor: 0, sortOrder: 2 },
-      { name: 'Normal sugar', slug: 'normal-sugar', priceDeltaMinor: 0, sortOrder: 3 },
-      { name: 'Extra sugar', slug: 'extra-sugar', priceDeltaMinor: 0, sortOrder: 4 },
+      { name: "No sugar", slug: "no-sugar", priceDeltaMinor: 0, sortOrder: 1 },
+      {
+        name: "Less sugar",
+        slug: "less-sugar",
+        priceDeltaMinor: 0,
+        sortOrder: 2,
+      },
+      {
+        name: "Normal sugar",
+        slug: "normal-sugar",
+        priceDeltaMinor: 0,
+        sortOrder: 3,
+      },
+      {
+        name: "Extra sugar",
+        slug: "extra-sugar",
+        priceDeltaMinor: 0,
+        sortOrder: 4,
+      },
     ],
   },
   {
-    name: 'Milk Type',
-    slug: 'milk-type',
-    selectionType: 'single',
+    name: "Milk Type",
+    slug: "milk-type",
+    selectionType: "single",
     isRequired: false,
     minSelections: 0,
     maxSelections: 1,
     sortOrder: 4,
     options: [
-      { name: 'Regular milk', slug: 'regular-milk', priceDeltaMinor: 0, sortOrder: 1 },
-      { name: 'Oat milk', slug: 'oat-milk', priceDeltaMinor: 2500, sortOrder: 2 },
-      { name: 'Almond milk', slug: 'almond-milk', priceDeltaMinor: 3000, sortOrder: 3 },
+      {
+        name: "Regular milk",
+        slug: "regular-milk",
+        priceDeltaMinor: 0,
+        sortOrder: 1,
+      },
+      {
+        name: "Oat milk",
+        slug: "oat-milk",
+        priceDeltaMinor: 2500,
+        sortOrder: 2,
+      },
+      {
+        name: "Almond milk",
+        slug: "almond-milk",
+        priceDeltaMinor: 3000,
+        sortOrder: 3,
+      },
     ],
   },
   {
-    name: 'Extras',
-    slug: 'extras',
-    selectionType: 'multiple',
+    name: "Extras",
+    slug: "extras",
+    selectionType: "multiple",
     isRequired: false,
     minSelections: 0,
     maxSelections: 3,
     sortOrder: 5,
     options: [
-      { name: 'Extra shot', slug: 'extra-shot', priceDeltaMinor: 2000, sortOrder: 1 },
-      { name: 'Caramel', slug: 'caramel', priceDeltaMinor: 1500, sortOrder: 2 },
-      { name: 'Vanilla', slug: 'vanilla', priceDeltaMinor: 1500, sortOrder: 3 },
-      { name: 'Whipped cream', slug: 'whipped-cream', priceDeltaMinor: 1500, sortOrder: 4 },
+      {
+        name: "Extra shot",
+        slug: "extra-shot",
+        priceDeltaMinor: 2000,
+        sortOrder: 1,
+      },
+      { name: "Caramel", slug: "caramel", priceDeltaMinor: 1500, sortOrder: 2 },
+      { name: "Vanilla", slug: "vanilla", priceDeltaMinor: 1500, sortOrder: 3 },
+      {
+        name: "Whipped cream",
+        slug: "whipped-cream",
+        priceDeltaMinor: 1500,
+        sortOrder: 4,
+      },
     ],
   },
 ] as const;
 
-const coffeeModifierSlugs = ['size', 'temperature', 'sugar-level', 'milk-type', 'extras'];
+const signatureModifierSlugs = [
+  "size",
+  "temperature",
+  "sugar-level",
+  "milk-type",
+  "extras",
+];
+const coffeeModifierSlugsByItem: Record<string, string[]> = {
+  cortado: ["milk-type", "extras"],
+  "flat-white": ["milk-type", "extras"],
+  cappuccino: ["size", "milk-type", "extras"],
+};
 const coldDrinkModifierSlugsByItem: Record<string, string[]> = {
-  'iced-latte': ['size', 'sugar-level', 'milk-type', 'extras'],
-  'iced-spanish-latte': ['size', 'sugar-level', 'milk-type', 'extras'],
-  'lemon-mint': ['size', 'sugar-level', 'extras'],
-  'peach-iced-tea': ['size', 'sugar-level', 'extras'],
+  "iced-spanish-latte": ["size", "sugar-level", "milk-type", "extras"],
+  "lemon-mint": ["size", "sugar-level", "extras"],
+  "peach-iced-tea": ["size", "sugar-level", "extras"],
+  "hibiscus-lemonade": ["size", "sugar-level", "extras"],
+  "cold-brew": ["size", "extras"],
 };
 
 const printerStationSeed: Array<{
@@ -237,23 +545,23 @@ const printerStationSeed: Array<{
   station: PreparationStation | null;
 }> = [
   {
-    name: 'Main Barista Printer',
-    slug: 'main-barista-printer',
+    name: "Main Barista Printer",
+    slug: "main-barista-printer",
     station: PreparationStation.barista,
   },
   {
-    name: 'Main Kitchen Printer',
-    slug: 'main-kitchen-printer',
+    name: "Main Kitchen Printer",
+    slug: "main-kitchen-printer",
     station: PreparationStation.kitchen,
   },
   {
-    name: 'Dessert Printer',
-    slug: 'dessert-printer',
+    name: "Dessert Printer",
+    slug: "dessert-printer",
     station: PreparationStation.dessert,
   },
   {
-    name: 'Cashier Receipt Printer',
-    slug: 'cashier-receipt-printer',
+    name: "Cashier Receipt Printer",
+    slug: "cashier-receipt-printer",
     station: null,
   },
 ];
@@ -272,14 +580,14 @@ async function seedMenu(companyId: string, branchId: string) {
       update: {
         name: category.name,
         sortOrder: category.sortOrder,
-        status: 'active',
+        status: "active",
       },
       create: {
         companyId,
         name: category.name,
         slug: category.slug,
         sortOrder: category.sortOrder,
-        status: 'active',
+        status: "active",
       },
       select: { id: true },
     });
@@ -288,6 +596,11 @@ async function seedMenu(companyId: string, branchId: string) {
   }
 
   const itemBySlug = new Map<string, { id: string }>();
+
+  await prisma.menuItem.updateMany({
+    where: { companyId },
+    data: { status: "inactive", isFeatured: false },
+  });
 
   for (const item of itemSeed) {
     const category = categoryBySlug.get(item.categorySlug);
@@ -306,10 +619,12 @@ async function seedMenu(companyId: string, branchId: string) {
       update: {
         categoryId: category.id,
         name: item.name,
+        description: item.description,
+        imageUrl: item.imageUrl,
         basePriceMinor: item.basePriceMinor,
-        currency: 'EGP',
+        currency: "EGP",
         station: item.station,
-        status: 'active',
+        status: "active",
         isFeatured: item.isFeatured ?? false,
         sortOrder: item.sortOrder,
       },
@@ -318,10 +633,12 @@ async function seedMenu(companyId: string, branchId: string) {
         categoryId: category.id,
         name: item.name,
         slug: item.slug,
+        description: item.description,
+        imageUrl: item.imageUrl,
         basePriceMinor: item.basePriceMinor,
-        currency: 'EGP',
+        currency: "EGP",
         station: item.station,
-        status: 'active',
+        status: "active",
         isFeatured: item.isFeatured ?? false,
         sortOrder: item.sortOrder,
       },
@@ -348,7 +665,7 @@ async function seedMenu(companyId: string, branchId: string) {
         minSelections: group.minSelections,
         maxSelections: group.maxSelections,
         sortOrder: group.sortOrder,
-        status: 'active',
+        status: "active",
       },
       create: {
         companyId,
@@ -359,7 +676,7 @@ async function seedMenu(companyId: string, branchId: string) {
         minSelections: group.minSelections,
         maxSelections: group.maxSelections,
         sortOrder: group.sortOrder,
-        status: 'active',
+        status: "active",
       },
       select: { id: true },
     });
@@ -378,7 +695,7 @@ async function seedMenu(companyId: string, branchId: string) {
           name: option.name,
           priceDeltaMinor: option.priceDeltaMinor,
           sortOrder: option.sortOrder,
-          status: 'active',
+          status: "active",
         },
         create: {
           groupId: savedGroup.id,
@@ -386,7 +703,7 @@ async function seedMenu(companyId: string, branchId: string) {
           slug: option.slug,
           priceDeltaMinor: option.priceDeltaMinor,
           sortOrder: option.sortOrder,
-          status: 'active',
+          status: "active",
         },
       });
     }
@@ -400,9 +717,11 @@ async function seedMenu(companyId: string, branchId: string) {
     }
 
     const modifierSlugs =
-      item.categorySlug === 'coffee'
-        ? coffeeModifierSlugs
-        : coldDrinkModifierSlugsByItem[item.slug] ?? [];
+      item.categorySlug === "signatures"
+        ? signatureModifierSlugs
+        : item.categorySlug === "coffee"
+          ? (coffeeModifierSlugsByItem[item.slug] ?? [])
+          : (coldDrinkModifierSlugsByItem[item.slug] ?? []);
 
     for (const [index, modifierSlug] of modifierSlugs.entries()) {
       const modifierGroup = modifierGroupBySlug.get(modifierSlug);
@@ -467,10 +786,10 @@ async function seedPrinterStations(companyId: string, branchId: string) {
         name: printerStation.name,
         station: printerStation.station,
         adapterType: PrinterAdapterType.mock,
-        status: 'active',
+        status: "active",
         isDefault: true,
         config: {
-          adapter: 'mock',
+          adapter: "mock",
           demo: true,
         },
       },
@@ -481,10 +800,10 @@ async function seedPrinterStations(companyId: string, branchId: string) {
         slug: printerStation.slug,
         station: printerStation.station,
         adapterType: PrinterAdapterType.mock,
-        status: 'active',
+        status: "active",
         isDefault: true,
         config: {
-          adapter: 'mock',
+          adapter: "mock",
           demo: true,
         },
       },
@@ -499,12 +818,12 @@ async function seedSaasPlans() {
       update: {
         ...plan,
         status: SaasPlanStatus.active,
-        currency: 'EGP',
+        currency: "EGP",
       },
       create: {
         ...plan,
         status: SaasPlanStatus.active,
-        currency: 'EGP',
+        currency: "EGP",
       },
     });
   }
@@ -512,11 +831,11 @@ async function seedSaasPlans() {
 
 async function assignPilotSubscription(companyId: string) {
   const plan = await prisma.saasPlan.findUnique({
-    where: { code: 'pilot' },
+    where: { code: "pilot" },
   });
 
   if (!plan) {
-    throw new Error('Pilot SaaS plan was not seeded');
+    throw new Error("Pilot SaaS plan was not seeded");
   }
 
   await prisma.companySubscription.upsert({
@@ -537,7 +856,7 @@ async function assignPilotSubscription(companyId: string) {
       status: CompanySubscriptionStatus.active,
       currentPeriodStart: new Date(),
       metadata: {
-        source: 'seed',
+        source: "seed",
         demo: true,
       },
     },
@@ -545,36 +864,34 @@ async function assignPilotSubscription(companyId: string) {
 }
 
 async function seedPlatformAdminIfEnabled() {
-  const enabled = process.env.PLATFORM_ADMIN_DEV_BOOTSTRAP_ENABLED === 'true';
+  const enabled = process.env.PLATFORM_ADMIN_DEV_BOOTSTRAP_ENABLED === "true";
 
   if (!enabled) {
     return;
   }
 
-  if (process.env.NODE_ENV === 'production') {
-    throw new Error('Platform admin dev bootstrap is disabled in production');
+  if (process.env.NODE_ENV === "production") {
+    throw new Error("Platform admin dev bootstrap is disabled in production");
   }
 
-  const email = (
-    process.env.PLATFORM_ADMIN_EMAIL ?? 'platform@balcona.local'
-  )
+  const email = (process.env.PLATFORM_ADMIN_EMAIL ?? "platform@balcona.local")
     .trim()
     .toLowerCase();
   const password =
-    process.env.PLATFORM_ADMIN_PASSWORD ?? 'change-me-platform-123';
+    process.env.PLATFORM_ADMIN_PASSWORD ?? "change-me-platform-123";
   const passwordHash = await bcrypt.hash(password, PASSWORD_HASH_ROUNDS);
 
   await prisma.platformAdminUser.upsert({
     where: { email },
     update: {
-      name: 'Balcona Platform Admin',
+      name: "Balcona Platform Admin",
       passwordHash,
       role: PlatformAdminRole.owner,
       status: PlatformAdminStatus.active,
     },
     create: {
       email,
-      name: 'Balcona Platform Admin',
+      name: "Balcona Platform Admin",
       passwordHash,
       role: PlatformAdminRole.owner,
       status: PlatformAdminStatus.active,
@@ -589,13 +906,13 @@ async function main() {
   const company = await prisma.company.upsert({
     where: { slug: companySlug },
     update: {
-      name: 'Balcona Bar',
-      status: 'active',
+      name: "Balcona Bar",
+      status: "active",
     },
     create: {
-      name: 'Balcona Bar',
+      name: "Balcona Bar",
       slug: companySlug,
-      status: 'active',
+      status: "active",
     },
   });
 
@@ -609,16 +926,16 @@ async function main() {
       },
     },
     update: {
-      name: 'Main Branch',
-      address: 'Demo address for local development',
-      status: 'active',
+      name: "Zamalek Rooftop",
+      address: "Zamalek, Cairo",
+      status: "active",
     },
     create: {
       companyId: company.id,
-      name: 'Main Branch',
+      name: "Zamalek Rooftop",
       slug: branchSlug,
-      address: 'Demo address for local development',
-      status: 'active',
+      address: "Zamalek, Cairo",
+      status: "active",
     },
   });
 
@@ -627,19 +944,37 @@ async function main() {
       id: `${branch.id}:ground-floor`,
     },
     update: {
-      name: 'Ground Floor',
+      name: "Indoor Lounge",
       sortOrder: 1,
     },
     create: {
       id: `${branch.id}:ground-floor`,
       branchId: branch.id,
-      name: 'Ground Floor',
+      name: "Indoor Lounge",
       sortOrder: 1,
     },
   });
 
-  for (let index = 1; index <= 6; index += 1) {
-    const code = `T${String(index).padStart(2, '0')}`;
+  const rooftopFloor = await prisma.floor.upsert({
+    where: {
+      id: `${branch.id}:rooftop`,
+    },
+    update: {
+      name: "Rooftop",
+      sortOrder: 2,
+    },
+    create: {
+      id: `${branch.id}:rooftop`,
+      branchId: branch.id,
+      name: "Rooftop",
+      sortOrder: 2,
+    },
+  });
+
+  for (let index = 1; index <= 18; index += 1) {
+    const code = `T${String(index).padStart(2, "0")}`;
+    const isRooftop = index > 6;
+    const capacity = index % 5 === 0 ? 6 : index % 3 === 0 ? 2 : 4;
 
     await prisma.cafeTable.upsert({
       where: {
@@ -649,20 +984,20 @@ async function main() {
         },
       },
       update: {
-        displayName: `Table ${index}`,
-        floorId: floor.id,
-        capacity: 4,
+        displayName: isRooftop ? `Rooftop ${index - 6}` : `Lounge ${index}`,
+        floorId: isRooftop ? rooftopFloor.id : floor.id,
+        capacity,
         qrToken: `balcona-main-${code.toLowerCase()}`,
-        status: 'active',
+        status: "active",
       },
       create: {
         branchId: branch.id,
-        floorId: floor.id,
+        floorId: isRooftop ? rooftopFloor.id : floor.id,
         code,
-        displayName: `Table ${index}`,
-        capacity: 4,
+        displayName: isRooftop ? `Rooftop ${index - 6}` : `Lounge ${index}`,
+        capacity,
         qrToken: `balcona-main-${code.toLowerCase()}`,
-        status: 'active',
+        status: "active",
       },
     });
   }
@@ -672,16 +1007,16 @@ async function main() {
       where: { email: staff.email },
       update: {
         name: staff.name,
-        status: 'active',
+        status: "active",
       },
       create: {
         email: staff.email,
         name: staff.name,
-        status: 'active',
+        status: "active",
       },
     });
 
-    const membershipBranchId = staff.role === 'owner' ? null : branch.id;
+    const membershipBranchId = staff.role === "owner" ? null : branch.id;
     const existingMembership = await prisma.staffMembership.findFirst({
       where: {
         staffUserId: staffUser.id,
@@ -694,7 +1029,7 @@ async function main() {
     if (existingMembership) {
       await prisma.staffMembership.update({
         where: { id: existingMembership.id },
-        data: { status: 'active' },
+        data: { status: "active" },
       });
     } else {
       await prisma.staffMembership.create({
@@ -703,7 +1038,7 @@ async function main() {
           companyId: company.id,
           branchId: membershipBranchId,
           role: staff.role,
-          status: 'active',
+          status: "active",
         },
       });
     }
@@ -711,6 +1046,10 @@ async function main() {
 
   await seedMenu(company.id, branch.id);
   await seedPrinterStations(company.id, branch.id);
+  await seedRealCafeDemo(prisma, {
+    companyId: company.id,
+    branchId: branch.id,
+  });
 }
 
 main()

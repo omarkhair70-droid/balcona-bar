@@ -45,7 +45,10 @@ export function MenuItemCard({
 
         <div className="px-1 pb-1 pt-2.5">
           <div className="flex items-start gap-1.5">
-            <p className="min-w-0 flex-1 truncate text-sm font-black text-foreground">
+            <p
+              className="min-w-0 flex-1 truncate text-sm font-black text-foreground"
+              dir="auto"
+            >
               {item.name}
             </p>
             {item.isFeatured ? (
@@ -53,7 +56,9 @@ export function MenuItemCard({
             ) : null}
           </div>
           <div className="mt-2 flex items-center justify-between gap-2">
-            <strong className="text-xs text-foreground">{price}</strong>
+            <strong className="text-xs text-foreground" dir="ltr">
+              {price}
+            </strong>
             <span className="flex size-7 items-center justify-center rounded-full bg-muted text-foreground">
               <Plus className="size-3.5" aria-hidden="true" />
             </span>
@@ -72,7 +77,10 @@ export function MenuItemCard({
     >
       <div className="min-w-0 flex-1">
         <div className="flex items-start gap-2">
-          <h3 className="text-sm font-black leading-5 text-foreground">
+          <h3
+            className="text-sm font-black leading-5 text-foreground"
+            dir="auto"
+          >
             {item.name}
           </h3>
           {item.isFeatured ? (
@@ -80,12 +88,17 @@ export function MenuItemCard({
           ) : null}
         </div>
 
-        <p className="mt-1 line-clamp-2 text-[11px] leading-4 text-muted-foreground">
+        <p
+          className="mt-1 line-clamp-2 text-[11px] leading-4 text-muted-foreground"
+          dir="auto"
+        >
           {item.description ?? t("item.preparedFallback")}
         </p>
 
         <div className="mt-2 flex flex-wrap items-center gap-2">
-          <strong className="text-xs text-foreground">{price}</strong>
+          <strong className="text-xs text-foreground" dir="ltr">
+            {price}
+          </strong>
           {isStockBlocked ? (
             <Badge variant="danger">{t("item.soldOut")}</Badge>
           ) : item.stockStatus === "low_stock" ? (

@@ -65,6 +65,15 @@ input {
   color: var(--primary-foreground);
 }
 
+.no-scrollbar {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
 .premium-surface {
   background:
     linear-gradient(135deg, rgba(255, 247, 234, 0.08), rgba(255, 247, 234, 0)),
