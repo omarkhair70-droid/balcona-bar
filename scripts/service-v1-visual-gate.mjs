@@ -87,6 +87,17 @@ await mobile.page.getByRole('button', { name: 'Floor', exact: true }).click();
 await assertBase(mobile.page, 'floor-mobile');
 await shot(mobile.page, 'service-floor-mobile');
 
+await mobile.page.getByRole('button', { name: 'Bills', exact: true }).click();
+await assertBase(mobile.page, 'bills-mobile');
+await mobile.page.getByText('#B-8819', { exact: true }).first().click();
+await shot(mobile.page, 'service-bills-unknown-mobile');
+
+await mobile.page.getByRole('button', { name: 'Shift', exact: true }).click();
+await assertBase(mobile.page, 'shift-mobile');
+await mobile.page.getByRole('button', { name: 'Begin close', exact: true }).click();
+await shot(mobile.page, 'service-shift-close-mobile');
+
+await mobile.page.getByRole('button', { name: 'Floor', exact: true }).click();
 await mobile.page.getByRole('button', { name: 'العربية', exact: true }).click();
 const arm = await assertBase(mobile.page, 'arabic-mobile');
 if (arm.dir !== 'rtl') failures.push(`Arabic mobile direction expected rtl, got ${arm.dir}`);
@@ -110,6 +121,8 @@ await fs.writeFile('qa-artifacts/report.json', JSON.stringify({
     ordersMobile: true,
     attentionMobile: true,
     floorMobile: true,
+    billsUnknownMobile: true,
+    shiftCloseMobile: true,
     arabicRtlMobile: true,
     overflow: true
   }
