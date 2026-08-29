@@ -198,7 +198,26 @@ async function runWebSurfaceSmoke(run) {
       coverage: { category: "Staff Ops", name: "web waiter route" }
     },
     { label: "Staff kitchen page", path: "/staff/kitchen" },
-    { label: "Staff owner page", path: "/staff/owner" },
+    {
+      label: "Staff owner page",
+      path: "/staff/owner",
+      coverage: { category: "Office", name: "web Office home route" }
+    },
+    {
+      label: "Staff menu admin page",
+      path: "/staff/menu",
+      coverage: { category: "Office", name: "web Office catalog route" }
+    },
+    {
+      label: "Staff inventory page",
+      path: "/staff/inventory",
+      coverage: { category: "Office", name: "web Office inventory route" }
+    },
+    {
+      label: "Staff branches page",
+      path: "/staff/branches",
+      coverage: { category: "Office", name: "web Office locations route" }
+    },
     { label: "Platform login page", path: "/platform/login" },
     { label: "Platform companies page", path: "/platform/companies" }
   ];
