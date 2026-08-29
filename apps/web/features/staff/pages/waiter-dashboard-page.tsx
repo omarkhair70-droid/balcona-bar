@@ -7,15 +7,12 @@ import {
   AlertTriangle,
   BellRing,
   CheckCircle2,
-  ChefHat,
   ClipboardList,
   Footprints,
   HandPlatter,
-  LayoutDashboard,
   LogIn,
   LogOut,
   Radio,
-  Receipt,
   RefreshCw
 } from "lucide-react";
 import { useMemo, useState } from "react";
@@ -219,24 +216,6 @@ function WaiterDashboardActions() {
 
   return (
     <>
-      <Link href="/staff" className={buttonVariants({ variant: "ghost" })}>
-        <LayoutDashboard className="size-4" aria-hidden="true" />
-        {t("actions.overview")}
-      </Link>
-      <Link
-        href="/staff/cashier"
-        className={buttonVariants({ variant: "ghost" })}
-      >
-        <Receipt className="size-4" aria-hidden="true" />
-        {t("actions.cashier")}
-      </Link>
-      <Link
-        href="/staff/kitchen"
-        className={buttonVariants({ variant: "ghost" })}
-      >
-        <ChefHat className="size-4" aria-hidden="true" />
-        {t("actions.kitchen")}
-      </Link>
       <StaffBranchSelector
         access={effectiveAccess}
         selectedBranchId={selectedBranchId}
