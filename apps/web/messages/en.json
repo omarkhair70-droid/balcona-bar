@@ -696,7 +696,12 @@
       "timelineReady": "Ready {date}",
       "timelineCancelled": "Cancelled {date}",
       "actorStaff": "Staff",
-      "actorSystem": "System"
+      "actorSystem": "System",
+      "printKindKitchenTicket": "Kitchen ticket",
+      "printKindBaristaTicket": "Barista ticket",
+      "printKindDessertTicket": "Dessert ticket",
+      "printKindReceipt": "Receipt",
+      "printKindVoidTicket": "Void ticket"
     },
     "navigation": {
       "billing": "Billing",
