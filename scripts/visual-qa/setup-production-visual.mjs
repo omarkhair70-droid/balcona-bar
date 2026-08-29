@@ -233,11 +233,12 @@ async function capture(browser, { label, locale="en", viewport={width:1440,heigh
   await page.goto(`${BASE_URL}/staff/setup`, { waitUntil:"domcontentloaded", timeout:30000 });
 
   const title = locale === "ar" ? "جهّز الفرع للتشغيل" : "Get this location live";
-  await page.waitForTimeout(800);
   const titleLocator = page.getByText(title, { exact:true });
-  if (!(await titleLocator.isVisible())) {
+  try {
+    await titleLocator.waitFor({ state:"visible", timeout:15000 });
+  } catch (error) {
     const bodyText = (await page.locator("body").innerText()).slice(0, 1800);
-    throw new Error(`${label}: Setup title not visible. Body: ${bodyText}`);
+    throw new Error(`${label}: Setup title not visible. Body: ${bodyText}. Cause: ${String(error)}`);
   }
 
   const phaseLinks = page.locator('nav[aria-label] button');
