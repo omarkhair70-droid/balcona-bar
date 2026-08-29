@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { type ReactNode } from "react";
+import { Banknote, BellRing, LayoutGrid, ListChecks, Receipt } from "lucide-react";
 import { LanguageSwitcher } from "@/components/i18n/language-switcher";
 import { useTranslations } from "@/lib/i18n/i18n-provider";
 import { cn } from "@/lib/utils/cn";
@@ -30,6 +31,34 @@ const modes: Array<{
     id: "waiter",
     href: "/staff/waiter",
     labelKey: "serviceShell.waiter"
+  }
+];
+
+const serviceViews = [
+  {
+    href: "/staff/waiter#floor",
+    labelKey: "serviceShell.floor" as const,
+    icon: LayoutGrid
+  },
+  {
+    href: "/staff/cashier#orders",
+    labelKey: "serviceShell.orders" as const,
+    icon: ListChecks
+  },
+  {
+    href: "/staff/waiter#attention",
+    labelKey: "serviceShell.attention" as const,
+    icon: BellRing
+  },
+  {
+    href: "/staff/cashier#bills",
+    labelKey: "serviceShell.bills" as const,
+    icon: Receipt
+  },
+  {
+    href: "/staff/cashier#shift",
+    labelKey: "serviceShell.shift" as const,
+    icon: Banknote
   }
 ];
 
@@ -97,6 +126,26 @@ export function ServiceStaffShell({
             {actions}
           </div>
         ) : null}
+
+        <nav
+          className="flex gap-1 overflow-x-auto border-t border-[#2E251F] bg-[#1C1612] px-2 py-2"
+          aria-label={t("serviceShell.viewNavigation")}
+        >
+          {serviceViews.map((entry) => {
+            const Icon = entry.icon;
+
+            return (
+              <Link
+                key={entry.href}
+                href={entry.href}
+                className="flex min-h-10 min-w-[112px] shrink-0 items-center justify-center gap-2 rounded-md px-3 text-xs font-semibold text-[#B3A496] transition hover:bg-[#292019] hover:text-[#FFF5E7]"
+              >
+                <Icon className="size-4 text-[#8F8176]" aria-hidden="true" />
+                {t(entry.labelKey)}
+              </Link>
+            );
+          })}
+        </nav>
       </header>
 
       <section className="border-b border-[#342A23] bg-[#1C1612] px-3 py-4 sm:px-4">
