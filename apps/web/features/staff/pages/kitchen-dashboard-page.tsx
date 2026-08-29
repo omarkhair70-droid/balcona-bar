@@ -154,7 +154,7 @@ function KdsModeTabs({
   ];
 
   return (
-    <div className="flex gap-1 overflow-x-auto rounded-md border border-[#34312E] bg-[#171513] p-1">
+    <div className="flex max-w-full min-w-0 gap-1 overflow-x-auto rounded-md border border-[#34312E] bg-[#171513] p-1">
       {modes.map((entry) => {
         const Icon = entry.icon;
         const active = mode === entry.value;
@@ -522,8 +522,8 @@ function KdsFilterBar({
   };
 
   return (
-    <div className="grid gap-2 border border-[#302D29] bg-[#171513] p-3 lg:grid-cols-[1fr_auto]">
-      <div className="flex gap-2 overflow-x-auto pb-1">
+    <div className="grid min-w-0 gap-2 border border-[#302D29] bg-[#171513] p-3 lg:grid-cols-[1fr_auto]">
+      <div className="flex max-w-full min-w-0 gap-2 overflow-x-auto pb-1">
         {stationOptions.map((option) => (
           <button
             key={option}
@@ -540,7 +540,7 @@ function KdsFilterBar({
           </button>
         ))}
       </div>
-      <div className="flex gap-2 overflow-x-auto pb-1">
+      <div className="flex max-w-full min-w-0 gap-2 overflow-x-auto pb-1">
         {statusOptions.map((option) => (
           <button
             key={option}
