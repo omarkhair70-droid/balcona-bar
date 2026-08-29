@@ -6,7 +6,6 @@ import {
   Building2,
   Check,
   ChefHat,
-  ChevronRight,
   Circle,
   CreditCard,
   Languages,
@@ -19,7 +18,7 @@ import {
   Sparkles,
   UsersRound
 } from "lucide-react";
-import { useMemo, useState, type ReactNode } from "react";
+import { useMemo, useState } from "react";
 
 type Locale = "en" | "ar";
 type PhaseState = "complete" | "attention" | "blocked";
