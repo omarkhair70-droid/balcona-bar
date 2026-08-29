@@ -8,13 +8,9 @@ import {
   CheckCircle2,
   ChefHat,
   ClipboardList,
-  Flame,
-  Gauge,
-  LayoutDashboard,
   LogIn,
   LogOut,
   Printer,
-  Receipt,
   RefreshCw,
   RotateCcw,
   XCircle
@@ -31,7 +27,6 @@ import {
   CardTitle
 } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
-import { MetricCard } from "@/components/ui/metric-card";
 import {
   getPrintJobCreatedAt,
   getPrintJobError,
@@ -622,17 +617,6 @@ function KitchenDashboardActions() {
 
   return (
     <>
-      <Link href="/staff" className={buttonVariants({ variant: "ghost" })}>
-        <LayoutDashboard className="size-4" aria-hidden="true" />
-        {t("actions.overview")}
-      </Link>
-      <Link
-        href="/staff/cashier"
-        className={buttonVariants({ variant: "ghost" })}
-      >
-        <Receipt className="size-4" aria-hidden="true" />
-        {t("actions.cashier")}
-      </Link>
       <StaffBranchSelector
         access={effectiveAccess}
         selectedBranchId={selectedBranchId}
@@ -986,96 +970,77 @@ function KitchenDashboardContent() {
 
   return (
     <div className="grid gap-5">
-      <section className="grid gap-4 md:grid-cols-5">
-        <MetricCard
-          label={t("kitchen.pendingLabel")}
-          value={String(
-            countTasksByStatus(allTasks, (taskStatus) => taskStatus === "pending")
-          )}
-          description={t("kitchen.pendingDescription")}
-          icon={<ChefHat className="size-4" aria-hidden="true" />}
-          tone="warning"
-        />
-        <MetricCard
-          label={t("kitchen.preparingLabel")}
-          value={String(
-            countTasksByStatus(
-              allTasks,
-              (taskStatus) => taskStatus === "preparing"
-            )
-          )}
-          description={t("kitchen.preparingDescription")}
-          icon={<Flame className="size-4" aria-hidden="true" />}
-          tone="primary"
-        />
-        <MetricCard
-          label={t("kitchen.readyTicketsLabel")}
-          value={String(
-            countRecordsByStatus(
-              allTickets,
-              getTicketStatus,
-              (ticketStatusValue) => ticketStatusValue === "ready"
-            )
-          )}
-          description={t("kitchen.readyTicketsDescription")}
-          icon={<CheckCircle2 className="size-4" aria-hidden="true" />}
-          tone="success"
-        />
-        <MetricCard
-          label={t("kitchen.failedPrintLabel")}
-          value={String(
-            countRecordsByStatus(
-              allPrintJobs,
-              getPrintJobStatus,
-              (printJobStatusValue) => printJobStatusValue === "failed"
-            )
-          )}
-          description={t("kitchen.failedPrintDescription")}
-          icon={<Printer className="size-4" aria-hidden="true" />}
-          tone="warning"
-        />
-        <MetricCard
-          label={t("realtime.metricLabel")}
-          value={
-            realtime.state === "connected"
-              ? t("kitchen.realtimeLive")
-              : t("kitchen.realtimeWatch")
-          }
-          description={humanizeStatus(realtime.state)}
-          icon={<Gauge className="size-4" aria-hidden="true" />}
-          tone={realtime.state === "connected" ? "success" : "warning"}
-        />
-      </section>
-
-      <Card variant="quiet">
-        <CardHeader className="gap-4 md:flex md:flex-row md:items-start md:justify-between md:space-y-0">
-          <div>
+      <section className="border border-[#302D29] bg-[#171513]">
+        <div className="flex flex-col gap-3 border-b border-[#2D2A27] p-3 lg:flex-row lg:items-center lg:justify-between">
+          <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-2">
-              <Badge variant="muted">{t("kitchen.badge")}</Badge>
+              <span className="rounded-full border border-[#45403B] bg-[#23211F] px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.06em] text-[#C8C2BC]">
+                {t("kitchen.badge")}
+              </span>
               <StaffRealtimeStatus
                 state={realtime.state}
                 lastEventType={realtime.lastEventType}
               />
             </div>
-            <CardTitle className="mt-3">{selectedBranch.name}</CardTitle>
-            <CardDescription>
+            <h2 className="mt-2 truncate text-lg font-black text-[#FFF8F0]">
+              {selectedBranch.name}
+            </h2>
+            <p className="mt-1 max-w-3xl text-xs leading-5 text-[#8E8882]">
               {t("kitchen.viewingDescription", {
                 name:
                   staffUser?.name ||
                   staffUser?.email ||
-                  t("cashier.staffUserFallback"),
+                  t("cashier.staffUserFallback")
               })}
-            </CardDescription>
+            </p>
           </div>
-          <div className="flex flex-wrap gap-2">
-            <KdsModeTabs mode={mode} onChange={setMode} />
-            <Button variant="secondary" onClick={refreshBranch}>
-              <RefreshCw className="size-4" aria-hidden="true" />
-              {t("actions.refreshBranch")}
-            </Button>
+
+          <div className="flex shrink-0 flex-wrap gap-1.5 text-[10px] font-black">
+            <span className="rounded-full border border-[#8A682A] bg-[#352B16] px-2.5 py-1 text-[#F7CD73]">
+              {t("kitchen.statusPending")}{" "}
+              {countTasksByStatus(
+                allTasks,
+                (taskStatus) => taskStatus === "pending"
+              )}
+            </span>
+            <span className="rounded-full border border-[#7A5936] bg-[#33271B] px-2.5 py-1 text-[#E7B46F]">
+              {t("kitchen.statusPreparing")}{" "}
+              {countTasksByStatus(
+                allTasks,
+                (taskStatus) => taskStatus === "preparing"
+              )}
+            </span>
+            <span className="rounded-full border border-[#3F6B47] bg-[#1D3323] px-2.5 py-1 text-[#A9D7B0]">
+              {t("kitchen.readyTicketsLabel")}{" "}
+              {countRecordsByStatus(
+                allTickets,
+                getTicketStatus,
+                (ticketStatusValue) => ticketStatusValue === "ready"
+              )}
+            </span>
+            <span className="rounded-full border border-[#7D3932] bg-[#3D211E] px-2.5 py-1 text-[#FFAAA0]">
+              {t("kitchen.failedPrintLabel")}{" "}
+              {countRecordsByStatus(
+                allPrintJobs,
+                getPrintJobStatus,
+                (printJobStatusValue) => printJobStatusValue === "failed"
+              )}
+            </span>
           </div>
-        </CardHeader>
-      </Card>
+        </div>
+
+        <div className="flex flex-col gap-2 p-2 sm:flex-row sm:items-center sm:justify-between">
+          <KdsModeTabs mode={mode} onChange={setMode} />
+          <Button
+            variant="secondary"
+            onClick={refreshBranch}
+            className="min-h-10 border-[#3E3A36] bg-[#1B1917] font-bold text-[#DAD3CC] hover:bg-[#24211E]"
+          >
+            <RefreshCw className="size-4" aria-hidden="true" />
+            {t("actions.refreshBranch")}
+          </Button>
+        </div>
+      </section>
 
       <NoticeBanner notice={notice} />
 
