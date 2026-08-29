@@ -324,10 +324,10 @@ export function CustomerServicePage({ sessionId }: CustomerServicePageProps) {
       title={t("service.title")}
       description={t("service.description")}
     >
-      <div className="mb-5 rounded-card border border-primary/40 bg-primary/10 p-4">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div className="flex items-start gap-3">
-            <Sparkles className="mt-0.5 size-5 text-primary" aria-hidden="true" />
+      <div className="mb-4 rounded-[18px] border border-border bg-muted p-3">
+        <div className="flex items-center justify-between gap-3">
+          <div className="flex min-w-0 items-start gap-3">
+            <Sparkles className="mt-0.5 size-4 shrink-0 text-primary" aria-hidden="true" />
             <div>
               <h2 className="text-sm font-semibold text-foreground">
                 {t("service.aiHelpTitle")}
@@ -345,7 +345,7 @@ export function CustomerServicePage({ sessionId }: CustomerServicePageProps) {
           </Link>
         </div>
       </div>
-      <section className="grid gap-4 md:grid-cols-3">
+      <section className="grid gap-3">
         {serviceActions.map((action) => (
           <ServiceActionCard
             key={action.titleKey}
@@ -380,7 +380,7 @@ export function CustomerServicePage({ sessionId }: CustomerServicePageProps) {
         </div>
       ) : null}
 
-      <section className="mt-5 grid gap-5 lg:grid-cols-[1fr_1fr]">
+      <section className="mt-5 grid gap-4">
         <Card variant="glass" padding="lg">
           <CardHeader>
             <CardTitle>{t("service.recentCallsTitle")}</CardTitle>
@@ -411,7 +411,7 @@ export function CustomerServicePage({ sessionId }: CustomerServicePageProps) {
               />
             ) : null}
             {waiterCalls.slice(0, 5).map((call, index) => (
-              <div key={`${String(call.id ?? index)}`} className="rounded-card border bg-surface/75 p-4">
+              <div key={`${String(call.id ?? index)}`} className="rounded-[18px] border border-border bg-card p-4">
                 <p className="text-sm font-semibold text-foreground">
                   {String(call.type ?? t("service.requestFallback"))}
                 </p>
@@ -449,7 +449,7 @@ export function CustomerServicePage({ sessionId }: CustomerServicePageProps) {
                 }}
               />
             ) : null}
-            <div className="rounded-card border bg-surface/75 p-4">
+            <div className="rounded-[18px] border border-border bg-card p-4">
               <p className="text-sm font-semibold text-foreground">
                 {t("bill.currentBillState")}
               </p>
@@ -462,7 +462,7 @@ export function CustomerServicePage({ sessionId }: CustomerServicePageProps) {
                 </div>
               ) : null}
               {activeBillRecord ? (
-                <div className="mt-3 rounded-card border bg-background/40 p-3">
+                <div className="mt-3 rounded-xl border border-border bg-background/40 p-3">
                   <div className="flex flex-wrap items-center justify-between gap-2">
                     <p className="text-sm font-semibold text-foreground">
                       {activeBillNumber}
@@ -496,7 +496,7 @@ export function CustomerServicePage({ sessionId }: CustomerServicePageProps) {
                       ))}
                     </div>
                   ) : null}
-                  <div className="mt-3 rounded-card border bg-surface/70 p-3 text-xs text-muted-foreground">
+                  <div className="mt-3 rounded-xl border border-border bg-muted p-3 text-xs text-muted-foreground">
                     {t("bill.balanceDue", {
                       price: formatMoney(activeBillBalanceDueMinor, billCurrency)
                     })}{" "}
