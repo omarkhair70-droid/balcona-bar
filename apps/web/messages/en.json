@@ -1077,7 +1077,11 @@
       "configured": "Configured",
       "notConfigured": "Not configured",
       "enabled": "Enabled",
-      "disabled": "Disabled"
+      "disabled": "Disabled",
+      "featureAiWaiter": "AI waiter",
+      "featureInventory": "Inventory",
+      "featureOnlinePayments": "Online payments",
+      "featureSmartCashier": "Smart cashier"
     }
   },
   "cashier": {
@@ -1318,6 +1322,31 @@
       "profileAvailable": "{source} profile available",
       "title": "Menu / experience readiness",
       "visibleMenuItems": "Visible menu items"
+    },
+    "statusLabels": {
+      "submitted": "Submitted",
+      "cashierAccepted": "Cashier accepted",
+      "preparing": "Preparing",
+      "ready": "Ready",
+      "served": "Served",
+      "completed": "Completed",
+      "paid": "Paid",
+      "paymentPending": "Payment pending",
+      "open": "Open",
+      "closed": "Closed",
+      "resolved": "Resolved",
+      "pending": "Pending",
+      "inProgress": "In progress",
+      "printed": "Printed",
+      "failed": "Failed",
+      "queued": "Queued",
+      "cash": "Cash",
+      "cardPos": "Card POS",
+      "walletManual": "Wallet",
+      "other": "Other",
+      "customerRequestedHuman": "Customer requested human",
+      "lowConfidence": "Low confidence",
+      "ownerDailyReport": "Owner daily report"
     }
   },
   "platform": {
