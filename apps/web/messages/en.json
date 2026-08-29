@@ -671,7 +671,17 @@
       "viewingDescription": "{name} is viewing live station tasks, kitchen tickets, and operational print jobs created from cashier-accepted orders.",
       "shellProductLabel": "Balcona Kitchen",
       "shellSubtitle": "Live preparation operations",
-      "shellEyebrow": "Kitchen operations"
+      "shellEyebrow": "Kitchen operations",
+      "boardEyebrow": "Production board",
+      "stationAll": "All stations",
+      "stationBarista": "Barista",
+      "stationKitchen": "Kitchen",
+      "stationDessert": "Dessert",
+      "statusAll": "All",
+      "statusPending": "New",
+      "statusPreparing": "In progress",
+      "statusReady": "Ready",
+      "statusCancelled": "Cancelled"
     },
     "navigation": {
       "billing": "Billing",
