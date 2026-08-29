@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Languages } from "lucide-react";
-import { type ReactNode } from "react";
+import { type CSSProperties, type ReactNode } from "react";
 import { useI18n, useTranslations } from "@/lib/i18n/i18n-provider";
 import { usePlatformAuthStore } from "@/lib/platform/platform-auth-store";
 import { getPlatformNavItems } from "./platform-navigation";
@@ -32,8 +32,34 @@ export function PlatformShell({
     label: item.labelKey ? t(item.labelKey) : item.label
   }));
 
+  const platformTheme = {
+    colorScheme: "light",
+    "--background": "#F3F3F0",
+    "--foreground": "#20201D",
+    "--surface": "#FFFFFF",
+    "--surface-2": "#F7F7F4",
+    "--surface-raised": "#FFFFFF",
+    "--surface-overlay": "rgba(255,255,255,.94)",
+    "--primary": "#76634A",
+    "--primary-foreground": "#FFFFFF",
+    "--muted": "#F1F1ED",
+    "--muted-foreground": "#777771",
+    "--border": "#D9D9D4",
+    "--ring": "#9F8A6D",
+    "--danger": "#8D3F37",
+    "--success": "#315638",
+    "--warning": "#7D591F",
+    "--shadow-card": "0 1px 0 rgba(0,0,0,.04)",
+    "--shadow-elevated": "0 18px 50px rgba(0,0,0,.08)",
+    "--shadow-glow": "none"
+  } as CSSProperties;
+
   return (
-    <div dir={dir} className="min-h-screen bg-[#F3F3F0] text-[#20201D]">
+    <div
+      dir={dir}
+      style={platformTheme}
+      className="min-h-screen bg-[#F3F3F0] text-[#20201D]"
+    >
       <div className="grid min-h-screen min-w-0 lg:grid-cols-[210px_minmax(0,1fr)]">
         <aside className="min-w-0 overflow-hidden border-b border-[#D6D6D1] bg-[#EAEAE6] px-3 py-3 lg:overflow-visible lg:border-b-0 lg:border-e lg:py-4">
           <div className="flex items-center gap-3 px-2">
