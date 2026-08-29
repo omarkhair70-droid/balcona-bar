@@ -3,9 +3,7 @@
 import {
   Activity,
   AlertTriangle,
-  ArrowUpRight,
   Building2,
-  Check,
   ChevronRight,
   CircleDollarSign,
   Languages,
