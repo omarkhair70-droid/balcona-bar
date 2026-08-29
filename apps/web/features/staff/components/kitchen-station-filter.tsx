@@ -89,12 +89,12 @@ export function KitchenStationFilter({
   };
 
   return (
-    <div className="grid gap-3">
+    <div className="grid min-w-0 gap-3">
       <div>
         <p className="mb-2 text-[10px] font-bold uppercase tracking-[0.12em] text-[#817B75]">
           {t("tasks.filterStation")}
         </p>
-        <div className="flex gap-2 overflow-x-auto pb-1">
+        <div className="flex max-w-full min-w-0 gap-2 overflow-x-auto pb-1">
           {stationOptions.map((option) => (
             <FilterButton
               key={option}
@@ -109,7 +109,7 @@ export function KitchenStationFilter({
         <p className="mb-2 text-[10px] font-bold uppercase tracking-[0.12em] text-[#817B75]">
           {t("tasks.filterStatus")}
         </p>
-        <div className="flex gap-2 overflow-x-auto pb-1">
+        <div className="flex max-w-full min-w-0 gap-2 overflow-x-auto pb-1">
           {statusOptions.map((option) => (
             <FilterButton
               key={option}
