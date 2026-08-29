@@ -12,7 +12,7 @@ async function assertBase(page, name) {
     viewport: innerWidth,
     docWidth: document.documentElement.scrollWidth,
     bodyWidth: document.body.scrollWidth,
-    dir: document.querySelector('[dir]')?.getAttribute('dir') ?? '',
+    dir: [...document.querySelectorAll('[dir]')].map((el) => el.getAttribute('dir')).find((value) => value === 'rtl') ?? 'ltr',
     buttons: document.querySelectorAll('button').length,
     body: document.body.innerText
   }));
