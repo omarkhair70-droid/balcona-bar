@@ -56,7 +56,7 @@ function SuccessPanel({ result }: { result: BootstrapCompanyResult }) {
         </div>
         <div className="min-w-0">
           <h2 className="text-base font-semibold">
-            {L(locale, "Company workspace created", "تم إنشاء مساحة عمل الشركة")}
+            {L(locale, "Tenant workspace created", "تم إنشاء مساحة عمل الشركة")}
           </h2>
           <p className="mt-1 text-xs leading-5 text-[#55705A]">
             {L(
@@ -302,7 +302,7 @@ function PlatformNewCompanyContent() {
           <section className={panelClass + " p-4"}>
             <Building2 className="size-5 text-[#76634A]" />
             <h2 className="mt-3 text-sm font-semibold">
-              {L(locale, "Create Cafe Workspace", "أنشئ مساحة الكافيه")}
+              {L(locale, "Create tenant workspace", "أنشئ مساحة الكافيه")}
             </h2>
             <p className="mt-1 text-xs leading-5 text-[#777771]">
               {L(
