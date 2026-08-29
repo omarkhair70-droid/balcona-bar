@@ -1478,7 +1478,8 @@
       "companies": "الشركات",
       "dashboard": "لوحة التحكم",
       "login": "تسجيل الدخول",
-      "status": "الحالة"
+      "status": "الحالة",
+      "plans": "الخطط"
     },
     "onboarding": {
       "active": "نشط",
@@ -1545,13 +1546,13 @@
       "scopeValue": "المنصة"
     },
     "status": {
-      "apiMetadataTitle": "بيانات تعريف API في Railway",
+      "apiMetadataTitle": "بيانات API الحية",
       "apiPrefix": "بادئة API",
       "appEnv": "APP_ENV",
       "baseUrl": "الرابط الأساسي",
       "checking": "التحقق",
       "checkingApiMetadata": "التحقق من بيانات تعريف API",
-      "description": "فحص دائم لحالة تشغيل واجهة Vercel المؤقتة وAPI Railway.",
+      "description": "فحص هدف API للويب وبيانات التشغيل الآمنة للبيئة الحالية.",
       "health": "الصحة",
       "host": "المضيف",
       "nodeEnv": "NODE_ENV",
@@ -1559,8 +1560,8 @@
       "online": "متصل",
       "service": "الخدمة",
       "systemInfo": "معلومات النظام",
-      "temporaryApiDescription": "يجب أن يشير بناء Vercel إلى عنوان API Railway الدائم قبل تجربة العملاء.",
-      "temporaryApiTitle": "تم ضبط رابط API المؤقت",
+      "temporaryApiDescription": "يجب ربط واجهة الويب بعنوان واجهة البرمجة النهائي على خادم الإنتاج قبل إغلاق فحوص النشر.",
+      "temporaryApiTitle": "هدف API مؤقت أو غير نهائي",
       "title": "حالة التشغيل المرحلي",
       "unreachable": "لا يمكن الوصول",
       "version": "الإصدار",
