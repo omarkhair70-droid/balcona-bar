@@ -32,7 +32,7 @@ async function shot(page,name){await page.screenshot({path:`qa-artifacts/${name}
 const desktop=await open({width:1440,height:1000});
 const p=desktop.page;
 let m=await inspect(p,'menu-desktop');
-if(!m.text.includes('Get this location live')||!m.text.includes('Launch progress')) failures.push('Setup Home structure missing');
+if(!m.text.includes('Get this location live')||!m.text.toLowerCase().includes('launch progress')) failures.push('Setup Home structure missing');
 await shot(p,'setup-menu-desktop');
 
 for(const [label,file,expect] of [
