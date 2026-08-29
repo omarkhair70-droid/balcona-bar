@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import {
   Boxes,
   CreditCard,
@@ -13,7 +14,7 @@ import {
   Users,
   WandSparkles
 } from "lucide-react";
-import { type ReactNode } from "react";
+import { type ReactNode, useEffect, useState } from "react";
 import { LanguageSwitcher } from "@/components/i18n/language-switcher";
 import { useTranslations } from "@/lib/i18n/i18n-provider";
 import { cn } from "@/lib/utils/cn";
@@ -45,13 +46,13 @@ const officeDomains: Array<{
   href?: string;
 }> = [
   { id: "home", labelKey: "office.home", icon: LayoutDashboard, href: "/staff/owner" },
-  { id: "operations", labelKey: "office.operations", icon: Sparkles },
+  { id: "operations", labelKey: "office.operations", icon: Sparkles, href: "/staff/owner#operations" },
   { id: "catalog", labelKey: "office.catalog", icon: MenuSquare, href: "/staff/menu" },
   { id: "inventory", labelKey: "office.inventory", icon: Boxes, href: "/staff/inventory" },
   { id: "locations", labelKey: "office.locations", icon: MapPin, href: "/staff/branches" },
   { id: "team", labelKey: "office.team", icon: Users },
-  { id: "money", labelKey: "office.money", icon: CreditCard },
-  { id: "insights", labelKey: "office.insights", icon: PackageSearch },
+  { id: "money", labelKey: "office.money", icon: CreditCard, href: "/staff/owner#money" },
+  { id: "insights", labelKey: "office.insights", icon: PackageSearch, href: "/staff/owner#insights" },
   { id: "experience", labelKey: "office.experience", icon: WandSparkles },
   { id: "settings", labelKey: "office.settings", icon: Settings }
 ];
@@ -64,6 +65,29 @@ export function OfficeStaffShell({
   children
 }: OfficeStaffShellProps) {
   const t = useTranslations("staff");
+  const pathname = usePathname();
+  const [hash, setHash] = useState("");
+
+  useEffect(() => {
+    const syncHash = () => setHash(window.location.hash);
+
+    syncHash();
+    window.addEventListener("hashchange", syncHash);
+
+    return () => window.removeEventListener("hashchange", syncHash);
+  }, []);
+
+  const hashDomain: OfficeDomain | undefined =
+    pathname === "/staff/owner"
+      ? hash === "#operations"
+        ? "operations"
+        : hash === "#money"
+          ? "money"
+          : hash === "#insights"
+            ? "insights"
+            : undefined
+      : undefined;
+  const effectiveActiveDomain = hashDomain ?? activeDomain;
 
   return (
     <main className="min-h-screen bg-[#F5F5F2] text-[#20201D]">
@@ -90,7 +114,7 @@ export function OfficeStaffShell({
           <nav className="mt-3 flex w-full min-w-0 max-w-full gap-1 overflow-x-auto pb-1 lg:mt-7 lg:grid lg:gap-0.5 lg:overflow-visible lg:pb-0">
             {officeDomains.map((item) => {
               const Icon = item.icon;
-              const active = item.id === activeDomain;
+              const active = item.id === effectiveActiveDomain;
               const classes = cn(
                 "flex min-h-9 shrink-0 items-center gap-2 rounded-md px-2.5 text-xs transition lg:shrink lg:gap-2.5 lg:text-sm",
                 active
