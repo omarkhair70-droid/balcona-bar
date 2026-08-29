@@ -48,7 +48,7 @@ import {
   getTicketStation,
   getTicketStatus
 } from "@/features/staff/kds-data";
-import { StaffPageShell } from "@/features/staff/staff-page-shell";
+import { ServiceStaffShell } from "@/features/staff/service-staff-shell";
 import {
   formatDateTime,
   getRecordString,
@@ -974,7 +974,8 @@ export function WaiterDashboardPage() {
   const t = useTranslations("staff");
 
   return (
-    <StaffPageShell
+    <ServiceStaffShell
+      mode="waiter"
       title={t("waiter.dashboardTitle")}
       description={t("waiter.dashboardDescription")}
       actions={<WaiterDashboardActions />}
@@ -982,6 +983,6 @@ export function WaiterDashboardPage() {
       <StaffAuthGate requiredPermissions={["waiter_calls.read"]} branchScoped>
         <WaiterDashboardContent />
       </StaffAuthGate>
-    </StaffPageShell>
+    </ServiceStaffShell>
   );
 }
