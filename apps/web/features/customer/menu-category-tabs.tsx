@@ -15,7 +15,7 @@ export function MenuCategoryTabs({
   onSelect
 }: MenuCategoryTabsProps) {
   return (
-    <div className="-mx-4 flex gap-2 overflow-x-auto border-y border-border bg-background/95 px-4 py-2.5 backdrop-blur">
+    <div className="no-scrollbar -mx-4 flex gap-2 overflow-x-auto border-y border-border bg-background/95 px-4 py-2.5 backdrop-blur">
       {categories.map((category) => (
         <button
           key={category.id}
@@ -26,6 +26,7 @@ export function MenuCategoryTabs({
             activeCategoryId === category.id &&
               "border-foreground bg-foreground text-background hover:bg-foreground hover:text-background"
           )}
+          dir="auto"
         >
           {category.name}
         </button>

@@ -235,7 +235,7 @@ export function CustomerMenuPage({ sessionId }: CustomerMenuPageProps) {
                   {t("menu.title")}
                 </span>
               </div>
-              <div className="mt-2 -mx-1 flex gap-3 overflow-x-auto px-1 pb-1">
+              <div className="no-scrollbar mt-2 -mx-1 flex gap-3 overflow-x-auto px-1 pb-1">
                 {featuredItems.slice(0, 6).map((item) => (
                   <MenuItemCard
                     key={item.id}
