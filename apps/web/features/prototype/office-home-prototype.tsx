@@ -1190,6 +1190,7 @@ function DetailDrawer({
           </div>
           <button
             type="button"
+            aria-label={L("Close detail", "إغلاق التفاصيل", locale)}
             onClick={onClose}
             className="flex size-8 shrink-0 items-center justify-center rounded-md border border-[#D7D7D2] bg-white text-[#55554F]"
           >
@@ -1501,8 +1502,8 @@ export function OfficeHomePrototype() {
   return (
     <div dir={locale === "ar" ? "rtl" : "ltr"} className="min-h-screen bg-[#F5F5F2] text-[#20201D]">
       <div className="grid min-h-screen lg:grid-cols-[220px_minmax(0,1fr)]">
-        <aside className="border-e border-[#D8D8D3] bg-[#ECECE8] px-3 py-4">
-          <div className="flex items-center gap-3 px-2">
+        <aside className="border-b border-[#D8D8D3] bg-[#ECECE8] px-3 py-3 lg:border-b-0 lg:border-e lg:py-4">
+          <div className="flex items-center gap-3 px-2 lg:px-2">
             <div className="flex size-8 items-center justify-center rounded-md border border-[#CFCFC9] bg-[#F7F7F4] text-xs font-black text-[#292925]">
               B
             </div>
@@ -1512,7 +1513,7 @@ export function OfficeHomePrototype() {
             </div>
           </div>
 
-          <nav className="mt-7 grid gap-0.5">
+          <nav className="mt-3 flex gap-1 overflow-x-auto pb-1 lg:mt-7 lg:grid lg:gap-0.5 lg:overflow-visible lg:pb-0">
             {domains.map((item) => {
               const Icon = item.icon;
               const active = item.id === domain;
@@ -1524,7 +1525,7 @@ export function OfficeHomePrototype() {
                     setDomain(item.id);
                     setSelectedRow(null);
                   }}
-                  className={`flex min-h-9 items-center gap-2.5 rounded-md px-2.5 text-sm transition ${
+                  className={`flex min-h-9 shrink-0 items-center gap-2 rounded-md px-2.5 text-xs transition lg:shrink lg:gap-2.5 lg:text-sm ${
                     active
                       ? "bg-white font-semibold text-[#20201D] shadow-[0_1px_0_rgba(0,0,0,.04)]"
                       : "text-[#64645E] hover:bg-[#E3E3DE] hover:text-[#20201D]"
@@ -1537,7 +1538,7 @@ export function OfficeHomePrototype() {
             })}
           </nav>
 
-          <div className="mt-7 border-t border-[#D4D4CF] pt-4">
+          <div className="mt-7 hidden border-t border-[#D4D4CF] pt-4 lg:block">
             <p className="px-2.5 text-[9px] font-semibold uppercase tracking-[0.14em] text-[#8A8A84]">
               {L("Prototype · product truth only", "نموذج · قدرات حقيقية فقط", locale)}
             </p>
