@@ -183,7 +183,7 @@ export function PlatformCompaniesPage() {
       actions={
         <Link
           href="/platform/companies/new"
-          className="inline-flex min-h-10 items-center gap-2 rounded-md bg-[#292925] px-3 text-xs font-semibold text-white"
+          className="inline-flex min-h-10 items-center gap-2 rounded-md bg-[#292925] px-3 text-xs font-semibold !text-white"
         >
           <Plus className="size-4" />
           {t("actions.addCafe")}
