@@ -1,11 +1,10 @@
 "use client";
 
 import { useState } from "react";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ArrowRight, MonitorPlay, QrCode, RotateCcw, Utensils } from "lucide-react";
+import { ArrowRight, QrCode, RotateCcw, Utensils } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
-import { Button, buttonVariants } from "@/components/ui/button";
+import { Button } from "@/components/ui/button";
 import {
   Card,
   CardDescription,
@@ -111,13 +110,6 @@ export function CustomerEntryPage() {
                 <p className="text-sm font-semibold text-foreground">{label}</p>
               </div>
             ))}
-            <Link
-              href="/demo/balkona"
-              className={buttonVariants({ variant: "secondary" })}
-            >
-              <MonitorPlay className="size-4" aria-hidden="true" />
-              {t("actions.fullDemoLauncher")}
-            </Link>
           </div>
         </Card>
       </section>
