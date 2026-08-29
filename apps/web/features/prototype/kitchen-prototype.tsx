@@ -328,8 +328,8 @@ function TopFrame({
         </div>
       </div>
 
-      <div className="flex items-center justify-between gap-3 border-t border-[#282522] px-3 py-2">
-        <div className="flex gap-1">
+      <div className="flex flex-col gap-2 border-t border-[#282522] px-3 py-2 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
+        <div className="flex gap-1 overflow-x-auto">
           {views.map((entry) => {
             const Icon = entry.icon;
             const active = entry.id === view;
@@ -348,7 +348,7 @@ function TopFrame({
             );
           })}
         </div>
-        <div className="flex items-center gap-2 text-[11px] text-[#8D8780]">
+        <div className="flex items-center justify-between gap-2 text-[11px] text-[#8D8780] sm:justify-start">
           <Clock3 className="size-3.5" />
           {L(locale, "Oldest active", "أقدم طلب نشط")} <strong className="text-[#F0B55F]">18m</strong>
         </div>
