@@ -536,6 +536,7 @@ function getDashboardCurrency(data: OwnerAnalyticsDashboardResult) {
 
 function OwnerDashboardContent() {
   const t = useTranslations("owner");
+  const officeT = useTranslations("staff");
   const queryClient = useQueryClient();
   const accessToken = useStaffAuthStore((state) => state.accessToken);
   const staffUser = useStaffAuthStore((state) => state.staffUser);
@@ -746,40 +747,59 @@ function OwnerDashboardContent() {
         />
       </section>
 
-      <section className="grid gap-5 xl:grid-cols-2">
-        <MoneyRowsCard
-          title={t("analytics.tenderBreakdown")}
-          description={t("analytics.tenderBreakdownDescription")}
-          rows={sales.tenderBreakdown}
-          currency={currency}
-        />
-        <MoneyRowsCard
-          title={t("analytics.revenueByDay")}
-          description={t("analytics.revenueByDayDescription")}
-          rows={sales.revenueByDay}
-          currency={currency}
-        />
+      <section id="money" className="scroll-mt-24 grid gap-3">
+        <div className="border-b border-[#DADAD5] pb-3">
+          <h2 className="text-lg font-semibold tracking-[-0.02em] text-[#20201D]">
+            {officeT("office.moneyTitle")}
+          </h2>
+          <p className="mt-1 text-xs leading-5 text-[#74746E]">
+            {officeT("office.moneyDescription")}
+          </p>
+        </div>
+        <div className="grid gap-5 xl:grid-cols-2">
+          <MoneyRowsCard
+            title={t("analytics.tenderBreakdown")}
+            description={t("analytics.tenderBreakdownDescription")}
+            rows={sales.tenderBreakdown}
+            currency={currency}
+          />
+          <MoneyRowsCard
+            title={t("analytics.revenueByDay")}
+            description={t("analytics.revenueByDayDescription")}
+            rows={sales.revenueByDay}
+            currency={currency}
+          />
+        </div>
       </section>
 
-      <section className="grid gap-5 xl:grid-cols-3">
-        <CountRowsCard
-          title={t("orders.statusTitle")}
-          description={t("orders.statusDescription")}
-          rows={orders.orderCountByStatus}
-        />
-        <CountRowsCard
-          title={t("orders.billStatusTitle")}
-          description={t("orders.billStatusDescription")}
-          rows={sales.billCountByStatus}
-        />
-        <CountRowsCard
-          title={t("orders.waiterCallsTitle")}
-          description={t("orders.waiterCallsDescription")}
-          rows={operations.waiterCallCountsByStatus}
-        />
-      </section>
+      <section id="operations" className="scroll-mt-24 grid gap-3">
+        <div className="border-b border-[#DADAD5] pb-3">
+          <h2 className="text-lg font-semibold tracking-[-0.02em] text-[#20201D]">
+            {officeT("office.operationsTitle")}
+          </h2>
+          <p className="mt-1 text-xs leading-5 text-[#74746E]">
+            {officeT("office.operationsDescription")}
+          </p>
+        </div>
+        <div className="grid gap-5 xl:grid-cols-3">
+          <CountRowsCard
+            title={t("orders.statusTitle")}
+            description={t("orders.statusDescription")}
+            rows={orders.orderCountByStatus}
+          />
+          <CountRowsCard
+            title={t("orders.billStatusTitle")}
+            description={t("orders.billStatusDescription")}
+            rows={sales.billCountByStatus}
+          />
+          <CountRowsCard
+            title={t("orders.waiterCallsTitle")}
+            description={t("orders.waiterCallsDescription")}
+            rows={operations.waiterCallCountsByStatus}
+          />
+        </div>
 
-      <Card variant="quiet">
+        <Card variant="quiet">
         <CardHeader>
           <Badge variant="muted" className="w-fit">
             {t("orders.lifecycleBadge")}
@@ -811,19 +831,30 @@ function OwnerDashboardContent() {
             seconds={orders.lifecycleAverages.submittedToServedSeconds}
           />
         </CardContent>
-      </Card>
+        </Card>
+      </section>
 
-      <section className="grid gap-5 xl:grid-cols-2">
-        <TopItemsCard
+      <section id="insights" className="scroll-mt-24 grid gap-3">
+        <div className="border-b border-[#DADAD5] pb-3">
+          <h2 className="text-lg font-semibold tracking-[-0.02em] text-[#20201D]">
+            {officeT("office.insightsTitle")}
+          </h2>
+          <p className="mt-1 text-xs leading-5 text-[#74746E]">
+            {officeT("office.insightsDescription")}
+          </p>
+        </div>
+        <div className="grid gap-5 xl:grid-cols-2">
+          <TopItemsCard
           title={t("menu.topItemsByQuantity")}
           rows={items.topItemsByQuantity}
           currency={currency}
         />
-        <TopItemsCard
-          title={t("menu.topItemsByRevenue")}
-          rows={items.topItemsByRevenue}
-          currency={currency}
-        />
+          <TopItemsCard
+            title={t("menu.topItemsByRevenue")}
+            rows={items.topItemsByRevenue}
+            currency={currency}
+          />
+        </div>
       </section>
 
       <section className="grid gap-5 xl:grid-cols-3">
