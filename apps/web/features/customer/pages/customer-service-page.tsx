@@ -235,8 +235,10 @@ export function CustomerServicePage({ sessionId }: CustomerServicePageProps) {
   const latestOnlinePaymentProvider = getRecordString(
     latestOnlinePaymentIntent,
     "provider",
-    "mock"
+    ""
   );
+  const isMockOnlinePayment =
+    latestOnlinePaymentProvider.toLowerCase() === "mock";
   const latestOnlinePaymentCheckoutUrl = getRecordString(
     latestOnlinePaymentIntent,
     "providerCheckoutUrl",
@@ -324,10 +326,10 @@ export function CustomerServicePage({ sessionId }: CustomerServicePageProps) {
       title={t("service.title")}
       description={t("service.description")}
     >
-      <div className="mb-5 rounded-card border border-primary/40 bg-primary/10 p-4">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div className="flex items-start gap-3">
-            <Sparkles className="mt-0.5 size-5 text-primary" aria-hidden="true" />
+      <div className="mb-4 min-w-0 rounded-[18px] border border-border bg-muted p-3">
+        <div className="flex items-center justify-between gap-3">
+          <div className="flex min-w-0 items-start gap-3">
+            <Sparkles className="mt-0.5 size-4 shrink-0 text-primary" aria-hidden="true" />
             <div>
               <h2 className="text-sm font-semibold text-foreground">
                 {t("service.aiHelpTitle")}
@@ -339,13 +341,13 @@ export function CustomerServicePage({ sessionId }: CustomerServicePageProps) {
           </div>
           <Link
             href={`/customer/session/${sessionId}/ai-waiter`}
-            className={buttonVariants({ variant: "secondary" })}
+            className={`${buttonVariants({ variant: "secondary" })} max-w-[42%] shrink-0 whitespace-normal text-center`}
           >
             {t("actions.openAiWaiter")}
           </Link>
         </div>
       </div>
-      <section className="grid gap-4 md:grid-cols-3">
+      <section className="grid min-w-0 gap-3">
         {serviceActions.map((action) => (
           <ServiceActionCard
             key={action.titleKey}
@@ -380,15 +382,15 @@ export function CustomerServicePage({ sessionId }: CustomerServicePageProps) {
         </div>
       ) : null}
 
-      <section className="mt-5 grid gap-5 lg:grid-cols-[1fr_1fr]">
-        <Card variant="glass" padding="lg">
+      <section className="mt-5 grid min-w-0 gap-4">
+        <Card variant="glass" padding="lg" className="min-w-0">
           <CardHeader>
             <CardTitle>{t("service.recentCallsTitle")}</CardTitle>
             <CardDescription>
               {t("service.recentCallsDescription")}
             </CardDescription>
           </CardHeader>
-          <CardContent className="grid gap-3">
+          <CardContent className="grid min-w-0 gap-3">
             {waiterCallsQuery.isPending ? (
               <LoadingState label={t("service.loadingCalls")} />
             ) : null}
@@ -411,7 +413,7 @@ export function CustomerServicePage({ sessionId }: CustomerServicePageProps) {
               />
             ) : null}
             {waiterCalls.slice(0, 5).map((call, index) => (
-              <div key={`${String(call.id ?? index)}`} className="rounded-card border bg-surface/75 p-4">
+              <div key={`${String(call.id ?? index)}`} className="rounded-[18px] border border-border bg-card p-4">
                 <p className="text-sm font-semibold text-foreground">
                   {String(call.type ?? t("service.requestFallback"))}
                 </p>
@@ -423,7 +425,7 @@ export function CustomerServicePage({ sessionId }: CustomerServicePageProps) {
           </CardContent>
         </Card>
 
-        <Card variant="glass" padding="lg">
+        <Card id="bill" variant="glass" padding="lg" className="min-w-0 scroll-mt-20">
           <CardHeader>
             <div className="text-primary">
               <ReceiptText className="size-6" aria-hidden="true" />
@@ -433,7 +435,7 @@ export function CustomerServicePage({ sessionId }: CustomerServicePageProps) {
               {t("bill.description")}
             </CardDescription>
           </CardHeader>
-          <CardContent className="grid gap-4">
+          <CardContent className="grid min-w-0 gap-4">
             {billQuery.isPending ? (
               <LoadingState label={t("service.loadingBill")} />
             ) : null}
@@ -449,7 +451,7 @@ export function CustomerServicePage({ sessionId }: CustomerServicePageProps) {
                 }}
               />
             ) : null}
-            <div className="rounded-card border bg-surface/75 p-4">
+            <div className="rounded-[18px] border border-border bg-card p-4">
               <p className="text-sm font-semibold text-foreground">
                 {t("bill.currentBillState")}
               </p>
@@ -462,7 +464,7 @@ export function CustomerServicePage({ sessionId }: CustomerServicePageProps) {
                 </div>
               ) : null}
               {activeBillRecord ? (
-                <div className="mt-3 rounded-card border bg-background/40 p-3">
+                <div className="mt-3 min-w-0 rounded-xl border border-border bg-background/40 p-3">
                   <div className="flex flex-wrap items-center justify-between gap-2">
                     <p className="text-sm font-semibold text-foreground">
                       {activeBillNumber}
@@ -476,9 +478,9 @@ export function CustomerServicePage({ sessionId }: CustomerServicePageProps) {
                       {activeBillLines.map((line, index) => (
                         <div
                           key={String(line.id ?? `bill-line-${index}`)}
-                          className="flex items-start justify-between gap-3 text-sm"
+                          className="flex min-w-0 items-start justify-between gap-3 text-sm"
                         >
-                          <p className="text-foreground">
+                          <p className="min-w-0 break-words text-foreground">
                             {getRecordNumber(line, "quantity", 1)} x{" "}
                             {getRecordString(
                               line,
@@ -496,7 +498,7 @@ export function CustomerServicePage({ sessionId }: CustomerServicePageProps) {
                       ))}
                     </div>
                   ) : null}
-                  <div className="mt-3 rounded-card border bg-surface/70 p-3 text-xs text-muted-foreground">
+                  <div className="mt-3 rounded-xl border border-border bg-muted p-3 text-xs text-muted-foreground">
                     {t("bill.balanceDue", {
                       price: formatMoney(activeBillBalanceDueMinor, billCurrency)
                     })}{" "}
@@ -532,7 +534,8 @@ export function CustomerServicePage({ sessionId }: CustomerServicePageProps) {
                             </p>
                           ) : null}
                           {latestOnlinePaymentCheckoutUrl &&
-                          hasActiveOnlinePayment ? (
+                          hasActiveOnlinePayment &&
+                          isMockOnlinePayment ? (
                             <p className="mt-2 break-all text-xs text-muted-foreground">
                               {t("bill.mockCheckoutUrl", {
                                 url: latestOnlinePaymentCheckoutUrl
@@ -542,6 +545,7 @@ export function CustomerServicePage({ sessionId }: CustomerServicePageProps) {
                           <div className="mt-3 flex flex-wrap gap-2">
                             <Button
                               size="sm"
+                              className="max-w-full whitespace-normal"
                               onClick={() => {
                                 if (activeBillId) {
                                   onlinePaymentMutation.mutate(activeBillId);
@@ -556,7 +560,9 @@ export function CustomerServicePage({ sessionId }: CustomerServicePageProps) {
                             >
                               {onlinePaymentButtonLabel}
                             </Button>
-                            {hasActiveOnlinePayment && latestOnlinePaymentId ? (
+                            {hasActiveOnlinePayment &&
+                            isMockOnlinePayment &&
+                            latestOnlinePaymentId ? (
                               <Button
                                 size="sm"
                                 variant="secondary"
@@ -657,7 +663,7 @@ export function CustomerServicePage({ sessionId }: CustomerServicePageProps) {
                 </div>
               ) : null}
               <Button
-                className="mt-4"
+                className="mt-4 max-w-full whitespace-normal"
                 onClick={() => billMutation.mutate()}
                 disabled={isBillRequestDisabled}
                 variant={billButtonVariant}

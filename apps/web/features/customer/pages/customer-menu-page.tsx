@@ -3,9 +3,8 @@
 import Link from "next/link";
 import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { AlertTriangle, Sparkles } from "lucide-react";
+import { AlertTriangle, ChevronRight, Sparkles } from "lucide-react";
 import { CopyDebugReportButton } from "@/components/debug/copy-debug-report-button";
-import { buttonVariants } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { LoadingState } from "@/components/ui/loading-state";
 import { formatErrorMessage } from "@/lib/api/error-message";
@@ -19,8 +18,8 @@ import {
 } from "@/lib/customer/customer-session-readiness";
 import { useCustomerSessionStore } from "@/lib/customer/customer-session-store";
 import { useTranslations } from "@/lib/i18n/i18n-provider";
-import { CustomerSessionScreen } from "../customer-session-screen";
 import { CartSummary } from "../cart-summary";
+import { CustomerSessionScreen } from "../customer-session-screen";
 import { ItemDetailPanel } from "../item-detail-panel";
 import { MenuCategoryTabs } from "../menu-category-tabs";
 import { MenuItemCard } from "../menu-item-card";
@@ -61,6 +60,7 @@ export function CustomerMenuPage({ sessionId }: CustomerMenuPageProps) {
   );
   const [activeCategoryId, setActiveCategoryId] = useState<string>();
   const [selectedItem, setSelectedItem] = useState<MenuItemSummary | null>(null);
+
   const menuQuery = useQuery({
     queryKey: customerQueryKeys.menu(branchId),
     queryFn: () => {
@@ -74,6 +74,7 @@ export function CustomerMenuPage({ sessionId }: CustomerMenuPageProps) {
     enabled: readiness.isReady,
     staleTime: 30_000
   });
+
   const cartQuery = useQuery({
     queryKey: customerQueryKeys.cart(sessionId),
     queryFn: () => {
@@ -87,19 +88,33 @@ export function CustomerMenuPage({ sessionId }: CustomerMenuPageProps) {
     enabled: readiness.isReady,
     staleTime: 10_000
   });
+
   const categories = useMemo(
     () => menuQuery.data?.categories ?? [],
     [menuQuery.data?.categories]
   );
+
   const activeCategory = useMemo(
     () =>
       categories.find((category) => category.id === activeCategoryId) ??
       categories[0],
     [activeCategoryId, categories]
   );
-  const featuredItems = categories
-    .flatMap((category) => category.items)
-    .filter((item) => item.isFeatured);
+
+  const featuredItems = useMemo(
+    () =>
+      categories
+        .flatMap((category) => category.items)
+        .filter(
+          (item) =>
+            item.isFeatured &&
+            item.canOrder !== false &&
+            item.isAvailable !== false &&
+            item.status === "active"
+        ),
+    [categories]
+  );
+
   const addMutation = useMutation({
     mutationFn: (payload: AddCartItemPayload) => {
       const ready = assertCustomerSessionReady(
@@ -138,6 +153,7 @@ export function CustomerMenuPage({ sessionId }: CustomerMenuPageProps) {
       });
     }
   });
+
   const selectItem = (item: MenuItemSummary) => {
     addMutation.reset();
     setSelectedItem(item);
@@ -151,39 +167,40 @@ export function CustomerMenuPage({ sessionId }: CustomerMenuPageProps) {
       title={t("menu.title")}
       description={t("menu.description")}
     >
-      <div className="mb-5 rounded-card border border-primary/40 bg-primary/10 p-4">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div className="flex items-start gap-3">
-            <Sparkles className="mt-0.5 size-5 text-primary" aria-hidden="true" />
-            <div>
-              <h2 className="text-sm font-semibold text-foreground">
-                {t("menu.aiHelpTitle")}
-              </h2>
-              <p className="mt-1 text-sm text-muted-foreground">
-                {t("menu.aiHelpDescription")}
-              </p>
-            </div>
-          </div>
-          <Link
-            href={`/customer/session/${sessionId}/ai-waiter`}
-            className={buttonVariants({ variant: "secondary" })}
-          >
-            {t("actions.askAiWaiter")}
-          </Link>
-        </div>
-      </div>
+      <Link
+        href={`/customer/session/${sessionId}/ai-waiter`}
+        className="mb-4 flex w-full items-center gap-3 rounded-[18px] border border-border bg-muted px-3 py-2.5 text-start"
+      >
+        <span className="flex size-9 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground">
+          <Sparkles className="size-4" aria-hidden="true" />
+        </span>
+        <span className="min-w-0">
+          <span className="block text-xs font-black text-foreground">
+            {t("menu.aiHelpTitle")}
+          </span>
+          <span className="mt-0.5 block truncate text-[11px] text-muted-foreground">
+            {t("menu.aiHelpDescription")}
+          </span>
+        </span>
+        <ChevronRight className="ms-auto size-4 shrink-0 text-muted-foreground rtl:rotate-180" aria-hidden="true" />
+      </Link>
+
       {!readiness.isReady ? (
         <EmptyState
           title={t("menu.tableAccessLoading")}
           description={readiness.message}
         />
       ) : null}
+
       {menuQuery.isPending ? <LoadingState label={t("menu.loading")} /> : null}
+
       {menuQuery.isError ? (
         <EmptyState
           title={t("errors.menuLoad")}
           description={menuQuery.error.message}
-          action={<AlertTriangle className="size-5 text-warning" aria-hidden="true" />}
+          action={
+            <AlertTriangle className="size-5 text-warning" aria-hidden="true" />
+          }
           debug={{
             action: "menu_load",
             flow: "customer_order_cycle",
@@ -192,97 +209,98 @@ export function CustomerMenuPage({ sessionId }: CustomerMenuPageProps) {
           }}
         />
       ) : null}
+
       {menuQuery.isSuccess && categories.length === 0 ? (
         <EmptyState
           title={t("empty.menuUnavailableTitle")}
           description={t("empty.menuUnavailableDescription")}
         />
       ) : null}
+
       {categories.length > 0 ? (
-        <section className="grid gap-5 lg:grid-cols-[1fr_24rem]">
-          <div className="min-w-0">
-            <MenuCategoryTabs
-              categories={categories}
-              activeCategoryId={activeCategory?.id}
-              onSelect={setActiveCategoryId}
-            />
-            {featuredItems.length > 0 ? (
-              <section className="mt-4">
-                <h2 className="text-lg font-semibold text-foreground">
+        <>
+          <MenuCategoryTabs
+            categories={categories}
+            activeCategoryId={activeCategory?.id}
+            onSelect={setActiveCategoryId}
+          />
+
+          {featuredItems.length > 0 ? (
+            <section className="pt-4">
+              <div className="flex items-center justify-between gap-3">
+                <h2 className="text-sm font-black text-foreground">
                   {t("menu.featured")}
                 </h2>
-                <div className="mt-3 grid gap-4 sm:grid-cols-2">
-                  {featuredItems.slice(0, 4).map((item) => (
-                    <MenuItemCard
-                      key={item.id}
-                      item={item}
-                      onSelect={selectItem}
-                    />
-                  ))}
-                </div>
-              </section>
-            ) : null}
-            {activeCategory ? (
-              <section className="mt-5">
-                <h2 className="text-lg font-semibold text-foreground">
-                  {activeCategory.name}
-                </h2>
-                <div className="mt-3 grid gap-4 sm:grid-cols-2">
-                  {activeCategory.items.map((item) => (
-                    <MenuItemCard
-                      key={item.id}
-                      item={item}
-                      onSelect={selectItem}
-                    />
-                  ))}
-                </div>
-              </section>
-            ) : null}
-            <div className="mt-5">
-              <CartSummary sessionId={sessionId} cart={cartQuery.data} />
-            </div>
-          </div>
-          <aside>
-            {selectedItem ? (
-              <>
-                <ItemDetailPanel
-                  item={selectedItem}
-                  isAdding={addMutation.isPending}
-                  isAddDisabled={!readiness.isReady}
-                  disabledMessage={
-                    readiness.isReady ? undefined : readiness.message
-                  }
-                  errorMessage={
-                    addMutation.isError
-                      ? t("errors.addCartItem", {
-                          message: formatErrorMessage(addMutation.error)
-                        })
-                      : undefined
-                  }
-                  onClose={() => setSelectedItem(null)}
-                  onAdd={async (payload) => {
-                    await addMutation.mutateAsync(payload);
-                  }}
-                />
-                {addMutation.isError ? (
-                  <div className="mt-3">
-                    <CopyDebugReportButton
-                      action="cart_add_item"
-                      flow="customer_order_cycle"
-                      sessionId={sessionId}
-                      error={addMutation.error}
-                    />
-                  </div>
-                ) : null}
-              </>
-            ) : (
-              <EmptyState
-                title={t("empty.selectItemTitle")}
-                description={t("empty.selectItemDescription")}
+                <span className="text-[10px] text-muted-foreground">
+                  {t("menu.title")}
+                </span>
+              </div>
+              <div className="mt-2 -mx-1 flex gap-3 overflow-x-auto px-1 pb-1">
+                {featuredItems.slice(0, 6).map((item) => (
+                  <MenuItemCard
+                    key={item.id}
+                    item={item}
+                    variant="feature"
+                    onSelect={selectItem}
+                  />
+                ))}
+              </div>
+            </section>
+          ) : null}
+
+          {activeCategory ? (
+            <section className="pb-24 pt-5">
+              <h2 className="text-sm font-black text-foreground">
+                {activeCategory.name}
+              </h2>
+              <div className="mt-2 divide-y divide-border rounded-[22px] border border-border bg-card px-3">
+                {activeCategory.items.map((item) => (
+                  <MenuItemCard
+                    key={item.id}
+                    item={item}
+                    variant="row"
+                    onSelect={selectItem}
+                  />
+                ))}
+              </div>
+            </section>
+          ) : null}
+
+          <CartSummary sessionId={sessionId} cart={cartQuery.data} />
+        </>
+      ) : null}
+
+      {selectedItem ? (
+        <>
+          <ItemDetailPanel
+            key={selectedItem.id}
+            item={selectedItem}
+            isAdding={addMutation.isPending}
+            isAddDisabled={!readiness.isReady}
+            disabledMessage={readiness.isReady ? undefined : readiness.message}
+            errorMessage={
+              addMutation.isError
+                ? t("errors.addCartItem", {
+                    message: formatErrorMessage(addMutation.error)
+                  })
+                : undefined
+            }
+            onClose={() => setSelectedItem(null)}
+            onAdd={async (payload) => {
+              await addMutation.mutateAsync(payload);
+            }}
+          />
+          {addMutation.isError ? (
+            <div className="fixed bottom-24 start-1/2 z-[60] w-[calc(100%-2rem)] max-w-[416px] -translate-x-1/2 rtl:translate-x-1/2">
+              <CopyDebugReportButton
+                action="cart_add_item"
+                flow="customer_order_cycle"
+                sessionId={sessionId}
+                error={addMutation.error}
               />
-            )}
-          </aside>
-        </section>
+            </div>
+          ) : null}
+        </>
       ) : null}
     </CustomerSessionScreen>
   );

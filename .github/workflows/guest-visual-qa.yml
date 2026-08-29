@@ -1,0 +1,83 @@
+name: Guest Visual QA
+
+on:
+  push:
+    branches:
+      - integration/a1-guest-shell
+  pull_request:
+    paths:
+      - "apps/web/**"
+      - "scripts/visual-qa/**"
+      - ".github/workflows/guest-visual-qa.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  guest-visual-qa:
+    name: Guest 390 RTL Visual Evidence
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Enable pnpm
+        run: |
+          corepack enable
+          corepack prepare pnpm@10.28.1 --activate
+          pnpm --version
+
+      - name: Install repository dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Install isolated Playwright
+        run: |
+          mkdir -p /tmp/balcona-visual-qa
+          cd /tmp/balcona-visual-qa
+          npm init -y
+          npm install --no-audit --no-fund playwright@1.55.0
+          npx playwright install --with-deps chromium
+
+      - name: Start Balcona web
+        env:
+          NEXT_PUBLIC_API_BASE_URL: http://127.0.0.1:3999/api/v1
+          NEXT_PUBLIC_APP_ENV: test
+          NEXT_PUBLIC_GIT_SHA: ${{ github.sha }}
+        run: |
+          pnpm web:dev > /tmp/balcona-web.log 2>&1 &
+          echo $! > /tmp/balcona-web.pid
+
+          for attempt in $(seq 1 60); do
+            if curl --fail --silent http://127.0.0.1:3001/prototype/guest > /dev/null; then
+              exit 0
+            fi
+            sleep 1
+          done
+
+          cat /tmp/balcona-web.log
+          exit 1
+
+      - name: Capture Guest visual evidence
+        env:
+          BALCONA_VISUAL_BASE_URL: http://localhost:3001
+        run: node scripts/visual-qa/guest-production-visual.mjs
+
+      - name: Upload Guest visual evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: guest-production-visual-qa
+          path: artifacts/guest-visual-qa
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Print web log on failure
+        if: failure()
+        run: cat /tmp/balcona-web.log || true

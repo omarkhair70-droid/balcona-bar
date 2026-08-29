@@ -6,6 +6,7 @@ import { getBranchEffectiveExperience } from "@/lib/api/endpoints";
 import { customerQueryKeys } from "@/lib/api/query-keys";
 import { applyThemeTokens } from "@/lib/theme/apply-theme";
 import type { ThemeTokenInput } from "@/lib/theme/theme-tokens";
+import { mergeGuestThemeTokens } from "./customer-theme";
 
 type CustomerThemeLoaderProps = {
   branchId?: string;
@@ -51,11 +52,16 @@ export function CustomerThemeLoader({ branchId }: CustomerThemeLoaderProps) {
   });
 
   useEffect(() => {
-    const themeInput = toThemeInput(experienceQuery.data?.designTokens);
+    const target = document.querySelector<HTMLElement>(
+      "[data-customer-theme-root]"
+    );
 
-    if (themeInput) {
-      applyThemeTokens(themeInput);
+    if (!target) {
+      return;
     }
+
+    const themeInput = toThemeInput(experienceQuery.data?.designTokens);
+    applyThemeTokens(mergeGuestThemeTokens(themeInput), target);
   }, [experienceQuery.data?.designTokens]);
 
   return null;

@@ -1,20 +1,12 @@
 "use client";
 
-import { useMemo, useState } from "react";
 import Link from "next/link";
+import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { LoaderCircle, Send, Trash2 } from "lucide-react";
 import { CopyDebugReportButton } from "@/components/debug/copy-debug-report-button";
 import { Button, buttonVariants } from "@/components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardFooter,
-  CardHeader,
-  CardTitle
-} from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Input } from "@/components/ui/input";
 import { LoadingState } from "@/components/ui/loading-state";
@@ -77,6 +69,7 @@ export function CustomerCartPage({ sessionId }: CustomerCartPageProps) {
     sessionId
   );
   const [customerNote, setCustomerNote] = useState("");
+
   const cartQuery = useQuery({
     queryKey: customerQueryKeys.cart(sessionId),
     queryFn: () => {
@@ -90,6 +83,7 @@ export function CustomerCartPage({ sessionId }: CustomerCartPageProps) {
     enabled: readiness.isReady,
     staleTime: 10_000
   });
+
   const validationQuery = useQuery({
     queryKey: customerQueryKeys.cartValidation(sessionId),
     queryFn: () => {
@@ -101,11 +95,16 @@ export function CustomerCartPage({ sessionId }: CustomerCartPageProps) {
       return validateCart(ready.sessionId, ready.customerAccessToken);
     },
     enabled:
-      readiness.isReady && Boolean(cartQuery.data && cartQuery.data.items.length > 0),
+      readiness.isReady &&
+      Boolean(cartQuery.data && cartQuery.data.items.length > 0),
     staleTime: 10_000
   });
+
   const refreshCart = () =>
-    queryClient.invalidateQueries({ queryKey: customerQueryKeys.cart(sessionId) });
+    queryClient.invalidateQueries({
+      queryKey: customerQueryKeys.cart(sessionId)
+    });
+
   const updateMutation = useMutation({
     mutationFn: ({ id, quantity }: { id: string; quantity: number }) => {
       const ready = assertCustomerSessionReady(
@@ -119,6 +118,7 @@ export function CustomerCartPage({ sessionId }: CustomerCartPageProps) {
       void refreshCart();
     }
   });
+
   const removeMutation = useMutation({
     mutationFn: (cartItemId: string) => {
       const ready = assertCustomerSessionReady(
@@ -132,6 +132,7 @@ export function CustomerCartPage({ sessionId }: CustomerCartPageProps) {
       void refreshCart();
     }
   });
+
   const clearMutation = useMutation({
     mutationFn: () => {
       const ready = assertCustomerSessionReady(
@@ -145,6 +146,7 @@ export function CustomerCartPage({ sessionId }: CustomerCartPageProps) {
       void refreshCart();
     }
   });
+
   const submitMutation = useMutation({
     mutationFn: ({
       idempotencyKey,
@@ -193,6 +195,7 @@ export function CustomerCartPage({ sessionId }: CustomerCartPageProps) {
       vibrateWarning();
     }
   });
+
   const cart = cartQuery.data;
   const isCartEmpty = !cart || cart.items.length === 0;
   const isValid = validationQuery.data?.isValid ?? true;
@@ -203,12 +206,11 @@ export function CustomerCartPage({ sessionId }: CustomerCartPageProps) {
     !validationQuery.isPending &&
     isValid &&
     !submitMutation.isPending;
+
   const submitErrorMessage = submitMutation.isError
-    ? formatErrorMessage(
-        submitMutation.error,
-        t("cart.submitFallback")
-      )
+    ? formatErrorMessage(submitMutation.error, t("cart.submitFallback"))
     : null;
+
   const pendingItemId = useMemo(() => {
     if (updateMutation.isPending && updateMutation.variables) {
       return updateMutation.variables.id;
@@ -235,11 +237,13 @@ export function CustomerCartPage({ sessionId }: CustomerCartPageProps) {
       description={t("cart.description")}
     >
       {cartQuery.isPending ? <LoadingState label={t("cart.loading")} /> : null}
+
       {!readiness.isReady ? (
-        <div className="mb-4 rounded-card border border-warning bg-warning/10 p-3 text-sm text-warning">
+        <div className="mb-4 rounded-xl border border-warning bg-warning/10 p-3 text-sm text-warning">
           {readiness.message}
         </div>
       ) : null}
+
       {cartQuery.isError ? (
         <EmptyState
           title={t("cart.errorTitle")}
@@ -252,6 +256,7 @@ export function CustomerCartPage({ sessionId }: CustomerCartPageProps) {
           }}
         />
       ) : null}
+
       {cartQuery.isSuccess && isCartEmpty ? (
         <EmptyState
           title={t("cart.emptyTitle")}
@@ -266,9 +271,10 @@ export function CustomerCartPage({ sessionId }: CustomerCartPageProps) {
           }
         />
       ) : null}
+
       {cart && cart.items.length > 0 ? (
-        <section className="grid gap-5 lg:grid-cols-[1fr_22rem]">
-          <div className="grid gap-3">
+        <section className="pb-8">
+          <div className="divide-y divide-border rounded-[22px] border border-border bg-card px-3">
             {cart.items.map((item) => (
               <CartItemRow
                 key={item.id}
@@ -281,75 +287,91 @@ export function CustomerCartPage({ sessionId }: CustomerCartPageProps) {
               />
             ))}
           </div>
-          <Card variant="glass" padding="lg" className="h-fit">
-            <CardHeader>
-              <CardTitle>{t("cart.total")}</CardTitle>
-              <CardDescription>
-                {formatMoney(cart.totals.subtotalMinor, cart.totals.currency)}
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="grid gap-4">
-              <label className="grid gap-2 text-sm font-medium text-foreground">
-                {t("cart.noteLabel")}
-                <Input
-                  value={customerNote}
-                  onChange={(event) => setCustomerNote(event.target.value)}
-                  placeholder={t("cart.notePlaceholder")}
+
+          <label className="mt-4 block text-xs font-black text-foreground">
+            {t("cart.noteLabel")}
+            <Input
+              value={customerNote}
+              onChange={(event) => setCustomerNote(event.target.value)}
+              placeholder={t("cart.notePlaceholder")}
+              maxLength={500}
+              className="mt-2 min-h-12 rounded-xl bg-card text-sm font-normal"
+            />
+          </label>
+
+          <div className="mt-4 rounded-2xl bg-muted p-4">
+            <div className="flex items-center justify-between gap-3 text-sm">
+              <span className="text-muted-foreground">{t("cart.total")}</span>
+              <strong className="text-foreground">
+                {formatMoney(
+                  cart.totals.subtotalMinor,
+                  cart.totals.currency
+                )}
+              </strong>
+            </div>
+
+            {validationQuery.isPending ? (
+              <span className="mt-3 inline-flex items-center gap-2 text-xs text-muted-foreground">
+                <LoaderCircle
+                  className="size-4 animate-spin"
+                  aria-hidden="true"
                 />
-              </label>
-              {validationQuery.isPending ? (
-                <span className="inline-flex items-center gap-2 text-sm text-muted-foreground">
-                  <LoaderCircle className="size-4 animate-spin" aria-hidden="true" />
-                  {t("cart.validating")}
-                </span>
-              ) : null}
-              {!isValid ? (
-                <div className="rounded-card border border-warning bg-warning/10 p-3 text-sm text-warning">
-                  {t("cart.needsAttention")}
-                </div>
-              ) : null}
-              {submitErrorMessage ? (
-                <div
-                  role="alert"
-                  className="rounded-card border border-danger bg-danger/10 p-3 text-sm text-danger"
-                >
-                  {t("cart.submitError", { message: submitErrorMessage })}
-                  <div className="mt-3">
-                    <CopyDebugReportButton
-                      action="cart_submit"
-                      flow="customer_order_cycle"
-                      sessionId={sessionId}
-                      error={submitMutation.error}
-                    />
-                  </div>
-                </div>
-              ) : null}
-            </CardContent>
-            <CardFooter>
-              <Button
-                onClick={() =>
-                  submitMutation.mutate({
-                    idempotencyKey: createIdempotencyKey(sessionId),
-                    payload: { customerNote: customerNote.trim() || null }
-                  })
-                }
-                disabled={!canSubmit}
-              >
-                <Send className="size-4" aria-hidden="true" />
-                {submitMutation.isPending
-                  ? t("cart.submitting")
-                  : t("cart.submitOrder")}
-              </Button>
-              <Button
-                variant="ghost"
-                onClick={() => clearMutation.mutate()}
-                disabled={clearMutation.isPending}
-              >
-                <Trash2 className="size-4" aria-hidden="true" />
-                {t("cart.clear")}
-              </Button>
-            </CardFooter>
-          </Card>
+                {t("cart.validating")}
+              </span>
+            ) : null}
+
+            {!isValid ? (
+              <div className="mt-3 rounded-xl border border-warning bg-warning/10 p-3 text-sm text-warning">
+                {t("cart.needsAttention")}
+              </div>
+            ) : null}
+          </div>
+
+          {submitErrorMessage ? (
+            <div
+              role="alert"
+              className="mt-4 rounded-xl border border-danger bg-danger/10 p-3 text-sm text-danger"
+            >
+              {t("cart.submitError", { message: submitErrorMessage })}
+              <div className="mt-3">
+                <CopyDebugReportButton
+                  action="cart_submit"
+                  flow="customer_order_cycle"
+                  sessionId={sessionId}
+                  error={submitMutation.error}
+                />
+              </div>
+            </div>
+          ) : null}
+
+          <Button
+            onClick={() =>
+              submitMutation.mutate({
+                idempotencyKey: createIdempotencyKey(sessionId),
+                payload: { customerNote: customerNote.trim() || null }
+              })
+            }
+            disabled={!canSubmit}
+            className="mt-4 min-h-14 w-full rounded-2xl text-sm font-black"
+          >
+            <Send className="size-4" aria-hidden="true" />
+            {submitMutation.isPending
+              ? t("cart.submitting")
+              : `${t("cart.submitOrder")} · ${formatMoney(
+                  cart.totals.subtotalMinor,
+                  cart.totals.currency
+                )}`}
+          </Button>
+
+          <Button
+            variant="ghost"
+            onClick={() => clearMutation.mutate()}
+            disabled={clearMutation.isPending}
+            className="mt-2 w-full text-muted-foreground"
+          >
+            <Trash2 className="size-4" aria-hidden="true" />
+            {t("cart.clear")}
+          </Button>
         </section>
       ) : null}
     </CustomerSessionScreen>

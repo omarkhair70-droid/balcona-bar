@@ -49,3 +49,9 @@ jobs:
 
       - name: Test API
         run: pnpm --filter @balcona-bar/api test
+
+      - name: Test smoke helpers
+        run: pnpm smoke:test
+
+      - name: Check staging smoke script
+        run: node --check scripts/smoke/staging-smoke.mjs
