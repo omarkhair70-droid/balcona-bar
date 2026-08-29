@@ -1062,7 +1062,7 @@
       "settingsOpenShift": "وردية مفتوحة",
       "settingsNoValue": "غير مضبوط",
       "loadingFoundation": "جاري تحميل بيانات الإدارة…",
-      "foundationError": "تعذر تحميل هذا القسم من عقد الـbackend الحالي.",
+      "foundationError": "تعذر تحميل هذا القسم من خدمات المنصة الحالية.",
       "roleOwner": "المالك",
       "roleBranchManager": "مدير الفرع",
       "roleCashier": "الكاشير",
