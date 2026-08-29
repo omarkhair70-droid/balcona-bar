@@ -626,7 +626,7 @@
       "activityEmpty": "Activity will appear here after preparation or order events reach the branch stream.",
       "activityTitle": "Activity",
       "badge": "Kitchen / Barista",
-      "dashboardDescription": "Station tasks, kitchen tickets, and mock printer jobs for accepted cafe orders.",
+      "dashboardDescription": "Station tasks, kitchen tickets, print jobs, and realtime preparation state for accepted orders.",
       "dashboardTitle": "Kitchen Display System",
       "emptyBranchDescription": "This staff account does not expose a branch for kitchen operations yet.",
       "emptyBranchTitle": "No accessible branch",
@@ -647,7 +647,7 @@
       "printJobRetry": "Print job returned to pending.",
       "printJobRetryError": "Print job could not be retried. {message}",
       "printPending": "Print pending",
-      "printQueueEmpty": "New station tickets queue mock print jobs here. Jobs stay pending until staff marks them printed or failed.",
+      "printQueueEmpty": "Station tickets create tracked print jobs here. Jobs remain pending until software records them as printed, failed, or retried.",
       "printQueueError": "Print queue could not load",
       "printQueueEmptyTitle": "No print jobs",
       "printTracked": "Print tracked",
@@ -668,7 +668,10 @@
       "ticketReprintError": "Ticket could not be reprinted. {message}",
       "ticketsError": "Tickets could not load",
       "ticketsEmptyTitle": "No station tickets",
-      "viewingDescription": "{name} is viewing station tasks, KDS tickets, and mock printer jobs created from cashier-accepted orders."
+      "viewingDescription": "{name} is viewing live station tasks, kitchen tickets, and operational print jobs created from cashier-accepted orders.",
+      "shellProductLabel": "Balcona Kitchen",
+      "shellSubtitle": "Live preparation operations",
+      "shellEyebrow": "Kitchen operations"
     },
     "navigation": {
       "billing": "Billing",
