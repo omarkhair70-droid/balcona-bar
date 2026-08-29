@@ -72,6 +72,13 @@ async function visit(label, route, options = {}) {
 
 try {
   await visit("web-root", "/", { waitMs: 600 });
+  const rootText = await page.locator("body").innerText();
+  if (!/Start your table experience|ابدأ تجربة الترابيزة/i.test(rootText)) {
+    throw new Error("web-root: production guest entry is not live");
+  }
+  if (/UI Phase|مرحلة الواجهة/i.test(rootText)) {
+    throw new Error("web-root: legacy phase landing is still live");
+  }
   await visit("staff-login", "/staff/login", { waitMs: 400 });
   const staffInputs = await page.locator('input').count();
   if (staffInputs < 2) throw new Error("staff-login: expected login inputs");
