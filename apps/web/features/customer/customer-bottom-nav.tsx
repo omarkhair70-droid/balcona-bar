@@ -77,7 +77,7 @@ export function CustomerBottomNav({
               className={cn(
                 "relative flex min-h-12 flex-col items-center justify-center gap-1 rounded-xl px-1 text-[10px] font-bold text-muted-foreground transition hover:bg-muted hover:text-foreground",
                 isActive &&
-                  "bg-primary text-primary-foreground hover:bg-primary hover:text-primary-foreground"
+                  "!bg-primary !text-primary-foreground hover:!bg-primary hover:!text-primary-foreground"
               )}
             >
               <Icon className="size-4" aria-hidden="true" />
