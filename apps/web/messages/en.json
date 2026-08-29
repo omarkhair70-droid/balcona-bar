@@ -691,7 +691,12 @@
       "printStatusPrinting": "Printing",
       "printStatusPrinted": "Printed",
       "printStatusFailed": "Failed",
-      "printStatusCancelled": "Cancelled"
+      "printStatusCancelled": "Cancelled",
+      "timelineStarted": "Started {date}",
+      "timelineReady": "Ready {date}",
+      "timelineCancelled": "Cancelled {date}",
+      "actorStaff": "Staff",
+      "actorSystem": "System"
     },
     "navigation": {
       "billing": "Billing",
