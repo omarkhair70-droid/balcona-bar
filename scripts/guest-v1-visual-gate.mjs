@@ -61,7 +61,7 @@ if (!(await page.getByText('Cart proposal', { exact: true }).isVisible())) failu
 await shot(page, 'guest-ai-proposal-mobile');
 await page.getByRole('button', { name: 'Apply', exact: true }).click();
 if (!(await page.getByText('Proposal applied to the cart.', { exact: true }).isVisible())) failures.push('ai: proposal apply state missing');
-await page.getByRole('button', { name: 'Close', exact: true }).first().click();
+await page.getByRole('button', { name: 'Close', exact: true }).last().click();
 if (!(await page.getByRole('button', { name: /View cart/ }).isVisible())) failures.push('ai: applied proposal did not create cart state');
 
 // Item detail / modifier / note
