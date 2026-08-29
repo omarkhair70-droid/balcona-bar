@@ -28,6 +28,8 @@
     "kitchen": "Kitchen",
     "login": "Login",
     "menu": "Menu",
+    "order": "Order",
+    "bill": "Bill",
     "owner": "Owner",
     "overview": "Overview",
     "service": "Service",
