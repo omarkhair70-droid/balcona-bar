@@ -1062,7 +1062,22 @@
       "settingsOpenShift": "Open shift",
       "settingsNoValue": "Not configured",
       "loadingFoundation": "Loading Office data…",
-      "foundationError": "This Office view could not load from the current backend contract."
+      "foundationError": "This Office view could not load from the current backend contract.",
+      "roleOwner": "Owner",
+      "roleBranchManager": "Branch manager",
+      "roleCashier": "Cashier",
+      "roleWaiter": "Waiter",
+      "roleKitchen": "Kitchen",
+      "roleBarista": "Barista",
+      "roleMenuAdmin": "Menu admin",
+      "stateActive": "Active",
+      "stateInactive": "Inactive",
+      "sourceBranch": "Branch",
+      "sourceCompany": "Company",
+      "configured": "Configured",
+      "notConfigured": "Not configured",
+      "enabled": "Enabled",
+      "disabled": "Disabled"
     }
   },
   "cashier": {
