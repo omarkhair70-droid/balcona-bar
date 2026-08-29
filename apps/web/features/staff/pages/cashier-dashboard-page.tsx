@@ -226,6 +226,7 @@ function CashierShiftReportSummary({
   snapshot: CashierShiftReportSnapshot;
   onClear: () => void;
 }) {
+  const t = useTranslations("staff");
   const currency =
     getRecordString(getSnapshotRecord(snapshot, "shift"), "currency") || "EGP";
   const reportType = getRecordString(snapshot, "reportType", "x_report");
@@ -257,11 +258,11 @@ function CashierShiftReportSummary({
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <p className="text-sm font-semibold text-[#F8EDDF]">
-            {reportType === "z_report" ? "Z report" : "X report"}{" "}
-            {reportNumber ? reportNumber : "preview"}
+            {reportType === "z_report" ? t("serviceShift.zReport") : t("serviceShift.xReportLower")}{" "}
+            {reportNumber ? reportNumber : t("serviceShift.preview")}
           </p>
           <p className="mt-1 text-xs text-[#91857A]">
-            Generated {formatDateTime(getRecordString(snapshot, "generatedAt"))}
+            {t("serviceShift.generated", { date: formatDateTime(getRecordString(snapshot, "generatedAt")) })}
           </p>
         </div>
         <Button type="button" size="sm" variant="ghost" onClick={onClear}>
@@ -270,33 +271,33 @@ function CashierShiftReportSummary({
       </div>
       <dl className="mt-4 grid gap-3 text-xs sm:grid-cols-4">
         <div>
-          <dt className="text-[#91857A]">Expected cash</dt>
+          <dt className="text-[#91857A]">{t("serviceShift.expectedCash")}</dt>
           <dd className="mt-1 font-semibold text-[#F8EDDF]">
             {formatMoney(expectedCashMinor, currency)}
           </dd>
         </div>
         <div>
-          <dt className="text-[#91857A]">Collected</dt>
+          <dt className="text-[#91857A]">{t("serviceShift.collected")}</dt>
           <dd className="mt-1 font-semibold text-[#F8EDDF]">
             {formatMoney(totalCollectedMinor, currency)}
           </dd>
         </div>
         <div>
-          <dt className="text-[#91857A]">Payments</dt>
+          <dt className="text-[#91857A]">{t("serviceShift.payments")}</dt>
           <dd className="mt-1 font-semibold text-[#F8EDDF]">{paymentCount}</dd>
         </div>
         <div>
-          <dt className="text-[#91857A]">Over / short</dt>
+          <dt className="text-[#91857A]">{t("serviceShift.overShort")}</dt>
           <dd className="mt-1 font-semibold text-[#F8EDDF]">
             {reportType === "z_report"
               ? formatMoney(cashOverShortMinor, currency)
-              : "Z close only"}
+              : t("serviceShift.zCloseOnly")}
           </dd>
         </div>
       </dl>
       {reportType === "z_report" ? (
         <p className="mt-3 text-xs text-[#91857A]">
-          Counted cash {formatMoney(countedCashMinor, currency)}.
+          {t("serviceShift.countedCashSummary", { amount: formatMoney(countedCashMinor, currency) })}
         </p>
       ) : null}
     </div>
@@ -379,11 +380,11 @@ function CashierShiftPanel({
         <div>
           <div className="flex flex-wrap items-center gap-2">
             <Badge variant={shift ? "success" : "warning"}>
-              {shift ? "Shift open" : "No open shift"}
+              {shift ? t("serviceShift.shiftOpen") : t("serviceShift.noOpenShift")}
             </Badge>
             <Badge variant="muted">{branchName}</Badge>
           </div>
-          <CardTitle className="mt-3 text-[#FFF5E8]">Cashier shift</CardTitle>
+          <CardTitle className="mt-3 text-[#FFF5E8]">{t("serviceShift.title")}</CardTitle>
           <CardDescription>
             {t("cashier.shiftManualPaymentsRequireOpen")}
           </CardDescription>
@@ -395,14 +396,14 @@ function CashierShiftPanel({
             onClick={onXReport}
             disabled={xReportPending}
           >
-            <FileText className="size-4" aria-hidden="true" />X Report
+            <FileText className="size-4" aria-hidden="true" />{t("serviceShift.xReport")}
           </Button>
         ) : null}
       </CardHeader>
       <CardContent className="grid gap-4">
         {isLoading ? (
           <div className="rounded-md border border-[#3A3028] bg-[#18130F] p-4 text-sm text-[#91857A]">
-            Loading cashier shift.
+            {t("serviceShift.loading")}
           </div>
         ) : null}
         {error ? (
@@ -426,7 +427,7 @@ function CashierShiftPanel({
             }}
           >
             <label className="grid gap-1 text-xs font-medium text-[#91857A]">
-              Opening float
+              {t("serviceShift.openingFloat")}
               <Input
                 inputMode="decimal"
                 value={openingFloat}
@@ -434,16 +435,16 @@ function CashierShiftPanel({
               />
             </label>
             <label className="grid gap-1 text-xs font-medium text-[#91857A]">
-              Note
+              {t("serviceShift.note")}
               <Input
                 value={openingNote}
                 onChange={(event) => setOpeningNote(event.target.value)}
-                placeholder="Optional opening note"
+                placeholder={t("serviceShift.optionalOpeningNote")}
               />
             </label>
             <Button type="submit" className="self-end" disabled={openPending}>
               <Banknote className="size-4" aria-hidden="true" />
-              Open shift
+              {t("serviceShift.openShift")}
             </Button>
           </form>
         ) : null}
@@ -452,13 +453,13 @@ function CashierShiftPanel({
           <>
             <dl className="grid gap-3 text-xs sm:grid-cols-2 lg:grid-cols-6">
               <div>
-                <dt className="text-[#91857A]">Opened</dt>
+                <dt className="text-[#91857A]">{t("serviceShift.opened")}</dt>
                 <dd className="mt-1 font-semibold text-[#F8EDDF]">
                   {formatDateTime(getRecordString(shift, "openedAt"))}
                 </dd>
               </div>
               <div>
-                <dt className="text-[#91857A]">Opening float</dt>
+                <dt className="text-[#91857A]">{t("serviceShift.openingFloat")}</dt>
                 <dd className="mt-1 font-semibold text-[#F8EDDF]">
                   {formatMoney(
                     getRecordNumber(shift, "openingFloatMinor"),
@@ -467,25 +468,25 @@ function CashierShiftPanel({
                 </dd>
               </div>
               <div>
-                <dt className="text-[#91857A]">Expected cash</dt>
+                <dt className="text-[#91857A]">{t("serviceShift.expectedCash")}</dt>
                 <dd className="mt-1 font-semibold text-[#F8EDDF]">
                   {formatMoney(expectedCashMinor, currency)}
                 </dd>
               </div>
               <div>
-                <dt className="text-[#91857A]">Collected</dt>
+                <dt className="text-[#91857A]">{t("serviceShift.collected")}</dt>
                 <dd className="mt-1 font-semibold text-[#F8EDDF]">
                   {formatMoney(totalCollectedMinor, currency)}
                 </dd>
               </div>
               <div>
-                <dt className="text-[#91857A]">Payments</dt>
+                <dt className="text-[#91857A]">{t("serviceShift.payments")}</dt>
                 <dd className="mt-1 font-semibold text-[#F8EDDF]">
                   {paymentCount}
                 </dd>
               </div>
               <div>
-                <dt className="text-[#91857A]">Bills</dt>
+                <dt className="text-[#91857A]">{t("serviceShift.bills")}</dt>
                 <dd className="mt-1 font-semibold text-[#F8EDDF]">
                   {billCount}
                 </dd>
@@ -494,16 +495,16 @@ function CashierShiftPanel({
 
             <div className="grid gap-3 text-xs md:grid-cols-4">
               <div className="rounded-md border border-[#3A3028] bg-[#18130F] p-3">
-                Cash {formatMoney(cashMinor, currency)}
+                {t("serviceShift.cash")} {formatMoney(cashMinor, currency)}
               </div>
               <div className="rounded-md border border-[#3A3028] bg-[#18130F] p-3">
-                Card POS {formatMoney(cardMinor, currency)}
+                {t("serviceShift.cardPos")} {formatMoney(cardMinor, currency)}
               </div>
               <div className="rounded-md border border-[#3A3028] bg-[#18130F] p-3">
-                Wallet {formatMoney(walletMinor, currency)}
+                {t("serviceShift.wallet")} {formatMoney(walletMinor, currency)}
               </div>
               <div className="rounded-md border border-[#3A3028] bg-[#18130F] p-3">
-                Other {formatMoney(otherMinor, currency)}
+                {t("serviceShift.other")} {formatMoney(otherMinor, currency)}
               </div>
             </div>
 
@@ -512,7 +513,7 @@ function CashierShiftPanel({
               onSubmit={(event) => event.preventDefault()}
             >
               <label className="grid gap-1 text-xs font-medium text-[#91857A]">
-                Drawer amount
+                {t("serviceShift.drawerAmount")}
                 <Input
                   inputMode="decimal"
                   value={adjustmentAmount}
@@ -521,11 +522,11 @@ function CashierShiftPanel({
                 />
               </label>
               <label className="grid gap-1 text-xs font-medium text-[#91857A]">
-                Adjustment note
+                {t("serviceShift.adjustmentNote")}
                 <Input
                   value={adjustmentNote}
                   onChange={(event) => setAdjustmentNote(event.target.value)}
-                  placeholder="Required"
+                  placeholder={t("serviceShift.required")}
                 />
               </label>
               <Button
@@ -542,7 +543,7 @@ function CashierShiftPanel({
                 }
               >
                 <PlusCircle className="size-4" aria-hidden="true" />
-                Cash In
+                {t("serviceShift.cashIn")}
               </Button>
               <Button
                 type="button"
@@ -558,7 +559,7 @@ function CashierShiftPanel({
                 }
               >
                 <MinusCircle className="size-4" aria-hidden="true" />
-                Cash Out
+                {t("serviceShift.cashOut")}
               </Button>
             </form>
 
@@ -578,7 +579,7 @@ function CashierShiftPanel({
               }}
             >
               <label className="grid gap-1 text-xs font-medium text-[#91857A]">
-                Counted cash
+                {t("serviceShift.countedCash")}
                 <Input
                   inputMode="decimal"
                   value={countedCash}
@@ -587,11 +588,11 @@ function CashierShiftPanel({
                 />
               </label>
               <label className="grid gap-1 text-xs font-medium text-[#91857A]">
-                Closing note
+                {t("serviceShift.closingNote")}
                 <Input
                   value={closingNote}
                   onChange={(event) => setClosingNote(event.target.value)}
-                  placeholder="Optional closing note"
+                  placeholder={t("serviceShift.optionalClosingNote")}
                 />
               </label>
               <Button
@@ -600,12 +601,14 @@ function CashierShiftPanel({
                 disabled={!countedCash.trim() || closePending}
               >
                 <CheckCircle2 className="size-4" aria-hidden="true" />
-                Close & Generate Z
+                {t("serviceShift.closeAndGenerateZ")}
               </Button>
               {countedCash.trim() ? (
                 <p className="md:col-span-3 text-xs text-[#91857A]">
-                  Expected {formatMoney(expectedCashMinor, currency)}. Over /
-                  short {formatMoney(overShortMinor, currency)}.
+                  {t("serviceShift.expectedOverShort", {
+                    expected: formatMoney(expectedCashMinor, currency),
+                    overShort: formatMoney(overShortMinor, currency)
+                  })}
                 </p>
               ) : null}
             </form>
