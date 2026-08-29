@@ -18,7 +18,16 @@ FROM deps AS build
 WORKDIR /app
 
 ARG NEXT_PUBLIC_API_BASE_URL=http://localhost:3000/api/v1
+ARG NEXT_PUBLIC_APP_ENV=production
+ARG NEXT_PUBLIC_APP_VERSION=0.1.0
+ARG NEXT_PUBLIC_GIT_SHA=unknown
+ARG NEXT_PUBLIC_BUILD_TIME=not_provided
+
 ENV NEXT_PUBLIC_API_BASE_URL=$NEXT_PUBLIC_API_BASE_URL
+ENV NEXT_PUBLIC_APP_ENV=$NEXT_PUBLIC_APP_ENV
+ENV NEXT_PUBLIC_APP_VERSION=$NEXT_PUBLIC_APP_VERSION
+ENV NEXT_PUBLIC_GIT_SHA=$NEXT_PUBLIC_GIT_SHA
+ENV NEXT_PUBLIC_BUILD_TIME=$NEXT_PUBLIC_BUILD_TIME
 
 COPY . .
 
@@ -45,5 +54,8 @@ COPY --from=build /app/apps/web ./apps/web
 WORKDIR /app/apps/web
 
 EXPOSE 3001
+
+HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
+  CMD wget -q --spider "http://127.0.0.1:${PORT:-3001}/" || exit 1
 
 CMD ["sh", "-c", "pnpm exec next start --port ${PORT:-3001}"]
