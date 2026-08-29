@@ -65,6 +65,9 @@ jobs:
           cat /tmp/balcona-service-web.log
           exit 1
 
+      - name: Check Service visual harness
+        run: node --check scripts/visual-qa/service-production-visual.mjs
+
       - name: Capture Service visual evidence
         env:
           BALCONA_VISUAL_BASE_URL: http://localhost:3001
