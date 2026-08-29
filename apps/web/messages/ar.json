@@ -1024,7 +1024,13 @@
       "insights": "التحليلات",
       "experience": "التجربة",
       "settings": "الإعدادات",
-      "notPromoted": "لم يتم تفعيله بعد"
+      "notPromoted": "لم يتم تفعيله بعد",
+      "catalogTitle": "المنيو",
+      "catalogDescription": "الأقسام والعناصر والتوافر والإضافات والأسعار وجاهزية منيو العميل.",
+      "inventoryTitle": "المخزون",
+      "inventoryDescription": "مستويات المخزون والتسويات والموردون وأوامر الشراء والمتطلبات وتوافر المنيو.",
+      "locationsTitle": "الفروع",
+      "locationsDescription": "الفروع والطوابق والترابيزات ورموز QR والجلسات النشطة والجاهزية التشغيلية."
     }
   },
   "cashier": {
