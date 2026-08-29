@@ -1286,7 +1286,10 @@
       "timingDescription": "Averages skip orders where a timestamp is not recorded.",
       "timingTitle": "Order timing",
       "waiterCallsDescription": "Service pressure by waiter call status.",
-      "waiterCallsTitle": "Waiter calls"
+      "waiterCallsTitle": "Waiter calls",
+      "durationSeconds": "{count}s",
+      "durationMinutes": "{count}m",
+      "durationHours": "{count}h"
     },
     "pulse": {
       "activeOrders": "Active orders",
