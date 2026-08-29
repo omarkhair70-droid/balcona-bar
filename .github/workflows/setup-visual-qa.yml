@@ -1,0 +1,87 @@
+name: Setup Visual QA
+
+on:
+  push:
+    branches:
+      - integration/a5-setup-shell
+  pull_request:
+    paths:
+      - "apps/web/features/staff/**"
+      - "apps/web/messages/**"
+      - "scripts/visual-qa/setup-production-visual.mjs"
+      - ".github/workflows/setup-visual-qa.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  setup-visual-qa:
+    name: Setup Desktop Mobile RTL Evidence
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Enable pnpm
+        run: |
+          corepack enable
+          corepack prepare pnpm@10.28.1 --activate
+          pnpm --version
+
+      - name: Install repository dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Check Setup visual harness
+        run: node --check scripts/visual-qa/setup-production-visual.mjs
+
+      - name: Install isolated Playwright
+        run: |
+          mkdir -p /tmp/balcona-setup-visual-qa
+          cd /tmp/balcona-setup-visual-qa
+          npm init -y
+          npm install --no-audit --no-fund playwright@1.55.0
+          npx playwright install --with-deps chromium
+
+      - name: Start Balcona web
+        env:
+          NEXT_PUBLIC_API_BASE_URL: http://127.0.0.1:3999/api/v1
+          NEXT_PUBLIC_APP_ENV: test
+          NEXT_PUBLIC_GIT_SHA: ${{ github.sha }}
+        run: |
+          pnpm web:dev > /tmp/balcona-setup-web.log 2>&1 &
+          echo $! > /tmp/balcona-setup-web.pid
+
+          for attempt in $(seq 1 60); do
+            if curl --fail --silent http://localhost:3001/staff/login > /dev/null; then
+              exit 0
+            fi
+            sleep 1
+          done
+
+          cat /tmp/balcona-setup-web.log
+          exit 1
+
+      - name: Capture Setup visual evidence
+        env:
+          BALCONA_VISUAL_BASE_URL: http://localhost:3001
+        run: node scripts/visual-qa/setup-production-visual.mjs
+
+      - name: Upload Setup visual evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: setup-production-visual-qa
+          path: artifacts/setup-visual-qa
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Print web log on failure
+        if: failure()
+        run: cat /tmp/balcona-setup-web.log || true
