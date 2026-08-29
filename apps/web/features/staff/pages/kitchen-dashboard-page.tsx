@@ -8,20 +8,15 @@ import {
   CheckCircle2,
   ChefHat,
   ClipboardList,
-  Flame,
-  Gauge,
-  LayoutDashboard,
   LogIn,
   LogOut,
   Printer,
-  Receipt,
   RefreshCw,
   RotateCcw,
   XCircle
 } from "lucide-react";
 import { useMemo, useState } from "react";
 import { CopyDebugReportButton } from "@/components/debug/copy-debug-report-button";
-import { Badge } from "@/components/ui/badge";
 import { Button, buttonVariants } from "@/components/ui/button";
 import {
   Card,
@@ -31,7 +26,6 @@ import {
   CardTitle
 } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
-import { MetricCard } from "@/components/ui/metric-card";
 import {
   getPrintJobCreatedAt,
   getPrintJobError,
@@ -61,7 +55,7 @@ import {
   getTaskOrderId,
   getTaskStatus
 } from "@/features/staff/preparation-data";
-import { StaffPageShell } from "@/features/staff/staff-page-shell";
+import { KitchenStaffShell } from "@/features/staff/kitchen-staff-shell";
 import {
   formatDateTime,
   getRecordString,
@@ -70,6 +64,7 @@ import {
 } from "@/features/staff/staff-format";
 import { useStaffBranchRealtime } from "@/features/staff/use-staff-branch-realtime";
 import { useTranslations } from "@/lib/i18n/i18n-provider";
+import { cn } from "@/lib/utils/cn";
 import {
   cancelPreparationTask,
   getBranchKitchenTickets,
@@ -159,21 +154,26 @@ function KdsModeTabs({
   ];
 
   return (
-    <div className="flex flex-wrap gap-2">
+    <div className="flex max-w-full min-w-0 gap-1 overflow-x-auto rounded-md border border-[#34312E] bg-[#171513] p-1">
       {modes.map((entry) => {
         const Icon = entry.icon;
         const active = mode === entry.value;
 
         return (
-          <Button
+          <button
             key={entry.value}
             type="button"
-            variant={active ? "primary" : "secondary"}
             onClick={() => onChange(entry.value)}
+            className={cn(
+              "flex min-h-10 min-w-[108px] shrink-0 items-center justify-center gap-2 rounded-md px-3 text-xs font-black transition",
+              active
+                ? "bg-[#C68A4A] text-[#17110C]"
+                : "text-[#AAA39C] hover:bg-[#24211E] hover:text-[#F1EAE3]"
+            )}
           >
             <Icon className="size-4" aria-hidden="true" />
             {t(entry.labelKey)}
-          </Button>
+          </button>
         );
       })}
     </div>
@@ -193,6 +193,8 @@ function KdsTicketCard({
   const ticketId = getTicketId(ticket);
   const items = getTicketItems(ticket);
   const printJobs = getTicketPrintJobs(ticket);
+  const status = getTicketStatus(ticket);
+  const station = getTicketStation(ticket);
   const printFailed = printJobs.some(
     (printJob) => getPrintJobStatus(printJob) === "failed"
   );
@@ -200,75 +202,115 @@ function KdsTicketCard({
     (printJob) => getPrintJobStatus(printJob) === "pending"
   );
 
+  const stationLabel =
+    station === "barista"
+      ? t("kitchen.stationBarista")
+      : station === "dessert"
+        ? t("kitchen.stationDessert")
+        : t("kitchen.stationKitchen");
+
+  const statusLabel = (value: string) => {
+    if (value === "queued") return t("kitchen.ticketStatusQueued");
+    if (value === "in_progress") return t("kitchen.ticketStatusInProgress");
+    if (value === "ready") return t("kitchen.ticketStatusReady");
+    if (value === "served") return t("kitchen.ticketStatusServed");
+    if (value === "cancelled") return t("kitchen.ticketStatusCancelled");
+    return value;
+  };
+
   return (
-    <Card variant="glass" padding="sm">
-      <CardHeader className="gap-3">
-        <div className="flex items-start justify-between gap-3">
-          <div>
-            <div className="flex flex-wrap items-center gap-2">
-              <Badge variant="muted">{getTicketDisplayCode(ticket)}</Badge>
-              <Badge variant={printFailed ? "danger" : "muted"}>
-                {printFailed
-                  ? t("kitchen.printFailed")
+    <article className="overflow-hidden rounded-lg border border-[#3A3632] bg-[#1B1917]">
+      <div className="flex items-start justify-between gap-3 border-b border-[#302D29] p-3">
+        <div className="min-w-0">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="rounded bg-[#E7E0D8] px-2 py-1 text-xs font-black text-[#171513]">
+              {getTicketDisplayCode(ticket)}
+            </span>
+            <span
+              className={cn(
+                "rounded-full border px-2 py-1 text-[10px] font-black",
+                printFailed
+                  ? "border-[#7D3932] bg-[#3D211E] text-[#FFAAA0]"
                   : printPending
-                    ? t("kitchen.printPending")
-                    : t("kitchen.printTracked")}
-              </Badge>
-            </div>
-            <CardTitle className="mt-3 text-base">
-              {getTicketOrderNumber(ticket) || t("kitchen.stationTicket")}
-            </CardTitle>
-            <CardDescription>
-              {humanizeStatus(getTicketStation(ticket))} /{" "}
-              {formatDateTime(getTicketCreatedAt(ticket))}
-            </CardDescription>
+                    ? "border-[#8A682A] bg-[#352B16] text-[#F7CD73]"
+                    : "border-[#3F6B47] bg-[#1D3323] text-[#A9D7B0]"
+              )}
+            >
+              {printFailed
+                ? t("kitchen.printFailed")
+                : printPending
+                  ? t("kitchen.printPending")
+                  : t("kitchen.printTracked")}
+            </span>
           </div>
-          <Badge variant="default">{humanizeStatus(getTicketStatus(ticket))}</Badge>
+          <h3 className="mt-3 text-lg font-black text-[#FFF8F0]">
+            {getTicketOrderNumber(ticket) || t("kitchen.stationTicket")}
+          </h3>
+          <p className="mt-1 text-xs font-semibold text-[#8F8982]">
+            {stationLabel} / {formatDateTime(getTicketCreatedAt(ticket))}
+          </p>
         </div>
-      </CardHeader>
-      <CardContent className="grid gap-3">
-        <p className="text-sm text-muted-foreground">
+        <span
+          className={cn(
+            "shrink-0 rounded-full border px-2.5 py-1 text-[10px] font-black uppercase",
+            status === "ready"
+              ? "border-[#3F6B47] bg-[#1D3323] text-[#A9D7B0]"
+              : status === "cancelled"
+                ? "border-[#7D3932] bg-[#3D211E] text-[#FFAAA0]"
+                : "border-[#5A5045] bg-[#27231F] text-[#D9D0C7]"
+          )}
+        >
+          {statusLabel(status)}
+        </span>
+      </div>
+
+      <div className="p-3">
+        <p className="text-xl font-black tracking-[-0.025em] text-[#FFF8F0]">
           {getTicketLocationLabel(ticket)}
         </p>
-        <div className="grid gap-2">
+
+        <div className="mt-3 divide-y divide-[#302D29] border-y border-[#302D29]">
           {items.map((item, index) => {
             const modifiers = getTicketItemModifiers(item);
             const notes = getTicketItemNotes(item);
+            const itemStatus = getRecordString(item, "status", "queued");
 
             return (
               <div
                 key={getRecordString(item, "id") || String(index)}
-                className="rounded-card border bg-surface/75 p-3"
+                className="py-3"
               >
                 <div className="flex items-start justify-between gap-3">
-                  <p className="text-sm font-semibold text-foreground">
-                    {getTicketItemQuantity(item)}x {getTicketItemName(item)}
+                  <p className="text-base font-black text-[#FFF9F2]">
+                    {getTicketItemQuantity(item)}× {getTicketItemName(item)}
                   </p>
-                  <span className="text-xs text-muted-foreground">
-                    {humanizeStatus(getRecordString(item, "status", "queued"))}
+                  <span className="shrink-0 text-[10px] font-bold uppercase text-[#817B75]">
+                    {statusLabel(itemStatus)}
                   </span>
                 </div>
+
                 {modifiers.length > 0 ? (
-                  <div className="mt-2 flex flex-wrap gap-2">
+                  <div className="mt-2 flex flex-wrap gap-1.5">
                     {modifiers.map((modifier, modifierIndex) => (
-                      <Badge
+                      <span
                         key={
                           getRecordString(modifier, "optionId") ||
                           String(modifierIndex)
                         }
-                        variant="muted"
+                        className="rounded bg-[#2A2724] px-2 py-1 text-[11px] font-bold text-[#D0C8C1]"
                       >
                         {getRecordString(
                           modifier,
                           "optionName",
                           t("tasks.modifierFallback")
                         )}
-                      </Badge>
+                      </span>
                     ))}
                   </div>
                 ) : null}
+
                 {notes ? (
-                  <p className="mt-2 rounded-card border border-warning/40 bg-warning/10 p-2 text-xs text-warning">
+                  <p className="mt-2 rounded-md border border-[#71582A] bg-[#2E2516] p-2 text-xs font-bold text-[#F0C876]">
                     {notes}
                   </p>
                 ) : null}
@@ -276,22 +318,25 @@ function KdsTicketCard({
             );
           })}
         </div>
+
         {getTicketCustomerNote(ticket) ? (
-          <p className="rounded-card border border-warning/40 bg-warning/10 p-3 text-sm text-warning">
+          <p className="mt-3 rounded-md border border-[#71582A] bg-[#2E2516] p-3 text-sm font-bold text-[#F0C876]">
             {getTicketCustomerNote(ticket)}
           </p>
         ) : null}
+
         <Button
           type="button"
           variant="secondary"
+          className="mt-3 min-h-11 w-full border-[#4A4540] bg-[#24211E] font-black text-[#F1EAE3] hover:bg-[#2D2925]"
           disabled={!ticketId || reprintPending}
           onClick={() => ticketId && onReprint(ticketId)}
         >
           <RotateCcw className="size-4" aria-hidden="true" />
           {t("actions.reprint")}
         </Button>
-      </CardContent>
-    </Card>
+      </div>
+    </article>
   );
 }
 
@@ -311,6 +356,7 @@ function PrintJobCard({
   const t = useTranslations("staff");
   const printJobId = getPrintJobId(printJob);
   const status = getPrintJobStatus(printJob);
+  const kind = getPrintJobKind(printJob);
   const printableText = getPrintJobPrintableText(printJob);
   const canPrint = status === "pending" || status === "printing";
   const canRetry =
@@ -318,71 +364,115 @@ function PrintJobCard({
     status === "cancelled" ||
     status === "reprint_requested";
 
+  const statusLabel =
+    status === "pending"
+      ? t("kitchen.printStatusPending")
+      : status === "printing"
+        ? t("kitchen.printStatusPrinting")
+        : status === "printed"
+          ? t("kitchen.printStatusPrinted")
+          : status === "failed"
+            ? t("kitchen.printStatusFailed")
+            : status === "cancelled"
+              ? t("kitchen.printStatusCancelled")
+              : status;
+
+  const kindLabel =
+    kind === "kitchen_ticket"
+      ? t("kitchen.printKindKitchenTicket")
+      : kind === "barista_ticket"
+        ? t("kitchen.printKindBaristaTicket")
+        : kind === "dessert_ticket"
+          ? t("kitchen.printKindDessertTicket")
+          : kind === "receipt"
+            ? t("kitchen.printKindReceipt")
+            : kind === "void_ticket"
+              ? t("kitchen.printKindVoidTicket")
+              : kind;
+
   return (
-    <Card variant="quiet" padding="sm">
-      <CardHeader className="gap-3">
-        <div className="flex items-start justify-between gap-3">
-          <div>
-            <CardTitle className="text-base">
-              {humanizeStatus(getPrintJobKind(printJob))}
-            </CardTitle>
-            <CardDescription>
-              {getPrinterStationName(getPrintJobPrinterStation(printJob))} /{" "}
-              {formatDateTime(getPrintJobCreatedAt(printJob))}
-            </CardDescription>
-          </div>
-          <Badge variant={status === "failed" ? "danger" : "muted"}>
-            {humanizeStatus(status)}
-          </Badge>
-        </div>
-      </CardHeader>
-      <CardContent className="grid gap-3">
-        {getPrintJobError(printJob) ? (
-          <p className="rounded-card border border-danger/40 bg-danger/10 p-2 text-xs text-danger">
-            {getPrintJobError(printJob)}
+    <article
+      className={cn(
+        "rounded-lg border p-3",
+        status === "failed"
+          ? "border-[#7D3932] bg-[#2B1D1B]"
+          : "border-[#3A3632] bg-[#1B1917]"
+      )}
+    >
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <p className="text-base font-black text-[#FFF8F0]">{kindLabel}</p>
+          <p className="mt-1 text-xs font-semibold text-[#8F8982]">
+            {getPrinterStationName(getPrintJobPrinterStation(printJob))}
           </p>
-        ) : null}
-        <details className="rounded-card border bg-surface/75 p-3 text-xs text-muted-foreground">
-          <summary className="cursor-pointer font-semibold text-foreground">
-            {t("kitchen.printablePayload")}
-          </summary>
-          <pre className="mt-3 whitespace-pre-wrap font-mono text-[0.7rem] leading-relaxed">
-            {printableText || t("kitchen.printablePayloadEmpty")}
-          </pre>
-        </details>
-        <div className="flex flex-wrap gap-2">
-          <Button
-            type="button"
-            size="sm"
-            disabled={!printJobId || !canPrint || actionPending}
-            onClick={() => printJobId && onMarkPrinted(printJobId)}
-          >
-            <CheckCircle2 className="size-4" aria-hidden="true" />
-            {t("actions.printed")}
-          </Button>
-          <Button
-            type="button"
-            size="sm"
-            variant="secondary"
-            disabled={!printJobId || !canPrint || actionPending}
-            onClick={() => printJobId && onMarkFailed(printJobId)}
-          >
-            <XCircle className="size-4" aria-hidden="true" />
-            {t("actions.failed")}
-          </Button>
-          <Button
-            type="button"
-            size="sm"
-            variant="ghost"
-            disabled={!printJobId || !canRetry || actionPending}
-            onClick={() => printJobId && onRetry(printJobId)}
-          >
-            <RefreshCw className="size-4" aria-hidden="true" />
-            {t("actions.retry")}
-          </Button>
+          <p className="mt-1 text-[10px] text-[#77716B]">
+            {formatDateTime(getPrintJobCreatedAt(printJob))}
+          </p>
         </div>
-      </CardContent>
-    </Card>
+        <span
+          className={cn(
+            "shrink-0 rounded-full border px-2.5 py-1 text-[10px] font-black uppercase",
+            status === "failed"
+              ? "border-[#8D3E35] bg-[#3D211E] text-[#FFAAA0]"
+              : status === "printed"
+                ? "border-[#3F6B47] bg-[#1D3323] text-[#A9D7B0]"
+                : "border-[#8A682A] bg-[#352B16] text-[#F7CD73]"
+          )}
+        >
+          {statusLabel}
+        </span>
+      </div>
+
+      {getPrintJobError(printJob) ? (
+        <p className="mt-3 rounded-md border border-[#8D3E35] bg-[#3D211E] p-2 text-xs font-bold text-[#FFAAA0]">
+          {getPrintJobError(printJob)}
+        </p>
+      ) : null}
+
+      <details className="mt-3 rounded-md border border-[#34302D] bg-[#151412] p-3 text-xs text-[#8E8882]">
+        <summary className="cursor-pointer font-bold text-[#DAD3CC]">
+          {t("kitchen.printablePayload")}
+        </summary>
+        <pre className="mt-3 max-h-52 overflow-auto whitespace-pre-wrap font-mono text-[0.7rem] leading-relaxed text-[#BFB7AF]">
+          {printableText || t("kitchen.printablePayloadEmpty")}
+        </pre>
+      </details>
+
+      <div className="mt-3 grid gap-2 sm:grid-cols-3">
+        <Button
+          type="button"
+          size="sm"
+          disabled={!printJobId || !canPrint || actionPending}
+          onClick={() => printJobId && onMarkPrinted(printJobId)}
+          className="min-h-10 bg-[#29412F] font-black text-[#BDE2C4] hover:bg-[#34513B]"
+        >
+          <CheckCircle2 className="size-4" aria-hidden="true" />
+          {t("actions.printed")}
+        </Button>
+        <Button
+          type="button"
+          size="sm"
+          variant="secondary"
+          disabled={!printJobId || !canPrint || actionPending}
+          onClick={() => printJobId && onMarkFailed(printJobId)}
+          className="min-h-10 border-[#67403A] bg-[#2B1D1B] font-bold text-[#F0A49B] hover:bg-[#37211F]"
+        >
+          <XCircle className="size-4" aria-hidden="true" />
+          {t("actions.failed")}
+        </Button>
+        <Button
+          type="button"
+          size="sm"
+          variant="ghost"
+          disabled={!printJobId || !canRetry || actionPending}
+          onClick={() => printJobId && onRetry(printJobId)}
+          className="min-h-10 border border-[#46413C] bg-[#23211F] font-bold text-[#E7E0D8] hover:bg-[#2D2925]"
+        >
+          <RefreshCw className="size-4" aria-hidden="true" />
+          {t("actions.retry")}
+        </Button>
+      </div>
+    </article>
   );
 }
 
@@ -399,6 +489,7 @@ function KdsFilterBar({
   onStationChange: (station: PreparationStation) => void;
   onStatusChange: (status: string) => void;
 }) {
+  const t = useTranslations("staff");
   const stationOptions: PreparationStation[] = [
     "all",
     "barista",
@@ -406,32 +497,64 @@ function KdsFilterBar({
     "dessert"
   ];
 
+  const stationLabel = (value: PreparationStation) => {
+    if (value === "barista") return t("kitchen.stationBarista");
+    if (value === "kitchen") return t("kitchen.stationKitchen");
+    if (value === "dessert") return t("kitchen.stationDessert");
+    return t("kitchen.stationAll");
+  };
+
+  const statusLabel = (value: string) => {
+    const labels: Record<string, string> = {
+      all: t("kitchen.statusAll"),
+      queued: t("kitchen.ticketStatusQueued"),
+      in_progress: t("kitchen.ticketStatusInProgress"),
+      ready: t("kitchen.ticketStatusReady"),
+      served: t("kitchen.ticketStatusServed"),
+      pending: t("kitchen.printStatusPending"),
+      printing: t("kitchen.printStatusPrinting"),
+      printed: t("kitchen.printStatusPrinted"),
+      failed: t("kitchen.printStatusFailed"),
+      cancelled: t("kitchen.printStatusCancelled")
+    };
+
+    return labels[value] ?? value;
+  };
+
   return (
-    <div className="flex flex-wrap items-center justify-between gap-3 rounded-card border bg-surface/75 p-3">
-      <div className="flex flex-wrap gap-2">
+    <div className="grid min-w-0 gap-2 border border-[#302D29] bg-[#171513] p-3 lg:grid-cols-[1fr_auto]">
+      <div className="flex max-w-full min-w-0 gap-2 overflow-x-auto pb-1">
         {stationOptions.map((option) => (
-          <Button
+          <button
             key={option}
             type="button"
-            size="sm"
-            variant={station === option ? "primary" : "secondary"}
             onClick={() => onStationChange(option)}
+            className={cn(
+              "min-h-9 shrink-0 rounded-md border px-3 text-xs font-bold transition",
+              station === option
+                ? "border-[#C68A4A] bg-[#C68A4A] text-[#17110C]"
+                : "border-[#3E3A36] bg-[#1B1917] text-[#AAA39C] hover:border-[#5A544E] hover:text-[#F1EAE3]"
+            )}
           >
-            {humanizeStatus(option)}
-          </Button>
+            {stationLabel(option)}
+          </button>
         ))}
       </div>
-      <div className="flex flex-wrap gap-2">
+      <div className="flex max-w-full min-w-0 gap-2 overflow-x-auto pb-1">
         {statusOptions.map((option) => (
-          <Button
+          <button
             key={option}
             type="button"
-            size="sm"
-            variant={status === option ? "primary" : "ghost"}
             onClick={() => onStatusChange(option)}
+            className={cn(
+              "min-h-9 shrink-0 rounded-md border px-3 text-xs font-bold transition",
+              status === option
+                ? "border-[#6E624F] bg-[#2B2723] text-[#FFF8F0]"
+                : "border-[#34312E] bg-[#151412] text-[#8E8882] hover:border-[#4A4540] hover:text-[#DAD3CC]"
+            )}
           >
-            {humanizeStatus(option)}
-          </Button>
+            {statusLabel(option)}
+          </button>
         ))}
       </div>
     </div>
@@ -494,17 +617,6 @@ function KitchenDashboardActions() {
 
   return (
     <>
-      <Link href="/staff" className={buttonVariants({ variant: "ghost" })}>
-        <LayoutDashboard className="size-4" aria-hidden="true" />
-        {t("actions.overview")}
-      </Link>
-      <Link
-        href="/staff/cashier"
-        className={buttonVariants({ variant: "ghost" })}
-      >
-        <Receipt className="size-4" aria-hidden="true" />
-        {t("actions.cashier")}
-      </Link>
       <StaffBranchSelector
         access={effectiveAccess}
         selectedBranchId={selectedBranchId}
@@ -524,13 +636,31 @@ function KitchenDashboardActions() {
 
 function KitchenDashboardContent() {
   const t = useTranslations("staff");
+  const activityEventLabel = (eventType: string) => {
+    const labels: Record<string, string> = {
+      preparation_task_created: t("kitchen.activityEventTaskCreated"),
+      preparation_task_started: t("kitchen.activityEventTaskStarted"),
+      preparation_task_ready: t("kitchen.activityEventTaskReady"),
+      preparation_task_cancelled: t("kitchen.activityEventTaskCancelled"),
+      kitchen_ticket_created: t("kitchen.activityEventTicketCreated"),
+      print_job_created: t("kitchen.activityEventPrintCreated"),
+      print_job_failed: t("kitchen.activityEventPrintFailed"),
+      print_job_printed: t("kitchen.activityEventPrintPrinted")
+    };
+
+    return labels[eventType] ?? humanizeStatus(eventType);
+  };
+  const activityChannelLabel = (channel: string) =>
+    channel === "preparation"
+      ? t("kitchen.activityPreparation")
+      : humanizeStatus(channel);
   const queryClient = useQueryClient();
   const accessToken = useStaffAuthStore((state) => state.accessToken);
   const staffUser = useStaffAuthStore((state) => state.staffUser);
   const effectiveAccess = useStaffAuthStore((state) => state.effectiveAccess);
   const selectedBranchId = useStaffAuthStore((state) => state.selectedBranchId);
   const [station, setStation] = useState<PreparationStation>("all");
-  const [status, setStatus] = useState<PreparationTaskStatus>("pending");
+  const [status, setStatus] = useState<PreparationTaskStatus>("all");
   const [mode, setMode] = useState<KdsMode>("tasks");
   const [ticketStatus, setTicketStatus] = useState("all");
   const [printStatus, setPrintStatus] = useState("pending");
@@ -858,101 +988,79 @@ function KitchenDashboardContent() {
 
   return (
     <div className="grid gap-5">
-      <section className="grid gap-4 md:grid-cols-5">
-        <MetricCard
-          label={t("kitchen.pendingLabel")}
-          value={String(
-            countTasksByStatus(allTasks, (taskStatus) => taskStatus === "pending")
-          )}
-          description={t("kitchen.pendingDescription")}
-          icon={<ChefHat className="size-4" aria-hidden="true" />}
-          tone="warning"
-        />
-        <MetricCard
-          label={t("kitchen.preparingLabel")}
-          value={String(
-            countTasksByStatus(
-              allTasks,
-              (taskStatus) => taskStatus === "preparing"
-            )
-          )}
-          description={t("kitchen.preparingDescription")}
-          icon={<Flame className="size-4" aria-hidden="true" />}
-          tone="primary"
-        />
-        <MetricCard
-          label={t("kitchen.readyTicketsLabel")}
-          value={String(
-            countRecordsByStatus(
-              allTickets,
-              getTicketStatus,
-              (ticketStatusValue) => ticketStatusValue === "ready"
-            )
-          )}
-          description={t("kitchen.readyTicketsDescription")}
-          icon={<CheckCircle2 className="size-4" aria-hidden="true" />}
-          tone="success"
-        />
-        <MetricCard
-          label={t("kitchen.failedPrintLabel")}
-          value={String(
-            countRecordsByStatus(
-              allPrintJobs,
-              getPrintJobStatus,
-              (printJobStatusValue) => printJobStatusValue === "failed"
-            )
-          )}
-          description={t("kitchen.failedPrintDescription")}
-          icon={<Printer className="size-4" aria-hidden="true" />}
-          tone="warning"
-        />
-        <MetricCard
-          label={t("realtime.metricLabel")}
-          value={
-            realtime.state === "connected"
-              ? t("kitchen.realtimeLive")
-              : t("kitchen.realtimeWatch")
-          }
-          description={humanizeStatus(realtime.state)}
-          icon={<Gauge className="size-4" aria-hidden="true" />}
-          tone={realtime.state === "connected" ? "success" : "warning"}
-        />
-      </section>
-
-      <Card variant="quiet">
-        <CardHeader className="gap-4 md:flex md:flex-row md:items-start md:justify-between md:space-y-0">
-          <div>
+      <section className="border border-[#302D29] bg-[#171513]">
+        <div className="flex flex-col gap-3 border-b border-[#2D2A27] p-3 lg:flex-row lg:items-center lg:justify-between">
+          <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-2">
-              <Badge variant="muted">{t("kitchen.badge")}</Badge>
-              <StaffRealtimeStatus
-                state={realtime.state}
-                lastEventType={realtime.lastEventType}
-              />
+              <span className="rounded-full border border-[#45403B] bg-[#23211F] px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.06em] text-[#C8C2BC]">
+                {t("kitchen.badge")}
+              </span>
+              <StaffRealtimeStatus state={realtime.state} />
             </div>
-            <CardTitle className="mt-3">{selectedBranch.name}</CardTitle>
-            <CardDescription>
+            <h2 className="mt-2 truncate text-lg font-black text-[#FFF8F0]">
+              {selectedBranch.name}
+            </h2>
+            <p className="mt-1 max-w-3xl text-xs leading-5 text-[#8E8882]">
               {t("kitchen.viewingDescription", {
                 name:
                   staffUser?.name ||
                   staffUser?.email ||
-                  t("cashier.staffUserFallback"),
+                  t("cashier.staffUserFallback")
               })}
-            </CardDescription>
+            </p>
           </div>
-          <div className="flex flex-wrap gap-2">
-            <KdsModeTabs mode={mode} onChange={setMode} />
-            <Button variant="secondary" onClick={refreshBranch}>
-              <RefreshCw className="size-4" aria-hidden="true" />
-              {t("actions.refreshBranch")}
-            </Button>
+
+          <div className="flex shrink-0 flex-wrap gap-1.5 text-[10px] font-black">
+            <span className="rounded-full border border-[#8A682A] bg-[#352B16] px-2.5 py-1 text-[#F7CD73]">
+              {t("kitchen.statusPending")}{" "}
+              {countTasksByStatus(
+                allTasks,
+                (taskStatus) => taskStatus === "pending"
+              )}
+            </span>
+            <span className="rounded-full border border-[#7A5936] bg-[#33271B] px-2.5 py-1 text-[#E7B46F]">
+              {t("kitchen.statusPreparing")}{" "}
+              {countTasksByStatus(
+                allTasks,
+                (taskStatus) => taskStatus === "preparing"
+              )}
+            </span>
+            <span className="rounded-full border border-[#3F6B47] bg-[#1D3323] px-2.5 py-1 text-[#A9D7B0]">
+              {t("kitchen.readyTicketsLabel")}{" "}
+              {countRecordsByStatus(
+                allTickets,
+                getTicketStatus,
+                (ticketStatusValue) => ticketStatusValue === "ready"
+              )}
+            </span>
+            <span className="rounded-full border border-[#7D3932] bg-[#3D211E] px-2.5 py-1 text-[#FFAAA0]">
+              {t("kitchen.failedPrintLabel")}{" "}
+              {countRecordsByStatus(
+                allPrintJobs,
+                getPrintJobStatus,
+                (printJobStatusValue) => printJobStatusValue === "failed"
+              )}
+            </span>
           </div>
-        </CardHeader>
-      </Card>
+        </div>
+
+        <div className="flex flex-col gap-2 p-2 sm:flex-row sm:items-center sm:justify-between">
+          <KdsModeTabs mode={mode} onChange={setMode} />
+          <Button
+            variant="secondary"
+            onClick={refreshBranch}
+            className="min-h-10 border-[#3E3A36] bg-[#1B1917] font-bold text-[#DAD3CC] hover:bg-[#24211E]"
+          >
+            <RefreshCw className="size-4" aria-hidden="true" />
+            {t("actions.refreshBranch")}
+          </Button>
+        </div>
+      </section>
 
       <NoticeBanner notice={notice} />
 
       {mode === "tasks" ? (
-        <section className="grid gap-5 xl:grid-cols-[minmax(20rem,27rem)_1fr]">
+        <section className="grid gap-5 xl:grid-cols-[minmax(0,1.55fr)_minmax(28rem,0.85fr)]">
           <KitchenTaskBoard
             tasks={tasks}
             station={station}
@@ -1126,20 +1234,20 @@ function KitchenDashboardContent() {
               className="rounded-card border bg-surface/75 p-3"
             >
               <p className="text-sm font-semibold text-foreground">
-                {humanizeStatus(getRecordString(event, "type", "event"))}
+                {activityEventLabel(getRecordString(event, "type", "event"))}
               </p>
               <p className="mt-1 text-xs text-muted-foreground">
-                {getRecordString(event, "channel", "system")} /{" "}
+                {activityChannelLabel(getRecordString(event, "channel", "system"))} /{" "}
                 {formatDateTime(getRecordString(event, "createdAt"))}
               </p>
               {getRecordString(event, "preparationTaskId") ? (
                 <p className="mt-2 text-xs text-muted-foreground">
-                  Task {shortId(getRecordString(event, "preparationTaskId"))}
+                  {t("kitchen.activityTaskLabel")} {shortId(getRecordString(event, "preparationTaskId"))}
                 </p>
               ) : null}
               {getRecordString(event, "orderId") ? (
                 <p className="mt-1 text-xs text-muted-foreground">
-                  Order {shortId(getRecordString(event, "orderId"))}
+                  {t("kitchen.activityOrderLabel")} {shortId(getRecordString(event, "orderId"))}
                 </p>
               ) : null}
             </div>
@@ -1154,7 +1262,7 @@ export function KitchenDashboardPage() {
   const t = useTranslations("staff");
 
   return (
-    <StaffPageShell
+    <KitchenStaffShell
       title={t("kitchen.dashboardTitle")}
       description={t("kitchen.dashboardDescription")}
       actions={<KitchenDashboardActions />}
@@ -1162,6 +1270,6 @@ export function KitchenDashboardPage() {
       <StaffAuthGate requiredPermissions={["preparation.read"]} branchScoped>
         <KitchenDashboardContent />
       </StaffAuthGate>
-    </StaffPageShell>
+    </KitchenStaffShell>
   );
 }

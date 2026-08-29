@@ -86,6 +86,12 @@ export function useStaffBranchRealtime(
           queryKey: staffQueryKeys.preparationTasks(branchId)
         });
         void queryClient.invalidateQueries({
+          queryKey: staffQueryKeys.kitchenTickets(branchId)
+        });
+        void queryClient.invalidateQueries({
+          queryKey: staffQueryKeys.printJobs(branchId)
+        });
+        void queryClient.invalidateQueries({
           queryKey: staffQueryKeys.staffWaiterCalls(branchId)
         });
         void queryClient.invalidateQueries({

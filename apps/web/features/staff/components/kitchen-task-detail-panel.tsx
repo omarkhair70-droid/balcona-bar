@@ -84,7 +84,7 @@ export function KitchenTaskDetailPanel({
     (status === "pending" || status === "preparing") && parentAllowsCancel;
 
   return (
-    <Card variant="glass" padding="lg" className="min-h-[34rem]">
+    <Card variant="glass" padding="lg" className="min-h-[34rem] min-w-0 border-[#302D29] bg-[#171614] shadow-none">
       <CardHeader>
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
@@ -110,26 +110,26 @@ export function KitchenTaskDetailPanel({
         ) : null}
         {task ? (
           <>
-            <div className="rounded-card border bg-surface/75 p-4">
+            <div className="rounded-md border border-[#3A3632] bg-[#1C1A18] p-4">
               <div className="flex flex-wrap items-start justify-between gap-4">
                 <div>
-                  <p className="text-lg font-semibold text-foreground">
+                  <p className="text-lg font-semibold text-[#FFF8F0]">
                     {getTaskItemName(task)}
                   </p>
-                  <p className="mt-1 text-sm text-muted-foreground">
+                  <p className="mt-1 text-sm text-[#8E8882]">
                     {getTableLabel(getTaskTable(task), getTaskFloor(task))}
                   </p>
                 </div>
                 <div className="text-end">
-                  <p className="text-sm font-semibold text-foreground">
+                  <p className="text-sm font-semibold text-[#FFF8F0]">
                     {humanizeStatus(getTaskStation(task))}
                   </p>
-                  <p className="mt-1 text-xs text-muted-foreground">
+                  <p className="mt-1 text-xs text-[#8E8882]">
                     {t("tasks.qty", { count: getTaskQuantity(task) })}
                   </p>
                 </div>
               </div>
-              <div className="mt-4 grid gap-2 text-xs text-muted-foreground sm:grid-cols-2">
+              <div className="mt-4 grid gap-2 text-xs text-[#8E8882] sm:grid-cols-2">
                 <span className="inline-flex items-center gap-1.5">
                   <Hash className="size-3.5" aria-hidden="true" />
                   {getTaskOrderNumber(task) ||
@@ -155,36 +155,36 @@ export function KitchenTaskDetailPanel({
                 </span>
               </div>
               {getTaskNotes(task) ? (
-                <div className="mt-4 rounded-card border border-warning/40 bg-warning/10 p-3 text-sm text-warning">
+                <div className="mt-4 rounded-md border border-[#7A5F2E] bg-[#312716] p-3 text-sm font-bold text-[#F3CC79]">
                   {getTaskNotes(task)}
                 </div>
               ) : null}
             </div>
 
             <section className="grid gap-3">
-              <h3 className="flex items-center gap-2 text-sm font-semibold text-foreground">
-                <ListChecks className="size-4 text-primary" aria-hidden="true" />
+              <h3 className="flex items-center gap-2 text-sm font-semibold text-[#FFF8F0]">
+                <ListChecks className="size-4 text-[#C68A4A]" aria-hidden="true" />
                 {t("tasks.modifiers")}
               </h3>
               {modifiers.length === 0 ? (
-                <p className="rounded-card border border-dashed bg-surface/70 p-4 text-sm text-muted-foreground">
+                <p className="rounded-md border border-dashed border-[#34302D] bg-[#151412] p-4 text-sm text-[#8E8882]">
                   {t("tasks.emptyModifiers")}
                 </p>
               ) : null}
               {modifiers.map((modifier, index) => (
                 <div
                   key={getRecordString(modifier, "id") || String(index)}
-                  className="flex items-center justify-between gap-3 rounded-card border bg-surface/75 p-3"
+                  className="flex items-center justify-between gap-3 rounded-md border border-[#36322E] bg-[#1C1A18] p-3"
                 >
                   <div>
-                    <p className="text-sm font-medium text-foreground">
+                    <p className="text-sm font-medium text-[#FFF8F0]">
                       {getRecordString(
                         modifier,
                         "modifierOptionNameSnapshot",
                         t("tasks.modifierFallback")
                       )}
                     </p>
-                    <p className="mt-1 text-xs text-muted-foreground">
+                    <p className="mt-1 text-xs text-[#8E8882]">
                       {getRecordString(
                         modifier,
                         "modifierGroupNameSnapshot",
@@ -193,7 +193,7 @@ export function KitchenTaskDetailPanel({
                     </p>
                   </div>
                   {getRecordNumber(modifier, "priceDeltaMinorSnapshot") > 0 ? (
-                    <p className="text-xs text-muted-foreground">
+                    <p className="text-xs text-[#8E8882]">
                       +{getRecordNumber(modifier, "priceDeltaMinorSnapshot")}
                     </p>
                   ) : null}
@@ -216,37 +216,39 @@ export function KitchenTaskDetailPanel({
             />
 
             <section className="grid gap-3">
-              <h3 className="text-sm font-semibold text-foreground">
+              <h3 className="text-sm font-semibold text-[#FFF8F0]">
                 {t("tasks.timeline")}
               </h3>
-              <div className="grid gap-2 text-xs text-muted-foreground sm:grid-cols-2">
-                <span>Started {formatDateTime(getTaskStartedAt(task))}</span>
-                <span>Ready {formatDateTime(getTaskReadyAt(task))}</span>
+              <div className="grid gap-2 text-xs text-[#8E8882] sm:grid-cols-2">
+                <span>{t("kitchen.timelineStarted", { date: formatDateTime(getTaskStartedAt(task)) })}</span>
+                <span>{t("kitchen.timelineReady", { date: formatDateTime(getTaskReadyAt(task)) })}</span>
                 <span>
-                  Cancelled {formatDateTime(getTaskCancelledAt(task))}
+                  {t("kitchen.timelineCancelled", {
+                    date: formatDateTime(getTaskCancelledAt(task))
+                  })}
                 </span>
               </div>
               {events.length === 0 ? (
-                <p className="rounded-card border border-dashed bg-surface/70 p-4 text-sm text-muted-foreground">
+                <p className="rounded-md border border-dashed border-[#34302D] bg-[#151412] p-4 text-sm text-[#8E8882]">
                   {t("tasks.emptyEvents")}
                 </p>
               ) : null}
               {events.map((event, index) => (
                 <div
                   key={getRecordString(event, "id") || String(index)}
-                  className="flex items-start justify-between gap-3 rounded-card border bg-surface/75 p-3"
+                  className="flex items-start justify-between gap-3 rounded-md border border-[#36322E] bg-[#1C1A18] p-3"
                 >
                   <div>
-                    <p className="text-sm font-medium text-foreground">
+                    <p className="text-sm font-medium text-[#FFF8F0]">
                       {humanizeStatus(getRecordString(event, "type", "event"))}
                     </p>
-                    <p className="mt-1 text-xs text-muted-foreground">
+                    <p className="mt-1 text-xs text-[#8E8882]">
                       {getRecordString(event, "actorStaffUserId")
-                        ? "staff"
-                        : "system"}
+                        ? t("kitchen.actorStaff")
+                        : t("kitchen.actorSystem")}
                     </p>
                   </div>
-                  <p className="text-xs text-muted-foreground">
+                  <p className="text-xs text-[#8E8882]">
                     {formatDateTime(getRecordString(event, "createdAt"))}
                   </p>
                 </div>
