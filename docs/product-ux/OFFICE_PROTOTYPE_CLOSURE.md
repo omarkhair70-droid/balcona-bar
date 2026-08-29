@@ -1,13 +1,15 @@
 # Balcona Office Prototype Closure
 
-Status: COMPLETE — PROTOTYPE APPROVED
-Date: 2026-08-28
+Status: EVIDENCE-LED V1 — VISUAL GATE PASSED
+Date: 2026-08-29
 PR: #118
-Head: 51d33bc9db9de8cf916269bc11f248609f7c2eff
+Visual gate run: 33225896086
+Evidence artifact: balcona-office-v1-visual-gate
+Artifact digest: sha256:567a526e1e2217f5148edb2520d01526ed3244473dea399d8797a00979296ddc
 
-## What is closed
+## Closed scope
 
-Balcona Office visual/interaction prototype is complete for the current product-UX phase.
+Balcona Office V1 is visually closed for the current product-UX prototype phase.
 
 Covered domains:
 - Home
@@ -22,63 +24,117 @@ Covered domains:
 - Settings
 
 Covered structural behavior:
-- All Locations / single-branch scope
+- All Locations / branch scope
+- domain navigation
+- deep sub-navigation
+- data tables
+- metric bands
+- exception-first Home
+- record investigation drawer
 - Arabic / RTL
-- task-specific sub-navigation
-- Home business-at-a-glance
-- exception-led attention
-- record drill-down drawer
-- contextual actions
-- domain jumps
-- company-default / branch-override concepts where relevant
+- desktop-first layout
+- handheld containment with internal dense-table scrolling
 
-## Backend coverage
+## Reference-led acceptance
 
-The prototype intentionally maps to real Balcona backend capabilities recorded in:
-- BACKEND_FEATURE_REGISTRY.md
-- UX_COVERAGE_GAPS.md
-- INFORMATION_ARCHITECTURE.md
-- SCREEN_BLUEPRINT.md
+The locked Office direction was applied against:
+- Lightspeed Back Office — domain structure and business-grade density
+- Toast management/reporting — high-level decision hierarchy and multi-location management
+- Square Dashboard / Restaurants — interaction and reporting clarity
+- Oracle Simphony — enterprise/property scope and inheritance thinking
+- Balcona product truth — operations, catalog, inventory, money, analytics, experience and settings
 
-No unsupported Reservations / CRM / Labor / generic health score modules were introduced.
+Office passes the intended direction:
 
-## Important boundary
+**business-grade Back Office — calm, dense, professional, analytical, operationally credible, visually quiet**
 
-This prototype is **not production integration**.
+It is not a role dashboard and it is not a colorful generic SaaS template.
 
-It uses representative static data so that:
-- information architecture
-- density
-- hierarchy
-- interaction patterns
-- bilingual behavior
-- domain coverage
+## Manual visual review
 
-can be reviewed before replacing production Staff UI.
+Representative screenshots were reviewed manually at:
+- 1440×1000 desktop
+- 390×844 handheld
 
-Actual API wiring, mutation behavior, permission enforcement, realtime behavior, and production migration happen in the later implementation waves.
+Reviewed states include:
+- company Home
+- branch Home
+- Operations / Orders
+- Operations / Attention
+- Catalog / Availability
+- Inventory / Stock
+- Inventory / Purchase Orders
+- Inventory / Receiving
+- Locations / Floors & Tables
+- Team / Roles & Access
+- Money / Overview
+- Money / Reconciliation
+- Money / Issues
+- Insights / Sales
+- Experience / AI Waiter
+- Settings / Branch Operations
+- Arabic Settings
+- handheld Home
+- handheld Money / Issues
+- handheld record drawer
+- handheld Arabic Money
 
-## Visual direction
+## Defects found and corrected during closure
 
-Office direction is locked:
-- Home: Square-style business-at-a-glance clarity
-- Deep Office: Lightspeed-style Back Office discipline
-- Toast: decision hierarchy
-- Oracle: scope/inheritance discipline
-- Balcona: product truth and bilingual identity
+Manual review rejected the original handheld containment even though the first automated gate was green:
 
-## Quality gate
+1. The desktop domain sidebar stacked all ten domains vertically before the content on a 390px screen.
+2. The first compact-rail fix exposed a real CSS min-content containment bug and expanded the page from 390px to 1162px.
 
-Final prototype head passed:
+Final correction:
+- handheld Office uses a compact horizontally scrollable domain rail;
+- desktop retains the 220px domain sidebar;
+- outer grid, rail and aside are explicitly min-width constrained;
+- dense business tables scroll internally;
+- the page itself no longer horizontally overflows;
+- record drawer close control has a localized accessible name.
+
+This is why manual screenshot review remains a mandatory gate after automated QA.
+
+## Automated quality gate
+
+Final Office visual gate passed:
 - web lint
 - web typecheck
 - web production build
+- company/branch scope switch
+- desktop search entry
+- Operations states
+- record detail drawer
+- Catalog availability
+- Inventory stock / purchase orders / receiving
+- Locations / floors & tables
+- Team roles
+- Money overview / reconciliation / issues
+- Insights
+- Experience
+- Settings
+- Arabic / RTL
+- handheld containment
+- internal dense-table scrolling
+- handheld drawer
+- no page-level horizontal overflow
+
+Existing PR quality also includes:
 - API build
 - API tests
 - Docker API image
 - Docker Web image
 
-Office prototype phase is closed.
+## Product boundary
+
+This remains a high-fidelity prototype with representative data.
+
+Production integration must wire the approved Office shell and domain hierarchy to the real branch/company APIs, permissions, mutations, query state and realtime behavior without reopening visual architecture.
+
+## Gate decision
+
+**OFFICE V1 VISUAL GATE: PASS**
 
 Next surface:
-**Balcona Service — Cashier + Waiter/Floor**
+**Balcona Setup — ux/setup-prototype**
