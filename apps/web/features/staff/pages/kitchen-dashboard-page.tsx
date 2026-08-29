@@ -61,7 +61,7 @@ import {
   getTaskOrderId,
   getTaskStatus
 } from "@/features/staff/preparation-data";
-import { StaffPageShell } from "@/features/staff/staff-page-shell";
+import { KitchenStaffShell } from "@/features/staff/kitchen-staff-shell";
 import {
   formatDateTime,
   getRecordString,
@@ -1154,7 +1154,7 @@ export function KitchenDashboardPage() {
   const t = useTranslations("staff");
 
   return (
-    <StaffPageShell
+    <KitchenStaffShell
       title={t("kitchen.dashboardTitle")}
       description={t("kitchen.dashboardDescription")}
       actions={<KitchenDashboardActions />}
@@ -1162,6 +1162,6 @@ export function KitchenDashboardPage() {
       <StaffAuthGate requiredPermissions={["preparation.read"]} branchScoped>
         <KitchenDashboardContent />
       </StaffAuthGate>
-    </StaffPageShell>
+    </KitchenStaffShell>
   );
 }
