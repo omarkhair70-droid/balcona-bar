@@ -1,0 +1,26 @@
+name: Oracle Production Preflight
+
+on:
+  push:
+    branches:
+      - production/oracle-runtime-qa
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  oracle-preflight:
+    name: Oracle API + CORS Preflight
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Run Oracle production preflight
+        env:
+          API_ORIGIN: https://balcona-api.158.101.254.30.sslip.io
+          WEB_ORIGIN: https://balcona.158.101.254.30.sslip.io
+        run: bash scripts/deploy/oracle-production-preflight.sh
