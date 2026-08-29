@@ -64,7 +64,8 @@ import {
   shortId
 } from "@/features/staff/staff-format";
 import { useStaffBranchRealtime } from "@/features/staff/use-staff-branch-realtime";
-import { useTranslations } from "@/lib/i18n/i18n-provider";\nimport { cn } from "@/lib/utils/cn";
+import { useTranslations } from "@/lib/i18n/i18n-provider";
+import { cn } from "@/lib/utils/cn";
 import {
   cancelPreparationTask,
   getBranchKitchenTickets,
