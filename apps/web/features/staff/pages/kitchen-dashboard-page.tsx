@@ -17,7 +17,6 @@ import {
 } from "lucide-react";
 import { useMemo, useState } from "react";
 import { CopyDebugReportButton } from "@/components/debug/copy-debug-report-button";
-import { Badge } from "@/components/ui/badge";
 import { Button, buttonVariants } from "@/components/ui/button";
 import {
   Card,
