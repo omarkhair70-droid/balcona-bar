@@ -1052,7 +1052,7 @@
       "experienceMedia": "استخدامات الوسائط",
       "experienceTheme": "رموز التصميم",
       "settingsTitle": "الإعدادات",
-      "settingsDescription": "ملف الشركة والفرع والإعدادات التشغيلية الحالية من إعدادات الـOnboarding الحقيقية.",
+      "settingsDescription": "ملف الشركة والفرع والإعدادات التشغيلية الحالية من بيانات الإعداد الفعلية.",
       "settingsCompany": "الشركة",
       "settingsBranch": "الفرع",
       "settingsAddress": "العنوان",
@@ -1077,7 +1077,11 @@
       "configured": "مضبوط",
       "notConfigured": "غير مضبوط",
       "enabled": "مفعّل",
-      "disabled": "متوقف"
+      "disabled": "متوقف",
+      "featureAiWaiter": "النادل الذكي",
+      "featureInventory": "المخزون",
+      "featureOnlinePayments": "الدفع أونلاين",
+      "featureSmartCashier": "الكاشير الذكي"
     }
   },
   "cashier": {
@@ -1318,6 +1322,31 @@
       "profileAvailable": "يتوفر ملف تعريف {source}",
       "title": "جاهزية المنيو والتجربة",
       "visibleMenuItems": "عناصر المنيو المرئية"
+    },
+    "statusLabels": {
+      "submitted": "مُرسل",
+      "cashierAccepted": "مقبول من الكاشير",
+      "preparing": "قيد التحضير",
+      "ready": "جاهز",
+      "served": "تم التقديم",
+      "completed": "مكتمل",
+      "paid": "مدفوع",
+      "paymentPending": "بانتظار الدفع",
+      "open": "مفتوح",
+      "closed": "مغلق",
+      "resolved": "تم الحل",
+      "pending": "معلق",
+      "inProgress": "قيد التنفيذ",
+      "printed": "تمت الطباعة",
+      "failed": "فشل",
+      "queued": "في الانتظار",
+      "cash": "نقدي",
+      "cardPos": "بطاقة عبر نقطة البيع",
+      "walletManual": "محفظة",
+      "other": "أخرى",
+      "customerRequestedHuman": "العميل طلب موظفًا",
+      "lowConfidence": "ثقة منخفضة",
+      "ownerDailyReport": "التقرير اليومي للمالك"
     }
   },
   "platform": {
