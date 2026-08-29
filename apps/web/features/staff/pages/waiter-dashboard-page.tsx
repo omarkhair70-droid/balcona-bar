@@ -796,15 +796,17 @@ function WaiterDashboardContent() {
 
       <NoticeBanner notice={notice} />
 
-      <ServiceFloorBoard
-        overview={floorOverviewQuery.data}
-        isLoading={floorOverviewQuery.isPending}
-        error={floorOverviewQuery.error ?? undefined}
-        selectedSessionId={selectedSessionId}
-        onSelectSession={setUserSelectedSessionId}
-      />
+      <div id="floor" className="scroll-mt-36">
+        <ServiceFloorBoard
+          overview={floorOverviewQuery.data}
+          isLoading={floorOverviewQuery.isPending}
+          error={floorOverviewQuery.error ?? undefined}
+          selectedSessionId={selectedSessionId}
+          onSelectSession={setUserSelectedSessionId}
+        />
+      </div>
 
-      <section className="grid gap-5 xl:grid-cols-[minmax(20rem,28rem)_1fr]">
+      <section id="attention" className="scroll-mt-36 grid gap-5 xl:grid-cols-[minmax(20rem,28rem)_1fr]">
         <AttentionQueue
           attentionQueue={attentionQueue}
           status={attentionStatus}
