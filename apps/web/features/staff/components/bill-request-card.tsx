@@ -196,12 +196,12 @@ export function BillRequestCard({
             : "";
 
   return (
-    <div className="rounded-card border bg-surface/75 p-4">
+    <div className="rounded-md border border-[#3B3028] bg-[#211A15] p-4">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <div className="flex flex-wrap items-center gap-2">
             <ReceiptText className="size-4 text-primary" aria-hidden="true" />
-            <p className="text-sm font-semibold text-foreground">
+            <p className="text-sm font-semibold text-[#F8EDDF]">
               {billId
                 ? t("billRequests.billFallback", {
                     billNumber: getBillNumber(billRequest),
@@ -211,7 +211,7 @@ export function BillRequestCard({
                   })}
             </p>
           </div>
-          <p className="mt-2 text-xs text-muted-foreground">
+          <p className="mt-2 text-xs text-[#91857A]">
             {getTableLabel(table, floor)}
           </p>
         </div>
@@ -222,32 +222,32 @@ export function BillRequestCard({
 
       <dl className="mt-4 grid grid-cols-2 gap-3 text-xs md:grid-cols-4">
         <div>
-          <dt className="text-muted-foreground">{t("billRequests.subtotal")}</dt>
-          <dd className="mt-1 font-semibold text-foreground">
+          <dt className="text-[#91857A]">{t("billRequests.subtotal")}</dt>
+          <dd className="mt-1 font-semibold text-[#F8EDDF]">
             {formatMoney(subtotalMinor, currency)}
           </dd>
         </div>
         <div>
-          <dt className="text-muted-foreground">{t("billRequests.total")}</dt>
-          <dd className="mt-1 font-semibold text-foreground">
+          <dt className="text-[#91857A]">{t("billRequests.total")}</dt>
+          <dd className="mt-1 font-semibold text-[#F8EDDF]">
             {formatMoney(totalMinor, currency)}
           </dd>
         </div>
         <div>
-          <dt className="text-muted-foreground">{t("billRequests.paid")}</dt>
-          <dd className="mt-1 font-semibold text-foreground">
+          <dt className="text-[#91857A]">{t("billRequests.paid")}</dt>
+          <dd className="mt-1 font-semibold text-[#F8EDDF]">
             {formatMoney(paidMinor, currency)}
           </dd>
         </div>
         <div>
-          <dt className="text-muted-foreground">{t("billRequests.balance")}</dt>
-          <dd className="mt-1 font-semibold text-foreground">
+          <dt className="text-[#91857A]">{t("billRequests.balance")}</dt>
+          <dd className="mt-1 font-semibold text-[#F8EDDF]">
             {formatMoney(balanceDueMinor, currency)}
           </dd>
         </div>
       </dl>
 
-      <p className="mt-4 text-xs text-muted-foreground">
+      <p className="mt-4 text-xs text-[#91857A]">
         {t(orderCount === 1 ? "billRequests.requestedAtOne" : "billRequests.requestedAt", {
           date: formatDateTime(getBillRequestCreatedAt(billRequest)),
           count: orderCount,
@@ -255,8 +255,8 @@ export function BillRequestCard({
       </p>
 
       {lines.length > 0 ? (
-        <div className="mt-4 rounded-card border bg-background/40 p-3">
-          <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+        <div className="mt-4 rounded-md border border-[#3A3028] bg-[#18130F] p-3">
+          <p className="text-xs font-semibold uppercase tracking-wide text-[#91857A]">
             {t("billRequests.billLines")}
           </p>
           <div className="mt-3 grid gap-2">
@@ -266,7 +266,7 @@ export function BillRequestCard({
                 className="flex items-start justify-between gap-3 text-sm"
               >
                 <div>
-                  <p className="font-medium text-foreground">
+                  <p className="font-medium text-[#F8EDDF]">
                     {getRecordNumber(line, "quantity", 1)} x{" "}
                     {getRecordString(
                       line,
@@ -275,7 +275,7 @@ export function BillRequestCard({
                     )}
                   </p>
                   {getRecordNumber(line, "modifiersTotalMinor") > 0 ? (
-                    <p className="mt-1 text-xs text-muted-foreground">
+                    <p className="mt-1 text-xs text-[#91857A]">
                       {t("billRequests.includesModifiers", {
                         price: formatMoney(
                           getRecordNumber(line, "modifiersTotalMinor"),
@@ -285,7 +285,7 @@ export function BillRequestCard({
                     </p>
                   ) : null}
                 </div>
-                <p className="shrink-0 font-semibold text-foreground">
+                <p className="shrink-0 font-semibold text-[#F8EDDF]">
                   {formatMoney(
                     getRecordNumber(line, "lineTotalMinor"),
                     getRecordString(line, "currency", currency),
@@ -298,7 +298,7 @@ export function BillRequestCard({
       ) : null}
 
       {receipt ? (
-        <div className="mt-4 rounded-card border border-success bg-success/10 p-3 text-sm text-success">
+        <div className="mt-4 rounded-md border border-[#456144] bg-[#213022] p-3 text-sm text-success">
           {t("billRequests.receiptReady", {
             receiptNumber: getRecordString(
               receipt,
@@ -313,7 +313,7 @@ export function BillRequestCard({
       ) : null}
 
       {manualPayments.length > 0 ? (
-        <div className="mt-3 text-xs text-muted-foreground">
+        <div className="mt-3 text-xs text-[#91857A]">
           {t(
             manualPayments.length === 1
               ? "billRequests.manualPaymentsRecordedOne"
@@ -324,8 +324,8 @@ export function BillRequestCard({
       ) : null}
 
       {onlinePaymentIntents.length > 0 ? (
-        <div className="mt-3 rounded-card border bg-background/40 p-3 text-xs text-muted-foreground">
-          <p className="font-semibold text-foreground">
+        <div className="mt-3 rounded-md border border-[#3A3028] bg-[#18130F] p-3 text-xs text-[#91857A]">
+          <p className="font-semibold text-[#F8EDDF]">
             {t("billRequests.onlinePayments")}
           </p>
           <div className="mt-2 grid gap-1">
@@ -345,7 +345,7 @@ export function BillRequestCard({
         </div>
       ) : null}
 
-      <div className="mt-4 flex flex-wrap gap-2">
+      <div className="mt-4 flex flex-wrap gap-2 border-t border-[#342A23] pt-3">
         <Button
           size="sm"
           variant="secondary"
@@ -366,7 +366,7 @@ export function BillRequestCard({
         </Button>
       </div>
       {acknowledgeDisabledReason || presentDisabledReason ? (
-        <div className="mt-3 grid gap-1 text-xs text-muted-foreground">
+        <div className="mt-3 grid gap-1 text-xs text-[#91857A]">
           {acknowledgeDisabledReason ? (
             <p>{acknowledgeDisabledReason}</p>
           ) : null}
@@ -375,14 +375,14 @@ export function BillRequestCard({
       ) : null}
       {paymentDisabledReason &&
       (!billId || balanceDueMinor <= 0 || !canRecordPayment) ? (
-        <div className="mt-3 rounded-card border bg-background/40 p-3 text-xs text-muted-foreground">
+        <div className="mt-3 rounded-md border border-[#3A3028] bg-[#18130F] p-3 text-xs text-[#91857A]">
           {paymentDisabledReason}
         </div>
       ) : null}
 
       {billId && balanceDueMinor > 0 ? (
         <form
-          className="mt-4 grid gap-3 rounded-card border bg-background/40 p-3"
+          className="mt-4 grid gap-3 rounded-md border border-[#47392E] bg-[#18130F] p-3"
           onSubmit={(event) => {
             event.preventDefault();
 
@@ -399,7 +399,7 @@ export function BillRequestCard({
           }}
         >
           <div className="flex flex-wrap items-center justify-between gap-2">
-            <p className="text-sm font-semibold text-foreground">
+            <p className="text-sm font-semibold text-[#F8EDDF]">
               {t("billRequests.manualPayment")}
             </p>
             <Badge
@@ -415,7 +415,7 @@ export function BillRequestCard({
             </Badge>
           </div>
           <div className="grid gap-3 md:grid-cols-3">
-            <label className="grid gap-1 text-xs font-medium text-muted-foreground">
+            <label className="grid gap-1 text-xs font-medium text-[#91857A]">
               {t("billRequests.method")}
               <select
                 value={paymentMethod}
@@ -424,7 +424,7 @@ export function BillRequestCard({
                     event.target.value as RecordManualPaymentPayload["method"],
                   )
                 }
-                className="h-10 rounded-button border border-input bg-background px-3 text-sm text-foreground"
+                className="h-10 rounded-md border border-input bg-background px-3 text-sm text-[#F8EDDF]"
               >
                 {paymentMethods.map((method) => (
                   <option key={method.value} value={method.value}>
@@ -433,7 +433,7 @@ export function BillRequestCard({
                 ))}
               </select>
             </label>
-            <label className="grid gap-1 text-xs font-medium text-muted-foreground">
+            <label className="grid gap-1 text-xs font-medium text-[#91857A]">
               {t("billRequests.amount")}
               <Input
                 inputMode="decimal"
@@ -442,7 +442,7 @@ export function BillRequestCard({
                 placeholder={minorToInput(balanceDueMinor)}
               />
             </label>
-            <label className="grid gap-1 text-xs font-medium text-muted-foreground">
+            <label className="grid gap-1 text-xs font-medium text-[#91857A]">
               {t("billRequests.reference")}
               <Input
                 value={reference}
@@ -451,7 +451,7 @@ export function BillRequestCard({
               />
             </label>
           </div>
-          <label className="grid gap-1 text-xs font-medium text-muted-foreground">
+          <label className="grid gap-1 text-xs font-medium text-[#91857A]">
             {t("billRequests.note")}
             <Input
               value={note}
@@ -460,14 +460,14 @@ export function BillRequestCard({
             />
           </label>
           {!paymentAmountMatchesBalance ? (
-            <div className="rounded-card border border-warning bg-warning/10 p-3 text-xs text-warning">
+            <div className="rounded-md border border-[#7D5D2C] bg-[#392B18] p-3 text-xs text-warning">
               {t("billRequests.exactBalanceWarning")}
             </div>
           ) : null}
           {paymentError && isPaymentPending ? (
             <div
               role="alert"
-              className="rounded-card border border-danger bg-danger/10 p-3 text-xs text-danger"
+              className="rounded-md border border-[#7A3F3A] bg-[#3A211F] p-3 text-xs text-danger"
             >
               {formatErrorMessage(paymentError)}
             </div>
