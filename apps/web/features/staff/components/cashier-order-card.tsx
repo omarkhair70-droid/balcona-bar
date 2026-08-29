@@ -52,53 +52,53 @@ export function CashierOrderCard({
       aria-pressed={selected}
       onClick={() => orderId && onSelect(orderId)}
       className={cn(
-        "w-full rounded-card border bg-surface/75 p-4 text-start shadow-card transition hover:border-primary/55 hover:bg-surface",
-        selected ? "border-primary/70 bg-primary/10" : "border-border"
+        "w-full rounded-md border p-3 text-start transition",
+        selected
+          ? "border-[#8A6239] bg-[#34271E]"
+          : "border-[#3B3028] bg-[#211A15] hover:border-[#554238] hover:bg-[#292019]"
       )}
     >
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <div className="flex flex-wrap items-center gap-2">
-            <ReceiptText className="size-4 text-primary" aria-hidden="true" />
-            <p className="text-sm font-semibold text-foreground">
+          <div className="flex items-center gap-2">
+            <ReceiptText className="size-4 shrink-0 text-[#C68A4A]" aria-hidden="true" />
+            <p className="truncate text-sm font-semibold text-[#FFF4E6]">
               {getOrderNumber(order) ||
                 t("orders.orderFallback", {
                   orderNumber: shortId(orderId)
                 })}
             </p>
           </div>
-          <p className="mt-2 text-xs text-muted-foreground">
+          <p className="mt-1 text-xs text-[#A99B8E]">
             {getTableLabel(table, floor)}
           </p>
         </div>
         <CashierOrderStatusPill status={getOrderStatus(order)} />
       </div>
 
-      <dl className="mt-4 grid grid-cols-2 gap-3 text-xs">
-        <div>
-          <dt className="text-muted-foreground">{t("orders.items")}</dt>
-          <dd className="mt-1 font-semibold text-foreground">
+      <div className="mt-3 flex items-end justify-between gap-3">
+        <div className="min-w-0">
+          <p className="text-[11px] text-[#96897E]">
             {t("orders.itemsQuantity", { count: itemCount, quantity })}
-          </dd>
+          </p>
+          <p className="mt-1 inline-flex items-center gap-1.5 text-[11px] text-[#8F8176]">
+            <Clock3 className="size-3.5" aria-hidden="true" />
+            {formatDateTime(getOrderSubmittedAt(order))}
+          </p>
         </div>
-        <div>
-          <dt className="text-muted-foreground">{t("orders.total")}</dt>
-          <dd className="mt-1 font-semibold text-foreground">
-            {formatMoney(getMinorTotal(totals), getCurrency(totals))}
-          </dd>
-        </div>
-      </dl>
-
-      <div className="mt-4 flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
-        <span className="inline-flex items-center gap-1.5">
-          <Clock3 className="size-3.5" aria-hidden="true" />
-          {formatDateTime(getOrderSubmittedAt(order))}
-        </span>
-        {source ? <span>{source}</span> : null}
+        <strong className="shrink-0 text-sm text-[#FFF4E6]">
+          {formatMoney(getMinorTotal(totals), getCurrency(totals))}
+        </strong>
       </div>
 
+      {source ? (
+        <p className="mt-2 text-[10px] uppercase tracking-[0.08em] text-[#80746A]">
+          {source}
+        </p>
+      ) : null}
+
       {note ? (
-        <p className="mt-3 line-clamp-2 rounded-card border border-warning/40 bg-warning/10 p-2 text-xs text-warning">
+        <p className="mt-3 line-clamp-2 rounded-md border border-[#71413A] bg-[#321F1C] p-2 text-xs text-[#E4A199]">
           {note}
         </p>
       ) : null}
