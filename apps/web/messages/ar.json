@@ -671,7 +671,17 @@
       "viewingDescription": "{name} يتابع مهام المحطات المباشرة، تذاكر المطبخ، ومهام الطباعة التشغيلية الناتجة عن الطلبات المقبولة من الكاشير.",
       "shellProductLabel": "مطبخ بلكونة",
       "shellSubtitle": "عمليات التحضير المباشرة",
-      "shellEyebrow": "عمليات المطبخ"
+      "shellEyebrow": "عمليات المطبخ",
+      "boardEyebrow": "بورد الإنتاج",
+      "stationAll": "كل المحطات",
+      "stationBarista": "البار",
+      "stationKitchen": "المطبخ",
+      "stationDessert": "الحلويات",
+      "statusAll": "الكل",
+      "statusPending": "جديد",
+      "statusPreparing": "قيد التحضير",
+      "statusReady": "جاهز",
+      "statusCancelled": "ملغي"
     },
     "navigation": {
       "billing": "الحسابات",
