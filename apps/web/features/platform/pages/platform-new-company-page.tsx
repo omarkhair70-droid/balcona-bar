@@ -6,41 +6,29 @@ import {
   ArrowLeft,
   BadgeCheck,
   Building2,
-  CopyCheck,
-  KeyRound,
-  PlusCircle,
-  QrCode
+  Plus,
+  QrCode,
+  ShieldCheck
 } from "lucide-react";
 import { type FormEvent, useState } from "react";
-import { Badge } from "@/components/ui/badge";
-import { Button, buttonVariants } from "@/components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardFooter,
-  CardHeader,
-  CardTitle
-} from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
 import { PlatformAuthGate } from "@/features/platform/components/platform-auth-gate";
 import { PlatformShell } from "@/features/platform/platform-shell";
 import { formatErrorMessage } from "@/lib/api/error-message";
-import {
-  bootstrapPlatformCompany,
-  getPlatformPlans
-} from "@/lib/api/endpoints";
+import { bootstrapPlatformCompany, getPlatformPlans } from "@/lib/api/endpoints";
 import { platformQueryKeys } from "@/lib/api/query-keys";
-import type {
-  BootstrapCompanyInput,
-  BootstrapCompanyResult
-} from "@/lib/api/types";
-import { useTranslations } from "@/lib/i18n/i18n-provider";
+import type { BootstrapCompanyInput, BootstrapCompanyResult } from "@/lib/api/types";
+import { useI18n } from "@/lib/i18n/i18n-provider";
 import { usePlatformAuthStore } from "@/lib/platform/platform-auth-store";
 import { formatMoney } from "@/features/staff/staff-format";
 
-const selectClassName =
-  "min-h-11 w-full rounded-button border bg-surface px-3 text-sm text-foreground outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/35 disabled:cursor-not-allowed disabled:opacity-60";
+const inputClass =
+  "min-h-10 w-full rounded-md border border-[#D6D6D1] bg-white px-3 text-sm text-[#20201D] outline-none focus:border-[#AAA49B]";
+const labelClass = "grid gap-1.5 text-xs font-semibold text-[#55554F]";
+const panelClass = "rounded-lg border border-[#D9D9D4] bg-white";
+
+function L(locale: "en" | "ar", en: string, ar: string) {
+  return locale === "ar" ? ar : en;
+}
 
 function slugify(value: string) {
   return value
@@ -58,114 +46,74 @@ function planLabel(planCode: string) {
 }
 
 function SuccessPanel({ result }: { result: BootstrapCompanyResult }) {
-  const t = useTranslations("platform");
+  const { locale } = useI18n();
 
   return (
-    <Card variant="accent">
-      <CardHeader>
-        <div className="flex size-11 items-center justify-center rounded-button bg-success/20 text-success">
-          <BadgeCheck className="size-5" aria-hidden="true" />
+    <section className="rounded-lg border border-[#C8D7C8] bg-[#F0F6EF] p-5">
+      <div className="flex items-start gap-3">
+        <div className="flex size-9 shrink-0 items-center justify-center rounded-md bg-[#315638] text-white">
+          <BadgeCheck className="size-5" />
         </div>
-        <CardTitle>{t("onboarding.createdTitle")}</CardTitle>
-        <CardDescription>
-          {t("onboarding.createdDescription", {
-            companyName: result.company.name
-          })}
-        </CardDescription>
-      </CardHeader>
-      <CardContent className="grid gap-4">
-        <div className="grid gap-3 md:grid-cols-3">
-          <div className="rounded-button border bg-surface/70 p-3">
-            <p className="text-xs uppercase text-muted-foreground">
-              {t("onboarding.owner")}
-            </p>
-            <p className="mt-1 font-semibold text-foreground">
-              {result.passwordSetup.ownerEmail}
-            </p>
-          </div>
-          <div className="rounded-button border bg-surface/70 p-3">
-            <p className="text-xs uppercase text-muted-foreground">
-              {t("onboarding.plan")}
-            </p>
-            <p className="mt-1 font-semibold text-foreground">
-              {result.plan.name}
-            </p>
-          </div>
-          <div className="rounded-button border bg-surface/70 p-3">
-            <p className="text-xs uppercase text-muted-foreground">
-              {t("onboarding.branch")}
-            </p>
-            <p className="mt-1 font-semibold text-foreground">
-              {result.branch.name}
-            </p>
-          </div>
-        </div>
-
-        <div className="grid gap-3 md:grid-cols-3">
-          <Link href={result.setupUrl} className={buttonVariants()}>
-            <CopyCheck className="size-4" aria-hidden="true" />
-            {t("actions.staffSetup")}
-          </Link>
-          <Link
-            href={result.billingUrl}
-            className={buttonVariants({ variant: "secondary" })}
-          >
-            {t("actions.billing")}
-          </Link>
-          <Link
-            href={`/platform/companies/${result.companyId}`}
-            className={buttonVariants({ variant: "secondary" })}
-          >
-            {t("actions.companyDetail")}
-          </Link>
-        </div>
-
-        <div className="rounded-card border bg-surface/70 p-4">
-          <p className="font-semibold text-foreground">
-            {t("onboarding.passwordHandoff")}
-          </p>
-          <p className="mt-2 text-sm leading-6 text-muted-foreground">
-            {result.passwordSetup.instructions}
+        <div className="min-w-0">
+          <h2 className="text-base font-semibold">
+            {L(locale, "Company workspace created", "تم إنشاء مساحة عمل الشركة")}
+          </h2>
+          <p className="mt-1 text-xs leading-5 text-[#55705A]">
+            {L(
+              locale,
+              `${result.company.name} is ready for owner password handoff and Setup.`,
+              `${result.company.name} جاهزة لتسليم كلمة مرور المالك وSetup.`
+            )}
           </p>
         </div>
+      </div>
 
-        {result.customerQrExamples.length > 0 ? (
-          <div className="grid gap-3">
-            <div className="flex items-center gap-2">
-              <QrCode className="size-4 text-primary" aria-hidden="true" />
-              <p className="font-semibold text-foreground">
-                {t("onboarding.qrExamples")}
-              </p>
-            </div>
-            <div className="grid gap-2 md:grid-cols-3">
-              {result.customerQrExamples.map((example) => (
-                <Link
-                  key={example.tableId}
-                  href={example.customerUrl}
-                  className="rounded-button border bg-surface/70 p-3 text-sm transition hover:bg-muted"
-                >
-                  <p className="font-semibold text-foreground">
-                    {example.code}
-                  </p>
-                  <p className="mt-1 break-all text-muted-foreground">
-                    {example.qrToken}
-                  </p>
-                </Link>
-              ))}
-            </div>
+      <div className="mt-4 grid gap-3 sm:grid-cols-3">
+        {[
+          [L(locale, "Owner", "المالك"), result.passwordSetup.ownerEmail],
+          [L(locale, "Plan", "الخطة"), result.plan.name],
+          [L(locale, "Branch", "الفرع"), result.branch.name]
+        ].map(([label, value]) => (
+          <div key={label} className="rounded-md border border-[#C8D7C8] bg-white p-3">
+            <p className="text-[10px] font-semibold uppercase tracking-[0.1em] text-[#6B7F6E]">{label}</p>
+            <p className="mt-1 break-words text-sm font-semibold">{value}</p>
           </div>
-        ) : null}
-      </CardContent>
-    </Card>
+        ))}
+      </div>
+
+      <div className="mt-4 flex flex-wrap gap-2">
+        <Link href={result.setupUrl} className="inline-flex min-h-10 items-center rounded-md bg-[#292925] px-3 text-xs font-semibold !text-white">
+          {L(locale, "Open Setup", "افتح Setup")}
+        </Link>
+        <Link href={`/platform/companies/${result.companyId}`} className="inline-flex min-h-10 items-center rounded-md border border-[#B7B7B1] bg-white px-3 text-xs font-semibold">
+          {L(locale, "Company detail", "تفاصيل الشركة")}
+        </Link>
+      </div>
+
+      {result.customerQrExamples.length > 0 ? (
+        <div className="mt-4 border-t border-[#C8D7C8] pt-4">
+          <div className="flex items-center gap-2 text-xs font-semibold">
+            <QrCode className="size-4" />
+            {L(locale, "Starter QR examples", "أمثلة QR المبدئية")}
+          </div>
+          <div className="mt-2 flex flex-wrap gap-2">
+            {result.customerQrExamples.slice(0, 4).map((example) => (
+              <span key={example.tableId} className="rounded-md border border-[#C8D7C8] bg-white px-2.5 py-1.5 text-[11px]">
+                {example.code} · {example.qrToken}
+              </span>
+            ))}
+          </div>
+        </div>
+      ) : null}
+    </section>
   );
 }
 
 function PlatformNewCompanyContent() {
-  const t = useTranslations("platform");
+  const { locale } = useI18n();
   const queryClient = useQueryClient();
   const accessToken = usePlatformAuthStore((state) => state.accessToken);
-  const [createdResult, setCreatedResult] =
-    useState<BootstrapCompanyResult | null>(null);
+  const [createdResult, setCreatedResult] = useState<BootstrapCompanyResult | null>(null);
   const [companyName, setCompanyName] = useState("");
   const [companySlug, setCompanySlug] = useState("");
   const [ownerName, setOwnerName] = useState("");
@@ -173,37 +121,33 @@ function PlatformNewCompanyContent() {
   const [branchName, setBranchName] = useState("");
   const [branchSlug, setBranchSlug] = useState("");
   const [branchAddress, setBranchAddress] = useState("");
-  const [planCode, setPlanCode] =
-    useState<BootstrapCompanyInput["subscription"]["planCode"]>("starter");
+  const [planCode, setPlanCode] = useState<BootstrapCompanyInput["subscription"]["planCode"]>("starter");
   const [subscriptionStatus, setSubscriptionStatus] =
-    useState<NonNullable<BootstrapCompanyInput["subscription"]["status"]>>(
-      "trialing"
-    );
+    useState<NonNullable<BootstrapCompanyInput["subscription"]["status"]>>("trialing");
   const [starterEnabled, setStarterEnabled] = useState(true);
-  const [floorLabel, setFloorLabel] = useState(
-    t("onboarding.defaultFloorLabel")
-  );
+  const [floorLabel, setFloorLabel] = useState(L(locale, "Ground Floor", "الدور الأرضي"));
   const [tablePrefix, setTablePrefix] = useState("T");
   const [startNumber, setStartNumber] = useState(1);
   const [tableCount, setTableCount] = useState(6);
   const [seats, setSeats] = useState(4);
+
   const plansQuery = useQuery({
     queryKey: platformQueryKeys.plans(),
     queryFn: () => getPlatformPlans(accessToken ?? ""),
     enabled: Boolean(accessToken),
     staleTime: 5 * 60_000
   });
+
   const createMutation = useMutation({
     mutationFn: (payload: BootstrapCompanyInput) =>
       bootstrapPlatformCompany(payload, accessToken ?? ""),
     onSuccess: (result) => {
       setCreatedResult(result);
-      queryClient.invalidateQueries({
-        queryKey: platformQueryKeys.companies()
-      });
+      queryClient.invalidateQueries({ queryKey: platformQueryKeys.companies() });
     }
   });
-  const submit = (event: FormEvent<HTMLFormElement>) => {
+
+  function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setCreatedResult(null);
     createMutation.mutate({
@@ -233,310 +177,283 @@ function PlatformNewCompanyContent() {
         seats
       }
     });
-  };
+  }
 
   return (
-    <div className="grid gap-5">
+    <div className="grid gap-4">
       {createdResult ? <SuccessPanel result={createdResult} /> : null}
 
-      <form onSubmit={submit} className="grid gap-5">
-        <section className="grid gap-5 xl:grid-cols-[1fr_22rem]">
-          <div className="grid gap-5">
-            <Card variant="glass" padding="lg">
-              <CardHeader>
-                <Badge variant="muted">{t("onboarding.workspaceBadge")}</Badge>
-                <CardTitle>{t("onboarding.companyTitle")}</CardTitle>
-                <CardDescription>
-                  {t("onboarding.companyDescription")}
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="grid gap-4 md:grid-cols-2">
-                <label className="grid gap-2 text-sm font-medium text-foreground">
-                  {t("onboarding.companyName")}
-                  <Input
+      <form onSubmit={submit} className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_330px]">
+        <section className={panelClass}>
+          <div className="border-b border-[#E7E7E2] px-5 py-4">
+            <span className="inline-flex rounded-full border border-[#D7D7D2] bg-[#F7F7F4] px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.1em] text-[#62625C]">
+              {L(locale, "BOOTSTRAP", "تجهيز جديد")}
+            </span>
+            <h2 className="mt-3 text-xl font-semibold">
+              {L(locale, "Create the tenant foundation", "أنشئ أساس الشركة")}
+            </h2>
+            <p className="mt-1 max-w-2xl text-xs leading-5 text-[#777771]">
+              {L(
+                locale,
+                "Company, first branch, owner handoff and optional starter tables in one bounded backend transaction.",
+                "الشركة والفرع الأول وتسليم المالك وترابيزات البداية الاختيارية في معاملة backend واحدة محددة."
+              )}
+            </p>
+          </div>
+
+          <div className="grid gap-6 p-5">
+            <div>
+              <p className="text-[10px] font-semibold uppercase tracking-[0.13em] text-[#7A746D]">
+                {L(locale, "COMPANY", "الشركة")}
+              </p>
+              <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                <label className={labelClass}>
+                  {L(locale, "Company name", "اسم الشركة")}
+                  <input
+                    className={inputClass}
                     value={companyName}
                     onChange={(event) => setCompanyName(event.target.value)}
-                    onBlur={() =>
-                      setCompanySlug((value) => value || slugify(companyName))
-                    }
-                    placeholder={t("onboarding.companyNamePlaceholder")}
+                    onBlur={() => setCompanySlug((value) => value || slugify(companyName))}
+                    placeholder={L(locale, "Cafe Nile", "مقهى النيل")}
                     required
                   />
                 </label>
-                <label className="grid gap-2 text-sm font-medium text-foreground">
-                  {t("onboarding.companySlug")}
-                  <Input
+                <label className={labelClass}>
+                  Slug
+                  <input
+                    className={inputClass}
                     value={companySlug}
                     onChange={(event) => setCompanySlug(event.target.value)}
-                    placeholder={t("onboarding.companySlugPlaceholder")}
+                    placeholder="cafe-nile"
                   />
                 </label>
-              </CardContent>
-            </Card>
+              </div>
+            </div>
 
-            <Card variant="quiet" padding="lg">
-              <CardHeader>
-                <Badge variant="muted">{t("onboarding.ownerHandoffBadge")}</Badge>
-                <CardTitle>{t("onboarding.ownerAccountTitle")}</CardTitle>
-                <CardDescription>
-                  {t("onboarding.ownerAccountDescription")}
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="grid gap-4 md:grid-cols-2">
-                <label className="grid gap-2 text-sm font-medium text-foreground">
-                  {t("onboarding.ownerName")}
-                  <Input
+            <div className="border-t border-[#ECECE8] pt-5">
+              <p className="text-[10px] font-semibold uppercase tracking-[0.13em] text-[#7A746D]">
+                {L(locale, "OWNER HANDOFF", "تسليم المالك")}
+              </p>
+              <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                <label className={labelClass}>
+                  {L(locale, "Owner name", "اسم المالك")}
+                  <input
+                    className={inputClass}
                     value={ownerName}
                     onChange={(event) => setOwnerName(event.target.value)}
-                    placeholder={t("onboarding.ownerNamePlaceholder")}
+                    placeholder={L(locale, "Mona Hassan", "منى حسن")}
                     required
                   />
                 </label>
-                <label className="grid gap-2 text-sm font-medium text-foreground">
-                  {t("onboarding.ownerEmail")}
-                  <Input
+                <label className={labelClass}>
+                  {L(locale, "Owner email", "إيميل المالك")}
+                  <input
+                    className={inputClass}
+                    type="email"
                     value={ownerEmail}
                     onChange={(event) => setOwnerEmail(event.target.value)}
-                    type="email"
-                    placeholder={t("onboarding.ownerEmailPlaceholder")}
+                    placeholder="owner@example.com"
                     required
                   />
                 </label>
-              </CardContent>
-            </Card>
+              </div>
+            </div>
 
-            <Card variant="quiet" padding="lg">
-              <CardHeader>
-                <Badge variant="muted">{t("onboarding.firstBranchBadge")}</Badge>
-                <CardTitle>{t("onboarding.branchTitle")}</CardTitle>
-                <CardDescription>
-                  {t("onboarding.branchDescription")}
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="grid gap-4 md:grid-cols-2">
-                <label className="grid gap-2 text-sm font-medium text-foreground">
-                  {t("onboarding.branchName")}
-                  <Input
+            <div className="border-t border-[#ECECE8] pt-5">
+              <p className="text-[10px] font-semibold uppercase tracking-[0.13em] text-[#7A746D]">
+                {L(locale, "FIRST BRANCH", "الفرع الأول")}
+              </p>
+              <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                <label className={labelClass}>
+                  {L(locale, "Branch name", "اسم الفرع")}
+                  <input
+                    className={inputClass}
                     value={branchName}
                     onChange={(event) => setBranchName(event.target.value)}
-                    onBlur={() =>
-                      setBranchSlug((value) => value || slugify(branchName))
-                    }
-                    placeholder={t("onboarding.branchNamePlaceholder")}
+                    onBlur={() => setBranchSlug((value) => value || slugify(branchName))}
+                    placeholder={L(locale, "Main Branch", "الفرع الرئيسي")}
                     required
                   />
                 </label>
-                <label className="grid gap-2 text-sm font-medium text-foreground">
-                  {t("onboarding.branchSlug")}
-                  <Input
+                <label className={labelClass}>
+                  Slug
+                  <input
+                    className={inputClass}
                     value={branchSlug}
                     onChange={(event) => setBranchSlug(event.target.value)}
-                    placeholder={t("onboarding.branchSlugPlaceholder")}
+                    placeholder="main"
                   />
                 </label>
-                <label className="grid gap-2 text-sm font-medium text-foreground md:col-span-2">
-                  {t("onboarding.address")}
-                  <Input
+                <label className={labelClass + " sm:col-span-2"}>
+                  {L(locale, "Address", "العنوان")}
+                  <input
+                    className={inputClass}
                     value={branchAddress}
                     onChange={(event) => setBranchAddress(event.target.value)}
-                    placeholder={t("onboarding.addressPlaceholder")}
+                    placeholder={L(locale, "Street, city, country", "الشارع، المدينة، البلد")}
                   />
                 </label>
-              </CardContent>
-            </Card>
-          </div>
-
-          <div className="grid h-fit gap-5">
-            <Card variant="accent" padding="lg">
-              <CardHeader>
-                <div className="flex size-11 items-center justify-center rounded-button bg-primary text-primary-foreground">
-                  <Building2 className="size-5" aria-hidden="true" />
-                </div>
-                <CardTitle>{t("onboarding.createWorkspaceTitle")}</CardTitle>
-                <CardDescription>
-                  {t("onboarding.createWorkspaceDescription")}
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="grid gap-4">
-                <label className="grid gap-2 text-sm font-medium text-foreground">
-                  {t("onboarding.plan")}
-                  <select
-                    value={planCode}
-                    onChange={(event) =>
-                      setPlanCode(
-                        event.target
-                          .value as BootstrapCompanyInput["subscription"]["planCode"]
-                      )
-                    }
-                    className={selectClassName}
-                  >
-                    {(plansQuery.data?.plans ?? []).length > 0
-                      ? plansQuery.data?.plans.map((plan) => (
-                          <option key={plan.code} value={plan.code}>
-                            {plan.name} ·{" "}
-                            {plan.monthlyPriceMinor === null ||
-                            plan.monthlyPriceMinor === undefined
-                              ? t("company.customPrice")
-                              : t("company.pricePerMonth", {
-                                  price: formatMoney(
-                                    plan.monthlyPriceMinor,
-                                    plan.currency
-                                  )
-                                })}
-                          </option>
-                        ))
-                      : ["pilot", "starter", "growth", "enterprise"].map(
-                          (code) => (
-                            <option key={code} value={code}>
-                              {planLabel(code)}
-                            </option>
-                          )
-                        )}
-                  </select>
-                </label>
-                <label className="grid gap-2 text-sm font-medium text-foreground">
-                  {t("onboarding.subscriptionStatus")}
-                  <select
-                    value={subscriptionStatus}
-                    onChange={(event) =>
-                      setSubscriptionStatus(
-                        event.target
-                          .value as NonNullable<
-                          BootstrapCompanyInput["subscription"]["status"]
-                        >
-                      )
-                    }
-                    className={selectClassName}
-                  >
-                    <option value="trialing">{t("onboarding.trialing")}</option>
-                    <option value="active">{t("onboarding.active")}</option>
-                  </select>
-                </label>
-                <label className="flex items-center gap-3 rounded-button border bg-surface/70 p-3 text-sm font-medium text-foreground">
-                  <input
-                    checked={starterEnabled}
-                    onChange={(event) =>
-                      setStarterEnabled(event.target.checked)
-                    }
-                    type="checkbox"
-                    className="size-4 accent-[var(--primary)]"
-                  />
-                  {t("onboarding.createStarterTables")}
-                </label>
-                {createMutation.isError ? (
-                  <div
-                    role="alert"
-                    className="rounded-card border border-danger bg-danger/10 p-3 text-sm text-danger"
-                  >
-                    {formatErrorMessage(createMutation.error)}
-                  </div>
-                ) : null}
-              </CardContent>
-              <CardFooter>
-                <Button type="submit" disabled={createMutation.isPending}>
-                  <PlusCircle className="size-4" aria-hidden="true" />
-                  {createMutation.isPending
-                    ? t("onboarding.creatingWorkspace")
-                    : t("onboarding.createWorkspace")}
-                </Button>
-              </CardFooter>
-            </Card>
-
-            <Card variant="quiet" padding="lg">
-              <CardHeader>
-                <Badge variant="muted">{t("onboarding.starterQrBadge")}</Badge>
-                <CardTitle>{t("onboarding.tablesTitle")}</CardTitle>
-                <CardDescription>
-                  {t("onboarding.tablesDescription")}
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="grid gap-3">
-                <label className="grid gap-2 text-sm font-medium text-foreground">
-                  {t("onboarding.floorLabel")}
-                  <Input
-                    value={floorLabel}
-                    onChange={(event) => setFloorLabel(event.target.value)}
-                    disabled={!starterEnabled}
-                  />
-                </label>
-                <div className="grid grid-cols-2 gap-3">
-                  <label className="grid gap-2 text-sm font-medium text-foreground">
-                    {t("onboarding.prefix")}
-                    <Input
-                      value={tablePrefix}
-                      onChange={(event) => setTablePrefix(event.target.value)}
-                      disabled={!starterEnabled}
-                    />
-                  </label>
-                  <label className="grid gap-2 text-sm font-medium text-foreground">
-                    {t("onboarding.start")}
-                    <Input
-                      value={startNumber}
-                      onChange={(event) =>
-                        setStartNumber(Number(event.target.value))
-                      }
-                      type="number"
-                      min={1}
-                      disabled={!starterEnabled}
-                    />
-                  </label>
-                  <label className="grid gap-2 text-sm font-medium text-foreground">
-                    {t("onboarding.count")}
-                    <Input
-                      value={tableCount}
-                      onChange={(event) =>
-                        setTableCount(Number(event.target.value))
-                      }
-                      type="number"
-                      min={1}
-                      max={100}
-                      disabled={!starterEnabled}
-                    />
-                  </label>
-                  <label className="grid gap-2 text-sm font-medium text-foreground">
-                    {t("onboarding.seats")}
-                    <Input
-                      value={seats}
-                      onChange={(event) => setSeats(Number(event.target.value))}
-                      type="number"
-                      min={1}
-                      max={50}
-                      disabled={!starterEnabled}
-                    />
-                  </label>
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card variant="quiet" padding="lg">
-              <CardHeader>
-                <div className="flex size-10 items-center justify-center rounded-button bg-muted text-primary">
-                  <KeyRound className="size-4" aria-hidden="true" />
-                </div>
-                <CardTitle>{t("onboarding.boundariesTitle")}</CardTitle>
-                <CardDescription>
-                  {t("onboarding.boundariesDescription")}
-                </CardDescription>
-              </CardHeader>
-            </Card>
+              </div>
+            </div>
           </div>
         </section>
+
+        <aside className="grid h-fit gap-4">
+          <section className={panelClass + " p-4"}>
+            <Building2 className="size-5 text-[#76634A]" />
+            <h2 className="mt-3 text-sm font-semibold">
+              {L(locale, "Create Cafe Workspace", "أنشئ مساحة الكافيه")}
+            </h2>
+            <p className="mt-1 text-xs leading-5 text-[#777771]">
+              {L(
+                locale,
+                "Backend truth owns slugs, plan limits, owner membership, starter tables and audit events.",
+                "الـbackend هو مصدر الحقيقة للـslugs وحدود الخطة وعضوية المالك والترابيزات المبدئية وأحداث التدقيق."
+              )}
+            </p>
+
+            <div className="mt-4 grid gap-3">
+              <label className={labelClass}>
+                {L(locale, "Plan", "الخطة")}
+                <select
+                  className={inputClass}
+                  value={planCode}
+                  onChange={(event) =>
+                    setPlanCode(event.target.value as BootstrapCompanyInput["subscription"]["planCode"])
+                  }
+                >
+                  {(plansQuery.data?.plans ?? []).length > 0
+                    ? plansQuery.data?.plans.map((plan) => (
+                        <option key={plan.code} value={plan.code}>
+                          {plan.name} ·{" "}
+                          {plan.monthlyPriceMinor === null || plan.monthlyPriceMinor === undefined
+                            ? L(locale, "Custom", "مخصص")
+                            : formatMoney(plan.monthlyPriceMinor, plan.currency)}
+                        </option>
+                      ))
+                    : ["pilot", "starter", "growth", "enterprise"].map((code) => (
+                        <option key={code} value={code}>
+                          {planLabel(code)}
+                        </option>
+                      ))}
+                </select>
+              </label>
+
+              <label className={labelClass}>
+                {L(locale, "Subscription state", "حالة الاشتراك")}
+                <select
+                  className={inputClass}
+                  value={subscriptionStatus}
+                  onChange={(event) =>
+                    setSubscriptionStatus(
+                      event.target.value as NonNullable<BootstrapCompanyInput["subscription"]["status"]>
+                    )
+                  }
+                >
+                  <option value="trialing">{L(locale, "Trialing", "تجريبي")}</option>
+                  <option value="active">{L(locale, "Active", "نشط")}</option>
+                </select>
+              </label>
+
+              <label className="flex items-start gap-3 rounded-md border border-[#DADAD5] bg-[#F8F8F5] p-3 text-xs font-semibold">
+                <input
+                  checked={starterEnabled}
+                  onChange={(event) => setStarterEnabled(event.target.checked)}
+                  type="checkbox"
+                  className="mt-0.5 size-4"
+                />
+                <span>
+                  {L(locale, "Create starter floor, tables and QR", "أنشئ دور وترابيزات وQR كبداية")}
+                </span>
+              </label>
+
+              {starterEnabled ? (
+                <div className="grid gap-3 border-t border-[#ECECE8] pt-3">
+                  <label className={labelClass}>
+                    {L(locale, "Floor label", "اسم الدور")}
+                    <input
+                      className={inputClass}
+                      value={floorLabel}
+                      onChange={(event) => setFloorLabel(event.target.value)}
+                    />
+                  </label>
+                  <div className="grid grid-cols-2 gap-3">
+                    <label className={labelClass}>
+                      {L(locale, "Prefix", "البادئة")}
+                      <input className={inputClass} value={tablePrefix} onChange={(event) => setTablePrefix(event.target.value)} />
+                    </label>
+                    <label className={labelClass}>
+                      {L(locale, "Start", "البداية")}
+                      <input className={inputClass} type="number" min={1} value={startNumber} onChange={(event) => setStartNumber(Number(event.target.value))} />
+                    </label>
+                    <label className={labelClass}>
+                      {L(locale, "Count", "العدد")}
+                      <input className={inputClass} type="number" min={1} max={100} value={tableCount} onChange={(event) => setTableCount(Number(event.target.value))} />
+                    </label>
+                    <label className={labelClass}>
+                      {L(locale, "Seats", "المقاعد")}
+                      <input className={inputClass} type="number" min={1} value={seats} onChange={(event) => setSeats(Number(event.target.value))} />
+                    </label>
+                  </div>
+                </div>
+              ) : null}
+
+              {createMutation.isError ? (
+                <p className="rounded-md border border-[#E4C5C1] bg-[#FBEEEE] p-3 text-xs text-[#8D3F37]">
+                  {formatErrorMessage(createMutation.error)}
+                </p>
+              ) : null}
+
+              <button
+                type="submit"
+                disabled={createMutation.isPending}
+                className="inline-flex min-h-11 items-center justify-center gap-2 rounded-md bg-[#292925] px-4 text-sm font-semibold !text-white disabled:opacity-50"
+              >
+                <Plus className="size-4" />
+                {createMutation.isPending
+                  ? L(locale, "Creating…", "جارٍ الإنشاء…")
+                  : L(locale, "Create cafe workspace", "أنشئ مساحة الكافيه")}
+              </button>
+            </div>
+          </section>
+
+          <section className="rounded-lg border border-[#E5D2AD] bg-[#FFF8E9] p-4">
+            <ShieldCheck className="size-5 text-[#805C25]" />
+            <h3 className="mt-3 text-sm font-semibold text-[#6E4C1C]">
+              {L(locale, "Boundaries", "الحدود")}
+            </h3>
+            <p className="mt-2 text-xs leading-6 text-[#805C25]">
+              {L(
+                locale,
+                "No public signup, recurring billing checkout, merchant credentials, production menu import or staff impersonation is created here.",
+                "لا يتم إنشاء تسجيل عام أو تحصيل دوري أو بيانات مزود دفع أو استيراد منيو production أو انتحال موظف من هنا."
+              )}
+            </p>
+          </section>
+        </aside>
       </form>
     </div>
   );
 }
 
 export function PlatformNewCompanyPage() {
-  const t = useTranslations("platform");
+  const { locale } = useI18n();
 
   return (
     <PlatformShell
-      title={t("onboarding.title")}
-      description={t("onboarding.description")}
+      title={L(locale, "New Cafe / Bootstrap", "كافيه جديد / Bootstrap")}
+      description={L(
+        locale,
+        "Create the minimum tenant foundation through the existing platform-admin transaction.",
+        "أنشئ الحد الأدنى لمساحة الشركة من خلال معاملة PlatformAdmin الحالية."
+      )}
       actions={
-        <Link href="/platform" className={buttonVariants({ variant: "ghost" })}>
-          <ArrowLeft className="size-4" aria-hidden="true" />
-          {t("actions.platformDashboard")}
+        <Link
+          href="/platform"
+          className="inline-flex min-h-10 items-center gap-2 rounded-md border border-[#D6D6D1] bg-white px-3 text-xs font-semibold"
+        >
+          <ArrowLeft className="size-4 rtl:rotate-180" />
+          {L(locale, "Platform dashboard", "لوحة Platform")}
         </Link>
       }
     >
