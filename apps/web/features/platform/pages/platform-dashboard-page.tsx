@@ -4,7 +4,6 @@ import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
 import {
   Activity,
-  Building2,
   ChevronRight,
   CircleDollarSign,
   Plus,
