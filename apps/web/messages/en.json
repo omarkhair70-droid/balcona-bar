@@ -900,6 +900,27 @@
       "waiter": "Waiter / Floor",
       "cashierEyebrow": "Cashier operations",
       "waiterEyebrow": "Waiter / floor operations"
+    },
+    "serviceFloor": {
+      "eyebrow": "Live floor",
+      "title": "Floor board",
+      "description": "Real tables, active sessions and attention state grouped by the configured floor.",
+      "ungrouped": "Ungrouped",
+      "occupiedCount": "{count} occupied",
+      "attentionCount": "{count} need attention",
+      "loading": "Loading floor state...",
+      "empty": "No configured tables are available for this branch.",
+      "party": "Party {count}",
+      "sessionActive": "Active session",
+      "geometryNote": "Balcona currently stores floor grouping, not physical x/y table coordinates. This board uses real table/session/attention data without inventing venue geometry.",
+      "state": {
+        "urgent": "Urgent",
+        "attention": "Needs attention",
+        "occupied": "Occupied",
+        "free": "Free",
+        "maintenance": "Maintenance",
+        "inactive": "Inactive"
+      }
     }
   },
   "cashier": {
