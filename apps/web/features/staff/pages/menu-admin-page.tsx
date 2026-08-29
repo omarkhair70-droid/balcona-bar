@@ -2,7 +2,6 @@
 
 /* eslint-disable @next/next/no-img-element -- Cafe image URLs are user-provided and cannot be preconfigured in Next image remote patterns. */
 
-import Link from "next/link";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   AlertTriangle,
@@ -29,7 +28,7 @@ import {
   useState
 } from "react";
 import { Badge } from "@/components/ui/badge";
-import { Button, buttonVariants } from "@/components/ui/button";
+import { Button } from "@/components/ui/button";
 import {
   Card,
   CardContent,
@@ -42,7 +41,7 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { Input } from "@/components/ui/input";
 import { LoadingState } from "@/components/ui/loading-state";
 import { MetricCard } from "@/components/ui/metric-card";
-import { StaffPageShell } from "@/features/staff/staff-page-shell";
+import { OfficeStaffShell } from "@/features/staff/office-staff-shell";
 import {
   formatMenuMoney,
   getMenuAdminErrorMessage,
@@ -85,6 +84,7 @@ import {
   upsertBranchMenuItemOverride
 } from "@/lib/api/endpoints";
 import { customerQueryKeys, staffQueryKeys } from "@/lib/api/query-keys";
+import { useTranslations } from "@/lib/i18n/i18n-provider";
 import type {
   CreateMenuCategoryPayload,
   CreateMenuItemModifierGroupPayload,
@@ -382,17 +382,6 @@ function toModifierOptionForm(
     status: option.status,
     sortOrder: String(option.sortOrder)
   };
-}
-
-function MenuAdminActions() {
-  return (
-    <div className="flex flex-wrap gap-3">
-      <Link href="/staff" className={buttonVariants({ variant: "ghost" })}>
-        <LayoutDashboard className="size-4" aria-hidden="true" />
-        Staff overview
-      </Link>
-    </div>
-  );
 }
 
 function MenuAdminMetrics({ overview }: { overview: MenuAdminOverviewResult }) {
@@ -2802,15 +2791,17 @@ function MenuAdminContent() {
 }
 
 export function MenuAdminPage() {
+  const t = useTranslations("staff");
+
   return (
-    <StaffPageShell
-      title="Menu Admin Control Center"
-      description="Branch-scoped menu management for categories, items, availability, modifiers, and customer readiness."
-      actions={<MenuAdminActions />}
+    <OfficeStaffShell
+      activeDomain="catalog"
+      title={t("office.catalogTitle")}
+      description={t("office.catalogDescription")}
     >
       <StaffAuthGate requiredPermissions={["menu.read"]} branchScoped>
         <MenuAdminContent />
       </StaffAuthGate>
-    </StaffPageShell>
+    </OfficeStaffShell>
   );
 }

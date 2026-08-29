@@ -38,7 +38,7 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { Input } from "@/components/ui/input";
 import { LoadingState } from "@/components/ui/loading-state";
 import { MetricCard } from "@/components/ui/metric-card";
-import { StaffPageShell } from "@/features/staff/staff-page-shell";
+import { OfficeStaffShell } from "@/features/staff/office-staff-shell";
 import {
   getInventoryErrorMessage,
   humanizeInventoryValue,
@@ -76,6 +76,7 @@ import {
   updateSupplier
 } from "@/lib/api/endpoints";
 import { customerQueryKeys, staffQueryKeys } from "@/lib/api/query-keys";
+import { useTranslations } from "@/lib/i18n/i18n-provider";
 import type {
   AdjustInventoryLevelPayload,
   CreatePurchaseOrderLinePayload,
@@ -4029,12 +4030,15 @@ function RecentMovementsSection({
 }
 
 export function StaffInventoryPage() {
+  const t = useTranslations("staff");
+
   return (
-    <StaffPageShell
-      title="Inventory"
-      description="Branch stock levels, movement history, menu requirements, and computed stock availability for real cafe operations."
+    <OfficeStaffShell
+      activeDomain="inventory"
+      title={t("office.inventoryTitle")}
+      description={t("office.inventoryDescription")}
     >
       <StaffInventoryContent />
-    </StaffPageShell>
+    </OfficeStaffShell>
   );
 }
