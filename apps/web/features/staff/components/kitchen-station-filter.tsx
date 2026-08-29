@@ -90,7 +90,7 @@ export function KitchenStationFilter({
 
   return (
     <div className="grid min-w-0 gap-3">
-      <div>
+      <div className="min-w-0 overflow-hidden">
         <p className="mb-2 text-[10px] font-bold uppercase tracking-[0.12em] text-[#817B75]">
           {t("tasks.filterStation")}
         </p>
@@ -105,7 +105,7 @@ export function KitchenStationFilter({
           ))}
         </div>
       </div>
-      <div>
+      <div className="min-w-0 overflow-hidden">
         <p className="mb-2 text-[10px] font-bold uppercase tracking-[0.12em] text-[#817B75]">
           {t("tasks.filterStatus")}
         </p>
