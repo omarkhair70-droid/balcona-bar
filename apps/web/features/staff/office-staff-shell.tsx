@@ -145,7 +145,12 @@ export function OfficeStaffShell({
               }
 
               return (
-                <Link key={item.id} href={item.href} className={classes}>
+                <Link
+                  key={item.id}
+                  href={item.href}
+                  aria-current={active ? "page" : undefined}
+                  className={classes}
+                >
                   <Icon
                     className={cn(
                       "size-4",
