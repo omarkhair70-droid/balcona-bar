@@ -614,4 +614,336 @@ function json(body, status = 200) {
 }
 
 async function installApiMocks(page) {
-  await page.route("*
+  const apiRoutePattern = ["**", "api", "v1", "**"].join("/");
+
+  await page.route(apiRoutePattern, async (route) => {
+    const request = route.request();
+    const url = new URL(request.url());
+    const pathname = url.pathname;
+    const method = request.method();
+
+    if (pathname === "/api/v1/staff-auth/me") {
+      return route.fulfill(json(staffContext));
+    }
+
+    if (pathname === `/api/v1/branches/${BRANCH_ID}/cashier/orders`) {
+      const status = url.searchParams.get("status") ?? "submitted";
+      const all = [orderEnvelope, secondOrderEnvelope];
+      const orders =
+        status === "all"
+          ? all
+          : all.filter((entry) => entry.order.status === status);
+
+      return route.fulfill(
+        json({
+          branch,
+          status,
+          orders: orders.length > 0 ? orders : all
+        })
+      );
+    }
+
+    if (pathname === `/api/v1/branches/${BRANCH_ID}/orders/ready-to-serve`) {
+      return route.fulfill(
+        json({
+          branch,
+          status: "ready",
+          orders: [secondOrderEnvelope]
+        })
+      );
+    }
+
+    if (pathname.startsWith("/api/v1/orders/") && method === "GET") {
+      return route.fulfill(json(orderEnvelope));
+    }
+
+    if (pathname === `/api/v1/branches/${BRANCH_ID}/bill-requests`) {
+      return route.fulfill(
+        json({
+          branch,
+          filters: {},
+          billRequests: [billEnvelope]
+        })
+      );
+    }
+
+    if (pathname === `/api/v1/branches/${BRANCH_ID}/cashier-shifts/current`) {
+      return route.fulfill(
+        json({
+          branch,
+          shift,
+          summary: shiftSummary
+        })
+      );
+    }
+
+    if (pathname === `/api/v1/realtime/branches/${BRANCH_ID}/events`) {
+      return route.fulfill(
+        json({
+          branch,
+          events: [
+            {
+              id: "realtime-1",
+              type: "order_submitted",
+              channel: "orders",
+              orderId: ORDER_ID,
+              createdAt: "2026-08-29T06:28:00.000Z"
+            },
+            {
+              id: "realtime-2",
+              type: "table_attention_updated",
+              channel: "attention",
+              tableSessionId: SESSION_ID,
+              createdAt: "2026-08-29T06:27:00.000Z"
+            }
+          ]
+        })
+      );
+    }
+
+    if (pathname === `/api/v1/branches/${BRANCH_ID}/waiter-calls`) {
+      return route.fulfill(
+        json({
+          branch,
+          waiterCalls: [waiterCallEnvelope]
+        })
+      );
+    }
+
+    if (pathname === `/api/v1/waiter-calls/${WAITER_CALL_ID}`) {
+      return route.fulfill(json(waiterCallEnvelope));
+    }
+
+    if (pathname === `/api/v1/branches/${BRANCH_ID}/autopilot/attention`) {
+      return route.fulfill(
+        json({
+          branch,
+          attentionQueue: [attentionEnvelope, attentionSecond]
+        })
+      );
+    }
+
+    if (
+      pathname ===
+      `/api/v1/table-sessions/${SESSION_ID}/autopilot/attention`
+    ) {
+      return route.fulfill(json(attentionEnvelope));
+    }
+
+    if (
+      pathname ===
+      "/api/v1/table-sessions/session-table-07/autopilot/attention"
+    ) {
+      return route.fulfill(json(attentionSecond));
+    }
+
+    if (
+      pathname ===
+      `/api/v1/companies/${COMPANY_ID}/branch-admin/overview`
+    ) {
+      return route.fulfill(json(floorOverview));
+    }
+
+    if (pathname === `/api/v1/realtime/branches/${BRANCH_ID}/stream`) {
+      return route.fulfill({
+        status: 200,
+        contentType: "text/event-stream",
+        headers: { "cache-control": "no-cache" },
+        body: "event: ready\ndata: {}\n\n"
+      });
+    }
+
+    if (method !== "GET") {
+      return route.fulfill(json({ ok: true }));
+    }
+
+    return route.fulfill(json({}));
+  });
+}
+
+async function newContext(browser, locale, viewport) {
+  const context = await browser.newContext({
+    viewport,
+    deviceScaleFactor: 1,
+    locale: locale === "ar" ? "ar-EG" : "en-US"
+  });
+
+  await context.addCookies([
+    {
+      name: "balcona_locale",
+      value: locale,
+      url: BASE_URL
+    }
+  ]);
+
+  await context.addInitScript(
+    ({ localeValue, staffValue }) => {
+      window.localStorage.setItem("balcona.locale", localeValue);
+      window.localStorage.setItem("balcona_staff_session", staffValue);
+    },
+    {
+      localeValue: locale,
+      staffValue: persistedStaffSession()
+    }
+  );
+
+  return context;
+}
+
+async function capture(browser, {
+  label,
+  route,
+  locale = "en",
+  viewport = { width: 1440, height: 1000 },
+  target
+}) {
+  const context = await newContext(browser, locale, viewport);
+  const page = await context.newPage();
+  const consoleErrors = [];
+
+  page.on("console", (message) => {
+    if (message.type() === "error") {
+      consoleErrors.push(message.text());
+    }
+  });
+
+  await installApiMocks(page);
+  await page.goto(`${BASE_URL}${route}`, {
+    waitUntil: "domcontentloaded",
+    timeout: 30000
+  });
+
+  await page.waitForFunction(
+    () =>
+      document.body.innerText.includes("Balcona Service") ||
+      document.body.innerText.includes("خدمة بلكونة"),
+    undefined,
+    { timeout: 15000 }
+  );
+
+  if (target) {
+    const targetLocator = page.locator(target);
+    await targetLocator.waitFor({ state: "visible", timeout: 15000 });
+    await targetLocator.scrollIntoViewIfNeeded();
+    await page.waitForTimeout(500);
+  } else {
+    await page.waitForTimeout(900);
+  }
+
+  const metrics = await page.evaluate(() => ({
+    innerWidth: window.innerWidth,
+    clientWidth: document.documentElement.clientWidth,
+    scrollWidth: document.documentElement.scrollWidth,
+    bodyScrollWidth: document.body.scrollWidth,
+    dir: document.documentElement.dir,
+    lang: document.documentElement.lang
+  }));
+
+  if (metrics.scrollWidth > metrics.clientWidth + 1) {
+    throw new Error(
+      `${label}: document overflow ${metrics.scrollWidth}px > ${metrics.clientWidth}px`
+    );
+  }
+
+  if (locale === "ar" && metrics.dir !== "rtl") {
+    throw new Error(`${label}: expected rtl, got ${metrics.dir || "empty"}`);
+  }
+
+  const screenshot = path.join(OUTPUT_DIR, `${label}.png`);
+  await page.screenshot({ path: screenshot, fullPage: true });
+  await context.close();
+
+  return {
+    label,
+    route,
+    locale,
+    viewport,
+    target,
+    screenshot,
+    metrics,
+    consoleErrors: consoleErrors.slice(0, 20)
+  };
+}
+
+await mkdir(OUTPUT_DIR, { recursive: true });
+const browser = await chromium.launch({ headless: true });
+const results = [];
+
+try {
+  results.push(
+    await capture(browser, {
+      label: "01-cashier-orders-desktop",
+      route: "/staff/cashier#orders",
+      target: "#orders"
+    })
+  );
+  results.push(
+    await capture(browser, {
+      label: "02-cashier-bills-desktop",
+      route: "/staff/cashier#bills",
+      target: "#bills"
+    })
+  );
+  results.push(
+    await capture(browser, {
+      label: "03-cashier-shift-desktop",
+      route: "/staff/cashier#shift",
+      target: "#shift"
+    })
+  );
+  results.push(
+    await capture(browser, {
+      label: "04-waiter-floor-desktop",
+      route: "/staff/waiter#floor",
+      target: "#floor"
+    })
+  );
+  results.push(
+    await capture(browser, {
+      label: "05-waiter-attention-desktop",
+      route: "/staff/waiter#attention",
+      target: "#attention"
+    })
+  );
+  results.push(
+    await capture(browser, {
+      label: "06-cashier-orders-mobile-390",
+      route: "/staff/cashier#orders",
+      viewport: { width: 390, height: 844 },
+      target: "#orders"
+    })
+  );
+  results.push(
+    await capture(browser, {
+      label: "07-waiter-floor-mobile-390",
+      route: "/staff/waiter#floor",
+      viewport: { width: 390, height: 844 },
+      target: "#floor"
+    })
+  );
+  results.push(
+    await capture(browser, {
+      label: "08-waiter-attention-ar-rtl-390",
+      route: "/staff/waiter#attention",
+      locale: "ar",
+      viewport: { width: 390, height: 844 },
+      target: "#attention"
+    })
+  );
+} finally {
+  await browser.close();
+}
+
+const report = {
+  generatedAt: new Date().toISOString(),
+  baseUrl: BASE_URL,
+  results
+};
+
+await writeFile(
+  path.join(OUTPUT_DIR, "service-visual-qa-report.json"),
+  JSON.stringify(report, null, 2),
+  "utf8"
+);
+
+console.log(JSON.stringify(report, null, 2));
