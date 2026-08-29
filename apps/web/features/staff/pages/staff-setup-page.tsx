@@ -4,49 +4,34 @@ import Link from "next/link";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   AlertTriangle,
-  BookOpenText,
-  Building2,
+  ArrowUpRight,
   CheckCircle2,
-  CircleDashed,
   ClipboardCheck,
   Copy,
-  CreditCard,
   ExternalLink,
-  KeyRound,
-  LinkIcon,
   Loader2,
-  MapPinned,
-  QrCode,
   RefreshCw,
-  Rocket,
   Save,
-  ShieldCheck,
-  Table2,
-  UsersRound
+  ShieldCheck
 } from "lucide-react";
-import { type FormEvent, useMemo, useState } from "react";
-import { Badge } from "@/components/ui/badge";
-import { Button, buttonVariants } from "@/components/ui/button";
 import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardFooter,
-  CardHeader,
-  CardTitle
-} from "@/components/ui/card";
+  type FormEvent,
+  useEffect,
+  useMemo,
+  useState
+} from "react";
 import { EmptyState } from "@/components/ui/empty-state";
-import { Input } from "@/components/ui/input";
 import { LoadingState } from "@/components/ui/loading-state";
-import { MetricCard } from "@/components/ui/metric-card";
-import { SetupReadinessFrame } from "@/features/staff/setup-readiness-frame";
+import {
+  SetupReadinessFrame,
+  type SetupPhaseId
+} from "@/features/staff/setup-readiness-frame";
 import { formatErrorMessage } from "@/lib/api/error-message";
 import {
   bulkCreateOnboardingTables,
   createOnboardingFloor,
   getBranchLaunchChecklist,
   getBranchOnboarding,
-  getCompanyOnboarding,
   inviteOnboardingStaff,
   updateBranchOnboardingProfile,
   updateCompanyOnboardingProfile,
@@ -54,197 +39,105 @@ import {
 } from "@/lib/api/endpoints";
 import { staffQueryKeys } from "@/lib/api/query-keys";
 import type {
-  BulkCreateOnboardingTablesPayload,
-  CreateOnboardingFloorPayload,
-  InviteOnboardingStaffResult,
   InviteOnboardingStaffPayload,
-  TenantOnboardingBranch,
-  TenantOnboardingBranchStatus,
   TenantOnboardingChecklistItem,
-  TenantOnboardingCompany,
-  TenantOnboardingCompanyStatus,
   TenantOnboardingReadinessStatus,
-  TenantOnboardingSection,
-  TenantOnboardingStaffRole,
-  UpdateBranchOnboardingProfilePayload,
-  UpdateCompanyOnboardingProfilePayload
+  TenantOnboardingStaffRole
 } from "@/lib/api/types";
+import { useI18n } from "@/lib/i18n/i18n-provider";
 import {
   hasCompanyStaffPermission,
   hasStaffPermission
 } from "@/lib/staff/staff-access";
 import { useStaffAuthStore } from "@/lib/staff/staff-auth-store";
-import { cn } from "@/lib/utils/cn";
-import {
-  getLaunchStatusLabel,
-  getReadinessBadgeVariant,
-  getStaffRoleLabel
-} from "../setup-data";
 import { StaffAuthGate } from "../components/staff-auth-gate";
-import { StaffBranchSelector } from "../components/staff-branch-selector";
 
-type CompanyFormState = {
-  name: string;
-  slug: string;
-  status: TenantOnboardingCompanyStatus;
-};
+const inputClass =
+  "min-h-11 w-full rounded-md border border-[#D8D1C8] bg-white px-3 text-sm text-[#2B2520] outline-none transition focus:border-[#B17A3D] focus:ring-2 focus:ring-[#B17A3D]/20 disabled:cursor-not-allowed disabled:opacity-55";
+const primaryButtonClass =
+  "inline-flex min-h-11 items-center justify-center gap-2 rounded-md bg-[#2D2823] px-4 text-sm font-semibold text-white transition hover:bg-[#3A332D] disabled:cursor-not-allowed disabled:opacity-50";
+const secondaryButtonClass =
+  "inline-flex min-h-10 items-center justify-center gap-2 rounded-md border border-[#D8D1C8] bg-white px-3 text-xs font-semibold text-[#4C433B] transition hover:bg-[#F8F4EE] disabled:cursor-not-allowed disabled:opacity-50";
+const panelClass = "rounded-xl border border-[#D8D2C9] bg-[#FFFDF9]";
 
-type BranchFormState = {
-  name: string;
-  slug: string;
-  address: string;
-  status: TenantOnboardingBranchStatus;
-};
-
-type FloorFormState = {
-  name: string;
-  sortOrder: string;
-};
-
-type TableBulkFormState = {
-  floorLabel: string;
-  tablePrefix: string;
-  startNumber: string;
-  count: string;
-  seats: string;
-};
-
-type CompanyDraftState = {
-  companyId?: string;
-  values: Partial<CompanyFormState>;
-};
-
-type BranchDraftState = {
-  branchId?: string;
-  values: Partial<BranchFormState>;
-};
-
-type StaffInviteResultState = {
-  inviteUrl: string;
-  email: string;
-  name: string;
-  role: TenantOnboardingStaffRole | string;
-  branchName: string;
-  expiresAt?: string | null;
-};
-
-const emptyCompanyForm: CompanyFormState = {
-  name: "",
-  slug: "",
-  status: "active"
-};
-
-const emptyBranchForm: BranchFormState = {
-  name: "",
-  slug: "",
-  address: "",
-  status: "active"
-};
-
-const emptyFloorForm: FloorFormState = {
-  name: "",
-  sortOrder: "0"
-};
-
-const defaultTableForm: TableBulkFormState = {
-  floorLabel: "Main Floor",
-  tablePrefix: "T",
-  startNumber: "1",
-  count: "8",
-  seats: "2"
-};
-
-const allStaffRoles: TenantOnboardingStaffRole[] = [
-  "owner",
-  "branch_manager",
-  "cashier",
-  "waiter",
-  "kitchen",
-  "barista",
-  "menu_admin"
-];
-
-const branchStaffRoles: TenantOnboardingStaffRole[] = allStaffRoles.filter(
-  (role) => role !== "owner"
-);
-
-function normalizeCompanyStatus(
-  value?: string
-): TenantOnboardingCompanyStatus {
-  return value === "inactive" ? "inactive" : "active";
+function L(locale: "en" | "ar", en: string, ar: string) {
+  return locale === "ar" ? ar : en;
 }
 
-function normalizeBranchStatus(value?: string): TenantOnboardingBranchStatus {
-  return value === "inactive" ? "inactive" : "active";
-}
-
-function toPositiveInteger(value: string, fallback: number) {
-  const parsed = Number.parseInt(value, 10);
-
-  return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
-}
-
-function toNonNegativeInteger(value: string, fallback: number) {
-  const parsed = Number.parseInt(value, 10);
-
-  return Number.isFinite(parsed) && parsed >= 0 ? parsed : fallback;
-}
-
-function buildAppUrl(path: string) {
-  if (typeof window === "undefined") {
-    return path;
+function statusLabel(
+  locale: "en" | "ar",
+  status: TenantOnboardingReadinessStatus
+) {
+  if (status === "ready") return L(locale, "Ready", "جاهز");
+  if (status === "blocked") return L(locale, "Blocked", "متوقف");
+  if (status === "needs_attention") {
+    return L(locale, "Needs attention", "يحتاج انتباه");
   }
-
-  return new URL(path, window.location.origin).toString();
+  return L(locale, "Missing", "ناقص");
 }
 
-function buildInviteUrl(invitePath: string) {
-  return buildAppUrl(invitePath);
+function StatusPill({
+  locale,
+  status
+}: {
+  locale: "en" | "ar";
+  status: TenantOnboardingReadinessStatus;
+}) {
+  const classes =
+    status === "ready"
+      ? "border-[#CAD7C9] bg-[#F0F6EF] text-[#365B3B]"
+      : status === "blocked"
+        ? "border-[#E0C5C1] bg-[#FAEEEE] text-[#8B4038]"
+        : "border-[#E4D2AF] bg-[#FFF8EB] text-[#79561D]";
+
+  return (
+    <span
+      className={`inline-flex shrink-0 rounded-full border px-2.5 py-1 text-[11px] font-semibold ${classes}`}
+    >
+      {statusLabel(locale, status)}
+    </span>
+  );
 }
 
-function formatInviteExpiry(value?: string | null) {
-  if (!value) {
-    return "Not set";
-  }
-
-  const date = new Date(value);
-
-  if (Number.isNaN(date.getTime())) {
-    return value;
-  }
-
-  return new Intl.DateTimeFormat("en-US", {
-    dateStyle: "medium",
-    timeStyle: "short"
-  }).format(date);
+function Panel({
+  eyebrow,
+  title,
+  description,
+  children,
+  footer
+}: {
+  eyebrow: string;
+  title: string;
+  description?: string;
+  children?: React.ReactNode;
+  footer?: React.ReactNode;
+}) {
+  return (
+    <section className={panelClass}>
+      <div className="border-b border-[#E9E3DB] px-5 py-4">
+        <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-[#8B765F]">
+          {eyebrow}
+        </p>
+        <h2 className="mt-2 text-xl font-semibold tracking-[-0.025em] text-[#2D2823]">
+          {title}
+        </h2>
+        {description ? (
+          <p className="mt-1.5 max-w-2xl text-xs leading-5 text-[#766B61]">
+            {description}
+          </p>
+        ) : null}
+      </div>
+      {children ? <div className="p-5">{children}</div> : null}
+      {footer ? (
+        <div className="flex flex-wrap gap-2 border-t border-[#E9E3DB] px-5 py-4">
+          {footer}
+        </div>
+      ) : null}
+    </section>
+  );
 }
 
-function getCompanyForm(company?: TenantOnboardingCompany): CompanyFormState {
-  if (!company) {
-    return emptyCompanyForm;
-  }
-
-  return {
-    name: company.name,
-    slug: company.slug,
-    status: normalizeCompanyStatus(company.status)
-  };
-}
-
-function getBranchForm(branch?: TenantOnboardingBranch): BranchFormState {
-  if (!branch) {
-    return emptyBranchForm;
-  }
-
-  return {
-    name: branch.name,
-    slug: branch.slug,
-    address: branch.address ?? "",
-    status: normalizeBranchStatus(branch.status)
-  };
-}
-
-function SetupField({
+function Field({
   label,
   children
 }: {
@@ -252,127 +145,107 @@ function SetupField({
   children: React.ReactNode;
 }) {
   return (
-    <label className="grid gap-1 text-xs font-semibold uppercase text-muted-foreground">
+    <label className="grid gap-1.5 text-[11px] font-semibold uppercase tracking-[0.07em] text-[#74685D]">
       {label}
       {children}
     </label>
   );
 }
 
-function StatusIcon({ status }: { status: TenantOnboardingReadinessStatus }) {
-  if (status === "ready") {
-    return <CheckCircle2 className="size-4 text-success" aria-hidden="true" />;
-  }
-
-  if (status === "blocked") {
-    return <AlertTriangle className="size-4 text-danger" aria-hidden="true" />;
-  }
-
-  return <CircleDashed className="size-4 text-warning" aria-hidden="true" />;
-}
-
-function SectionProgressCard({ section }: { section: TenantOnboardingSection }) {
-  return (
-    <Card variant="quiet">
-      <CardHeader>
-        <div className="flex items-start justify-between gap-4">
-          <div>
-            <CardTitle>{section.label}</CardTitle>
-            <CardDescription>
-              {section.readyCount} of {section.totalCount} checks ready
-            </CardDescription>
-          </div>
-          <Badge variant={getReadinessBadgeVariant(section.status)}>
-            {section.status.replace("_", " ")}
-          </Badge>
-        </div>
-      </CardHeader>
-      <CardContent>
-        <div className="h-2 overflow-hidden rounded-full bg-muted">
-          <div
-            className={cn(
-              "h-full rounded-full",
-              section.status === "ready" ? "bg-success" : "bg-primary"
-            )}
-            style={{ width: `${section.percentage}%` }}
-          />
-        </div>
-      </CardContent>
-    </Card>
-  );
-}
-
-function ChecklistPanel({
-  items,
-  onAcknowledge,
-  pendingKey,
-  canManage
+function ReadinessRows({
+  locale,
+  items
 }: {
+  locale: "en" | "ar";
   items: TenantOnboardingChecklistItem[];
-  onAcknowledge: (item: TenantOnboardingChecklistItem) => void;
-  pendingKey?: string;
-  canManage: boolean;
 }) {
+  if (items.length === 0) {
+    return (
+      <p className="text-sm text-[#766B61]">
+        {L(locale, "No readiness signal is available yet.", "لا توجد إشارة جاهزية متاحة بعد.")}
+      </p>
+    );
+  }
+
   return (
-    <div className="grid gap-3">
+    <div className="divide-y divide-[#EEE8E0]">
       {items.map((item) => (
         <div
           key={item.key}
-          className="grid gap-3 rounded-button border bg-surface/70 p-4 md:grid-cols-[1fr_auto] md:items-center"
+          className="grid gap-3 py-4 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center"
         >
           <div className="flex gap-3">
-            <StatusIcon status={item.status} />
+            {item.status === "ready" ? (
+              <CheckCircle2 className="mt-0.5 size-4 shrink-0 text-[#365B3B]" aria-hidden="true" />
+            ) : (
+              <AlertTriangle className="mt-0.5 size-4 shrink-0 text-[#9A6928]" aria-hidden="true" />
+            )}
             <div>
-              <div className="flex flex-wrap items-center gap-2">
-                <p className="font-semibold text-foreground">{item.label}</p>
-                <Badge variant={getReadinessBadgeVariant(item.status)}>
-                  {item.status.replace("_", " ")}
-                </Badge>
-              </div>
-              <p className="mt-1 text-sm leading-6 text-muted-foreground">
-                {item.reason}
-              </p>
+              <p className="text-sm font-semibold text-[#302A25]">{item.label}</p>
+              <p className="mt-1 text-xs leading-5 text-[#80756B]">{item.reason}</p>
             </div>
           </div>
-          <div className="flex flex-wrap gap-2 md:justify-end">
-            {item.actionHref ? (
-              <Link
-                href={item.actionHref}
-                className={buttonVariants({ variant: "secondary", size: "sm" })}
-              >
-                Open
-              </Link>
-            ) : null}
-            {item.status !== "ready" ? (
-              <Button
-                variant="ghost"
-                size="sm"
-                disabled={!canManage || pendingKey === item.key}
-                onClick={() => onAcknowledge(item)}
-              >
-                {pendingKey === item.key ? (
-                  <Loader2 className="size-4 animate-spin" aria-hidden="true" />
-                ) : (
-                  <ClipboardCheck className="size-4" aria-hidden="true" />
-                )}
-                Acknowledge
-              </Button>
-            ) : null}
-          </div>
+          <StatusPill locale={locale} status={item.status} />
         </div>
       ))}
     </div>
   );
 }
 
+function Metric({
+  label,
+  value,
+  detail
+}: {
+  label: string;
+  value: string;
+  detail: string;
+}) {
+  return (
+    <div className="rounded-lg border border-[#DDD6CD] bg-white p-4">
+      <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-[#81756B]">
+        {label}
+      </p>
+      <p className="mt-2 text-2xl font-semibold tracking-[-0.04em] text-[#2D2823]">
+        {value}
+      </p>
+      <p className="mt-1 text-[11px] leading-5 text-[#81766C]">{detail}</p>
+    </div>
+  );
+}
+
+function phaseItems(
+  checklist: TenantOnboardingChecklistItem[],
+  keys: string[]
+) {
+  return keys
+    .map((key) => checklist.find((item) => item.key === key))
+    .filter((item): item is TenantOnboardingChecklistItem => Boolean(item));
+}
+
+function getRoleLabel(locale: "en" | "ar", role: string) {
+  const labels: Record<string, [string, string]> = {
+    owner: ["Owner", "مالك"],
+    branch_manager: ["Branch manager", "مدير فرع"],
+    cashier: ["Cashier", "كاشير"],
+    waiter: ["Waiter", "ويتر"],
+    kitchen: ["Kitchen", "مطبخ"],
+    barista: ["Barista", "باريستا"],
+    menu_admin: ["Menu admin", "مسؤول منيو"]
+  };
+
+  const label = labels[role] ?? [role, role];
+  return L(locale, label[0], label[1]);
+}
+
 function StaffSetupContent() {
+  const { locale } = useI18n();
   const queryClient = useQueryClient();
   const accessToken = useStaffAuthStore((state) => state.accessToken);
   const effectiveAccess = useStaffAuthStore((state) => state.effectiveAccess);
   const selectedBranchId = useStaffAuthStore((state) => state.selectedBranchId);
-  const setSelectedBranchId = useStaffAuthStore(
-    (state) => state.setSelectedBranchId
-  );
+  const setSelectedBranchId = useStaffAuthStore((state) => state.setSelectedBranchId);
+
   const selectedAccessBranch = effectiveAccess?.branches.find(
     (entry) => entry.branch.id === selectedBranchId
   );
@@ -380,1262 +253,877 @@ function StaffSetupContent() {
     selectedAccessBranch?.company.id ??
     effectiveAccess?.branches[0]?.company.id ??
     effectiveAccess?.companies[0]?.company.id;
-  const [companyDraft, setCompanyDraft] = useState<CompanyDraftState>({
-    values: {}
-  });
-  const [branchDraft, setBranchDraft] = useState<BranchDraftState>({
-    values: {}
-  });
-  const [floorForm, setFloorForm] = useState<FloorFormState>(emptyFloorForm);
-  const [tableForm, setTableForm] =
-    useState<TableBulkFormState>(defaultTableForm);
-  const [staffForm, setStaffForm] = useState<InviteOnboardingStaffPayload>({
-    email: "",
-    name: "",
-    role: "cashier"
-  });
-  const [lastStaffInvite, setLastStaffInvite] =
-    useState<StaffInviteResultState | null>(null);
-  const [staffInviteCopied, setStaffInviteCopied] = useState(false);
-  const [copiedQrTableId, setCopiedQrTableId] = useState<string | null>(null);
-  const [acknowledgementMessage, setAcknowledgementMessage] = useState<
-    string | null
-  >(null);
-  const canReadCompanyOnboarding = hasCompanyStaffPermission(
-    effectiveAccess,
-    "tenant_onboarding.read",
-    selectedCompanyId
-  );
-  const canManageCompanyOnboarding = hasCompanyStaffPermission(
+
+  const canManageCompany = hasCompanyStaffPermission(
     effectiveAccess,
     "tenant_onboarding.manage",
     selectedCompanyId
   );
-  const canManageBranchOnboarding = hasStaffPermission(
+  const canManageBranch = hasStaffPermission(
     effectiveAccess,
     "tenant_onboarding.manage",
     selectedBranchId
   );
-  const canInviteBranchStaff = hasStaffPermission(
+  const canInviteStaff = hasStaffPermission(
     effectiveAccess,
     "staff.manage",
     selectedBranchId
   );
-  const canInviteOwner = hasCompanyStaffPermission(
-    effectiveAccess,
-    "staff.manage",
-    selectedCompanyId
-  );
-  const visibleStaffRoles = canInviteOwner ? allStaffRoles : branchStaffRoles;
+
   const branchQuery = useQuery({
     queryKey: staffQueryKeys.branchOnboarding(selectedBranchId),
     queryFn: () => getBranchOnboarding(selectedBranchId ?? "", accessToken),
     enabled: Boolean(accessToken && selectedBranchId),
     staleTime: 30_000
   });
-  const companyQuery = useQuery({
-    queryKey: staffQueryKeys.companyOnboarding(selectedCompanyId),
-    queryFn: () => getCompanyOnboarding(selectedCompanyId ?? "", accessToken),
-    enabled: Boolean(accessToken && selectedCompanyId && canReadCompanyOnboarding),
-    staleTime: 60_000
-  });
-  const launchChecklistQuery = useQuery({
+  const checklistQuery = useQuery({
     queryKey: staffQueryKeys.branchLaunchChecklist(selectedBranchId),
     queryFn: () => getBranchLaunchChecklist(selectedBranchId ?? "", accessToken),
     enabled: Boolean(accessToken && selectedBranchId),
     staleTime: 30_000
   });
+
   const onboarding = branchQuery.data;
-  const displayCompany = companyQuery.data?.company ?? onboarding?.company;
-  const companyBaseForm = useMemo(
-    () => getCompanyForm(displayCompany),
-    [displayCompany]
-  );
-  const branchBaseForm = useMemo(
-    () => getBranchForm(onboarding?.branch),
-    [onboarding?.branch]
-  );
-  const activeCompanyDraft =
-    companyDraft.companyId === displayCompany?.id ? companyDraft.values : {};
-  const activeBranchDraft =
-    branchDraft.branchId === onboarding?.branch.id ? branchDraft.values : {};
-  const companyForm = {
-    ...companyBaseForm,
-    ...activeCompanyDraft
-  };
-  const branchForm = {
-    ...branchBaseForm,
-    ...activeBranchDraft
-  };
-  const staffRoleValue = visibleStaffRoles.includes(staffForm.role)
-    ? staffForm.role
-    : visibleStaffRoles[0] ?? "cashier";
-  const selectedStaffRoleLabel = getStaffRoleLabel(staffRoleValue);
+  const launchSummary = checklistQuery.data?.launchSummary ?? onboarding?.launchSummary;
 
-  const checklistItems =
-    launchChecklistQuery.data?.launchChecklist ?? onboarding?.launchChecklist ?? [];
-  const criticalBlockedItems =
-    launchChecklistQuery.data?.launchSummary.blockedReasons ??
-    onboarding?.launchSummary.blockedReasons ??
-    [];
-  const launchSummary =
-    launchChecklistQuery.data?.launchSummary ?? onboarding?.launchSummary;
-  const tableCompletion = onboarding
-    ? `${onboarding.tables.qrReadyTableCount}/${onboarding.tables.activeTableCount}`
-    : "0/0";
-  const saasStatus = onboarding?.saas;
-  const saasNotices = [
-    ...(saasStatus?.blockers ?? []),
-    ...(saasStatus?.warnings ?? [])
-  ];
+  const [companyForm, setCompanyForm] = useState({ name: "", slug: "", status: "active" });
+  const [branchForm, setBranchForm] = useState({
+    name: "",
+    slug: "",
+    address: "",
+    status: "active"
+  });
+  const [floorForm, setFloorForm] = useState({ name: "", sortOrder: "0" });
+  const [tableForm, setTableForm] = useState({
+    floorLabel: "Main Floor",
+    tablePrefix: "T",
+    startNumber: "1",
+    count: "8",
+    seats: "2"
+  });
+  const [staffForm, setStaffForm] = useState<InviteOnboardingStaffPayload>({
+    name: "",
+    email: "",
+    role: "cashier"
+  });
+  const [lastInviteUrl, setLastInviteUrl] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
+  const [acknowledgedMessage, setAcknowledgedMessage] = useState<string | null>(null);
 
-  function toStaffInviteResultState(
-    result: InviteOnboardingStaffResult
-  ): StaffInviteResultState {
-    return {
-      inviteUrl: buildInviteUrl(result.invitePath),
-      email: result.invite.email,
-      name: result.invite.name ?? result.staffUser.name,
-      role: result.invite.role,
-      branchName:
-        result.invite.branch?.name ?? onboarding?.branch.name ?? "Selected branch",
-      expiresAt: result.invite.expiresAt ?? null
-    };
-  }
+  useEffect(() => {
+    if (!onboarding) return;
 
-  function refreshOnboarding() {
-    if (selectedBranchId) {
-      void queryClient.invalidateQueries({
-        queryKey: staffQueryKeys.branchOnboarding(selectedBranchId)
-      });
-      void queryClient.invalidateQueries({
-        queryKey: staffQueryKeys.branchLaunchChecklist(selectedBranchId)
-      });
-    }
+    setCompanyForm({
+      name: onboarding.company.name,
+      slug: onboarding.company.slug,
+      status: onboarding.company.status === "inactive" ? "inactive" : "active"
+    });
+    setBranchForm({
+      name: onboarding.branch.name,
+      slug: onboarding.branch.slug,
+      address: onboarding.branch.address ?? "",
+      status: onboarding.branch.status === "inactive" ? "inactive" : "active"
+    });
+    setTableForm((current) => ({
+      ...current,
+      floorLabel: onboarding.tables.floors[0]?.name ?? current.floorLabel
+    }));
+  }, [onboarding]);
 
-    if (selectedCompanyId && canReadCompanyOnboarding) {
-      void queryClient.invalidateQueries({
-        queryKey: staffQueryKeys.companyOnboarding(selectedCompanyId)
-      });
-    }
+  function refresh() {
+    if (!selectedBranchId) return;
 
+    void queryClient.invalidateQueries({
+      queryKey: staffQueryKeys.branchOnboarding(selectedBranchId)
+    });
+    void queryClient.invalidateQueries({
+      queryKey: staffQueryKeys.branchLaunchChecklist(selectedBranchId)
+    });
     void queryClient.invalidateQueries({ queryKey: staffQueryKeys.me() });
   }
 
-  function requireBranchScope() {
-    if (!selectedBranchId || !accessToken) {
-      throw new Error("Select a branch before updating setup.");
-    }
-
-    return { branchId: selectedBranchId, token: accessToken };
-  }
-
-  function requireCompanyScope() {
-    if (!selectedCompanyId || !accessToken) {
-      throw new Error("Company setup context is not ready.");
-    }
-
-    return { companyId: selectedCompanyId, token: accessToken };
-  }
-
-  function updateCompanyDraft(patch: Partial<CompanyFormState>) {
-    setCompanyDraft((current) => ({
-      companyId: displayCompany?.id,
-      values: {
-        ...(current.companyId === displayCompany?.id ? current.values : {}),
-        ...patch
-      }
-    }));
-  }
-
-  function updateBranchDraft(patch: Partial<BranchFormState>) {
-    setBranchDraft((current) => ({
-      branchId: onboarding?.branch.id,
-      values: {
-        ...(current.branchId === onboarding?.branch.id ? current.values : {}),
-        ...patch
-      }
-    }));
-  }
-
-  const updateCompanyMutation = useMutation({
-    mutationFn: (payload: UpdateCompanyOnboardingProfilePayload) => {
-      const { companyId, token } = requireCompanyScope();
-
-      return updateCompanyOnboardingProfile(companyId, payload, token);
-    },
-    onSuccess: (result) => {
-      setCompanyDraft({
-        companyId: result.company.id,
-        values: getCompanyForm(result.company)
-      });
-      refreshOnboarding();
-    }
+  const companyMutation = useMutation({
+    mutationFn: () =>
+      updateCompanyOnboardingProfile(
+        selectedCompanyId ?? "",
+        {
+          name: companyForm.name,
+          slug: companyForm.slug,
+          status: companyForm.status as "active" | "inactive"
+        },
+        accessToken
+      ),
+    onSuccess: refresh
   });
-  const updateBranchMutation = useMutation({
-    mutationFn: (payload: UpdateBranchOnboardingProfilePayload) => {
-      const { branchId, token } = requireBranchScope();
-
-      return updateBranchOnboardingProfile(branchId, payload, token);
-    },
-    onSuccess: (result) => {
-      setBranchDraft({
-        branchId: result.branch.id,
-        values: getBranchForm(result.branch)
-      });
-      refreshOnboarding();
-    }
+  const branchMutation = useMutation({
+    mutationFn: () =>
+      updateBranchOnboardingProfile(
+        selectedBranchId ?? "",
+        {
+          name: branchForm.name,
+          slug: branchForm.slug,
+          address: branchForm.address || null,
+          status: branchForm.status as "active" | "inactive"
+        },
+        accessToken
+      ),
+    onSuccess: refresh
   });
-  const createFloorMutation = useMutation({
-    mutationFn: (payload: CreateOnboardingFloorPayload) => {
-      const { branchId, token } = requireBranchScope();
-
-      return createOnboardingFloor(branchId, payload, token);
-    },
+  const floorMutation = useMutation({
+    mutationFn: () =>
+      createOnboardingFloor(
+        selectedBranchId ?? "",
+        {
+          name: floorForm.name,
+          sortOrder: Number.parseInt(floorForm.sortOrder, 10) || 0
+        },
+        accessToken
+      ),
     onSuccess: () => {
-      setFloorForm(emptyFloorForm);
-      refreshOnboarding();
+      setFloorForm({ name: "", sortOrder: "0" });
+      refresh();
     }
   });
-  const bulkCreateTablesMutation = useMutation({
-    mutationFn: (payload: BulkCreateOnboardingTablesPayload) => {
-      const { branchId, token } = requireBranchScope();
-
-      return bulkCreateOnboardingTables(branchId, payload, token);
-    },
-    onSuccess: refreshOnboarding
+  const tablesMutation = useMutation({
+    mutationFn: () =>
+      bulkCreateOnboardingTables(
+        selectedBranchId ?? "",
+        {
+          floorLabel: tableForm.floorLabel,
+          tablePrefix: tableForm.tablePrefix,
+          startNumber: Math.max(1, Number.parseInt(tableForm.startNumber, 10) || 1),
+          count: Math.max(1, Number.parseInt(tableForm.count, 10) || 1),
+          seats: Math.max(1, Number.parseInt(tableForm.seats, 10) || 2)
+        },
+        accessToken
+      ),
+    onSuccess: refresh
   });
-  const inviteStaffMutation = useMutation({
-    mutationFn: (payload: InviteOnboardingStaffPayload) => {
-      const { branchId, token } = requireBranchScope();
-
-      return inviteOnboardingStaff(branchId, payload, token);
-    },
+  const staffMutation = useMutation({
+    mutationFn: () =>
+      inviteOnboardingStaff(selectedBranchId ?? "", staffForm, accessToken),
     onSuccess: (result) => {
-      setLastStaffInvite(toStaffInviteResultState(result));
-      setStaffInviteCopied(false);
-      setStaffForm({ email: "", name: "", role: "cashier" });
-      refreshOnboarding();
+      setLastInviteUrl(
+        typeof window === "undefined"
+          ? result.invitePath
+          : new URL(result.invitePath, window.location.origin).toString()
+      );
+      setStaffForm({ name: "", email: "", role: "cashier" });
+      setCopied(false);
+      refresh();
     }
   });
   const readinessMutation = useMutation({
-    mutationFn: (item: TenantOnboardingChecklistItem) => {
-      const { branchId, token } = requireBranchScope();
-
-      return updateOnboardingReadinessCheck(
-        branchId,
+    mutationFn: (item: TenantOnboardingChecklistItem) =>
+      updateOnboardingReadinessCheck(
+        selectedBranchId ?? "",
         {
           key: item.key,
           status: item.status === "blocked" ? "blocked" : "pending",
           note: item.reason
         },
-        token
-      );
-    },
+        accessToken
+      ),
     onSuccess: (result) => {
-      setAcknowledgementMessage(result.message);
-      refreshOnboarding();
+      setAcknowledgedMessage(result.message);
+      refresh();
     }
   });
+
   const mutationError =
-    updateCompanyMutation.error ??
-    updateBranchMutation.error ??
-    createFloorMutation.error ??
-    bulkCreateTablesMutation.error ??
+    companyMutation.error ??
+    branchMutation.error ??
+    floorMutation.error ??
+    tablesMutation.error ??
+    staffMutation.error ??
     readinessMutation.error;
 
-  function handleCompanySubmit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-
-    updateCompanyMutation.mutate({
-      name: companyForm.name,
-      slug: companyForm.slug,
-      status: companyForm.status
-    });
-  }
-
-  function handleBranchSubmit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-
-    updateBranchMutation.mutate({
-      name: branchForm.name,
-      slug: branchForm.slug,
-      address: branchForm.address || null,
-      status: branchForm.status
-    });
-  }
-
-  function handleFloorSubmit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-
-    createFloorMutation.mutate({
-      name: floorForm.name,
-      sortOrder: toNonNegativeInteger(floorForm.sortOrder, 0)
-    });
-  }
-
-  function handleTablesSubmit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-
-    bulkCreateTablesMutation.mutate({
-      floorLabel: tableForm.floorLabel,
-      tablePrefix: tableForm.tablePrefix,
-      startNumber: toPositiveInteger(tableForm.startNumber, 1),
-      count: toPositiveInteger(tableForm.count, 1),
-      seats: toPositiveInteger(tableForm.seats, 2)
-    });
-  }
-
-  function handleStaffSubmit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-
-    inviteStaffMutation.mutate({
-      ...staffForm,
-      role: staffRoleValue
-    });
-  }
-
-  async function copyStaffInviteUrl() {
-    if (!lastStaffInvite) {
-      return;
-    }
-
-    await navigator.clipboard.writeText(lastStaffInvite.inviteUrl);
-    setStaffInviteCopied(true);
-  }
-
-  async function copyQrPreviewUrl(tableId: string, customerPreviewPath: string) {
-    await navigator.clipboard.writeText(buildAppUrl(customerPreviewPath));
-    setCopiedQrTableId(tableId);
-  }
-
   const roleCounts = useMemo(() => onboarding?.staff.roleCounts ?? {}, [onboarding]);
+  const staffRoles: TenantOnboardingStaffRole[] = [
+    "owner",
+    "branch_manager",
+    "cashier",
+    "waiter",
+    "kitchen",
+    "barista",
+    "menu_admin"
+  ];
 
   if (effectiveAccess?.branches.length === 0) {
     return (
       <EmptyState
-        title="No branch access"
-        description="Tenant setup is branch-scoped. Add branch access to this staff account before opening setup."
+        title={L(locale, "No branch access", "لا يوجد وصول لفرع")}
+        description={L(
+          locale,
+          "Setup is branch-scoped. Add branch access before opening launch setup.",
+          "التجهيز مرتبط بالفرع. أضف صلاحية فرع قبل فتح تجهيز التشغيل."
+        )}
       />
     );
   }
 
-  return (
-    <div className="grid gap-5">
-      <Card variant="accent">
-        <CardHeader className="gap-4 md:flex md:flex-row md:items-start md:justify-between md:space-y-0">
-          <div>
-            <Badge variant="muted" className="mb-3">
-              Tenant setup
-            </Badge>
-            <CardTitle>
-              {displayCompany?.name ?? "Company"} launch foundation
-            </CardTitle>
-            <CardDescription>
-              Set up the company, branch, tables, QR readiness, staff roles,
-              menu readiness, and operational launch checks without changing the
-              demo seed or customer flows.
-            </CardDescription>
-          </div>
-          <div className="flex flex-wrap items-center gap-3">
-            <StaffBranchSelector
-              access={effectiveAccess}
-              selectedBranchId={selectedBranchId}
-              onChange={setSelectedBranchId}
-              className="min-w-64"
-            />
-            <Button
-              variant="secondary"
-              onClick={refreshOnboarding}
-              disabled={branchQuery.isFetching || companyQuery.isFetching}
+  if (branchQuery.isPending) {
+    return <LoadingState label={L(locale, "Loading Setup", "جارٍ تحميل Setup")} />;
+  }
+
+  if (branchQuery.isError || !onboarding) {
+    return (
+      <EmptyState
+        title={L(locale, "Setup could not load", "تعذر تحميل Setup")}
+        description={formatErrorMessage(branchQuery.error)}
+      />
+    );
+  }
+
+  const checklist = checklistQuery.data?.launchChecklist ?? onboarding.launchChecklist;
+
+  function linkButton(href: string, label: string) {
+    return (
+      <Link href={href} className={secondaryButtonClass}>
+        {label}
+        <ArrowUpRight className="size-4" aria-hidden="true" />
+      </Link>
+    );
+  }
+
+  function renderPhase(phase: SetupPhaseId) {
+    if (phase === "business") {
+      return (
+        <div className="grid gap-4 xl:grid-cols-2">
+          <Panel
+            eyebrow={L(locale, "FOUNDATION", "الأساس")}
+            title={L(locale, "Business identity", "هوية الشركة")}
+            description={L(
+              locale,
+              "Company identity is owner-controlled and feeds every operating surface.",
+              "هوية الشركة يتحكم فيها المالك وتغذي كل أسطح التشغيل."
+            )}
+          >
+            <form
+              className="grid gap-3"
+              onSubmit={(event) => {
+                event.preventDefault();
+                companyMutation.mutate();
+              }}
             >
-              <RefreshCw
-                className={cn(
-                  "size-4",
-                  branchQuery.isFetching || companyQuery.isFetching
-                    ? "animate-spin"
-                    : ""
-                )}
-                aria-hidden="true"
-              />
-              Refresh
-            </Button>
+              <Field label={L(locale, "Company name", "اسم الشركة")}>
+                <input
+                  className={inputClass}
+                  value={companyForm.name}
+                  disabled={!canManageCompany}
+                  onChange={(event) =>
+                    setCompanyForm((current) => ({ ...current, name: event.target.value }))
+                  }
+                />
+              </Field>
+              <div className="grid gap-3 sm:grid-cols-2">
+                <Field label="Slug">
+                  <input
+                    className={inputClass}
+                    value={companyForm.slug}
+                    disabled={!canManageCompany}
+                    onChange={(event) =>
+                      setCompanyForm((current) => ({ ...current, slug: event.target.value }))
+                    }
+                  />
+                </Field>
+                <Field label={L(locale, "Status", "الحالة")}>
+                  <select
+                    className={inputClass}
+                    value={companyForm.status}
+                    disabled={!canManageCompany}
+                    onChange={(event) =>
+                      setCompanyForm((current) => ({ ...current, status: event.target.value }))
+                    }
+                  >
+                    <option value="active">{L(locale, "Active", "نشط")}</option>
+                    <option value="inactive">{L(locale, "Inactive", "غير نشط")}</option>
+                  </select>
+                </Field>
+              </div>
+              <button className={primaryButtonClass} disabled={!canManageCompany || companyMutation.isPending}>
+                {companyMutation.isPending ? <Loader2 className="size-4 animate-spin" /> : <Save className="size-4" />}
+                {L(locale, "Save company", "حفظ الشركة")}
+              </button>
+            </form>
+          </Panel>
+
+          <Panel
+            eyebrow={L(locale, "LOCATION", "الفرع")}
+            title={onboarding.branch.name}
+            description={L(
+              locale,
+              "The selected branch is the operating context for QR, staff and readiness.",
+              "الفرع المحدد هو سياق تشغيل QR والفريق والجاهزية."
+            )}
+          >
+            <form
+              className="grid gap-3"
+              onSubmit={(event) => {
+                event.preventDefault();
+                branchMutation.mutate();
+              }}
+            >
+              <Field label={L(locale, "Branch name", "اسم الفرع")}>
+                <input
+                  className={inputClass}
+                  value={branchForm.name}
+                  disabled={!canManageBranch}
+                  onChange={(event) =>
+                    setBranchForm((current) => ({ ...current, name: event.target.value }))
+                  }
+                />
+              </Field>
+              <Field label={L(locale, "Address", "العنوان")}>
+                <input
+                  className={inputClass}
+                  value={branchForm.address}
+                  disabled={!canManageBranch}
+                  onChange={(event) =>
+                    setBranchForm((current) => ({ ...current, address: event.target.value }))
+                  }
+                />
+              </Field>
+              <div className="grid gap-3 sm:grid-cols-2">
+                <Field label="Slug">
+                  <input
+                    className={inputClass}
+                    value={branchForm.slug}
+                    disabled={!canManageBranch}
+                    onChange={(event) =>
+                      setBranchForm((current) => ({ ...current, slug: event.target.value }))
+                    }
+                  />
+                </Field>
+                <Field label={L(locale, "Status", "الحالة")}>
+                  <select
+                    className={inputClass}
+                    value={branchForm.status}
+                    disabled={!canManageBranch}
+                    onChange={(event) =>
+                      setBranchForm((current) => ({ ...current, status: event.target.value }))
+                    }
+                  >
+                    <option value="active">{L(locale, "Active", "نشط")}</option>
+                    <option value="inactive">{L(locale, "Inactive", "غير نشط")}</option>
+                  </select>
+                </Field>
+              </div>
+              <button className={primaryButtonClass} disabled={!canManageBranch || branchMutation.isPending}>
+                {branchMutation.isPending ? <Loader2 className="size-4 animate-spin" /> : <Save className="size-4" />}
+                {L(locale, "Save branch", "حفظ الفرع")}
+              </button>
+            </form>
+          </Panel>
+        </div>
+      );
+    }
+
+    if (phase === "locations") {
+      return (
+        <div className="grid gap-4">
+          <div className="grid gap-3 sm:grid-cols-3">
+            <Metric
+              label={L(locale, "Floors / areas", "الأدوار / المناطق")}
+              value={String(onboarding.tables.floorCount)}
+              detail={L(locale, "Real branch structure", "هيكل الفرع الحقيقي")}
+            />
+            <Metric
+              label={L(locale, "Active tables", "الترابيزات النشطة")}
+              value={String(onboarding.tables.activeTableCount)}
+              detail={L(locale, "Across this branch", "داخل هذا الفرع")}
+            />
+            <Metric
+              label={L(locale, "QR ready", "QR جاهز")}
+              value={`${onboarding.tables.qrReadyTableCount}/${onboarding.tables.activeTableCount}`}
+              detail={L(locale, "Customer entry readiness", "جاهزية دخول العميل")}
+            />
           </div>
-        </CardHeader>
-      </Card>
+          <Panel
+            eyebrow={L(locale, "LOCATION STRUCTURE", "هيكل الفرع")}
+            title={L(locale, "Configured floors and areas", "الأدوار والمناطق المجهزة")}
+            footer={linkButton("/staff/branches", L(locale, "Open Locations in Office", "افتح الفروع في Office"))}
+          >
+            <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
+              {onboarding.tables.floors.map((floor) => (
+                <div key={floor.id} className="rounded-lg border border-[#DDD6CD] bg-white p-4">
+                  <p className="font-semibold">{floor.name}</p>
+                  <p className="mt-1 text-xs text-[#81766C]">
+                    {L(locale, "Sort order", "الترتيب")} {floor.sortOrder}
+                  </p>
+                </div>
+              ))}
+              {onboarding.tables.floors.length === 0 ? (
+                <p className="text-sm text-[#766B61]">
+                  {L(locale, "No floor or area exists yet.", "لا يوجد دور أو منطقة حتى الآن.")}
+                </p>
+              ) : null}
+            </div>
+          </Panel>
+        </div>
+      );
+    }
 
-      {branchQuery.isPending ? (
-        <LoadingState label="Loading tenant setup" />
-      ) : null}
+    if (phase === "menu") {
+      const items = phaseItems(checklist, [
+        "menu_categories_ready",
+        "menu_items_ready",
+        "modifiers_ready",
+        "ai_waiter_menu_grounding_ready",
+        "inventory_foundation_ready"
+      ]);
+      return (
+        <div className="grid gap-4">
+          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+            <Metric label={L(locale, "Categories", "الأقسام")} value={String(onboarding.menu.activeCategoryCount)} detail={L(locale, "Active", "نشطة")} />
+            <Metric label={L(locale, "Available items", "المنتجات المتاحة")} value={String(onboarding.menu.availableItemCount)} detail={`${onboarding.menu.activeItemCount} ${L(locale, "active", "نشط")}`} />
+            <Metric label={L(locale, "Modifier groups", "مجموعات الإضافات")} value={String(onboarding.menu.activeModifierGroupCount)} detail={L(locale, "Active groups", "مجموعات نشطة")} />
+            <Metric label={L(locale, "Inventory tracked", "مخزون متتبع")} value={String(onboarding.menu.trackedInventoryLevelCount ?? 0)} detail={L(locale, "Branch stock levels", "أرصدة مخزون الفرع")} />
+          </div>
+          <Panel
+            eyebrow={L(locale, "CATALOG READINESS", "جاهزية المنيو")}
+            title={L(locale, "Menu readiness is computed from live catalog truth.", "جاهزية المنيو محسوبة من بيانات الكتالوج الحقيقية.")}
+            footer={linkButton("/staff/menu", L(locale, "Open Catalog in Office", "افتح الكتالوج في Office"))}
+          >
+            <ReadinessRows locale={locale} items={items} />
+          </Panel>
+        </div>
+      );
+    }
 
-      {branchQuery.isError ? (
-        <EmptyState
-          title="Tenant setup could not load"
-          description={formatErrorMessage(branchQuery.error)}
+    if (phase === "tables") {
+      return (
+        <div className="grid gap-4 xl:grid-cols-[1.05fr_0.95fr]">
+          <Panel
+            eyebrow={L(locale, "TABLE SERVICE", "خدمة الترابيزات")}
+            title={L(locale, "Create the service map", "أنشئ خريطة الخدمة")}
+            description={L(
+              locale,
+              "Floor and table writes use the real onboarding endpoints and deterministic QR tokens.",
+              "إنشاء الأدوار والترابيزات يستخدم endpoints الحقيقية وQR حقيقي."
+            )}
+          >
+            <div className="grid gap-5">
+              <form
+                className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_130px_auto] sm:items-end"
+                onSubmit={(event) => {
+                  event.preventDefault();
+                  floorMutation.mutate();
+                }}
+              >
+                <Field label={L(locale, "Floor / area", "الدور / المنطقة")}>
+                  <input
+                    className={inputClass}
+                    value={floorForm.name}
+                    placeholder={L(locale, "Terrace", "التراس")}
+                    disabled={!canManageBranch}
+                    onChange={(event) =>
+                      setFloorForm((current) => ({ ...current, name: event.target.value }))
+                    }
+                  />
+                </Field>
+                <Field label={L(locale, "Sort order", "الترتيب")}>
+                  <input
+                    className={inputClass}
+                    type="number"
+                    value={floorForm.sortOrder}
+                    disabled={!canManageBranch}
+                    onChange={(event) =>
+                      setFloorForm((current) => ({ ...current, sortOrder: event.target.value }))
+                    }
+                  />
+                </Field>
+                <button
+                  className={primaryButtonClass}
+                  disabled={!canManageBranch || floorMutation.isPending || !floorForm.name.trim()}
+                >
+                  {L(locale, "Add floor", "أضف دور")}
+                </button>
+              </form>
+
+              <form
+                className="grid gap-3"
+                onSubmit={(event) => {
+                  event.preventDefault();
+                  tablesMutation.mutate();
+                }}
+              >
+                <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
+                  <Field label={L(locale, "Floor", "الدور")}>
+                    <input className={inputClass} value={tableForm.floorLabel} onChange={(event) => setTableForm((current) => ({ ...current, floorLabel: event.target.value }))} />
+                  </Field>
+                  <Field label={L(locale, "Prefix", "البادئة")}>
+                    <input className={inputClass} value={tableForm.tablePrefix} onChange={(event) => setTableForm((current) => ({ ...current, tablePrefix: event.target.value }))} />
+                  </Field>
+                  <Field label={L(locale, "Start", "البداية")}>
+                    <input className={inputClass} type="number" value={tableForm.startNumber} onChange={(event) => setTableForm((current) => ({ ...current, startNumber: event.target.value }))} />
+                  </Field>
+                  <Field label={L(locale, "Count", "العدد")}>
+                    <input className={inputClass} type="number" value={tableForm.count} onChange={(event) => setTableForm((current) => ({ ...current, count: event.target.value }))} />
+                  </Field>
+                  <Field label={L(locale, "Seats", "المقاعد")}>
+                    <input className={inputClass} type="number" value={tableForm.seats} onChange={(event) => setTableForm((current) => ({ ...current, seats: event.target.value }))} />
+                  </Field>
+                </div>
+                <button className={primaryButtonClass} disabled={!canManageBranch || tablesMutation.isPending}>
+                  {tablesMutation.isPending ? <Loader2 className="size-4 animate-spin" /> : null}
+                  {L(locale, "Bulk create tables", "أنشئ الترابيزات")}
+                </button>
+              </form>
+            </div>
+          </Panel>
+
+          <Panel
+            eyebrow={L(locale, "QR PREVIEW", "معاينة QR")}
+            title={L(locale, "Recent customer entry links", "أحدث روابط دخول العملاء")}
+            footer={linkButton("/staff/branches", L(locale, "Manage Tables & QR in Office", "إدارة الترابيزات وQR في Office"))}
+          >
+            <div className="grid gap-2">
+              {onboarding.tables.recentTables.slice(0, 8).map((table) => (
+                <div key={table.id} className="grid gap-2 rounded-lg border border-[#DDD6CD] bg-white p-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center">
+                  <div className="min-w-0">
+                    <p className="text-sm font-semibold">{table.displayName}</p>
+                    <p className="truncate text-[11px] text-[#81766C]">{table.qrToken ?? L(locale, "QR pending", "QR غير جاهز")}</p>
+                  </div>
+                  {table.customerPreviewPath ? (
+                    <Link href={table.customerPreviewPath} className={secondaryButtonClass}>
+                      <ExternalLink className="size-4" />
+                      {L(locale, "Open", "افتح")}
+                    </Link>
+                  ) : null}
+                </div>
+              ))}
+            </div>
+          </Panel>
+        </div>
+      );
+    }
+
+    if (phase === "team") {
+      return (
+        <div className="grid gap-4 xl:grid-cols-[0.85fr_1.15fr]">
+          <Panel
+            eyebrow={L(locale, "ROLE COVERAGE", "تغطية الأدوار")}
+            title={L(locale, "Launch team coverage", "تغطية فريق التشغيل")}
+            description={L(
+              locale,
+              "Setup checks whether launch roles exist. Ongoing access administration belongs in Office.",
+              "Setup يتأكد من وجود أدوار التشغيل. الإدارة المستمرة للصلاحيات مكانها Office."
+            )}
+          >
+            <div className="grid gap-2 sm:grid-cols-2">
+              {staffRoles.map((role) => (
+                <div key={role} className="rounded-lg border border-[#DDD6CD] bg-white p-4">
+                  <p className="text-[10px] font-bold uppercase tracking-[0.1em] text-[#81756B]">
+                    {getRoleLabel(locale, role)}
+                  </p>
+                  <p className="mt-2 text-2xl font-semibold">
+                    {roleCounts[role] ?? 0}
+                  </p>
+                </div>
+              ))}
+            </div>
+          </Panel>
+
+          <Panel
+            eyebrow={L(locale, "STAFF HANDOFF", "تسليم الفريق")}
+            title={L(locale, "Invite an operator", "ادعُ موظف تشغيل")}
+          >
+            <form
+              className="grid gap-3"
+              onSubmit={(event) => {
+                event.preventDefault();
+                staffMutation.mutate();
+              }}
+            >
+              <div className="grid gap-3 sm:grid-cols-2">
+                <Field label={L(locale, "Name", "الاسم")}>
+                  <input className={inputClass} value={staffForm.name} disabled={!canInviteStaff} onChange={(event) => setStaffForm((current) => ({ ...current, name: event.target.value }))} />
+                </Field>
+                <Field label={L(locale, "Email", "الإيميل")}>
+                  <input className={inputClass} type="email" value={staffForm.email} disabled={!canInviteStaff} onChange={(event) => setStaffForm((current) => ({ ...current, email: event.target.value }))} />
+                </Field>
+              </div>
+              <Field label={L(locale, "Role", "الدور")}>
+                <select className={inputClass} value={staffForm.role} disabled={!canInviteStaff} onChange={(event) => setStaffForm((current) => ({ ...current, role: event.target.value as TenantOnboardingStaffRole }))}>
+                  {staffRoles.map((role) => (
+                    <option key={role} value={role}>{getRoleLabel(locale, role)}</option>
+                  ))}
+                </select>
+              </Field>
+              <button className={primaryButtonClass} disabled={!canInviteStaff || staffMutation.isPending || !staffForm.name.trim() || !staffForm.email.trim()}>
+                {staffMutation.isPending ? <Loader2 className="size-4 animate-spin" /> : null}
+                {L(locale, "Create invite", "أنشئ دعوة")}
+              </button>
+            </form>
+
+            {lastInviteUrl ? (
+              <div className="mt-4 rounded-lg border border-[#DDD6CD] bg-white p-3">
+                <p className="break-all text-xs text-[#766B61]">{lastInviteUrl}</p>
+                <button
+                  type="button"
+                  className={secondaryButtonClass + " mt-3"}
+                  onClick={async () => {
+                    await navigator.clipboard.writeText(lastInviteUrl);
+                    setCopied(true);
+                  }}
+                >
+                  <Copy className="size-4" />
+                  {copied ? L(locale, "Copied", "تم النسخ") : L(locale, "Copy invite", "انسخ الدعوة")}
+                </button>
+              </div>
+            ) : null}
+          </Panel>
+        </div>
+      );
+    }
+
+    if (phase === "kitchen") {
+      const items = phaseItems(checklist, ["kds_ready", "printer_foundation_ready"]);
+      return (
+        <Panel
+          eyebrow={L(locale, "PRODUCTION READINESS", "جاهزية الإنتاج")}
+          title={L(locale, "KDS software is real; venue hardware stays explicit.", "سوفتوير KDS حقيقي؛ هاردوير المكان يظل بوابة واضحة.")}
+          description={L(
+            locale,
+            "Printer station records and software lifecycle are not presented as physical printer transport.",
+            "محطات الطباعة ودورة السوفتوير لا يتم تقديمها كأنها ربط بطابعة فعلية."
+          )}
+          footer={linkButton("/staff/kitchen", L(locale, "Open Kitchen", "افتح المطبخ"))}
+        >
+          <div className="mb-4 grid gap-3 sm:grid-cols-2">
+            <Metric label={L(locale, "Printer stations", "محطات الطباعة")} value={String(onboarding.operations.printerStationCount)} detail={L(locale, "Configured", "مجهزة")} />
+            <Metric label={L(locale, "Active stations", "المحطات النشطة")} value={String(onboarding.operations.activePrinterStationCount)} detail={L(locale, "Software-side readiness", "جاهزية جانب السوفتوير")} />
+          </div>
+          <ReadinessRows locale={locale} items={items} />
+        </Panel>
+      );
+    }
+
+    if (phase === "payments") {
+      const items = phaseItems(checklist, [
+        "bills_payment_ready",
+        "online_payment_provider_ready"
+      ]);
+      return (
+        <Panel
+          eyebrow={L(locale, "EXTERNAL GATE", "بوابة خارجية")}
+          title={L(locale, "Payment readiness without fake activation.", "جاهزية الدفع بدون ادعاء تفعيل غير حقيقي.")}
+          description={L(
+            locale,
+            "Manual bill/payment flow is software truth. Merchant/provider activation remains an external gate when required.",
+            "رحلة الفاتورة والدفع اليدوي حقيقة برمجية. تفعيل التاجر/المزود يظل بوابة خارجية عند الحاجة."
+          )}
+          footer={linkButton("/staff/cashier", L(locale, "Open payment operations", "افتح تشغيل الدفع"))}
+        >
+          <ReadinessRows locale={locale} items={items} />
+        </Panel>
+      );
+    }
+
+    if (phase === "experience") {
+      return (
+        <div className="grid gap-4 sm:grid-cols-3">
+          <Metric
+            label={L(locale, "AI grounding", "جاهزية AI")}
+            value={onboarding.menu.aiWaiterMenuGroundingReady ? L(locale, "Ready", "جاهز") : L(locale, "Attention", "يحتاج مراجعة")}
+            detail={L(locale, "Based on live menu truth", "مبني على بيانات المنيو الحقيقية")}
+          />
+          <Metric
+            label={L(locale, "Operating profile", "إعدادات التشغيل")}
+            value={onboarding.operations.operatingSettings ? L(locale, "Configured", "مجهزة") : L(locale, "Missing", "ناقصة")}
+            detail={L(locale, "Branch operating settings", "إعدادات تشغيل الفرع")}
+          />
+          <Metric
+            label={L(locale, "Feature flags", "خصائص الفرع")}
+            value={String(Object.values(onboarding.operations.featureFlags).filter(Boolean).length)}
+            detail={L(locale, "Enabled capabilities", "خصائص مفعلة")}
+          />
+          <div className="sm:col-span-3">
+            <Panel
+              eyebrow={L(locale, "EXPERIENCE HANDOFF", "تسليم التجربة")}
+              title={L(locale, "Setup verifies experience readiness; Office owns ongoing tuning.", "Setup يتحقق من جاهزية التجربة؛ Office يدير التعديل المستمر.")}
+              footer={linkButton("/staff/owner#experience", L(locale, "Open Experience in Office", "افتح Experience في Office"))}
+            />
+          </div>
+        </div>
+      );
+    }
+
+    if (phase === "operations") {
+      const items = phaseItems(checklist, [
+        "cashier_shift_ready",
+        "kds_ready",
+        "analytics_ready"
+      ]);
+      return (
+        <Panel
+          eyebrow={L(locale, "OPERATING REHEARSAL", "تجربة التشغيل")}
+          title={L(locale, "Operational foundations are checked before handoff.", "أساسات التشغيل يتم فحصها قبل التسليم.")}
+          footer={linkButton("/staff/owner#operations", L(locale, "Open Operations in Office", "افتح Operations في Office"))}
+        >
+          <div className="mb-4 grid gap-3 sm:grid-cols-3">
+            <Metric
+              label={L(locale, "Cashier shift", "شِفت الكاشير")}
+              value={onboarding.operations.currentOpenShift ? L(locale, "Open", "مفتوح") : onboarding.operations.cashierShiftCanOpen ? L(locale, "Can open", "يمكن فتحه") : L(locale, "Blocked", "متوقف")}
+              detail={L(locale, "Live branch signal", "إشارة حقيقية من الفرع")}
+            />
+            <Metric
+              label="KDS"
+              value={(roleCounts.kitchen ?? 0) + (roleCounts.barista ?? 0) > 0 ? L(locale, "Covered", "مغطى") : L(locale, "Missing role", "دور ناقص")}
+              detail={L(locale, "Kitchen/barista coverage", "تغطية المطبخ/الباريستا")}
+            />
+            <Metric
+              label={L(locale, "Analytics", "التحليلات")}
+              value={(roleCounts.owner ?? 0) + (roleCounts.branch_manager ?? 0) > 0 ? L(locale, "Accessible", "متاحة") : L(locale, "No owner access", "لا يوجد وصول مالك")}
+              detail={L(locale, "Owner-level branch visibility", "رؤية الفرع للمالك")}
+            />
+          </div>
+          <ReadinessRows locale={locale} items={items} />
+        </Panel>
+      );
+    }
+
+    return (
+      <div className="grid gap-4 xl:grid-cols-[1.15fr_0.85fr]">
+        <Panel
+          eyebrow={L(locale, "FINAL READINESS", "الجاهزية النهائية")}
+          title={
+            launchSummary?.readyForPilot
+              ? L(locale, "Ready for pilot rehearsal", "جاهز لتجربة Pilot")
+              : launchSummary?.readyForDemo
+                ? L(locale, "Demo ready — pilot gates remain", "جاهز للديمو — ما زالت بوابات Pilot")
+                : L(locale, "Launch blockers remain", "ما زالت هناك عوائق تشغيل")
+          }
+          description={L(
+            locale,
+            "This result is computed from backend records; Setup does not manufacture completion.",
+            "النتيجة محسوبة من سجلات الـbackend؛ Setup لا يصنع حالة اكتمال وهمية."
+          )}
+        >
+          <ReadinessRows locale={locale} items={checklist} />
+        </Panel>
+
+        <div className="grid content-start gap-4">
+          <Panel
+            eyebrow={L(locale, "GO / NO-GO", "قرار التشغيل")}
+            title={
+              launchSummary?.readyForPilot
+                ? L(locale, "Pilot ready", "جاهز للـPilot")
+                : launchSummary?.readyForDemo
+                  ? L(locale, "Demo ready", "جاهز للديمو")
+                  : L(locale, "Blocked", "متوقف")
+            }
+          >
+            <div className="grid gap-3">
+              <Metric
+                label={L(locale, "Critical checks", "الفحوص الحرجة")}
+                value={launchSummary ? `${launchSummary.totalCriticalCount - launchSummary.missingCriticalCount}/${launchSummary.totalCriticalCount}` : "—"}
+                detail={L(locale, "Computed by onboarding service", "محسوبة من خدمة onboarding")}
+              />
+              {launchSummary?.blockedReasons.map((item) => (
+                <div key={item.key} className="rounded-lg border border-[#E0C5C1] bg-[#FAEEEE] p-4">
+                  <p className="text-sm font-semibold text-[#7A3A34]">{item.label}</p>
+                  <p className="mt-1 text-xs leading-5 text-[#815B57]">{item.reason}</p>
+                </div>
+              ))}
+            </div>
+          </Panel>
+
+          <Panel
+            eyebrow={L(locale, "ACKNOWLEDGEMENT", "تأكيد المراجعة")}
+            title={L(locale, "Manual notes do not override live truth.", "الملاحظات اليدوية لا تتجاوز الحقيقة الحية.")}
+            description={L(
+              locale,
+              "Acknowledging a signal records the review action only; readiness is still recomputed from production data.",
+              "تأكيد الإشارة يسجل المراجعة فقط؛ الجاهزية تظل محسوبة من بيانات الإنتاج."
+            )}
+          >
+            {acknowledgedMessage ? (
+              <p className="mb-3 rounded-lg border border-[#CAD7C9] bg-[#F0F6EF] p-3 text-xs text-[#365B3B]">
+                {acknowledgedMessage}
+              </p>
+            ) : null}
+            {checklist.find((item) => item.status !== "ready") ? (
+              <button
+                type="button"
+                className={secondaryButtonClass}
+                disabled={readinessMutation.isPending}
+                onClick={() => {
+                  const item = checklist.find((entry) => entry.status !== "ready");
+                  if (item) readinessMutation.mutate(item);
+                }}
+              >
+                <ClipboardCheck className="size-4" />
+                {L(locale, "Acknowledge next attention", "أكد مراجعة أول نقطة")}
+              </button>
+            ) : (
+              <div className="flex items-center gap-2 text-sm text-[#365B3B]">
+                <ShieldCheck className="size-4" />
+                {L(locale, "All current checks are ready.", "كل الفحوص الحالية جاهزة.")}
+              </div>
+            )}
+          </Panel>
+        </div>
+      </div>
+    );
+  }
+
+  const controls = (
+    <>
+      <select
+        aria-label={L(locale, "Branch", "الفرع")}
+        className="hidden min-h-10 max-w-56 rounded-md border border-[#D8D1C8] bg-white px-3 text-xs font-semibold text-[#4C433B] outline-none sm:block"
+        value={selectedBranchId ?? ""}
+        onChange={(event) => setSelectedBranchId(event.target.value)}
+      >
+        {effectiveAccess?.branches.map((entry) => (
+          <option key={entry.branch.id} value={entry.branch.id}>
+            {entry.branch.name}
+          </option>
+        ))}
+      </select>
+      <button
+        type="button"
+        className={secondaryButtonClass}
+        onClick={refresh}
+        disabled={branchQuery.isFetching || checklistQuery.isFetching}
+      >
+        <RefreshCw
+          className={`size-4 ${branchQuery.isFetching || checklistQuery.isFetching ? "animate-spin" : ""}`}
         />
-      ) : null}
+        <span className="hidden sm:inline">{L(locale, "Refresh", "تحديث")}</span>
+      </button>
+    </>
+  );
 
+  return (
+    <>
       {mutationError ? (
-        <div className="rounded-button border border-danger/40 bg-danger/10 p-4 text-sm text-foreground">
+        <div className="mx-auto mb-3 max-w-[1500px] rounded-lg border border-[#E0C5C1] bg-[#FAEEEE] px-4 py-3 text-sm text-[#7A3A34]">
           {formatErrorMessage(mutationError)}
         </div>
       ) : null}
-
-      {acknowledgementMessage ? (
-        <div className="rounded-button border border-primary/35 bg-primary/10 p-4 text-sm text-muted-foreground">
-          {acknowledgementMessage}
-        </div>
-      ) : null}
-
-      {onboarding ? (
-        <SetupReadinessFrame onboarding={onboarding} launchSummary={launchSummary}>
-          {saasStatus ? (
-            <Card
-              variant={saasStatus.blockers.length > 0 ? "quiet" : "accent"}
-            >
-              <CardHeader className="gap-4 md:flex md:flex-row md:items-start md:justify-between md:space-y-0">
-                <div>
-                  <Badge
-                    variant={
-                      saasStatus.blockers.length > 0
-                        ? "danger"
-                        : saasStatus.warnings.length > 0
-                          ? "warning"
-                          : "success"
-                    }
-                    className="mb-3"
-                  >
-                    Plan signals
-                  </Badge>
-                  <CardTitle>
-                    {saasStatus.plan?.name ?? "Plan not configured"}
-                  </CardTitle>
-                  <CardDescription>
-                    Setup writes and tenant limits are checked by the backend
-                    SaaS status service.
-                  </CardDescription>
-                </div>
-                <Link
-                  href="/staff/billing"
-                  className={buttonVariants({ variant: "secondary" })}
-                >
-                  <CreditCard className="size-4" aria-hidden="true" />
-                  Billing
-                </Link>
-              </CardHeader>
-              <CardContent className="grid gap-3">
-                {saasNotices.length === 0 ? (
-                  <div className="rounded-button border border-success/40 bg-success/10 p-4 text-sm text-muted-foreground">
-                    Subscription status, feature entitlements, and current
-                    usage are ready for this setup flow.
-                  </div>
-                ) : null}
-                {saasNotices.map((notice) => (
-                  <div
-                    key={`${notice.code}-${notice.metricKey ?? "subscription"}`}
-                    className="rounded-button border bg-surface/70 p-4"
-                  >
-                    <p className="font-semibold text-foreground">
-                      {notice.message}
-                    </p>
-                  </div>
-                ))}
-              </CardContent>
-            </Card>
-          ) : null}
-
-          <section className="grid gap-4 md:grid-cols-4">
-            <MetricCard
-              label="Launch"
-              value={
-                launchSummary
-                  ? getLaunchStatusLabel(launchSummary.status)
-                  : "Checking"
-              }
-              description={
-                launchSummary
-                  ? `${launchSummary.totalCriticalCount - launchSummary.missingCriticalCount}/${launchSummary.totalCriticalCount} critical checks ready`
-                  : "Computed from backend setup records"
-              }
-              icon={<Rocket className="size-4" aria-hidden="true" />}
-              tone={launchSummary?.readyForPilot ? "success" : "warning"}
-            />
-            <MetricCard
-              label="Tables and QR"
-              value={tableCompletion}
-              description={`${onboarding.tables.activeTableCount} active tables, ${onboarding.tables.missingQrTableCount} missing QR tokens`}
-              icon={<QrCode className="size-4" aria-hidden="true" />}
-              tone={
-                onboarding.tables.missingQrTableCount === 0 ? "success" : "primary"
-              }
-            />
-            <MetricCard
-              label="Staff"
-              value={String(onboarding.staff.total)}
-              description="Active branch and company assignments for this branch"
-              icon={<UsersRound className="size-4" aria-hidden="true" />}
-            />
-            <MetricCard
-              label="Menu"
-              value={String(onboarding.menu.availableItemCount)}
-              description={`${onboarding.menu.activeItemCount} active items, ${onboarding.menu.activeModifierGroupCount} modifier groups`}
-              icon={<BookOpenText className="size-4" aria-hidden="true" />}
-              tone={
-                onboarding.menu.aiWaiterMenuGroundingReady
-                  ? "success"
-                  : "warning"
-              }
-            />
-          </section>
-
-          <section id="setup-foundation" className="scroll-mt-6 grid gap-4 xl:grid-cols-2">
-            <Card variant="quiet">
-              <CardHeader>
-                <div className="flex items-start justify-between gap-4">
-                  <div>
-                    <Badge variant="muted" className="mb-3">
-                      Company
-                    </Badge>
-                    <CardTitle>{displayCompany?.name ?? "Company profile"}</CardTitle>
-                    <CardDescription>
-                      Company-level identity remains owner controlled. Branch
-                      managers can still complete branch launch setup below.
-                    </CardDescription>
-                  </div>
-                  <Building2 className="size-5 text-primary" aria-hidden="true" />
-                </div>
-              </CardHeader>
-              <CardContent>
-                <form className="grid gap-3" onSubmit={handleCompanySubmit}>
-                  <SetupField label="Name">
-                    <Input
-                      value={companyForm.name}
-                      disabled={!canManageCompanyOnboarding}
-                      onChange={(event) =>
-                        updateCompanyDraft({ name: event.target.value })
-                      }
-                    />
-                  </SetupField>
-                  <div className="grid gap-3 sm:grid-cols-2">
-                    <SetupField label="Slug">
-                      <Input
-                        value={companyForm.slug}
-                        disabled={!canManageCompanyOnboarding}
-                        onChange={(event) =>
-                          updateCompanyDraft({ slug: event.target.value })
-                        }
-                      />
-                    </SetupField>
-                    <SetupField label="Status">
-                      <select
-                        value={companyForm.status}
-                        disabled={!canManageCompanyOnboarding}
-                        onChange={(event) =>
-                          updateCompanyDraft({
-                            status: normalizeCompanyStatus(event.target.value)
-                          })
-                        }
-                        className="min-h-11 rounded-button border bg-surface px-3 text-sm font-medium normal-case text-foreground outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/35 disabled:cursor-not-allowed disabled:opacity-60"
-                      >
-                        <option value="active">Active</option>
-                        <option value="inactive">Inactive</option>
-                      </select>
-                    </SetupField>
-                  </div>
-                  <Button
-                    type="submit"
-                    disabled={
-                      !canManageCompanyOnboarding ||
-                      updateCompanyMutation.isPending
-                    }
-                  >
-                    {updateCompanyMutation.isPending ? (
-                      <Loader2
-                        className="size-4 animate-spin"
-                        aria-hidden="true"
-                      />
-                    ) : (
-                      <Save className="size-4" aria-hidden="true" />
-                    )}
-                    Save company
-                  </Button>
-                </form>
-                {!canManageCompanyOnboarding ? (
-                  <p className="mt-3 text-sm text-muted-foreground">
-                    Company profile changes require owner-level tenant setup
-                    access.
-                  </p>
-                ) : null}
-              </CardContent>
-            </Card>
-
-            <Card variant="quiet">
-              <CardHeader>
-                <div className="flex items-start justify-between gap-4">
-                  <div>
-                    <Badge variant="muted" className="mb-3">
-                      Branch
-                    </Badge>
-                    <CardTitle>{onboarding.branch.name}</CardTitle>
-                    <CardDescription>
-                      Customer QR sessions and staff surfaces run against this
-                      selected branch.
-                    </CardDescription>
-                  </div>
-                  <MapPinned className="size-5 text-primary" aria-hidden="true" />
-                </div>
-              </CardHeader>
-              <CardContent>
-                <form className="grid gap-3" onSubmit={handleBranchSubmit}>
-                  <SetupField label="Name">
-                    <Input
-                      value={branchForm.name}
-                      disabled={!canManageBranchOnboarding}
-                      onChange={(event) =>
-                        updateBranchDraft({ name: event.target.value })
-                      }
-                    />
-                  </SetupField>
-                  <SetupField label="Address">
-                    <Input
-                      value={branchForm.address}
-                      disabled={!canManageBranchOnboarding}
-                      onChange={(event) =>
-                        updateBranchDraft({ address: event.target.value })
-                      }
-                    />
-                  </SetupField>
-                  <div className="grid gap-3 sm:grid-cols-2">
-                    <SetupField label="Slug">
-                      <Input
-                        value={branchForm.slug}
-                        disabled={!canManageBranchOnboarding}
-                        onChange={(event) =>
-                          updateBranchDraft({ slug: event.target.value })
-                        }
-                      />
-                    </SetupField>
-                    <SetupField label="Status">
-                      <select
-                        value={branchForm.status}
-                        disabled={!canManageBranchOnboarding}
-                        onChange={(event) =>
-                          updateBranchDraft({
-                            status: normalizeBranchStatus(event.target.value)
-                          })
-                        }
-                        className="min-h-11 rounded-button border bg-surface px-3 text-sm font-medium normal-case text-foreground outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/35 disabled:cursor-not-allowed disabled:opacity-60"
-                      >
-                        <option value="active">Active</option>
-                        <option value="inactive">Inactive</option>
-                      </select>
-                    </SetupField>
-                  </div>
-                  <Button
-                    type="submit"
-                    disabled={
-                      !canManageBranchOnboarding ||
-                      updateBranchMutation.isPending
-                    }
-                  >
-                    {updateBranchMutation.isPending ? (
-                      <Loader2
-                        className="size-4 animate-spin"
-                        aria-hidden="true"
-                      />
-                    ) : (
-                      <Save className="size-4" aria-hidden="true" />
-                    )}
-                    Save branch
-                  </Button>
-                </form>
-              </CardContent>
-            </Card>
-          </section>
-
-          <section id="setup-tables" className="scroll-mt-6 grid gap-4 xl:grid-cols-[1.1fr_0.9fr]">
-            <Card variant="glass">
-              <CardHeader>
-                <div className="flex items-start justify-between gap-4">
-                  <div>
-                    <Badge variant="muted" className="mb-3">
-                      Tables and QR
-                    </Badge>
-                    <CardTitle>Branch service map</CardTitle>
-                    <CardDescription>
-                      Create floor labels and deterministic table codes with QR
-                      tokens, then manage live QR links from the branch control
-                      surface.
-                    </CardDescription>
-                  </div>
-                  <div className="flex flex-wrap items-center gap-2">
-                    <Link
-                      href="/staff/branches"
-                      className={buttonVariants({
-                        variant: "secondary",
-                        size: "sm"
-                      })}
-                    >
-                      <Table2 className="size-4" aria-hidden="true" />
-                      Manage tables & QR
-                    </Link>
-                    <QrCode className="size-5 text-primary" aria-hidden="true" />
-                  </div>
-                </div>
-              </CardHeader>
-              <CardContent className="grid gap-5">
-                <form
-                  className="grid gap-3 md:grid-cols-[1fr_10rem_auto] md:items-end"
-                  onSubmit={handleFloorSubmit}
-                >
-                  <SetupField label="Floor or area">
-                    <Input
-                      value={floorForm.name}
-                      placeholder="Main Floor"
-                      disabled={!canManageBranchOnboarding}
-                      onChange={(event) =>
-                        setFloorForm((current) => ({
-                          ...current,
-                          name: event.target.value
-                        }))
-                      }
-                    />
-                  </SetupField>
-                  <SetupField label="Sort order">
-                    <Input
-                      type="number"
-                      min="0"
-                      value={floorForm.sortOrder}
-                      disabled={!canManageBranchOnboarding}
-                      onChange={(event) =>
-                        setFloorForm((current) => ({
-                          ...current,
-                          sortOrder: event.target.value
-                        }))
-                      }
-                    />
-                  </SetupField>
-                  <Button
-                    type="submit"
-                    disabled={
-                      !canManageBranchOnboarding ||
-                      createFloorMutation.isPending ||
-                      floorForm.name.trim().length === 0
-                    }
-                  >
-                    Add floor
-                  </Button>
-                </form>
-
-                <form className="grid gap-3" onSubmit={handleTablesSubmit}>
-                  <div className="grid gap-3 md:grid-cols-5">
-                    <SetupField label="Floor">
-                      <Input
-                        value={tableForm.floorLabel}
-                        disabled={!canManageBranchOnboarding}
-                        onChange={(event) =>
-                          setTableForm((current) => ({
-                            ...current,
-                            floorLabel: event.target.value
-                          }))
-                        }
-                      />
-                    </SetupField>
-                    <SetupField label="Prefix">
-                      <Input
-                        value={tableForm.tablePrefix}
-                        disabled={!canManageBranchOnboarding}
-                        onChange={(event) =>
-                          setTableForm((current) => ({
-                            ...current,
-                            tablePrefix: event.target.value
-                          }))
-                        }
-                      />
-                    </SetupField>
-                    <SetupField label="Start">
-                      <Input
-                        type="number"
-                        min="1"
-                        value={tableForm.startNumber}
-                        disabled={!canManageBranchOnboarding}
-                        onChange={(event) =>
-                          setTableForm((current) => ({
-                            ...current,
-                            startNumber: event.target.value
-                          }))
-                        }
-                      />
-                    </SetupField>
-                    <SetupField label="Count">
-                      <Input
-                        type="number"
-                        min="1"
-                        max="100"
-                        value={tableForm.count}
-                        disabled={!canManageBranchOnboarding}
-                        onChange={(event) =>
-                          setTableForm((current) => ({
-                            ...current,
-                            count: event.target.value
-                          }))
-                        }
-                      />
-                    </SetupField>
-                    <SetupField label="Seats">
-                      <Input
-                        type="number"
-                        min="1"
-                        value={tableForm.seats}
-                        disabled={!canManageBranchOnboarding}
-                        onChange={(event) =>
-                          setTableForm((current) => ({
-                            ...current,
-                            seats: event.target.value
-                          }))
-                        }
-                      />
-                    </SetupField>
-                  </div>
-                  <Button
-                    type="submit"
-                    disabled={
-                      !canManageBranchOnboarding ||
-                      bulkCreateTablesMutation.isPending ||
-                      tableForm.floorLabel.trim().length === 0 ||
-                      tableForm.tablePrefix.trim().length === 0
-                    }
-                  >
-                    {bulkCreateTablesMutation.isPending ? (
-                      <Loader2
-                        className="size-4 animate-spin"
-                        aria-hidden="true"
-                      />
-                    ) : (
-                      <QrCode className="size-4" aria-hidden="true" />
-                    )}
-                    Bulk create tables
-                  </Button>
-                </form>
-
-                {bulkCreateTablesMutation.data ? (
-                  <div className="rounded-button border bg-surface/70 p-4 text-sm text-muted-foreground">
-                    Created {bulkCreateTablesMutation.data.createdCount} table
-                    {bulkCreateTablesMutation.data.createdCount === 1 ? "" : "s"}
-                    , skipped {bulkCreateTablesMutation.data.skippedCount}.
-                  </div>
-                ) : null}
-              </CardContent>
-            </Card>
-
-            <Card variant="quiet">
-              <CardHeader>
-                <div className="flex flex-wrap items-start justify-between gap-3">
-                  <div>
-                    <CardTitle>Recent QR preview</CardTitle>
-                    <CardDescription>
-                      These links remain backed by real table QR tokens.
-                    </CardDescription>
-                  </div>
-                  <Link
-                    href="/staff/branches"
-                    className={buttonVariants({
-                      variant: "secondary",
-                      size: "sm"
-                    })}
-                  >
-                    <QrCode className="size-4" aria-hidden="true" />
-                    QR manager
-                  </Link>
-                </div>
-              </CardHeader>
-              <CardContent>
-                <div className="grid gap-3">
-                  {onboarding.tables.recentTables.length === 0 ? (
-                    <p className="text-sm text-muted-foreground">
-                      No tables have been created for this branch yet.
-                    </p>
-                  ) : null}
-                  {onboarding.tables.recentTables.map((table) => (
-                    <div
-                      key={table.id}
-                      className="grid gap-3 rounded-button border bg-surface/60 p-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center"
-                    >
-                      <div className="min-w-0">
-                        <p className="font-semibold text-foreground">
-                          {table.displayName}
-                        </p>
-                        <p className="break-all text-xs text-muted-foreground">
-                          {table.qrToken ?? "QR token pending"}
-                        </p>
-                      </div>
-                      {table.customerPreviewPath ? (
-                        <div className="flex flex-wrap gap-2">
-                          <Button
-                            type="button"
-                            size="sm"
-                            variant="secondary"
-                            onClick={() =>
-                              void copyQrPreviewUrl(
-                                table.id,
-                                table.customerPreviewPath ?? ""
-                              )
-                            }
-                          >
-                            <LinkIcon className="size-4" aria-hidden="true" />
-                            {copiedQrTableId === table.id
-                              ? "Copied"
-                              : "Copy URL"}
-                          </Button>
-                          <Link
-                            href={table.customerPreviewPath}
-                            className={buttonVariants({
-                              variant: "secondary",
-                              size: "sm"
-                            })}
-                          >
-                            <ExternalLink
-                              className="size-4"
-                              aria-hidden="true"
-                            />
-                            Open QR
-                          </Link>
-                        </div>
-                      ) : (
-                        <Badge variant="warning">Missing QR</Badge>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
-          </section>
-
-          <section id="setup-team" className="scroll-mt-6 grid gap-4 xl:grid-cols-[0.9fr_1.1fr]">
-            <Card variant="quiet">
-              <CardHeader>
-                <div className="flex items-start justify-between gap-4">
-                  <div>
-                    <Badge variant="muted" className="mb-3">
-                      Staff setup
-                    </Badge>
-                    <CardTitle>Invite branch operators</CardTitle>
-                    <CardDescription>
-                      Create staff users, active memberships, and
-                      first-password invite links for day-to-day branch
-                      operations. Platform handles company and owner setup
-                      repairs.
-                    </CardDescription>
-                  </div>
-                  <UsersRound className="size-5 text-primary" aria-hidden="true" />
-                </div>
-              </CardHeader>
-              <CardContent>
-                <form className="grid gap-3" onSubmit={handleStaffSubmit}>
-                  <SetupField label="Name">
-                    <Input
-                      value={staffForm.name}
-                      disabled={!canInviteBranchStaff}
-                      onChange={(event) =>
-                        setStaffForm((current) => ({
-                          ...current,
-                          name: event.target.value
-                        }))
-                      }
-                    />
-                  </SetupField>
-                  <SetupField label="Email">
-                    <Input
-                      type="email"
-                      value={staffForm.email}
-                      disabled={!canInviteBranchStaff}
-                      onChange={(event) =>
-                        setStaffForm((current) => ({
-                          ...current,
-                          email: event.target.value
-                        }))
-                      }
-                    />
-                  </SetupField>
-                  <SetupField label="Role">
-                    <select
-                      value={staffRoleValue}
-                      disabled={!canInviteBranchStaff}
-                      onChange={(event) =>
-                        setStaffForm((current) => ({
-                          ...current,
-                          role: event.target.value as TenantOnboardingStaffRole
-                        }))
-                      }
-                      className="min-h-11 rounded-button border bg-surface px-3 text-sm font-medium normal-case text-foreground outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/35 disabled:cursor-not-allowed disabled:opacity-60"
-                    >
-                      {visibleStaffRoles.map((role) => (
-                        <option key={role} value={role}>
-                          {getStaffRoleLabel(role)}
-                        </option>
-                      ))}
-                    </select>
-                  </SetupField>
-                  <Button
-                    type="submit"
-                    disabled={
-                      !canInviteBranchStaff ||
-                      inviteStaffMutation.isPending ||
-                      staffForm.name.trim().length === 0 ||
-                      staffForm.email.trim().length === 0
-                    }
-                  >
-                    {inviteStaffMutation.isPending ? (
-                      <Loader2
-                        className="size-4 animate-spin"
-                        aria-hidden="true"
-                      />
-                    ) : (
-                      <KeyRound className="size-4" aria-hidden="true" />
-                    )}
-                    Create invite
-                  </Button>
-                </form>
-                {inviteStaffMutation.isError ? (
-                  <div className="mt-4 rounded-button border border-danger/40 bg-danger/10 p-3 text-sm text-foreground">
-                    {formatErrorMessage(inviteStaffMutation.error)}
-                  </div>
-                ) : null}
-                {lastStaffInvite ? (
-                  <div className="mt-4 grid gap-4 rounded-button border border-success/35 bg-success/10 p-4">
-                    <div className="flex flex-wrap items-start justify-between gap-3">
-                      <div>
-                        <p className="text-sm font-semibold text-foreground">
-                          Invite created
-                        </p>
-                        <p className="text-sm text-muted-foreground">
-                          Send this link to {lastStaffInvite.name} so they can
-                          set their first staff password.
-                        </p>
-                      </div>
-                      <Badge variant="success">
-                        {getStaffRoleLabel(lastStaffInvite.role)}
-                      </Badge>
-                    </div>
-                    <div className="grid gap-2 md:grid-cols-[minmax(0,1fr)_auto_auto]">
-                      <Input value={lastStaffInvite.inviteUrl} readOnly />
-                      <Button
-                        type="button"
-                        variant="secondary"
-                        onClick={copyStaffInviteUrl}
-                      >
-                        <Copy className="size-4" aria-hidden="true" />
-                        {staffInviteCopied ? "Copied" : "Copy link"}
-                      </Button>
-                      <a
-                        href={lastStaffInvite.inviteUrl}
-                        target="_blank"
-                        rel="noreferrer"
-                        className={buttonVariants({
-                          variant: "secondary",
-                          size: "md"
-                        })}
-                      >
-                        <ExternalLink className="size-4" aria-hidden="true" />
-                        Open invite
-                      </a>
-                    </div>
-                    <div className="grid gap-2 text-sm text-muted-foreground sm:grid-cols-2">
-                      <p>
-                        <span className="font-semibold text-foreground">
-                          Email:
-                        </span>{" "}
-                        {lastStaffInvite.email}
-                      </p>
-                      <p>
-                        <span className="font-semibold text-foreground">
-                          Branch:
-                        </span>{" "}
-                        {lastStaffInvite.branchName}
-                      </p>
-                      <p>
-                        <span className="font-semibold text-foreground">
-                          Role:
-                        </span>{" "}
-                        {getStaffRoleLabel(lastStaffInvite.role)}
-                      </p>
-                      <p>
-                        <span className="font-semibold text-foreground">
-                          Expires:
-                        </span>{" "}
-                        {formatInviteExpiry(lastStaffInvite.expiresAt)}
-                      </p>
-                    </div>
-                  </div>
-                ) : null}
-                {staffRoleValue === "owner" && !canInviteOwner ? (
-                  <p className="mt-3 text-sm text-muted-foreground">
-                    Owner membership creation requires company-level staff
-                    management. Branch managers can create branch roles.
-                  </p>
-                ) : null}
-                {staffRoleValue === "owner" && canInviteOwner ? (
-                  <p className="mt-3 text-sm text-muted-foreground">
-                    Owner invites create company-level staff access for this
-                    cafe.
-                  </p>
-                ) : null}
-                {staffRoleValue !== "owner" ? (
-                  <p className="mt-3 text-sm text-muted-foreground">
-                    This invite creates a {selectedStaffRoleLabel} membership
-                    for {onboarding.branch.name}.
-                  </p>
-                ) : null}
-              </CardContent>
-            </Card>
-
-            <Card variant="glass">
-              <CardHeader>
-                <CardTitle>Role coverage</CardTitle>
-                <CardDescription>
-                  Launch checks are computed from active memberships.
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                  {allStaffRoles.map((role) => (
-                    <div
-                      key={role}
-                      className="rounded-button border bg-surface/70 p-4"
-                    >
-                      <p className="text-xs font-semibold uppercase text-muted-foreground">
-                        {getStaffRoleLabel(role)}
-                      </p>
-                      <p className="mt-2 text-2xl font-semibold text-foreground">
-                        {roleCounts[role] ?? 0}
-                      </p>
-                    </div>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
-          </section>
-
-          <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-            {onboarding.sections.map((section) => (
-              <SectionProgressCard key={section.key} section={section} />
-            ))}
-          </section>
-
-          <section id="setup-final" className="scroll-mt-6 grid gap-4 xl:grid-cols-[1.1fr_0.9fr]">
-            <Card variant="glass">
-              <CardHeader>
-                <div className="flex items-start justify-between gap-4">
-                  <div>
-                    <Badge variant="muted" className="mb-3">
-                      Launch checklist
-                    </Badge>
-                    <CardTitle>Computed readiness</CardTitle>
-                    <CardDescription>
-                      The backend remains source of truth; Phase 4T.0
-                      acknowledges manual notes without persisting fake status.
-                    </CardDescription>
-                  </div>
-                  <ClipboardCheck
-                    className="size-5 text-primary"
-                    aria-hidden="true"
-                  />
-                </div>
-              </CardHeader>
-              <CardContent>
-                <ChecklistPanel
-                  items={checklistItems}
-                  canManage={canManageBranchOnboarding}
-                  pendingKey={
-                    readinessMutation.isPending
-                      ? readinessMutation.variables?.key
-                      : undefined
-                  }
-                  onAcknowledge={(item) => readinessMutation.mutate(item)}
-                />
-              </CardContent>
-            </Card>
-
-            <Card variant="quiet">
-              <CardHeader>
-                <div className="flex items-start justify-between gap-4">
-                  <div>
-                    <Badge
-                      variant={
-                        launchSummary?.readyForPilot
-                          ? "success"
-                          : launchSummary?.readyForDemo
-                            ? "warning"
-                            : "danger"
-                      }
-                      className="mb-3"
-                    >
-                      {launchSummary
-                        ? getLaunchStatusLabel(launchSummary.status)
-                        : "Checking"}
-                    </Badge>
-                    <CardTitle>What remains</CardTitle>
-                    <CardDescription>
-                      Critical blockers must be fixed before pilot launch.
-                    </CardDescription>
-                  </div>
-                  <ShieldCheck className="size-5 text-primary" aria-hidden="true" />
-                </div>
-              </CardHeader>
-              <CardContent>
-                <div className="grid gap-3">
-                  {criticalBlockedItems.length === 0 ? (
-                    <div className="rounded-button border border-success/40 bg-success/10 p-4 text-sm text-muted-foreground">
-                      Demo-critical launch checks are ready for the selected
-                      branch.
-                    </div>
-                  ) : null}
-                  {criticalBlockedItems.map((item) => (
-                    <div
-                      key={item.key}
-                      className="rounded-button border bg-surface/70 p-4"
-                    >
-                      <p className="font-semibold text-foreground">
-                        {item.label}
-                      </p>
-                      <p className="mt-1 text-sm leading-6 text-muted-foreground">
-                        {item.reason}
-                      </p>
-                    </div>
-                  ))}
-                </div>
-              </CardContent>
-              <CardFooter>
-                <Link href="/staff/menu" className={buttonVariants({ variant: "secondary" })}>
-                  <BookOpenText className="size-4" aria-hidden="true" />
-                  Menu readiness
-                </Link>
-                <Link href="/staff/cashier" className={buttonVariants({ variant: "secondary" })}>
-                  <ClipboardCheck className="size-4" aria-hidden="true" />
-                  Cashier flow
-                </Link>
-              </CardFooter>
-            </Card>
-          </section>
-        </SetupReadinessFrame>
-      ) : null}
-    </div>
+      <SetupReadinessFrame
+        onboarding={onboarding}
+        launchSummary={launchSummary}
+        controls={controls}
+      >
+        {renderPhase}
+      </SetupReadinessFrame>
+    </>
   );
 }
 
 export function StaffSetupPage() {
   return (
-    <div className="min-h-screen bg-[#F4F0EA] text-[#2B2520]">
-      <div className="mx-auto max-w-[1500px] px-3 py-4 sm:px-5 lg:px-6 lg:py-6">
-        <StaffAuthGate
-          requiredPermissions={["tenant_onboarding.read"]}
-          branchScoped
-          deniedTitle="Tenant setup access required"
-          deniedDescription="This staff account can open its operational surfaces, but tenant launch setup requires owner or branch manager access."
-        >
-          <StaffSetupContent />
-        </StaffAuthGate>
-      </div>
-    </div>
+    <StaffAuthGate
+      requiredPermissions={["tenant_onboarding.read"]}
+      branchScoped
+      deniedTitle="Tenant setup access required"
+      deniedDescription="This staff account can open its operational surfaces, but tenant launch setup requires owner or branch manager access."
+    >
+      <StaffSetupContent />
+    </StaffAuthGate>
   );
 }
