@@ -827,6 +827,8 @@ function OwnerDashboardContent() {
             currency={currency}
           />
         </div>
+
+        <CashierShiftPanel data={cashierShifts} currency={currency} />
       </section>
 
       <section id="operations" className="scroll-mt-24 grid gap-3">
@@ -889,6 +891,26 @@ function OwnerDashboardContent() {
           />
         </CardContent>
         </Card>
+
+        <section className="grid gap-5 xl:grid-cols-3">
+          <CountRowsCard
+            title={t("orders.preparationTasks")}
+            description={t("orders.preparationTasksDescription")}
+            rows={operations.preparationTaskCountsByStatus}
+          />
+          <CountRowsCard
+            title={t("orders.kitchenTickets")}
+            description={t("orders.kitchenTicketsDescription")}
+            rows={operations.kitchenTicketCountsByStatus}
+          />
+          <CountRowsCard
+            title={t("orders.printJobs")}
+            description={t("orders.printJobsDescription", {
+              count: operations.failedPrintJobCount.toLocaleString("en")
+            })}
+            rows={operations.printJobCountsByStatus}
+          />
+        </section>
       </section>
 
       <section id="insights" className="scroll-mt-24 grid gap-3">
@@ -912,98 +934,76 @@ function OwnerDashboardContent() {
             currency={currency}
           />
         </div>
+
+        <section className="grid gap-5 xl:grid-cols-[1fr_1fr_1fr]">
+          <Card variant="quiet">
+            <CardHeader>
+              <CardTitle>{t("analytics.aiWaiterTitle")}</CardTitle>
+              <CardDescription>
+                {t("analytics.aiWaiterDescription")}
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="grid gap-3">
+              <ReportValue
+                label={t("analytics.proposals")}
+                value={t("analytics.proposalsValue", {
+                  applied: aiWaiter.appliedProposalCount.toLocaleString("en"),
+                  total: aiWaiter.proposalCount.toLocaleString("en")
+                })}
+              />
+              <ReportValue
+                label={t("analytics.tokens")}
+                value={t("analytics.tokensValue", {
+                  input: aiWaiter.inputTokens.toLocaleString("en"),
+                  output: aiWaiter.outputTokens.toLocaleString("en")
+                })}
+              />
+              <ReportValue
+                label={t("analytics.estimatedCost")}
+                value={formatAiCost(aiWaiter.estimatedCostMicros)}
+              />
+            </CardContent>
+          </Card>
+          <CountRowsCard
+            title={t("analytics.aiEscalationReasons")}
+            description={t("analytics.aiEscalationReasonsDescription")}
+            rows={aiWaiter.topEscalationReasons}
+          />
+          <Card variant="quiet">
+            <CardHeader>
+              <CardTitle>{t("analytics.latestPaidBill")}</CardTitle>
+              <CardDescription>
+                {t("analytics.latestPaidBillDescription")}
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              {sales.topPaidBills[0] ? (
+                <div className="grid gap-2 rounded-card border bg-surface/70 p-4 text-sm text-muted-foreground">
+                  <p className="font-semibold text-foreground">
+                    {getRecordString(sales.topPaidBills[0], "billNumber", "Bill")}
+                  </p>
+                  <p>
+                    {formatMoney(
+                      getRecordNumber(sales.topPaidBills[0], "totalMinor"),
+                      currency
+                    )}
+                  </p>
+                  <p>
+                    {ownerStatusLabel(
+                      getRecordString(sales.topPaidBills[0], "status"),
+                      t
+                    )}
+                  </p>
+                </div>
+              ) : (
+                <EmptyRangeState />
+              )}
+            </CardContent>
+          </Card>
+        </section>
+
+        <DailyReportPanel report={reportQuery.data} currency={currency} />
       </section>
-
-      <section className="grid gap-5 xl:grid-cols-3">
-        <CountRowsCard
-          title={t("orders.preparationTasks")}
-          description={t("orders.preparationTasksDescription")}
-          rows={operations.preparationTaskCountsByStatus}
-        />
-        <CountRowsCard
-          title={t("orders.kitchenTickets")}
-          description={t("orders.kitchenTicketsDescription")}
-          rows={operations.kitchenTicketCountsByStatus}
-        />
-        <CountRowsCard
-          title={t("orders.printJobs")}
-          description={t("orders.printJobsDescription", {
-            count: operations.failedPrintJobCount.toLocaleString("en")
-          })}
-          rows={operations.printJobCountsByStatus}
-        />
-      </section>
-
-      <CashierShiftPanel data={cashierShifts} currency={currency} />
-
-      <section className="grid gap-5 xl:grid-cols-[1fr_1fr_1fr]">
-        <Card variant="quiet">
-          <CardHeader>
-            <CardTitle>{t("analytics.aiWaiterTitle")}</CardTitle>
-            <CardDescription>
-              {t("analytics.aiWaiterDescription")}
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="grid gap-3">
-            <ReportValue
-              label={t("analytics.proposals")}
-              value={t("analytics.proposalsValue", {
-                applied: aiWaiter.appliedProposalCount.toLocaleString("en"),
-                total: aiWaiter.proposalCount.toLocaleString("en")
-              })}
-            />
-            <ReportValue
-              label={t("analytics.tokens")}
-              value={t("analytics.tokensValue", {
-                input: aiWaiter.inputTokens.toLocaleString("en"),
-                output: aiWaiter.outputTokens.toLocaleString("en")
-              })}
-            />
-            <ReportValue
-              label={t("analytics.estimatedCost")}
-              value={formatAiCost(aiWaiter.estimatedCostMicros)}
-            />
-          </CardContent>
-        </Card>
-        <CountRowsCard
-          title={t("analytics.aiEscalationReasons")}
-          description={t("analytics.aiEscalationReasonsDescription")}
-          rows={aiWaiter.topEscalationReasons}
-        />
-        <Card variant="quiet">
-          <CardHeader>
-            <CardTitle>{t("analytics.latestPaidBill")}</CardTitle>
-            <CardDescription>
-              {t("analytics.latestPaidBillDescription")}
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            {sales.topPaidBills[0] ? (
-              <div className="grid gap-2 rounded-card border bg-surface/70 p-4 text-sm text-muted-foreground">
-                <p className="font-semibold text-foreground">
-                  {getRecordString(sales.topPaidBills[0], "billNumber", "Bill")}
-                </p>
-                <p>
-                  {formatMoney(
-                    getRecordNumber(sales.topPaidBills[0], "totalMinor"),
-                    currency
-                  )}
-                </p>
-                <p>
-                  {ownerStatusLabel(
-                    getRecordString(sales.topPaidBills[0], "status"),
-                    t
-                  )}
-                </p>
-              </div>
-            ) : (
-              <EmptyRangeState />
-            )}
-          </CardContent>
-        </Card>
-      </section>
-
-      <DailyReportPanel report={reportQuery.data} currency={currency} />
 
       <OfficeFoundationPanels />
 
