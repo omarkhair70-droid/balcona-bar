@@ -10,7 +10,6 @@ import {
   Copy,
   Eye,
   Layers3,
-  LayoutDashboard,
   LinkIcon,
   Loader2,
   MonitorPlay,
@@ -53,7 +52,7 @@ import {
   tableStatuses,
   type BranchTableAdminTab
 } from "@/features/staff/branch-table-admin-data";
-import { StaffPageShell } from "@/features/staff/staff-page-shell";
+import { OfficeStaffShell } from "@/features/staff/office-staff-shell";
 import {
   activateBranch,
   activateTable,
@@ -70,6 +69,7 @@ import {
   updateTable
 } from "@/lib/api/endpoints";
 import { staffQueryKeys } from "@/lib/api/query-keys";
+import { useTranslations } from "@/lib/i18n/i18n-provider";
 import type {
   BranchAdminBranch,
   BranchAdminBranchStatus,
@@ -307,21 +307,6 @@ function toQrActionResult(
       customerPreviewHref(result.table.customerPreviewPath, result.qrToken) ??
       ""
   };
-}
-
-function BranchTableActions() {
-  return (
-    <div className="flex flex-wrap gap-3">
-      <Link href="/staff" className={buttonVariants({ variant: "ghost" })}>
-        <LayoutDashboard className="size-4" aria-hidden="true" />
-        Staff overview
-      </Link>
-      <Link href="/staff/menu" className={buttonVariants({ variant: "ghost" })}>
-        <Table2 className="size-4" aria-hidden="true" />
-        Menu Admin
-      </Link>
-    </div>
-  );
 }
 
 function MutationMessage({ error }: { error: unknown }) {
@@ -1791,15 +1776,17 @@ function BranchTableAdminContent() {
 }
 
 export function BranchTableAdminPage() {
+  const t = useTranslations("staff");
+
   return (
-    <StaffPageShell
-      title="Branch & Tables"
-      description="Operational branch, floor, table, QR token, and customer preview readiness management."
-      actions={<BranchTableActions />}
+    <OfficeStaffShell
+      activeDomain="locations"
+      title={t("office.locationsTitle")}
+      description={t("office.locationsDescription")}
     >
       <StaffAuthGate requiredPermissions={["settings.manage"]} branchScoped>
         <BranchTableAdminContent />
       </StaffAuthGate>
-    </StaffPageShell>
+    </OfficeStaffShell>
   );
 }
