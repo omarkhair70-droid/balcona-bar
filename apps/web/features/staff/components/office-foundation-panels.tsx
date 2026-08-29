@@ -87,6 +87,17 @@ export function OfficeFoundationPanels() {
         ? t("office.stateInactive")
         : status;
 
+  const featureFlagLabel = (flag: string) => {
+    const labels: Record<string, string> = {
+      ai_waiter: t("office.featureAiWaiter"),
+      inventory: t("office.featureInventory"),
+      online_payments: t("office.featureOnlinePayments"),
+      smart_cashier: t("office.featureSmartCashier")
+    };
+
+    return labels[flag] ?? flag;
+  };
+
   const onboarding = onboardingQuery.data;
   const experience = experienceQuery.data;
 
@@ -277,7 +288,7 @@ export function OfficeFoundationPanels() {
                         key={flag}
                         variant={enabled ? "success" : "muted"}
                       >
-                        {flag}:{" "}
+                        {featureFlagLabel(flag)}:{" "}
                         {enabled
                           ? t("office.enabled")
                           : t("office.disabled")}
