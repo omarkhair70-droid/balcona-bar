@@ -1,5 +1,5 @@
-import { PlatformDashboardPage } from "@/features/platform/pages/platform-dashboard-page";
+import { PlatformCompaniesPage } from "@/features/platform/pages/platform-companies-page";
 
 export default function PlatformCompaniesRoute() {
-  return <PlatformDashboardPage />;
+  return <PlatformCompaniesPage />;
 }
