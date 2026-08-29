@@ -1560,7 +1560,7 @@
       "online": "متصل",
       "service": "الخدمة",
       "systemInfo": "معلومات النظام",
-      "temporaryApiDescription": "يجب ربط Web بعنوان Oracle/Coolify النهائي قبل إغلاق Production QA.",
+      "temporaryApiDescription": "يجب ربط واجهة الويب بعنوان واجهة البرمجة النهائي على خادم الإنتاج قبل إغلاق فحوص النشر.",
       "temporaryApiTitle": "هدف API مؤقت أو غير نهائي",
       "title": "حالة التشغيل المرحلي",
       "unreachable": "لا يمكن الوصول",
