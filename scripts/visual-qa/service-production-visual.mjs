@@ -813,20 +813,19 @@ async function capture(browser, {
     timeout: 30000
   });
 
-  await page.waitForFunction(
-    () =>
-      document.body.innerText.includes("Balcona Service") ||
-      document.body.innerText.includes("خدمة بلكونة"),
-    undefined,
-    { timeout: 15000 }
-  );
-
   if (target) {
     const targetLocator = page.locator(target);
     await targetLocator.waitFor({ state: "visible", timeout: 15000 });
     await targetLocator.scrollIntoViewIfNeeded();
     await page.waitForTimeout(500);
   } else {
+    await page.waitForFunction(
+      () =>
+        document.body.textContent?.includes("Balcona Service") ||
+        document.body.textContent?.includes("خدمة بلكونة"),
+      undefined,
+      { timeout: 15000 }
+    );
     await page.waitForTimeout(900);
   }
 
