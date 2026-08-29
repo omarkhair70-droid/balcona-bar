@@ -755,6 +755,92 @@ function WaiterDashboardContent() {
 
       <NoticeBanner notice={notice} />
 
+      <section className="grid gap-5 xl:grid-cols-[minmax(20rem,28rem)_1fr]">
+        <AttentionQueue
+          attentionQueue={attentionQueue}
+          status={attentionStatus}
+          priority={attentionPriority}
+          selectedSessionId={selectedSessionId}
+          isLoading={attentionQueueQuery.isPending}
+          error={attentionQueueQuery.error ?? undefined}
+          onStatusChange={setAttentionStatus}
+          onPriorityChange={setAttentionPriority}
+          onSelectAttention={setUserSelectedSessionId}
+          onRefresh={refreshBranch}
+        />
+        <AttentionDetailPanel
+          attention={attentionDetailQuery.data}
+          isLoading={attentionDetailQuery.isPending && Boolean(selectedSessionId)}
+          error={attentionDetailQuery.error ?? undefined}
+          resolvePending={resolveAttentionMutation.isPending}
+          mutePending={muteAttentionMutation.isPending}
+          recalculatePending={recalculateAttentionMutation.isPending}
+          onResolve={(note) => {
+            if (selectedSessionId) {
+              resolveAttentionMutation.mutate({ sessionId: selectedSessionId, note });
+            }
+          }}
+          onMute={(minutes, note) => {
+            if (selectedSessionId) {
+              muteAttentionMutation.mutate({
+                sessionId: selectedSessionId,
+                minutes,
+                note
+              });
+            }
+          }}
+          onRecalculate={() => {
+            if (selectedSessionId) {
+              recalculateAttentionMutation.mutate(selectedSessionId);
+            }
+          }}
+        />
+      </section>
+
+      <section className="grid gap-5 xl:grid-cols-[minmax(20rem,28rem)_1fr]">
+        <WaiterCallQueue
+          waiterCalls={waiterCalls}
+          status={waiterCallStatus}
+          type={waiterCallType}
+          selectedWaiterCallId={selectedWaiterCallId}
+          isLoading={waiterCallsQuery.isPending}
+          error={waiterCallsQuery.error ?? undefined}
+          onStatusChange={setWaiterCallStatus}
+          onTypeChange={setWaiterCallType}
+          onSelectWaiterCall={setUserSelectedWaiterCallId}
+          onRefresh={refreshBranch}
+        />
+        <WaiterCallDetailPanel
+          waiterCall={waiterCallDetailQuery.data}
+          isLoading={waiterCallDetailQuery.isPending && Boolean(selectedWaiterCallId)}
+          error={waiterCallDetailQuery.error ?? undefined}
+          acknowledgePending={acknowledgeMutation.isPending}
+          resolvePending={resolveWaiterCallMutation.isPending}
+          cancelPending={cancelWaiterCallMutation.isPending}
+          onAcknowledge={() => {
+            if (selectedWaiterCallId) {
+              acknowledgeMutation.mutate(selectedWaiterCallId);
+            }
+          }}
+          onResolve={(resolutionNote) => {
+            if (selectedWaiterCallId) {
+              resolveWaiterCallMutation.mutate({
+                waiterCallId: selectedWaiterCallId,
+                resolutionNote
+              });
+            }
+          }}
+          onCancel={(reason) => {
+            if (selectedWaiterCallId) {
+              cancelWaiterCallMutation.mutate({
+                waiterCallId: selectedWaiterCallId,
+                reason
+              });
+            }
+          }}
+        />
+      </section>
+
       <Card variant="quiet">
         <CardHeader>
           <CardTitle>{t("waiter.readyOrdersTitle")}</CardTitle>
@@ -832,92 +918,6 @@ function WaiterDashboardContent() {
           })}
         </CardContent>
       </Card>
-
-      <section className="grid gap-5 xl:grid-cols-[minmax(20rem,28rem)_1fr]">
-        <WaiterCallQueue
-          waiterCalls={waiterCalls}
-          status={waiterCallStatus}
-          type={waiterCallType}
-          selectedWaiterCallId={selectedWaiterCallId}
-          isLoading={waiterCallsQuery.isPending}
-          error={waiterCallsQuery.error ?? undefined}
-          onStatusChange={setWaiterCallStatus}
-          onTypeChange={setWaiterCallType}
-          onSelectWaiterCall={setUserSelectedWaiterCallId}
-          onRefresh={refreshBranch}
-        />
-        <WaiterCallDetailPanel
-          waiterCall={waiterCallDetailQuery.data}
-          isLoading={waiterCallDetailQuery.isPending && Boolean(selectedWaiterCallId)}
-          error={waiterCallDetailQuery.error ?? undefined}
-          acknowledgePending={acknowledgeMutation.isPending}
-          resolvePending={resolveWaiterCallMutation.isPending}
-          cancelPending={cancelWaiterCallMutation.isPending}
-          onAcknowledge={() => {
-            if (selectedWaiterCallId) {
-              acknowledgeMutation.mutate(selectedWaiterCallId);
-            }
-          }}
-          onResolve={(resolutionNote) => {
-            if (selectedWaiterCallId) {
-              resolveWaiterCallMutation.mutate({
-                waiterCallId: selectedWaiterCallId,
-                resolutionNote
-              });
-            }
-          }}
-          onCancel={(reason) => {
-            if (selectedWaiterCallId) {
-              cancelWaiterCallMutation.mutate({
-                waiterCallId: selectedWaiterCallId,
-                reason
-              });
-            }
-          }}
-        />
-      </section>
-
-      <section className="grid gap-5 xl:grid-cols-[minmax(20rem,28rem)_1fr]">
-        <AttentionQueue
-          attentionQueue={attentionQueue}
-          status={attentionStatus}
-          priority={attentionPriority}
-          selectedSessionId={selectedSessionId}
-          isLoading={attentionQueueQuery.isPending}
-          error={attentionQueueQuery.error ?? undefined}
-          onStatusChange={setAttentionStatus}
-          onPriorityChange={setAttentionPriority}
-          onSelectAttention={setUserSelectedSessionId}
-          onRefresh={refreshBranch}
-        />
-        <AttentionDetailPanel
-          attention={attentionDetailQuery.data}
-          isLoading={attentionDetailQuery.isPending && Boolean(selectedSessionId)}
-          error={attentionDetailQuery.error ?? undefined}
-          resolvePending={resolveAttentionMutation.isPending}
-          mutePending={muteAttentionMutation.isPending}
-          recalculatePending={recalculateAttentionMutation.isPending}
-          onResolve={(note) => {
-            if (selectedSessionId) {
-              resolveAttentionMutation.mutate({ sessionId: selectedSessionId, note });
-            }
-          }}
-          onMute={(minutes, note) => {
-            if (selectedSessionId) {
-              muteAttentionMutation.mutate({
-                sessionId: selectedSessionId,
-                minutes,
-                note
-              });
-            }
-          }}
-          onRecalculate={() => {
-            if (selectedSessionId) {
-              recalculateAttentionMutation.mutate(selectedSessionId);
-            }
-          }}
-        />
-      </section>
 
       <Card variant="quiet">
         <CardHeader>
