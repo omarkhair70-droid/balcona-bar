@@ -74,6 +74,144 @@ function statusLabel(
   return L(locale, "Missing", "ناقص");
 }
 
+function readinessText(
+  locale: "en" | "ar",
+  item: TenantOnboardingChecklistItem
+) {
+  if (locale === "en") {
+    return { label: item.label, reason: item.reason };
+  }
+
+  const ready = item.status === "ready";
+  const copy: Record<string, { label: string; ready: string; pending: string }> = {
+    company_profile: {
+      label: "ملف الشركة مكتمل",
+      ready: "اسم الشركة والمعرف والحالة النشطة جاهزة.",
+      pending: "أكمل اسم الشركة والمعرف والحالة قبل التشغيل."
+    },
+    branch_profile: {
+      label: "ملف الفرع مكتمل",
+      ready: "اسم الفرع والمعرف والعنوان والحالة جاهزة.",
+      pending: "أكمل بيانات الفرع والعنوان والحالة قبل التشغيل."
+    },
+    floors_created: {
+      label: "تم إنشاء الأدوار أو المناطق",
+      ready: "يوجد دور أو منطقة خدمة واحدة على الأقل.",
+      pending: "أنشئ دورًا أو منطقة خدمة واحدة على الأقل."
+    },
+    tables_created: {
+      label: "الترابيزات النشطة جاهزة",
+      ready: "يوجد ترابيزات نشطة جاهزة لاستقبال العملاء.",
+      pending: "أنشئ ترابيزات نشطة قبل تشغيل QR للعملاء."
+    },
+    qr_links_ready: {
+      label: "روابط QR جاهزة",
+      ready: "كل ترابيزة نشطة لها QR token.",
+      pending: "بعض الترابيزات النشطة ما زالت تحتاج QR token."
+    },
+    owner_staff_ready: {
+      label: "المالك أو المدير جاهز",
+      ready: "يوجد مالك أو مدير فرع مخصص للتشغيل.",
+      pending: "أضف مالكًا أو مدير فرع قبل التشغيل."
+    },
+    cashier_staff_ready: {
+      label: "الكاشير جاهز",
+      ready: "يوجد كاشير مخصص للفرع.",
+      pending: "أضف كاشير قبل التشغيل."
+    },
+    kitchen_staff_ready: {
+      label: "المطبخ أو الباريستا جاهز",
+      ready: "يوجد دور مطبخ أو باريستا مخصص للفرع.",
+      pending: "أضف موظف مطبخ أو باريستا قبل التشغيل."
+    },
+    waiter_staff_ready: {
+      label: "الويتر جاهز",
+      ready: "يوجد ويتر مخصص للفرع.",
+      pending: "أضف ويتر قبل التشغيل."
+    },
+    menu_categories_ready: {
+      label: "أقسام المنيو جاهزة",
+      ready: "يوجد أقسام منيو نشطة.",
+      pending: "أضف أقسام منيو نشطة."
+    },
+    menu_items_ready: {
+      label: "منتجات المنيو النشطة جاهزة",
+      ready: "يوجد منتجات نشطة ومتاحة داخل الفرع.",
+      pending: "أضف منتجات نشطة ومتاحة قبل استقبال الطلبات."
+    },
+    modifiers_ready: {
+      label: "هيكل الإضافات متراجع",
+      ready: "مجموعات الإضافات مرتبطة بالمنتجات.",
+      pending: "راجع الإضافات وربطها بالمنتجات قبل تشغيل منيو يعتمد عليها."
+    },
+    ai_waiter_menu_grounding_ready: {
+      label: "منيو AI Waiter جاهزة",
+      ready: "المنيو تحتوي منتجات متاحة ومسعرة كفاية للاقتراحات.",
+      pending: "AI Waiter يحتاج منتجات متاحة ومسعرة كفاية داخل الفرع."
+    },
+    inventory_foundation_ready: {
+      label: "أساس المخزون جاهز",
+      ready: "عناصر المخزون وأرصدة الفرع موجودة.",
+      pending: "أضف عناصر المخزون والأرصدة الافتتاحية للفرع."
+    },
+    saas_subscription_active: {
+      label: "اشتراك الخطة نشط",
+      ready: "اشتراك الشركة لا يحتوي مانع تشغيل.",
+      pending: "راجع خطة الشركة وحالة الاشتراك قبل اكتمال التجهيز."
+    },
+    saas_setup_enabled: {
+      label: "صلاحية Setup مفعلة",
+      ready: "الخطة الحالية تشمل أدوات تجهيز الفرع.",
+      pending: "الخطة الحالية لا تتيح أدوات Setup."
+    },
+    saas_limits_within_plan: {
+      label: "الاستخدام داخل حدود الخطة",
+      ready: "استخدام الشركة داخل حدود الخطة الحالية.",
+      pending: "راجع حدود الخطة والاستخدام قبل استكمال التجهيز."
+    },
+    cashier_shift_ready: {
+      label: "شِفت الكاشير قابل للفتح",
+      ready: "دور الكاشير والترابيزات النشطة جاهزان لبدء الشِفت.",
+      pending: "جهّز الكاشير والترابيزات قبل بدء الشِفت."
+    },
+    printer_foundation_ready: {
+      label: "أساس الطباعة جاهز",
+      ready: "محطات الطباعة البرمجية مهيأة.",
+      pending: "دورة الطباعة البرمجية جاهزة جزئيًا؛ النقل للطابعة الفعلية يظل بوابة مكان."
+    },
+    bills_payment_ready: {
+      label: "رحلة الفاتورة والدفع اليدوي جاهزة",
+      ready: "عرض الفاتورة وتسجيل الدفع اليدوي متاحان.",
+      pending: "أكمل متطلبات الكاشير قبل تسليم رحلة الفاتورة والدفع."
+    },
+    online_payment_provider_ready: {
+      label: "أساس مزود الدفع الإلكتروني",
+      ready: "مزود الدفع الإلكتروني مهيأ خارج وضع المحاكاة.",
+      pending: "تفعيل التاجر أو المزود الخارجي ما زال مطلوبًا."
+    },
+    kds_ready: {
+      label: "نظام KDS جاهز",
+      ready: "فريق المطبخ يمكنه تشغيل المهام والتذاكر.",
+      pending: "أضف مطبخًا أو باريستا قبل تشغيل KDS."
+    },
+    analytics_ready: {
+      label: "تحليلات المالك جاهزة",
+      ready: "يوجد وصول مالك أو مدير لتحليلات الفرع.",
+      pending: "أضف وصول مالك أو مدير قبل مراجعة التحليلات."
+    }
+  };
+
+  const entry = copy[item.key];
+  if (!entry) {
+    return { label: item.label, reason: item.reason };
+  }
+
+  return {
+    label: entry.label,
+    reason: ready ? entry.ready : entry.pending
+  };
+}
+
 function StatusPill({
   locale,
   status
@@ -167,25 +305,29 @@ function ReadinessRows({
 
   return (
     <div className="divide-y divide-[#EEE8E0]">
-      {items.map((item) => (
-        <div
-          key={item.key}
-          className="grid gap-3 py-4 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center"
-        >
-          <div className="flex gap-3">
-            {item.status === "ready" ? (
-              <CheckCircle2 className="mt-0.5 size-4 shrink-0 text-[#365B3B]" aria-hidden="true" />
-            ) : (
-              <AlertTriangle className="mt-0.5 size-4 shrink-0 text-[#9A6928]" aria-hidden="true" />
-            )}
-            <div>
-              <p className="text-sm font-semibold text-[#302A25]">{item.label}</p>
-              <p className="mt-1 text-xs leading-5 text-[#80756B]">{item.reason}</p>
+      {items.map((item) => {
+        const copy = readinessText(locale, item);
+
+        return (
+          <div
+            key={item.key}
+            className="grid gap-3 py-4 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center"
+          >
+            <div className="flex gap-3">
+              {item.status === "ready" ? (
+                <CheckCircle2 className="mt-0.5 size-4 shrink-0 text-[#365B3B]" aria-hidden="true" />
+              ) : (
+                <AlertTriangle className="mt-0.5 size-4 shrink-0 text-[#9A6928]" aria-hidden="true" />
+              )}
+              <div>
+                <p className="text-sm font-semibold text-[#302A25]">{copy.label}</p>
+                <p className="mt-1 text-xs leading-5 text-[#80756B]">{copy.reason}</p>
+              </div>
             </div>
+            <StatusPill locale={locale} status={item.status} />
           </div>
-          <StatusPill locale={locale} status={item.status} />
-        </div>
-      ))}
+        );
+      })}
     </div>
   );
 }
