@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { type ReactNode } from "react";
+import { usePathname } from "next/navigation";
+import { type ReactNode, useEffect, useState } from "react";
 import { Banknote, BellRing, LayoutGrid, ListChecks, Receipt } from "lucide-react";
 import { LanguageSwitcher } from "@/components/i18n/language-switcher";
 import { useTranslations } from "@/lib/i18n/i18n-provider";
@@ -70,6 +71,25 @@ export function ServiceStaffShell({
   children
 }: ServiceStaffShellProps) {
   const t = useTranslations("staff");
+  const pathname = usePathname();
+  const [hash, setHash] = useState("");
+
+  useEffect(() => {
+    const syncHash = () => setHash(window.location.hash);
+
+    syncHash();
+    window.addEventListener("hashchange", syncHash);
+
+    return () => window.removeEventListener("hashchange", syncHash);
+  }, []);
+
+  const effectiveHash =
+    hash ||
+    (pathname === "/staff/cashier"
+      ? "#orders"
+      : pathname === "/staff/waiter"
+        ? "#floor"
+        : "");
 
   return (
     <main className="min-h-screen bg-[#17120F] text-[#FFF5E8]">
@@ -133,14 +153,29 @@ export function ServiceStaffShell({
         >
           {serviceViews.map((entry) => {
             const Icon = entry.icon;
+            const [entryPath, entryHash = ""] = entry.href.split("#");
+            const active =
+              pathname === entryPath && effectiveHash === `#${entryHash}`;
 
             return (
               <Link
                 key={entry.href}
                 href={entry.href}
-                className="flex min-h-10 min-w-[112px] shrink-0 items-center justify-center gap-2 rounded-md px-3 text-xs font-semibold text-[#B3A496] transition hover:bg-[#292019] hover:text-[#FFF5E7]"
+                aria-current={active ? "page" : undefined}
+                className={cn(
+                  "flex min-h-10 min-w-[112px] shrink-0 items-center justify-center gap-2 rounded-md px-3 text-xs font-semibold transition",
+                  active
+                    ? "bg-[#33271F] text-[#FFF5E7]"
+                    : "text-[#B3A496] hover:bg-[#292019] hover:text-[#FFF5E7]"
+                )}
               >
-                <Icon className="size-4 text-[#8F8176]" aria-hidden="true" />
+                <Icon
+                  className={cn(
+                    "size-4",
+                    active ? "text-[#E0A764]" : "text-[#8F8176]"
+                  )}
+                  aria-hidden="true"
+                />
                 {t(entry.labelKey)}
               </Link>
             );
