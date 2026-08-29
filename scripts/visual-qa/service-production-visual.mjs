@@ -761,7 +761,7 @@ async function installApiMocks(page) {
   });
 }
 
-async function newContext(browser, locale, viewport) {
+async function newContext(browser, locale, viewport, authenticated = true) {
   const context = await browser.newContext({
     viewport,
     deviceScaleFactor: 1,
@@ -777,13 +777,18 @@ async function newContext(browser, locale, viewport) {
   ]);
 
   await context.addInitScript(
-    ({ localeValue, staffValue }) => {
+    ({ localeValue, staffValue, withStaffSession }) => {
       window.localStorage.setItem("balcona.locale", localeValue);
-      window.localStorage.setItem("balcona_staff_session", staffValue);
+      if (withStaffSession) {
+        window.localStorage.setItem("balcona_staff_session", staffValue);
+      } else {
+        window.localStorage.removeItem("balcona_staff_session");
+      }
     },
     {
       localeValue: locale,
-      staffValue: persistedStaffSession()
+      staffValue: persistedStaffSession(),
+      withStaffSession: authenticated
     }
   );
 
@@ -795,9 +800,10 @@ async function capture(browser, {
   route,
   locale = "en",
   viewport = { width: 1440, height: 1000 },
-  target
+  target,
+  authenticated = true
 }) {
-  const context = await newContext(browser, locale, viewport);
+  const context = await newContext(browser, locale, viewport, authenticated);
   const page = await context.newPage();
   const consoleErrors = [];
 
@@ -869,6 +875,21 @@ const browser = await chromium.launch({ headless: true });
 const results = [];
 
 try {
+  results.push(
+    await capture(browser, {
+      label: "00-staff-login-desktop",
+      route: "/staff/login",
+      authenticated: false
+    })
+  );
+  results.push(
+    await capture(browser, {
+      label: "00b-staff-login-mobile-390",
+      route: "/staff/login",
+      viewport: { width: 390, height: 844 },
+      authenticated: false
+    })
+  );
   results.push(
     await capture(browser, {
       label: "01-cashier-orders-desktop",
