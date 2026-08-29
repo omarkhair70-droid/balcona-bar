@@ -1009,6 +1009,22 @@
       "overShort": "Over / short",
       "zCloseOnly": "Z close only",
       "countedCashSummary": "Counted cash {amount}."
+    },
+    "office": {
+      "productLabel": "Balcona",
+      "productSubtitle": "Office",
+      "eyebrow": "Balcona Office",
+      "home": "Home",
+      "operations": "Operations",
+      "catalog": "Catalog",
+      "inventory": "Inventory",
+      "locations": "Locations",
+      "team": "Team",
+      "money": "Money",
+      "insights": "Insights",
+      "experience": "Experience",
+      "settings": "Settings",
+      "notPromoted": "Not promoted yet"
     }
   },
   "cashier": {
