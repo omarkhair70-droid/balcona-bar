@@ -471,7 +471,8 @@ function StaffSetupContent() {
     );
   }
 
-  const checklist = checklistQuery.data?.launchChecklist ?? onboarding.launchChecklist;
+  const setup = onboarding;
+  const checklist = checklistQuery.data?.launchChecklist ?? setup.launchChecklist;
 
   function linkButton(href: string, label: string) {
     return (
@@ -546,7 +547,7 @@ function StaffSetupContent() {
 
           <Panel
             eyebrow={L(locale, "LOCATION", "الفرع")}
-            title={onboarding.branch.name}
+            title={setup.branch.name}
             description={L(
               locale,
               "The selected branch is the operating context for QR, staff and readiness.",
@@ -621,17 +622,17 @@ function StaffSetupContent() {
           <div className="grid gap-3 sm:grid-cols-3">
             <Metric
               label={L(locale, "Floors / areas", "الأدوار / المناطق")}
-              value={String(onboarding.tables.floorCount)}
+              value={String(setup.tables.floorCount)}
               detail={L(locale, "Real branch structure", "هيكل الفرع الحقيقي")}
             />
             <Metric
               label={L(locale, "Active tables", "الترابيزات النشطة")}
-              value={String(onboarding.tables.activeTableCount)}
+              value={String(setup.tables.activeTableCount)}
               detail={L(locale, "Across this branch", "داخل هذا الفرع")}
             />
             <Metric
               label={L(locale, "QR ready", "QR جاهز")}
-              value={`${onboarding.tables.qrReadyTableCount}/${onboarding.tables.activeTableCount}`}
+              value={`${setup.tables.qrReadyTableCount}/${setup.tables.activeTableCount}`}
               detail={L(locale, "Customer entry readiness", "جاهزية دخول العميل")}
             />
           </div>
@@ -641,7 +642,7 @@ function StaffSetupContent() {
             footer={linkButton("/staff/branches", L(locale, "Open Locations in Office", "افتح الفروع في Office"))}
           >
             <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
-              {onboarding.tables.floors.map((floor) => (
+              {setup.tables.floors.map((floor) => (
                 <div key={floor.id} className="rounded-lg border border-[#DDD6CD] bg-white p-4">
                   <p className="font-semibold">{floor.name}</p>
                   <p className="mt-1 text-xs text-[#81766C]">
@@ -649,7 +650,7 @@ function StaffSetupContent() {
                   </p>
                 </div>
               ))}
-              {onboarding.tables.floors.length === 0 ? (
+              {setup.tables.floors.length === 0 ? (
                 <p className="text-sm text-[#766B61]">
                   {L(locale, "No floor or area exists yet.", "لا يوجد دور أو منطقة حتى الآن.")}
                 </p>
@@ -671,10 +672,10 @@ function StaffSetupContent() {
       return (
         <div className="grid gap-4">
           <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-            <Metric label={L(locale, "Categories", "الأقسام")} value={String(onboarding.menu.activeCategoryCount)} detail={L(locale, "Active", "نشطة")} />
-            <Metric label={L(locale, "Available items", "المنتجات المتاحة")} value={String(onboarding.menu.availableItemCount)} detail={`${onboarding.menu.activeItemCount} ${L(locale, "active", "نشط")}`} />
-            <Metric label={L(locale, "Modifier groups", "مجموعات الإضافات")} value={String(onboarding.menu.activeModifierGroupCount)} detail={L(locale, "Active groups", "مجموعات نشطة")} />
-            <Metric label={L(locale, "Inventory tracked", "مخزون متتبع")} value={String(onboarding.menu.trackedInventoryLevelCount ?? 0)} detail={L(locale, "Branch stock levels", "أرصدة مخزون الفرع")} />
+            <Metric label={L(locale, "Categories", "الأقسام")} value={String(setup.menu.activeCategoryCount)} detail={L(locale, "Active", "نشطة")} />
+            <Metric label={L(locale, "Available items", "المنتجات المتاحة")} value={String(setup.menu.availableItemCount)} detail={`${setup.menu.activeItemCount} ${L(locale, "active", "نشط")}`} />
+            <Metric label={L(locale, "Modifier groups", "مجموعات الإضافات")} value={String(setup.menu.activeModifierGroupCount)} detail={L(locale, "Active groups", "مجموعات نشطة")} />
+            <Metric label={L(locale, "Inventory tracked", "مخزون متتبع")} value={String(setup.menu.trackedInventoryLevelCount ?? 0)} detail={L(locale, "Branch stock levels", "أرصدة مخزون الفرع")} />
           </div>
           <Panel
             eyebrow={L(locale, "CATALOG READINESS", "جاهزية المنيو")}
@@ -775,7 +776,7 @@ function StaffSetupContent() {
             footer={linkButton("/staff/branches", L(locale, "Manage Tables & QR in Office", "إدارة الترابيزات وQR في Office"))}
           >
             <div className="grid gap-2">
-              {onboarding.tables.recentTables.slice(0, 8).map((table) => (
+              {setup.tables.recentTables.slice(0, 8).map((table) => (
                 <div key={table.id} className="grid gap-2 rounded-lg border border-[#DDD6CD] bg-white p-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center">
                   <div className="min-w-0">
                     <p className="text-sm font-semibold">{table.displayName}</p>
@@ -888,8 +889,8 @@ function StaffSetupContent() {
           footer={linkButton("/staff/kitchen", L(locale, "Open Kitchen", "افتح المطبخ"))}
         >
           <div className="mb-4 grid gap-3 sm:grid-cols-2">
-            <Metric label={L(locale, "Printer stations", "محطات الطباعة")} value={String(onboarding.operations.printerStationCount)} detail={L(locale, "Configured", "مجهزة")} />
-            <Metric label={L(locale, "Active stations", "المحطات النشطة")} value={String(onboarding.operations.activePrinterStationCount)} detail={L(locale, "Software-side readiness", "جاهزية جانب السوفتوير")} />
+            <Metric label={L(locale, "Printer stations", "محطات الطباعة")} value={String(setup.operations.printerStationCount)} detail={L(locale, "Configured", "مجهزة")} />
+            <Metric label={L(locale, "Active stations", "المحطات النشطة")} value={String(setup.operations.activePrinterStationCount)} detail={L(locale, "Software-side readiness", "جاهزية جانب السوفتوير")} />
           </div>
           <ReadinessRows locale={locale} items={items} />
         </Panel>
@@ -922,17 +923,17 @@ function StaffSetupContent() {
         <div className="grid gap-4 sm:grid-cols-3">
           <Metric
             label={L(locale, "AI grounding", "جاهزية AI")}
-            value={onboarding.menu.aiWaiterMenuGroundingReady ? L(locale, "Ready", "جاهز") : L(locale, "Attention", "يحتاج مراجعة")}
+            value={setup.menu.aiWaiterMenuGroundingReady ? L(locale, "Ready", "جاهز") : L(locale, "Attention", "يحتاج مراجعة")}
             detail={L(locale, "Based on live menu truth", "مبني على بيانات المنيو الحقيقية")}
           />
           <Metric
             label={L(locale, "Operating profile", "إعدادات التشغيل")}
-            value={onboarding.operations.operatingSettings ? L(locale, "Configured", "مجهزة") : L(locale, "Missing", "ناقصة")}
+            value={setup.operations.operatingSettings ? L(locale, "Configured", "مجهزة") : L(locale, "Missing", "ناقصة")}
             detail={L(locale, "Branch operating settings", "إعدادات تشغيل الفرع")}
           />
           <Metric
             label={L(locale, "Feature flags", "خصائص الفرع")}
-            value={String(Object.values(onboarding.operations.featureFlags).filter(Boolean).length)}
+            value={String(Object.values(setup.operations.featureFlags).filter(Boolean).length)}
             detail={L(locale, "Enabled capabilities", "خصائص مفعلة")}
           />
           <div className="sm:col-span-3">
@@ -961,7 +962,7 @@ function StaffSetupContent() {
           <div className="mb-4 grid gap-3 sm:grid-cols-3">
             <Metric
               label={L(locale, "Cashier shift", "شِفت الكاشير")}
-              value={onboarding.operations.currentOpenShift ? L(locale, "Open", "مفتوح") : onboarding.operations.cashierShiftCanOpen ? L(locale, "Can open", "يمكن فتحه") : L(locale, "Blocked", "متوقف")}
+              value={setup.operations.currentOpenShift ? L(locale, "Open", "مفتوح") : setup.operations.cashierShiftCanOpen ? L(locale, "Can open", "يمكن فتحه") : L(locale, "Blocked", "متوقف")}
               detail={L(locale, "Live branch signal", "إشارة حقيقية من الفرع")}
             />
             <Metric
@@ -1101,7 +1102,7 @@ function StaffSetupContent() {
         </div>
       ) : null}
       <SetupReadinessFrame
-        onboarding={onboarding}
+        onboarding={setup}
         launchSummary={launchSummary}
         controls={controls}
       >
@@ -1114,7 +1115,7 @@ function StaffSetupContent() {
 export function StaffSetupPage() {
   return (
     <StaffAuthGate
-      requiredPermissions={["tenant_onboarding.read"]}
+      requiredPermissions={["tenant_setup.read"]}
       branchScoped
       deniedTitle="Tenant setup access required"
       deniedDescription="This staff account can open its operational surfaces, but tenant launch setup requires owner or branch manager access."
