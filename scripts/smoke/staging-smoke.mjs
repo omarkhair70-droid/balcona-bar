@@ -146,6 +146,37 @@ async function runWebSurfaceSmoke(run) {
     return;
   }
 
+  const sessionId = run.entityIds.sessionId;
+  const customerSessionPages = sessionId
+    ? [
+        {
+          label: "Customer menu page",
+          path: `/customer/session/${sessionId}/menu`,
+          coverage: { category: "Customer", name: "web menu route" }
+        },
+        {
+          label: "Customer cart page",
+          path: `/customer/session/${sessionId}/cart`,
+          coverage: { category: "Customer", name: "web cart route" }
+        },
+        {
+          label: "Customer order page",
+          path: `/customer/session/${sessionId}/status`,
+          coverage: { category: "Customer", name: "web order route" }
+        },
+        {
+          label: "Customer service and bill page",
+          path: `/customer/session/${sessionId}/service`,
+          coverage: { category: "Customer", name: "web service/bill route" }
+        },
+        {
+          label: "Customer AI waiter page",
+          path: `/customer/session/${sessionId}/ai-waiter`,
+          coverage: { category: "AI Waiter", name: "web AI waiter route" }
+        }
+      ]
+    : [];
+
   const pages = [
     {
       label: "Web root",
@@ -154,6 +185,7 @@ async function runWebSurfaceSmoke(run) {
     },
     { label: "Balkona demo launcher", path: "/demo/balkona" },
     { label: "Customer table page", path: `/customer/table/${run.config.tableQrToken ?? "balcona-main-t01"}` },
+    ...customerSessionPages,
     { label: "Staff login page", path: "/staff/login" },
     { label: "Staff cashier page", path: "/staff/cashier" },
     { label: "Staff kitchen page", path: "/staff/kitchen" },
