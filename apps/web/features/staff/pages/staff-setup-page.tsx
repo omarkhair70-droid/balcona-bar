@@ -1115,7 +1115,7 @@ function StaffSetupContent() {
 export function StaffSetupPage() {
   return (
     <StaffAuthGate
-      requiredPermissions={["tenant_setup.read"]}
+      requiredPermissions={["tenant_onboarding.read"]}
       branchScoped
       deniedTitle="Tenant setup access required"
       deniedDescription="This staff account can open its operational surfaces, but tenant launch setup requires owner or branch manager access."
