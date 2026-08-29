@@ -107,11 +107,20 @@ try {
     metrics: { title: sessionMetrics.title }
   });
 
-  await visit("customer-menu", "/customer/session/" + sessionId + "/menu", { waitMs: 1200 });
+  await visit("customer-menu", "/customer/session/" + sessionId + "/menu", { waitMs: 600 });
+  await page.waitForFunction(
+    () => {
+      const text = document.body.innerText;
+      return /Spanish Latte|Signature Latte|Cold Drinks|Bakery/i.test(text) ||
+        /Unable to load|Menu unavailable|Something went wrong/i.test(text);
+    },
+    { timeout: 20000 }
+  );
   const menuText = await page.locator("body").innerText();
   if (!/Spanish Latte|Signature Latte|Cold Drinks|Bakery/i.test(menuText)) {
-    throw new Error("customer-menu: seeded real cafe menu evidence not visible");
+    throw new Error("customer-menu: seeded real cafe menu evidence not visible after 20s");
   }
+  await shot("customer-menu-loaded");
 
   for (const [label, route] of [
     ["customer-status", "/customer/session/" + sessionId + "/status"],
