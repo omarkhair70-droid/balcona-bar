@@ -1,13 +1,15 @@
 # Balcona Service Prototype Closure
 
-Status: SUPERSEDED — V0 CLOSURE REOPENED FOR VISUAL AUDIT
-Date: 2026-08-28
+Status: EVIDENCE-LED V1 — VISUAL GATE PASSED
+Date: 2026-08-29
 PR: #120
-Head: 82f31ee30828cb2cf6d9c2892a5bbef83e066972
+Visual gate run: 33223593351
+Evidence artifact: balcona-service-v1-visual-gate
+Artifact digest: sha256:840472a9d87ac73a56e759241872c319ecda2bb23164495ce15449056da6800c
 
-## What is closed
+## Closed scope
 
-Balcona Service visual/interaction prototype is complete for the current product-UX phase.
+Balcona Service V1 is visually closed for the current product-UX prototype phase.
 
 Covered modes:
 - Cashier
@@ -20,63 +22,105 @@ Covered workspaces:
 - Bills
 - Shift
 
-Covered interaction proof:
-- task-oriented navigation
-- order queue + selected detail/action area
-- waiter calls
-- computed attention
-- ready-to-serve
-- AI escalation
-- bill request / present / manual-payment state
-- payment unknown / needs-review safety
-- shift open
-- cash adjustment
-- X report
-- close blockers
-- Arabic / RTL
+## Evidence-led acceptance
 
-## Backend coverage
+The fresh visual benchmark audit in `SERVICE_VISUAL_BENCHMARK_AUDIT.md` was applied against:
+- Toast POS
+- Square for Restaurants
+- Lightspeed Restaurant POS
+- Balcona backend/product truth
 
-Prototype jobs map to existing Balcona backend capabilities:
-- cashier order lifecycle
-- Smart Cashier review state
-- waiter calls
-- table attention
-- ready-to-serve
-- bill requests
-- bills/manual payments
-- cashier shifts and X/Z reporting
+The revised V1 now passes the required visual criteria:
 
-## Important boundary
+1. Floor reads as a restaurant floor rather than an equal-card dashboard.
+2. Main Dining / Terrace service areas are switchable.
+3. table state and elapsed time are immediately readable.
+4. selecting a table exposes supported table/order/bill/attention context.
+5. waiter attention is a prioritized operational queue.
+6. cashier Orders remain task-first with persistent primary actions.
+7. payment-unknown is visually separate and dominant in Bills.
+8. shift state is persistent without becoming an Office/back-office surface.
+9. Cashier and Waiter remain modes of one Service product.
+10. Arabic / RTL remains usable on desktop and mobile.
 
-This prototype is not production integration.
+## Manual visual review
 
-It uses representative static data so information hierarchy, live-service flow, touch density, mode separation, and bilingual behavior can be approved before production migration.
+Representative screenshots were reviewed manually at:
+- 1440×1000 desktop
+- 390×844 handheld
 
-Actual API mutation wiring, permissions, realtime behavior, and production Staff UI replacement happen in implementation waves.
+Reviewed states:
+- Orders
+- Floor / Main Dining
+- Floor / Terrace
+- Attention
+- Bills / payment unknown
+- Shift / close blockers
+- Waiter mode
+- Arabic RTL
+- handheld Orders
+- handheld Attention
+- handheld Floor
+- handheld Bills
+- handheld Shift
+- handheld Arabic RTL
 
-## Quality gate
+Two bounded visual defects found during the gate were corrected:
+- Floor mobile status text no longer truncates the `ATTENTION` state.
+- Shift Drawer Adjustment no longer clips the `Cash in` action at desktop width.
 
-Final Service head passed:
+No redesign or backend scope was reopened.
+
+## Automated quality gate
+
+Final Service visual gate passed:
 - web lint
 - web typecheck
 - web production build
+- Playwright interaction smoke
+- desktop/mobile representative states
+- service-area switching
+- payment-unknown safety state
+- shift close-blocker state
+- Cashier → Waiter mode switch
+- Arabic / RTL
+- no horizontal page overflow
+
+Existing PR quality also covers:
 - API build
 - API tests
 - Docker API image
 - Docker Web image
+- Vercel preview readiness on the evidence-led V1 branch
 
-Service prototype phase is closed.
+## Backend truth retained
+
+Visible Service jobs remain mapped to existing Balcona capabilities:
+- cashier order lifecycle
+- Smart Cashier review state
+- waiter calls
+- table attention
+- computed attention
+- ready-to-serve
+- AI escalation
+- bill requests
+- manual payments
+- payment unknown / needs review
+- cashier shifts
+- X reporting
+- cash adjustments
+- close blockers
+- realtime branch context
+
+## Boundary
+
+This remains a high-fidelity prototype using representative data.
+
+It does not yet perform production API mutation wiring, permission integration, realtime production replacement, or Staff UI migration. Those belong to the later production-integration wave.
+
+## Gate decision
+
+**SERVICE V1 VISUAL GATE: PASS**
 
 Next surface:
-**Balcona Kitchen — KDS / Barista / Expediter**
-
-
-## Supersession note
-
-The original Service V0 closure is superseded by the fresh visual benchmark audit:
-- `docs/product-ux/SERVICE_VISUAL_BENCHMARK_AUDIT.md`
-
-Service has been revised to Evidence-led V1 and remains visually open until Omar reviews the new prototype.
-
-Do not treat this older closure record as current visual approval.
+**Balcona Kitchen — PR #121 visual closure gate**
