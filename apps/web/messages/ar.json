@@ -1009,6 +1009,22 @@
       "overShort": "الفرق",
       "zCloseOnly": "يظهر عند الإغلاق النهائي فقط",
       "countedCashSummary": "النقد المعدود {amount}."
+    },
+    "office": {
+      "productLabel": "بلكونة",
+      "productSubtitle": "الإدارة",
+      "eyebrow": "إدارة بلكونة",
+      "home": "الرئيسية",
+      "operations": "العمليات",
+      "catalog": "المنيو",
+      "inventory": "المخزون",
+      "locations": "الفروع",
+      "team": "الفريق",
+      "money": "المدفوعات",
+      "insights": "التحليلات",
+      "experience": "التجربة",
+      "settings": "الإعدادات",
+      "notPromoted": "لم يتم تفعيله بعد"
     }
   },
   "cashier": {
