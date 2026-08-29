@@ -1,14 +1,6 @@
 "use client";
 
 import { RefreshCw } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle
-} from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
 import { LoadingState } from "@/components/ui/loading-state";
 import { getWaiterCallId } from "@/features/staff/waiter-data";
@@ -45,19 +37,28 @@ export function WaiterCallQueue({
   const t = useTranslations("staff");
 
   return (
-    <Card variant="glass" padding="lg" className="min-h-[34rem]">
-      <CardHeader className="gap-4 sm:flex sm:flex-row sm:items-start sm:justify-between sm:space-y-0">
-        <div>
-          <CardTitle>{t("waiter.callsTitle")}</CardTitle>
-          <CardDescription>{t("waiter.callsDescription")}</CardDescription>
+    <section className="min-h-[34rem] min-w-0 border border-[#3B3028] bg-[#17120F]">
+      <div className="border-b border-[#342A23] p-3">
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0">
+            <h2 className="text-base font-semibold text-[#FFF5E8]">
+              {t("waiter.callsTitle")}
+            </h2>
+            <p className="mt-1 text-xs leading-5 text-[#95887D]">
+              {t("waiter.callsDescription")}
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={onRefresh}
+            className="flex size-9 shrink-0 items-center justify-center rounded-md border border-[#3C3129] bg-[#211A15] text-[#AFA195] transition hover:border-[#5A483A] hover:text-[#F6EBDD]"
+            aria-label={t("actions.refresh")}
+          >
+            <RefreshCw className="size-4" aria-hidden="true" />
+          </button>
         </div>
-        <Button variant="secondary" size="sm" onClick={onRefresh}>
-          <RefreshCw className="size-4" aria-hidden="true" />
-          {t("actions.refresh")}
-        </Button>
-      </CardHeader>
-      <CardContent>
-        <div className="mb-4">
+
+        <div className="mt-3">
           <WaiterCallTypeFilter
             status={status}
             type={type}
@@ -65,7 +66,9 @@ export function WaiterCallQueue({
             onTypeChange={onTypeChange}
           />
         </div>
+      </div>
 
+      <div className="p-3">
         {isLoading ? <LoadingState label={t("waiter.loadingCalls")} /> : null}
         {error ? (
           <EmptyState
@@ -80,7 +83,7 @@ export function WaiterCallQueue({
           />
         ) : null}
         {!isLoading && !error && waiterCalls.length > 0 ? (
-          <div className="grid gap-3">
+          <div className="grid gap-2">
             {waiterCalls.map((waiterCall, index) => {
               const waiterCallId = getWaiterCallId(waiterCall) || String(index);
 
@@ -95,7 +98,7 @@ export function WaiterCallQueue({
             })}
           </div>
         ) : null}
-      </CardContent>
-    </Card>
+      </div>
+    </section>
   );
 }
