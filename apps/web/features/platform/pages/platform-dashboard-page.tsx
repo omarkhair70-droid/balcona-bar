@@ -187,7 +187,7 @@ function CompanyDrawer({
 
           <Link
             href={`/platform/companies/${company.id}`}
-            className="inline-flex min-h-11 items-center justify-center rounded-md bg-[#292925] px-4 text-sm font-semibold text-white"
+            className="inline-flex min-h-11 items-center justify-center rounded-md bg-[#292925] px-4 text-sm font-semibold !text-white"
           >
             {L(locale, "Open full company", "افتح الشركة كاملة")}
           </Link>
@@ -460,7 +460,7 @@ export function PlatformDashboardPage() {
       actions={
         <Link
           href="/platform/companies/new"
-          className="inline-flex min-h-10 items-center gap-2 rounded-md bg-[#292925] px-3 text-xs font-semibold text-white"
+          className="inline-flex min-h-10 items-center gap-2 rounded-md bg-[#292925] px-3 text-xs font-semibold !text-white"
         >
           <Plus className="size-4" />
           {t("actions.addCafe")}
