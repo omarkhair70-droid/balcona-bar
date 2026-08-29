@@ -1062,7 +1062,22 @@
       "settingsOpenShift": "وردية مفتوحة",
       "settingsNoValue": "غير مضبوط",
       "loadingFoundation": "جاري تحميل بيانات الإدارة…",
-      "foundationError": "تعذر تحميل هذا القسم من عقد الـbackend الحالي."
+      "foundationError": "تعذر تحميل هذا القسم من عقد الـbackend الحالي.",
+      "roleOwner": "المالك",
+      "roleBranchManager": "مدير الفرع",
+      "roleCashier": "الكاشير",
+      "roleWaiter": "الخدمة",
+      "roleKitchen": "المطبخ",
+      "roleBarista": "البار",
+      "roleMenuAdmin": "إدارة المنيو",
+      "stateActive": "نشط",
+      "stateInactive": "غير نشط",
+      "sourceBranch": "الفرع",
+      "sourceCompany": "الشركة",
+      "configured": "مضبوط",
+      "notConfigured": "غير مضبوط",
+      "enabled": "مفعّل",
+      "disabled": "متوقف"
     }
   },
   "cashier": {
