@@ -3,133 +3,206 @@
 import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
 import {
+  Activity,
   Building2,
-  CreditCard,
-  PlusCircle,
+  ChevronRight,
+  CircleDollarSign,
+  Plus,
   RefreshCw,
-  ShieldCheck
+  ShieldCheck,
+  UsersRound,
+  X
 } from "lucide-react";
-import { Badge, type BadgeProps } from "@/components/ui/badge";
-import { Button, buttonVariants } from "@/components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardFooter,
-  CardHeader,
-  CardTitle
-} from "@/components/ui/card";
+import { useState } from "react";
 import { EmptyState } from "@/components/ui/empty-state";
 import { LoadingState } from "@/components/ui/loading-state";
-import { MetricCard } from "@/components/ui/metric-card";
 import { PlatformAuthGate } from "@/features/platform/components/platform-auth-gate";
 import { PlatformShell } from "@/features/platform/platform-shell";
 import { formatErrorMessage } from "@/lib/api/error-message";
 import { getPlatformCompanies } from "@/lib/api/endpoints";
 import { platformQueryKeys } from "@/lib/api/query-keys";
 import type { PlatformCompanySummary } from "@/lib/api/types";
-import { useTranslations } from "@/lib/i18n/i18n-provider";
+import { useI18n, useTranslations } from "@/lib/i18n/i18n-provider";
 import { usePlatformAuthStore } from "@/lib/platform/platform-auth-store";
-import { formatDateTime, formatMoney, humanizeStatus } from "@/features/staff/staff-format";
+import { humanizeStatus } from "@/features/staff/staff-format";
 
-function subscriptionBadgeVariant(
-  status?: string | null
-): NonNullable<BadgeProps["variant"]> {
-  if (status === "active" || status === "trialing") {
-    return "success";
-  }
+type Tone = "ok" | "warn" | "danger" | "neutral";
 
-  if (status === "past_due") {
-    return "warning";
-  }
-
-  if (status === "suspended" || status === "cancelled") {
-    return "danger";
-  }
-
-  return "muted";
+function L(locale: "en" | "ar", en: string, ar: string) {
+  return locale === "ar" ? ar : en;
 }
 
-function planPrice(
-  company: PlatformCompanySummary,
-  t: ReturnType<typeof useTranslations>
-) {
-  const plan = company.subscription?.plan;
-
-  if (!plan) {
-    return t("companies.noPlan");
-  }
-
-  if (plan.monthlyPriceMinor === null || plan.monthlyPriceMinor === undefined) {
-    return t("companies.customPrice");
-  }
-
-  return t("companies.pricePerMonth", {
-    price: formatMoney(plan.monthlyPriceMinor, plan.currency)
-  });
+function toneForStatus(status?: string | null): Tone {
+  if (status === "active") return "ok";
+  if (status === "trialing" || status === "past_due") return "warn";
+  if (status === "suspended" || status === "cancelled") return "danger";
+  return "neutral";
 }
 
-function CompanyCard({ company }: { company: PlatformCompanySummary }) {
-  const t = useTranslations("platform");
-  const subscriptionStatus = company.subscription?.status ?? "unconfigured";
-  const plan = company.subscription?.plan;
+function Pill({
+  tone = "neutral",
+  children
+}: {
+  tone?: Tone;
+  children: React.ReactNode;
+}) {
+  const cls = {
+    ok: "border-[#C8D7C8] bg-[#F0F6EF] text-[#315638]",
+    warn: "border-[#E5D2AD] bg-[#FFF8E9] text-[#7D591F]",
+    danger: "border-[#E4C5C1] bg-[#FBEEEE] text-[#8D3F37]",
+    neutral: "border-[#D7D7D2] bg-[#F7F7F4] text-[#62625C]"
+  }[tone];
 
   return (
-    <Card variant="quiet">
-      <CardHeader>
-        <div className="flex items-start justify-between gap-3">
-          <div className="flex size-11 items-center justify-center rounded-button bg-primary/15 text-primary">
-            <Building2 className="size-5" aria-hidden="true" />
+    <span className={`inline-flex rounded-full border px-2.5 py-1 text-[11px] font-semibold ${cls}`}>
+      {children}
+    </span>
+  );
+}
+
+function Metric({
+  label,
+  value,
+  hint,
+  tone = "neutral"
+}: {
+  label: string;
+  value: string;
+  hint: string;
+  tone?: Tone;
+}) {
+  return (
+    <div className="border-e border-[#E2E2DD] p-4 last:border-e-0 rtl:border-e-0 rtl:border-s rtl:last:border-s-0">
+      <p className="text-[11px] text-[#777771]">{label}</p>
+      <p className="mt-1 text-2xl font-semibold tracking-[-0.035em]">{value}</p>
+      <p
+        className={`mt-1 text-[11px] ${
+          tone === "danger"
+            ? "text-[#8D3F37]"
+            : tone === "warn"
+              ? "text-[#805C25]"
+              : "text-[#85857F]"
+        }`}
+      >
+        {hint}
+      </p>
+    </div>
+  );
+}
+
+function CompanyDrawer({
+  company,
+  onClose
+}: {
+  company: PlatformCompanySummary | null;
+  onClose: () => void;
+}) {
+  const { locale } = useI18n();
+
+  if (!company) return null;
+
+  const subscription = company.subscription;
+  const status = subscription?.status ?? "unconfigured";
+  const plan = subscription?.plan;
+
+  return (
+    <>
+      <button
+        type="button"
+        aria-label={L(locale, "Close company detail", "إغلاق تفاصيل الشركة")}
+        onClick={onClose}
+        className="fixed inset-0 z-40 bg-black/15"
+      />
+      <aside className="fixed inset-y-0 end-0 z-50 w-full max-w-lg overflow-y-auto border-s border-[#D5D5D0] bg-[#FBFBF8] shadow-[-18px_0_50px_rgba(0,0,0,.12)]">
+        <div className="sticky top-0 flex items-start justify-between gap-4 border-b border-[#DEDED9] bg-[#FBFBF8]/96 px-5 py-4 backdrop-blur">
+          <div>
+            <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[#7A746D]">
+              BALCONA PLATFORM · TENANT
+            </p>
+            <h2 className="mt-1.5 text-xl font-semibold">{company.name}</h2>
+            <p className="mt-1 text-xs text-[#777771]">{company.slug}</p>
           </div>
-          <Badge variant={subscriptionBadgeVariant(subscriptionStatus)}>
-            {humanizeStatus(subscriptionStatus)}
-          </Badge>
+          <button
+            type="button"
+            aria-label={L(locale, "Close company detail", "إغلاق تفاصيل الشركة")}
+            onClick={onClose}
+            className="flex size-9 items-center justify-center rounded-md border border-[#D5D5D0] bg-white"
+          >
+            <X className="size-4" />
+          </button>
         </div>
-        <CardTitle>{company.name}</CardTitle>
-        <CardDescription>
-          {t("companies.cardDescription", {
-            slug: company.slug,
-            plan: plan?.name ?? t("companies.planPending"),
-            price: planPrice(company, t)
-          })}
-        </CardDescription>
-      </CardHeader>
-      <CardContent className="grid gap-3 text-sm text-muted-foreground">
-        <div className="grid grid-cols-2 gap-3">
-          <div className="rounded-button border bg-surface/70 p-3">
-            <p className="text-xs uppercase text-muted-foreground">
-              {t("companies.branches")}
+
+        <div className="grid gap-4 p-5">
+          <section className="overflow-hidden rounded-lg border border-[#DADAD5] bg-white">
+            <div className="border-b border-[#E7E7E2] px-4 py-3">
+              <h3 className="text-xs font-semibold">
+                {L(locale, "Tenant summary", "ملخص الشركة")}
+              </h3>
+            </div>
+            {[
+              [L(locale, "Plan", "الخطة"), plan?.name ?? L(locale, "Not assigned", "غير محددة")],
+              [L(locale, "Subscription", "الاشتراك"), humanizeStatus(status)],
+              [L(locale, "Branches", "الفروع"), String(company.branchCount)],
+              [L(locale, "Staff memberships", "عضويات الفريق"), String(company.staffMembershipCount)]
+            ].map(([a, b]) => (
+              <div
+                key={a}
+                className="grid grid-cols-[140px_minmax(0,1fr)] gap-3 border-b border-[#EEEEEA] px-4 py-3 text-xs last:border-0"
+              >
+                <span className="text-[#797973]">{a}</span>
+                <span className="font-semibold">{b}</span>
+              </div>
+            ))}
+          </section>
+
+          <section className="rounded-lg border border-[#DADAD5] bg-white p-4">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <p className="text-xs font-semibold">
+                  {L(locale, "Identity boundary", "حدود الهوية")}
+                </p>
+                <p className="mt-1 text-xs leading-5 text-[#777771]">
+                  {L(
+                    locale,
+                    "Platform reviews tenant state but does not impersonate restaurant staff.",
+                    "Platform يراجع حالة الشركة لكنه لا ينتحل دور موظفي المطعم."
+                  )}
+                </p>
+              </div>
+              <UsersRound className="size-5 text-[#76634A]" />
+            </div>
+          </section>
+
+          <section className="rounded-lg border border-[#DADAD5] bg-white p-4">
+            <p className="text-xs font-semibold">
+              {L(locale, "Subscription boundary", "حدود الاشتراك")}
             </p>
-            <p className="mt-1 text-xl font-semibold text-foreground">
-              {company.branchCount}
+            <p className="mt-2 text-[11px] leading-5 text-[#85857F]">
+              {L(
+                locale,
+                "This is internal Balcona plan/access state. It is not restaurant customer money and it does not claim a recurring billing provider exists.",
+                "هذه حالة خطة ووصول داخلية لبلكونة. ليست أموال عملاء المطعم ولا تدّعي وجود مزود تحصيل دوري."
+              )}
             </p>
-          </div>
-          <div className="rounded-button border bg-surface/70 p-3">
-            <p className="text-xs uppercase text-muted-foreground">
-              {t("companies.staff")}
-            </p>
-            <p className="mt-1 text-xl font-semibold text-foreground">
-              {company.staffMembershipCount}
-            </p>
-          </div>
+          </section>
+
+          <Link
+            href={`/platform/companies/${company.id}`}
+            className="inline-flex min-h-11 items-center justify-center rounded-md bg-[#292925] px-4 text-sm font-semibold text-white"
+          >
+            {L(locale, "Open full company", "افتح الشركة كاملة")}
+          </Link>
         </div>
-        <p>{t("companies.createdAt", { date: formatDateTime(company.createdAt) })}</p>
-      </CardContent>
-      <CardFooter>
-        <Link
-          href={`/platform/companies/${company.id}`}
-          className={buttonVariants({ variant: "secondary", size: "sm" })}
-        >
-          {t("actions.openCompany")}
-        </Link>
-      </CardFooter>
-    </Card>
+      </aside>
+    </>
   );
 }
 
 function PlatformDashboardContent() {
   const t = useTranslations("platform");
+  const { locale } = useI18n();
   const accessToken = usePlatformAuthStore((state) => state.accessToken);
+  const [selected, setSelected] = useState<PlatformCompanySummary | null>(null);
   const companiesQuery = useQuery({
     queryKey: platformQueryKeys.companies(),
     queryFn: () => getPlatformCompanies(accessToken ?? ""),
@@ -146,69 +219,235 @@ function PlatformDashboardContent() {
         title={t("errors.companiesLoadTitle")}
         description={formatErrorMessage(companiesQuery.error)}
         action={
-          <Button onClick={() => companiesQuery.refetch()} variant="secondary">
-            <RefreshCw className="size-4" aria-hidden="true" />
+          <button
+            type="button"
+            onClick={() => void companiesQuery.refetch()}
+            className="inline-flex min-h-10 items-center gap-2 rounded-md border border-[#D6D6D1] bg-white px-3 text-xs font-semibold"
+          >
+            <RefreshCw className="size-4" />
             {t("actions.retry")}
-          </Button>
+          </button>
         }
       />
     );
   }
 
   const data = companiesQuery.data;
-  const recentCompanies = data.companies.slice(0, 8);
+  const attention = data.companies.filter((company) =>
+    ["past_due", "suspended", "cancelled"].includes(
+      company.subscription?.status ?? ""
+    )
+  );
 
   return (
-    <div className="grid gap-5">
-      <section className="grid gap-4 md:grid-cols-4">
-        <MetricCard
-          label={t("companies.metricCompanies")}
-          value={String(data.summary.totalCompanies)}
-          description={t("companies.metricCompaniesDescription")}
-          icon={<Building2 className="size-4" aria-hidden="true" />}
-        />
-        <MetricCard
-          label={t("companies.metricActive")}
-          value={String(data.summary.activeSubscriptions)}
-          description={t("companies.metricActiveDescription")}
-          tone="success"
-          icon={<ShieldCheck className="size-4" aria-hidden="true" />}
-        />
-        <MetricCard
-          label={t("companies.metricTrialing")}
-          value={String(data.summary.trialingSubscriptions)}
-          description={t("companies.metricTrialingDescription")}
-          tone="warning"
-          icon={<CreditCard className="size-4" aria-hidden="true" />}
-        />
-        <MetricCard
-          label={t("companies.metricSuspended")}
-          value={String(data.summary.suspendedSubscriptions)}
-          description={t("companies.metricSuspendedDescription")}
-          tone="muted"
-          icon={<CreditCard className="size-4" aria-hidden="true" />}
-        />
-      </section>
-
-      {recentCompanies.length === 0 ? (
-        <EmptyState
-          title={t("empty.noCompaniesTitle")}
-          description={t("empty.noCompaniesDescription")}
-          action={
-            <Link href="/platform/companies/new" className={buttonVariants()}>
-              <PlusCircle className="size-4" aria-hidden="true" />
-              {t("actions.addCafe")}
-            </Link>
-          }
-        />
-      ) : (
-        <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-          {recentCompanies.map((company) => (
-            <CompanyCard key={company.id} company={company} />
-          ))}
+    <>
+      <div className="grid gap-4">
+        <section className="grid overflow-hidden rounded-lg border border-[#D9D9D4] bg-white sm:grid-cols-2 xl:grid-cols-4">
+          <Metric
+            label={L(locale, "Companies", "الشركات")}
+            value={String(data.summary.totalCompanies)}
+            hint={L(locale, "Tenant workspaces", "مساحات عمل")}
+          />
+          <Metric
+            label={L(locale, "Active", "نشط")}
+            value={String(data.summary.activeSubscriptions)}
+            hint={L(locale, "Internal subscription state", "حالة اشتراك داخلية")}
+          />
+          <Metric
+            label={L(locale, "Trialing", "تجريبي")}
+            value={String(data.summary.trialingSubscriptions)}
+            hint={L(locale, "Onboarding in progress", "التجهيز مستمر")}
+            tone="warn"
+          />
+          <Metric
+            label={L(locale, "Needs action", "يحتاج تدخل")}
+            value={String(attention.length)}
+            hint={L(locale, "Past due / suspended / cancelled", "متأخر / موقوف / ملغي")}
+            tone={attention.length > 0 ? "danger" : "neutral"}
+          />
         </section>
-      )}
-    </div>
+
+        <section className="overflow-hidden rounded-lg border border-[#D9D9D4] bg-white">
+          <div className="flex items-center justify-between gap-3 border-b border-[#E7E7E2] px-4 py-3">
+            <div>
+              <h2 className="text-sm font-semibold">
+                {L(locale, "Tenant attention", "تنبيهات الشركات")}
+              </h2>
+              <p className="mt-1 text-xs text-[#777771]">
+                {L(
+                  locale,
+                  "Subscription states that require internal platform review.",
+                  "حالات الاشتراك التي تحتاج مراجعة فريق Platform."
+                )}
+              </p>
+            </div>
+            <Pill tone={attention.length > 0 ? "danger" : "ok"}>
+              {attention.length}
+            </Pill>
+          </div>
+
+          {attention.length === 0 ? (
+            <p className="px-4 py-6 text-sm text-[#777771]">
+              {L(locale, "No tenant currently requires subscription action.", "لا توجد شركة تحتاج تدخل في الاشتراك حاليًا.")}
+            </p>
+          ) : (
+            <div className="divide-y divide-[#ECECE8]">
+              {attention.map((company) => {
+                const status = company.subscription?.status ?? "unconfigured";
+                return (
+                  <button
+                    key={company.id}
+                    type="button"
+                    onClick={() => setSelected(company)}
+                    className="grid w-full gap-3 px-4 py-3 text-start hover:bg-[#FAFAF8] sm:grid-cols-[minmax(0,1fr)_140px_120px_auto] sm:items-center"
+                  >
+                    <div>
+                      <p className="text-sm font-semibold">{company.name}</p>
+                      <p className="mt-1 text-xs text-[#777771]">{company.slug}</p>
+                    </div>
+                    <span className="text-xs">
+                      {company.subscription?.plan?.name ?? L(locale, "No plan", "لا توجد خطة")}
+                    </span>
+                    <Pill tone={toneForStatus(status)}>{humanizeStatus(status)}</Pill>
+                    <ChevronRight className="size-4 text-[#999993] rtl:rotate-180" />
+                  </button>
+                );
+              })}
+            </div>
+          )}
+        </section>
+
+        <section className="grid gap-4 xl:grid-cols-[minmax(0,1.4fr)_320px]">
+          <div className="overflow-hidden rounded-lg border border-[#D9D9D4] bg-white">
+            <div className="flex items-center justify-between border-b border-[#E7E7E2] px-4 py-3">
+              <h2 className="text-sm font-semibold">
+                {L(locale, "Recent companies", "أحدث الشركات")}
+              </h2>
+              <Link
+                href="/platform/companies"
+                className="text-xs font-semibold text-[#62533F] underline-offset-4 hover:underline"
+              >
+                {L(locale, "Open registry", "افتح السجل")}
+              </Link>
+            </div>
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[720px] text-sm">
+                <thead>
+                  <tr className="border-b border-[#E8E8E4] bg-[#F7F7F4] text-[11px] text-[#6F6F69]">
+                    {[
+                      L(locale, "Company", "الشركة"),
+                      L(locale, "Plan", "الخطة"),
+                      L(locale, "Subscription", "الاشتراك"),
+                      L(locale, "Branches", "الفروع"),
+                      L(locale, "Staff", "الفريق")
+                    ].map((heading) => (
+                      <th key={heading} className="px-4 py-2.5 text-start font-medium">
+                        {heading}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-[#ECECE8]">
+                  {data.companies.slice(0, 8).map((company) => {
+                    const status = company.subscription?.status ?? "unconfigured";
+                    return (
+                      <tr
+                        key={company.id}
+                        onClick={() => setSelected(company)}
+                        className="cursor-pointer hover:bg-[#FAFAF8]"
+                      >
+                        <td className="px-4 py-3.5">
+                          <p className="font-semibold">{company.name}</p>
+                          <p className="text-xs text-[#777771]">{company.slug}</p>
+                        </td>
+                        <td className="px-4 py-3.5">
+                          {company.subscription?.plan?.name ?? "—"}
+                        </td>
+                        <td className="px-4 py-3.5">
+                          <Pill tone={toneForStatus(status)}>{humanizeStatus(status)}</Pill>
+                        </td>
+                        <td className="px-4 py-3.5">{company.branchCount}</td>
+                        <td className="px-4 py-3.5">{company.staffMembershipCount}</td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <div className="grid content-start gap-4">
+            <article className="rounded-lg border border-[#D9D9D4] bg-white p-4">
+              <div className="flex items-start justify-between gap-4">
+                <div>
+                  <h3 className="text-sm font-semibold">
+                    {L(locale, "System status", "حالة النظام")}
+                  </h3>
+                  <p className="mt-1 text-xs leading-5 text-[#777771]">
+                    {L(
+                      locale,
+                      "Safe runtime metadata and web API target are checked separately.",
+                      "بيانات التشغيل الآمنة وهدف API للويب يتم فحصهما بشكل منفصل."
+                    )}
+                  </p>
+                </div>
+                <Activity className="size-4 text-[#4F7655]" />
+              </div>
+              <Link
+                href="/platform/status"
+                className="mt-3 inline-flex min-h-9 items-center rounded-md border border-[#D6D6D1] px-3 text-xs font-semibold"
+              >
+                {L(locale, "Open status", "افتح الحالة")}
+              </Link>
+            </article>
+
+            <article className="rounded-lg border border-[#D9D9D4] bg-white p-4">
+              <div className="flex items-start justify-between gap-4">
+                <div>
+                  <h3 className="text-sm font-semibold">
+                    {L(locale, "SaaS boundary", "حدود SaaS")}
+                  </h3>
+                  <p className="mt-1 text-xs leading-5 text-[#777771]">
+                    {L(
+                      locale,
+                      "Plan and access state are internal truth. Recurring billing provider work remains separate.",
+                      "حالة الخطة والوصول حقيقة داخلية. مزود التحصيل الدوري يظل برنامجًا منفصلًا."
+                    )}
+                  </p>
+                </div>
+                <CircleDollarSign className="size-4 text-[#76634A]" />
+              </div>
+              <Link
+                href="/platform/plans"
+                className="mt-3 inline-flex min-h-9 items-center rounded-md border border-[#D6D6D1] px-3 text-xs font-semibold"
+              >
+                {L(locale, "Open plans", "افتح الخطط")}
+              </Link>
+            </article>
+
+            <article className="rounded-lg border border-[#D9D9D4] bg-white p-4">
+              <div className="flex items-start justify-between gap-4">
+                <div>
+                  <h3 className="text-sm font-semibold">
+                    {L(locale, "Platform identity", "هوية Platform")}
+                  </h3>
+                  <p className="mt-1 text-xs leading-5 text-[#777771]">
+                    {L(
+                      locale,
+                      "Separate PlatformAdmin auth. No restaurant staff impersonation.",
+                      "مصادقة PlatformAdmin منفصلة. لا يوجد انتحال لموظفي المطعم."
+                    )}
+                  </p>
+                </div>
+                <ShieldCheck className="size-4 text-[#526E57]" />
+              </div>
+            </article>
+          </div>
+        </section>
+      </div>
+
+      <CompanyDrawer company={selected} onClose={() => setSelected(null)} />
+    </>
   );
 }
 
@@ -217,11 +456,14 @@ export function PlatformDashboardPage() {
 
   return (
     <PlatformShell
-      title={t("companies.title")}
+      title={t("navigation.dashboard")}
       description={t("companies.description")}
       actions={
-        <Link href="/platform/companies/new" className={buttonVariants()}>
-          <PlusCircle className="size-4" aria-hidden="true" />
+        <Link
+          href="/platform/companies/new"
+          className="inline-flex min-h-10 items-center gap-2 rounded-md bg-[#292925] px-3 text-xs font-semibold text-white"
+        >
+          <Plus className="size-4" />
           {t("actions.addCafe")}
         </Link>
       }
