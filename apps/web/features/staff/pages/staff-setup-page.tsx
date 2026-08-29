@@ -39,7 +39,7 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { Input } from "@/components/ui/input";
 import { LoadingState } from "@/components/ui/loading-state";
 import { MetricCard } from "@/components/ui/metric-card";
-import { StaffPageShell } from "@/features/staff/staff-page-shell";
+import { SetupReadinessFrame } from "@/features/staff/setup-readiness-frame";
 import { formatErrorMessage } from "@/lib/api/error-message";
 import {
   bulkCreateOnboardingTables,
@@ -788,7 +788,7 @@ function StaffSetupContent() {
       ) : null}
 
       {onboarding ? (
-        <>
+        <SetupReadinessFrame onboarding={onboarding} launchSummary={launchSummary}>
           {saasStatus ? (
             <Card
               variant={saasStatus.blockers.length > 0 ? "quiet" : "accent"}
@@ -888,7 +888,7 @@ function StaffSetupContent() {
             />
           </section>
 
-          <section className="grid gap-4 xl:grid-cols-2">
+          <section id="setup-foundation" className="scroll-mt-6 grid gap-4 xl:grid-cols-2">
             <Card variant="quiet">
               <CardHeader>
                 <div className="flex items-start justify-between gap-4">
@@ -1053,7 +1053,7 @@ function StaffSetupContent() {
             </Card>
           </section>
 
-          <section className="grid gap-4 xl:grid-cols-[1.1fr_0.9fr]">
+          <section id="setup-tables" className="scroll-mt-6 grid gap-4 xl:grid-cols-[1.1fr_0.9fr]">
             <Card variant="glass">
               <CardHeader>
                 <div className="flex items-start justify-between gap-4">
@@ -1311,7 +1311,7 @@ function StaffSetupContent() {
             </Card>
           </section>
 
-          <section className="grid gap-4 xl:grid-cols-[0.9fr_1.1fr]">
+          <section id="setup-team" className="scroll-mt-6 grid gap-4 xl:grid-cols-[0.9fr_1.1fr]">
             <Card variant="quiet">
               <CardHeader>
                 <div className="flex items-start justify-between gap-4">
@@ -1522,7 +1522,7 @@ function StaffSetupContent() {
             ))}
           </section>
 
-          <section className="grid gap-4 xl:grid-cols-[1.1fr_0.9fr]">
+          <section id="setup-final" className="scroll-mt-6 grid gap-4 xl:grid-cols-[1.1fr_0.9fr]">
             <Card variant="glass">
               <CardHeader>
                 <div className="flex items-start justify-between gap-4">
@@ -1617,7 +1617,7 @@ function StaffSetupContent() {
               </CardFooter>
             </Card>
           </section>
-        </>
+        </SetupReadinessFrame>
       ) : null}
     </div>
   );
@@ -1625,30 +1625,17 @@ function StaffSetupContent() {
 
 export function StaffSetupPage() {
   return (
-    <StaffPageShell
-      title="Tenant onboarding"
-      description="Company and branch setup foundation for real tenant launch readiness."
-      actions={
-        <div className="flex flex-wrap gap-3">
-          <Link href="/staff/branches" className={buttonVariants({ variant: "secondary" })}>
-            <Building2 className="size-4" aria-hidden="true" />
-            Branches
-          </Link>
-          <Link href="/staff/menu" className={buttonVariants({ variant: "secondary" })}>
-            <BookOpenText className="size-4" aria-hidden="true" />
-            Menu
-          </Link>
-        </div>
-      }
-    >
-      <StaffAuthGate
-        requiredPermissions={["tenant_onboarding.read"]}
-        branchScoped
-        deniedTitle="Tenant setup access required"
-        deniedDescription="This staff account can open its operational surfaces, but tenant launch setup requires owner or branch manager access."
-      >
-        <StaffSetupContent />
-      </StaffAuthGate>
-    </StaffPageShell>
+    <div className="min-h-screen bg-[#F4F0EA] text-[#2B2520]">
+      <div className="mx-auto max-w-[1500px] px-3 py-4 sm:px-5 lg:px-6 lg:py-6">
+        <StaffAuthGate
+          requiredPermissions={["tenant_onboarding.read"]}
+          branchScoped
+          deniedTitle="Tenant setup access required"
+          deniedDescription="This staff account can open its operational surfaces, but tenant launch setup requires owner or branch manager access."
+        >
+          <StaffSetupContent />
+        </StaffAuthGate>
+      </div>
+    </div>
   );
 }
