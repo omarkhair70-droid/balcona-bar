@@ -1,9 +1,10 @@
 import {
   Activity,
   Building2,
+  CircleDollarSign,
   LayoutDashboard,
   LogIn,
-  PlusCircle
+  Plus
 } from "lucide-react";
 import type { AppShellNavItem } from "@/components/ui/app-shell";
 
@@ -12,27 +13,6 @@ export type PlatformNavItem = AppShellNavItem & {
 };
 
 export function getPlatformNavItems(isAuthenticated?: boolean): PlatformNavItem[] {
-  const items: PlatformNavItem[] = [
-    {
-      href: "/platform",
-      label: "Companies",
-      labelKey: "navigation.companies",
-      icon: <Building2 className="size-4" aria-hidden="true" />
-    },
-    {
-      href: "/platform/companies/new",
-      label: "Add Cafe",
-      labelKey: "navigation.addCafe",
-      icon: <PlusCircle className="size-4" aria-hidden="true" />
-    },
-    {
-      href: "/platform/status",
-      label: "Status",
-      labelKey: "navigation.status",
-      icon: <Activity className="size-4" aria-hidden="true" />
-    }
-  ];
-
   if (!isAuthenticated) {
     return [
       {
@@ -51,6 +31,29 @@ export function getPlatformNavItems(isAuthenticated?: boolean): PlatformNavItem[
       labelKey: "navigation.dashboard",
       icon: <LayoutDashboard className="size-4" aria-hidden="true" />
     },
-    ...items
+    {
+      href: "/platform/companies",
+      label: "Companies",
+      labelKey: "navigation.companies",
+      icon: <Building2 className="size-4" aria-hidden="true" />
+    },
+    {
+      href: "/platform/companies/new",
+      label: "New Cafe",
+      labelKey: "navigation.addCafe",
+      icon: <Plus className="size-4" aria-hidden="true" />
+    },
+    {
+      href: "/platform/plans",
+      label: "Plans",
+      labelKey: "navigation.plans",
+      icon: <CircleDollarSign className="size-4" aria-hidden="true" />
+    },
+    {
+      href: "/platform/status",
+      label: "System Status",
+      labelKey: "navigation.status",
+      icon: <Activity className="size-4" aria-hidden="true" />
+    }
   ];
 }
