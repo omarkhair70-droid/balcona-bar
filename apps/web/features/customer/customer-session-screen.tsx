@@ -5,7 +5,6 @@ import { type ReactNode } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { LanguageSwitcher } from "@/components/i18n/language-switcher";
 import { Badge } from "@/components/ui/badge";
-import { Card, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { getCart } from "@/lib/api/endpoints";
 import { customerQueryKeys } from "@/lib/api/query-keys";
 import {
@@ -74,41 +73,41 @@ export function CustomerSessionScreen({
   });
 
   return (
-    <main className="mx-auto min-h-screen w-full max-w-5xl px-4 pb-28 pt-5 sm:px-6 lg:px-8">
+    <main className="mx-auto min-h-screen w-full max-w-md bg-background px-4 pb-28 text-foreground shadow-sm">
       <CustomerThemeLoader branchId={branchId} />
-      <header className="flex items-center justify-between gap-4">
-        <Link href="/" className="flex items-center gap-3">
-          <span className="flex size-10 items-center justify-center rounded-button bg-primary text-sm font-bold text-primary-foreground">
-            B
+
+      <header className="sticky top-0 z-30 -mx-4 flex min-h-14 items-center justify-between gap-3 border-b border-border bg-background/95 px-4 backdrop-blur">
+        <Link href="/" className="min-w-0">
+          <span className="block truncate text-sm font-black tracking-[-0.02em] text-foreground">
+            Balcona
           </span>
-          <span>
-            <span className="block text-sm font-semibold text-foreground">
-              Balkona
-            </span>
-            <span className="block text-xs text-muted-foreground">
-              {qrToken ? t("tableLabel", { token: qrToken }) : t("smartTable")}
-            </span>
+          <span className="mt-0.5 block truncate text-[10px] font-semibold text-muted-foreground">
+            {qrToken ? t("tableLabel", { token: qrToken }) : t("smartTable")}
           </span>
         </Link>
-        <div className="flex items-center gap-2">
+
+        <div className="flex shrink-0 items-center gap-2">
           <RealtimeStatus state={realtimeState} />
           <LanguageSwitcher />
         </div>
       </header>
 
-      <section className="py-6">
-        <Card variant="glass" padding="lg">
-          <CardHeader>
-            {eyebrow ? <Badge className="w-fit">{eyebrow}</Badge> : null}
-            <CardTitle className="text-3xl md:text-4xl">{title}</CardTitle>
-            <CardDescription className="max-w-2xl">
-              {description}
-            </CardDescription>
-          </CardHeader>
-        </Card>
+      <section className="pb-4 pt-5">
+        {eyebrow ? (
+          <Badge variant="muted" className="mb-2 w-fit text-[10px] font-bold uppercase tracking-[0.12em]">
+            {eyebrow}
+          </Badge>
+        ) : null}
+        <h1 className="text-[30px] font-black leading-tight tracking-[-0.04em] text-foreground">
+          {title}
+        </h1>
+        <p className="mt-1.5 text-sm leading-5 text-muted-foreground">
+          {description}
+        </p>
       </section>
 
       <CustomerSessionGate sessionId={sessionId}>{children}</CustomerSessionGate>
+
       <CustomerBottomNav
         sessionId={sessionId}
         active={active}
