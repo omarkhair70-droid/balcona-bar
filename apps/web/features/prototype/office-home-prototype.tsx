@@ -1501,8 +1501,8 @@ export function OfficeHomePrototype() {
 
   return (
     <div dir={locale === "ar" ? "rtl" : "ltr"} className="min-h-screen bg-[#F5F5F2] text-[#20201D]">
-      <div className="grid min-h-screen lg:grid-cols-[220px_minmax(0,1fr)]">
-        <aside className="border-b border-[#D8D8D3] bg-[#ECECE8] px-3 py-3 lg:border-b-0 lg:border-e lg:py-4">
+      <div className="grid min-h-screen min-w-0 lg:grid-cols-[220px_minmax(0,1fr)]">
+        <aside className="min-w-0 overflow-hidden border-b border-[#D8D8D3] bg-[#ECECE8] px-3 py-3 lg:overflow-visible lg:border-b-0 lg:border-e lg:py-4">
           <div className="flex items-center gap-3 px-2 lg:px-2">
             <div className="flex size-8 items-center justify-center rounded-md border border-[#CFCFC9] bg-[#F7F7F4] text-xs font-black text-[#292925]">
               B
@@ -1513,7 +1513,7 @@ export function OfficeHomePrototype() {
             </div>
           </div>
 
-          <nav className="mt-3 flex gap-1 overflow-x-auto pb-1 lg:mt-7 lg:grid lg:gap-0.5 lg:overflow-visible lg:pb-0">
+          <nav className="mt-3 flex w-full min-w-0 max-w-full gap-1 overflow-x-auto pb-1 lg:mt-7 lg:grid lg:gap-0.5 lg:overflow-visible lg:pb-0">
             {domains.map((item) => {
               const Icon = item.icon;
               const active = item.id === domain;
