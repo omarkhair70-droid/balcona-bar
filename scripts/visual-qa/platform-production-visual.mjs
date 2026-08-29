@@ -266,6 +266,7 @@ async function capture(browser, {
   pathName,
   locale = "en",
   viewport = { width: 1440, height: 1000 },
+  readyText,
   afterOpen
 }) {
   const context = await newContext(browser, locale, viewport);
@@ -286,6 +287,13 @@ async function capture(browser, {
     state: "visible",
     timeout: 15000
   });
+
+  if (readyText) {
+    await page.getByText(readyText, { exact: true }).first().waitFor({
+      state: "visible",
+      timeout: 15000
+    });
+  }
 
   if (afterOpen) {
     await afterOpen(page);
@@ -327,12 +335,14 @@ const results = [];
 try {
   results.push(await capture(browser, {
     label: "01-platform-dashboard-desktop",
-    pathName: "/platform"
+    pathName: "/platform",
+    readyText: "Tenant attention"
   }));
 
   results.push(await capture(browser, {
     label: "02-platform-attention-drawer-desktop",
     pathName: "/platform",
+    readyText: "Tenant attention",
     afterOpen: async (page) => {
       const attention = page.getByText("Tenant attention", { exact: true });
       await attention.waitFor({ state: "visible", timeout: 15000 });
@@ -344,35 +354,41 @@ try {
 
   results.push(await capture(browser, {
     label: "03-platform-companies-desktop",
-    pathName: "/platform/companies"
+    pathName: "/platform/companies",
+    readyText: "All companies"
   }));
 
   results.push(await capture(browser, {
     label: "04-platform-bootstrap-desktop",
-    pathName: "/platform/companies/new"
+    pathName: "/platform/companies/new",
+    readyText: "Create the tenant foundation"
   }));
 
   results.push(await capture(browser, {
     label: "05-platform-plans-desktop",
-    pathName: "/platform/plans"
+    pathName: "/platform/plans",
+    readyText: "Internal plan and entitlement model"
   }));
 
   results.push(await capture(browser, {
     label: "06-platform-status-desktop",
-    pathName: "/platform/status"
+    pathName: "/platform/status",
+    readyText: "Web API target"
   }));
 
   results.push(await capture(browser, {
     label: "07-platform-companies-mobile-390",
     pathName: "/platform/companies",
-    viewport: { width: 390, height: 844 }
+    viewport: { width: 390, height: 844 },
+    readyText: "All companies"
   }));
 
   results.push(await capture(browser, {
     label: "08-platform-dashboard-ar-rtl-390",
     pathName: "/platform",
     locale: "ar",
-    viewport: { width: 390, height: 844 }
+    viewport: { width: 390, height: 844 },
+    readyText: "تنبيهات الشركات"
   }));
 } finally {
   await browser.close();
