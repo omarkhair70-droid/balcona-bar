@@ -35,7 +35,6 @@ import { MetricCard } from "@/components/ui/metric-card";
 import { OfficeFoundationPanels } from "@/features/staff/components/office-foundation-panels";
 import { OfficeStaffShell } from "@/features/staff/office-staff-shell";
 import {
-  formatDateTime,
   formatMoney,
   getRecordNumber,
   getRecordString,
@@ -49,7 +48,7 @@ import {
   staffLogout
 } from "@/lib/api/endpoints";
 import { staffQueryKeys } from "@/lib/api/query-keys";
-import { useTranslations } from "@/lib/i18n/i18n-provider";
+import { useI18n, useTranslations } from "@/lib/i18n/i18n-provider";
 import type {
   OwnerAnalyticsCashierShiftsResult,
   OwnerAnalyticsCountRow,
@@ -70,6 +69,52 @@ const presetOptions: Array<{ labelKey: string; value: OwnerAnalyticsPreset }> = 
   { labelKey: "dashboard.last7Days", value: "last_7_days" },
   { labelKey: "dashboard.last30Days", value: "last_30_days" }
 ];
+
+function ownerStatusLabel(
+  value: string,
+  t: ReturnType<typeof useTranslations>
+) {
+  const labels: Record<string, string> = {
+    submitted: t("statusLabels.submitted"),
+    cashier_accepted: t("statusLabels.cashierAccepted"),
+    preparing: t("statusLabels.preparing"),
+    ready: t("statusLabels.ready"),
+    served: t("statusLabels.served"),
+    completed: t("statusLabels.completed"),
+    paid: t("statusLabels.paid"),
+    payment_pending: t("statusLabels.paymentPending"),
+    open: t("statusLabels.open"),
+    closed: t("statusLabels.closed"),
+    resolved: t("statusLabels.resolved"),
+    pending: t("statusLabels.pending"),
+    in_progress: t("statusLabels.inProgress"),
+    printed: t("statusLabels.printed"),
+    failed: t("statusLabels.failed"),
+    queued: t("statusLabels.queued"),
+    cash: t("statusLabels.cash"),
+    card_pos: t("statusLabels.cardPos"),
+    wallet_manual: t("statusLabels.walletManual"),
+    other: t("statusLabels.other"),
+    customer_requested_human: t("statusLabels.customerRequestedHuman"),
+    low_confidence: t("statusLabels.lowConfidence"),
+    owner_daily_report: t("statusLabels.ownerDailyReport")
+  };
+
+  return labels[value] ?? humanizeStatus(value);
+}
+
+function formatOwnerDateTime(value: string | undefined, locale: "en" | "ar") {
+  if (!value) {
+    return "—";
+  }
+
+  return new Intl.DateTimeFormat(locale === "ar" ? "ar-EG" : "en-US", {
+    hour: "2-digit",
+    minute: "2-digit",
+    month: "short",
+    day: "numeric"
+  }).format(new Date(value));
+}
 
 function OwnerDashboardActions() {
   const t = useTranslations("owner");
@@ -187,6 +232,9 @@ function CountRowsCard({
   description?: string;
   rows: OwnerAnalyticsCountRow[];
 }) {
+  const t = useTranslations("owner");
+  const { locale } = useI18n();
+
   return (
     <Card variant="quiet">
       <CardHeader>
@@ -201,10 +249,10 @@ function CountRowsCard({
               className="flex items-center justify-between gap-4 rounded-card border bg-surface/70 px-4 py-3 text-sm"
             >
               <span className="font-medium text-foreground">
-                {humanizeStatus(row.key)}
+                {ownerStatusLabel(row.key, t)}
               </span>
               <span className="text-muted-foreground">
-                {row.count.toLocaleString("en")}
+                {row.count.toLocaleString(locale === "ar" ? "ar-EG" : "en-US")}
               </span>
             </div>
           ))
@@ -228,6 +276,7 @@ function MoneyRowsCard({
   currency?: string;
 }) {
   const t = useTranslations("owner");
+  const { locale } = useI18n();
 
   return (
     <Card variant="quiet">
@@ -239,7 +288,7 @@ function MoneyRowsCard({
         {rows.length > 0 ? (
           rows.map((row) => {
             const label =
-              "method" in row ? humanizeStatus(row.method) : row.key;
+              "method" in row ? ownerStatusLabel(row.method, t) : row.key;
 
             return (
               <div
@@ -249,7 +298,7 @@ function MoneyRowsCard({
                 <span className="font-medium text-foreground">{label}</span>
                 <span className="text-muted-foreground">
                   {t("analytics.paymentsCount", {
-                    count: row.count.toLocaleString("en")
+                    count: row.count.toLocaleString(locale === "ar" ? "ar-EG" : "en-US")
                   })}
                 </span>
                 <span className="font-semibold text-foreground">
@@ -338,6 +387,7 @@ function CashierShiftPanel({
   currency: string;
 }) {
   const t = useTranslations("owner");
+  const { locale } = useI18n();
   const currentShift = data.currentOpenShift;
   const latestZReport = data.latestZReport;
 
@@ -359,10 +409,10 @@ function CashierShiftPanel({
           </p>
           {currentShift ? (
             <div className="mt-3 grid gap-2 text-sm text-muted-foreground">
-              <p>{humanizeStatus(currentShift.status)}</p>
+              <p>{ownerStatusLabel(currentShift.status, t)}</p>
               <p>
                 {t("analytics.openedAt", {
-                  date: formatDateTime(currentShift.openedAt)
+                  date: formatOwnerDateTime(currentShift.openedAt, locale)
                 })}
               </p>
               <p>
@@ -384,7 +434,7 @@ function CashierShiftPanel({
           {latestZReport ? (
             <div className="mt-3 grid gap-2 text-sm text-muted-foreground">
               <p>{latestZReport.reportNumber}</p>
-              <p>{formatDateTime(latestZReport.generatedAt)}</p>
+              <p>{formatOwnerDateTime(latestZReport.generatedAt, locale)}</p>
             </div>
           ) : (
             <p className="mt-3 text-sm text-muted-foreground">
@@ -436,6 +486,7 @@ function DailyReportPanel({
   currency: string;
 }) {
   const t = useTranslations("owner");
+  const { locale } = useI18n();
 
   if (!report) {
     return (
@@ -452,14 +503,14 @@ function DailyReportPanel({
     <Card variant="quiet">
       <CardHeader>
         <Badge variant="muted" className="w-fit">
-          {humanizeStatus(report.reportType)}
+          {ownerStatusLabel(report.reportType, t)}
         </Badge>
         <CardTitle>{t("analytics.dailyReportSnapshot")}</CardTitle>
         <CardDescription>
           {t("analytics.generatedReportRange", {
-            date: formatDateTime(report.generatedAt),
-            from: formatDateTime(report.range.from),
-            to: formatDateTime(report.range.to)
+            date: formatOwnerDateTime(report.generatedAt, locale),
+            from: formatOwnerDateTime(report.range.from, locale),
+            to: formatOwnerDateTime(report.range.to, locale)
           })}
         </CardDescription>
       </CardHeader>
@@ -508,14 +559,18 @@ function formatDuration(
   }
 
   if (seconds < 60) {
-    return `${seconds}s`;
+    return t("orders.durationSeconds", { count: seconds });
   }
 
   if (seconds < 3600) {
-    return `${Math.round(seconds / 60)}m`;
+    return t("orders.durationMinutes", {
+      count: Math.round(seconds / 60)
+    });
   }
 
-  return `${(seconds / 3600).toFixed(1)}h`;
+  return t("orders.durationHours", {
+    count: (seconds / 3600).toFixed(1)
+  });
 }
 
 function formatAiCost(micros: number) {
@@ -538,6 +593,7 @@ function getDashboardCurrency(data: OwnerAnalyticsDashboardResult) {
 function OwnerDashboardContent() {
   const t = useTranslations("owner");
   const officeT = useTranslations("staff");
+  const { locale } = useI18n();
   const queryClient = useQueryClient();
   const accessToken = useStaffAuthStore((state) => state.accessToken);
   const staffUser = useStaffAuthStore((state) => state.staffUser);
@@ -934,8 +990,9 @@ function OwnerDashboardContent() {
                   )}
                 </p>
                 <p>
-                  {humanizeStatus(
-                    getRecordString(sales.topPaidBills[0], "status")
+                  {ownerStatusLabel(
+                    getRecordString(sales.topPaidBills[0], "status"),
+                    t
                   )}
                 </p>
               </div>
@@ -960,7 +1017,7 @@ function OwnerDashboardContent() {
           </div>
           <Badge variant="muted">
             {t("dashboard.generatedAt", {
-              date: formatDateTime(dashboard.generatedAt)
+              date: formatOwnerDateTime(dashboard.generatedAt, locale)
             })}
           </Badge>
         </CardHeader>
