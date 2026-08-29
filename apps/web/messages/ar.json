@@ -696,7 +696,12 @@
       "timelineReady": "جاهز {date}",
       "timelineCancelled": "أُلغي {date}",
       "actorStaff": "فريق العمل",
-      "actorSystem": "النظام"
+      "actorSystem": "النظام",
+      "printKindKitchenTicket": "تذكرة المطبخ",
+      "printKindBaristaTicket": "تذكرة البار",
+      "printKindDessertTicket": "تذكرة الحلويات",
+      "printKindReceipt": "إيصال",
+      "printKindVoidTicket": "تذكرة إلغاء"
     },
     "navigation": {
       "billing": "الحسابات",
