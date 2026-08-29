@@ -1024,7 +1024,13 @@
       "insights": "Insights",
       "experience": "Experience",
       "settings": "Settings",
-      "notPromoted": "Not promoted yet"
+      "notPromoted": "Not promoted yet",
+      "catalogTitle": "Catalog",
+      "catalogDescription": "Categories, items, availability, modifiers, pricing, and customer menu readiness.",
+      "inventoryTitle": "Inventory",
+      "inventoryDescription": "Stock levels, adjustments, suppliers, purchase orders, requirements, and menu availability.",
+      "locationsTitle": "Locations",
+      "locationsDescription": "Branches, floors, tables, QR tokens, active sessions, and operational readiness."
     }
   },
   "cashier": {
