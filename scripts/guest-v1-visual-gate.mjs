@@ -68,7 +68,8 @@ if (!(await page.getByRole('button', { name: /View cart/ }).isVisible())) failur
 await page.getByRole('button', { name: /Spanish Latte.*95 EGP/ }).first().click().catch(async () => {
   await page.getByText('Spanish Latte', { exact: true }).first().click();
 });
-if (!(await page.getByRole('heading', { name: 'Spanish Latte', exact: true }).isVisible())) failures.push('item: detail sheet missing');
+const itemSheet = page.locator('section.fixed').filter({ has: page.getByRole('heading', { name: 'Spanish Latte', exact: true }) });
+if (!(await itemSheet.getByRole('heading', { name: 'Spanish Latte', exact: true }).isVisible())) failures.push('item: detail sheet missing');
 await page.getByRole('button', { name: 'Oat milk', exact: true }).click();
 const itemNote = page.locator('section.fixed textarea').first();
 await itemNote.fill('Less sweet');
