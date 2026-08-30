@@ -5,6 +5,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   AlertTriangle,
   Banknote,
+  CreditCard,
   FileCheck2,
   RefreshCw,
   RotateCcw,
@@ -42,7 +43,9 @@ import {
 import {
   getBranchBills,
   getBranchOnlinePayments,
+  getBranchPaymentTerminals,
   getMerchantPaymentIntegrations,
+  upsertBranchPaymentTerminal,
   upsertMerchantPaymentIntegration,
 } from "@/lib/api/endpoints";
 import { formatErrorMessage } from "@/lib/api/error-message";
@@ -379,6 +382,15 @@ function MoneyContent() {
     recoveryReady: false,
     settlementConfigured: false,
   });
+  const [terminalDraft, setTerminalDraft] = useState({
+    provider: "paymob" as "paymob" | "fawry" | "geidea" | "external",
+    environment: "test" as "test" | "live",
+    displayName: "",
+    providerTerminalReference: "",
+    deviceReference: "",
+    merchantReference: "",
+    secretReference: "",
+  });
   const [issueNote, setIssueNote] = useState("");
 
   const canManage = canAccessStaffRoute({
@@ -421,6 +433,19 @@ function MoneyContent() {
     ],
     queryFn: () =>
       getMerchantPaymentIntegrations(selectedBranchId ?? "", accessToken),
+    enabled: Boolean(selectedBranchId && accessToken),
+    retry: false,
+  });
+
+  const terminalsQuery = useQuery({
+    queryKey: [
+      "office-control",
+      "money",
+      "payment-terminals",
+      selectedBranchId,
+    ],
+    queryFn: () =>
+      getBranchPaymentTerminals(selectedBranchId ?? "", accessToken),
     enabled: Boolean(selectedBranchId && accessToken),
     retry: false,
   });
@@ -660,6 +685,45 @@ function MoneyContent() {
       );
     },
     onSuccess: () => void invalidateMoney(),
+  });
+
+  const terminalMutation = useMutation({
+    mutationFn: () =>
+      upsertBranchPaymentTerminal(
+        selectedBranchId ?? "",
+        {
+          provider: terminalDraft.provider,
+          environment: terminalDraft.environment,
+          displayName: terminalDraft.displayName.trim(),
+          ...(terminalDraft.providerTerminalReference.trim()
+            ? {
+                providerTerminalReference:
+                  terminalDraft.providerTerminalReference.trim(),
+              }
+            : {}),
+          ...(terminalDraft.deviceReference.trim()
+            ? { deviceReference: terminalDraft.deviceReference.trim() }
+            : {}),
+          ...(terminalDraft.merchantReference.trim()
+            ? { merchantReference: terminalDraft.merchantReference.trim() }
+            : {}),
+          ...(terminalDraft.secretReference.trim()
+            ? { secretReference: terminalDraft.secretReference.trim() }
+            : {}),
+        },
+        accessToken,
+      ),
+    onSuccess: () => {
+      void invalidateMoney();
+      setTerminalDraft((current) => ({
+        ...current,
+        displayName: "",
+        providerTerminalReference: "",
+        deviceReference: "",
+        merchantReference: "",
+        secretReference: "",
+      }));
+    },
   });
 
   const issueMutation = useMutation({
@@ -1407,6 +1471,195 @@ function MoneyContent() {
             <OfficeInlineNotice title="Read-only access">
               online_payments.manage is required to configure merchant payment
               readiness.
+            </OfficeInlineNotice>
+          )}
+        </div>
+      </OfficeControlSection>
+
+      <OfficeControlSection
+        title="Direct terminal / SoftPOS readiness"
+        description="Terminal/device identities can be recorded per branch, but provider execution stays fail-closed until Balcona has an exact merchant terminal API contract, callback/inquiry behavior, and a verified test device. Manual card_pos is still only an external tender record."
+        action={
+          <CreditCard className="size-4 text-[#777770]" aria-hidden="true" />
+        }
+      >
+        <div className="grid gap-4 xl:grid-cols-[0.9fr_1.1fr]">
+          <div className="space-y-2">
+            {terminalsQuery.isPending ? (
+              <p className="text-xs text-[#777770]">
+                Checking terminal readiness…
+              </p>
+            ) : terminalsQuery.isError ? (
+              <OfficeInlineNotice title="Terminal readiness unavailable">
+                {formatErrorMessage(terminalsQuery.error)}
+              </OfficeInlineNotice>
+            ) : (terminalsQuery.data?.terminals ?? []).length === 0 ? (
+              <OfficeInlineNotice title="No direct terminal connected">
+                No branch terminal metadata is recorded. Card POS can still be
+                recorded manually after an external terminal approves, but
+                Balcona is not controlling that device.
+              </OfficeInlineNotice>
+            ) : (
+              (terminalsQuery.data?.terminals ?? []).map((terminal) => (
+                <div
+                  key={terminal.id}
+                  className="rounded-md border border-[#E4E4DF] p-3 text-xs"
+                >
+                  <div className="flex items-center justify-between gap-2">
+                    <strong>{terminal.displayName}</strong>
+                    <OfficeStatusBadge value={terminal.status} />
+                  </div>
+                  <p className="mt-1 text-[#707069]">
+                    {terminal.provider} · {terminal.environment}
+                  </p>
+                  <p className="mt-1 text-[#707069]">
+                    Terminal ref:{" "}
+                    {terminal.providerTerminalReference ?? "not assigned"}
+                  </p>
+                  <p className="mt-2 text-[#8A6A2C]">
+                    {terminal.readinessMessage ??
+                      "Provider execution is not available."}
+                  </p>
+                </div>
+              ))
+            )}
+          </div>
+
+          {canManage ? (
+            <details className="rounded-md border border-[#E4E4DF] p-3">
+              <summary className="cursor-pointer text-xs font-semibold">
+                Record terminal/device metadata
+              </summary>
+              <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                <label className="text-xs font-medium">
+                  Provider
+                  <select
+                    className="mt-1.5 min-h-11 w-full rounded-md border border-input bg-background px-3"
+                    value={terminalDraft.provider}
+                    onChange={(event) =>
+                      setTerminalDraft((current) => ({
+                        ...current,
+                        provider: event.target.value as
+                          | "paymob"
+                          | "fawry"
+                          | "geidea"
+                          | "external",
+                      }))
+                    }
+                  >
+                    <option value="paymob">Paymob</option>
+                    <option value="fawry">Fawry</option>
+                    <option value="geidea">Geidea</option>
+                    <option value="external">Other licensed provider</option>
+                  </select>
+                </label>
+                <label className="text-xs font-medium">
+                  Environment
+                  <select
+                    className="mt-1.5 min-h-11 w-full rounded-md border border-input bg-background px-3"
+                    value={terminalDraft.environment}
+                    onChange={(event) =>
+                      setTerminalDraft((current) => ({
+                        ...current,
+                        environment: event.target.value as "test" | "live",
+                      }))
+                    }
+                  >
+                    <option value="test">Test</option>
+                    <option value="live">Live</option>
+                  </select>
+                </label>
+                <label className="text-xs font-medium">
+                  Display name
+                  <Input
+                    className="mt-1.5"
+                    placeholder="Counter terminal 1"
+                    value={terminalDraft.displayName}
+                    onChange={(event) =>
+                      setTerminalDraft((current) => ({
+                        ...current,
+                        displayName: event.target.value,
+                      }))
+                    }
+                  />
+                </label>
+                <label className="text-xs font-medium">
+                  Provider terminal reference
+                  <Input
+                    className="mt-1.5 font-mono"
+                    value={terminalDraft.providerTerminalReference}
+                    onChange={(event) =>
+                      setTerminalDraft((current) => ({
+                        ...current,
+                        providerTerminalReference: event.target.value,
+                      }))
+                    }
+                  />
+                </label>
+                <label className="text-xs font-medium">
+                  Device reference
+                  <Input
+                    className="mt-1.5 font-mono"
+                    value={terminalDraft.deviceReference}
+                    onChange={(event) =>
+                      setTerminalDraft((current) => ({
+                        ...current,
+                        deviceReference: event.target.value,
+                      }))
+                    }
+                  />
+                </label>
+                <label className="text-xs font-medium">
+                  Merchant reference
+                  <Input
+                    className="mt-1.5 font-mono"
+                    value={terminalDraft.merchantReference}
+                    onChange={(event) =>
+                      setTerminalDraft((current) => ({
+                        ...current,
+                        merchantReference: event.target.value,
+                      }))
+                    }
+                  />
+                </label>
+                <label className="text-xs font-medium sm:col-span-2">
+                  Runtime secret name only
+                  <Input
+                    className="mt-1.5 font-mono"
+                    placeholder="BALCONA_TERMINAL_PROVIDER_SECRET"
+                    value={terminalDraft.secretReference}
+                    onChange={(event) =>
+                      setTerminalDraft((current) => ({
+                        ...current,
+                        secretReference: event.target.value,
+                      }))
+                    }
+                  />
+                </label>
+              </div>
+              <Button
+                className="mt-4"
+                size="sm"
+                variant="secondary"
+                disabled={
+                  terminalMutation.isPending ||
+                  !terminalDraft.displayName.trim()
+                }
+                onClick={() => terminalMutation.mutate()}
+              >
+                Save blocked terminal readiness
+              </Button>
+              {terminalMutation.isError ? (
+                <div className="mt-3">
+                  <OfficeInlineNotice title="Terminal metadata not saved">
+                    {formatErrorMessage(terminalMutation.error)}
+                  </OfficeInlineNotice>
+                </div>
+              ) : null}
+            </details>
+          ) : (
+            <OfficeInlineNotice title="Read-only access">
+              online_payments.manage is required to record terminal readiness.
             </OfficeInlineNotice>
           )}
         </div>
