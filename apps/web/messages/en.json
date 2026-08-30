@@ -130,18 +130,25 @@
       "timelineDescription": "Your table timeline will appear as soon as an order or service event happens."
     },
     "entry": {
-      "description": "Open from a QR code, resume your table session, browse the live branch menu, and keep service requests in one warm mobile surface.",
-      "eyebrow": "Customer PWA core",
+      "description": "Scan the QR at your table to open the menu and keep your order, service and bill together.",
+      "eyebrow": "Your table",
       "nextCart": "Cart",
       "nextDescription": "Session start, branch theme, menu, cart, order status, service calls, bill request, and realtime refresh hooks.",
       "nextMenu": "Menu",
       "nextService": "Service",
       "nextStatus": "Status",
       "tableLinkBadge": "Table link",
-      "tableTokenDescription": "Use the demo token to try the customer flow with the backend seed data, or paste a QR token from another table.",
-      "tableTokenTitle": "Enter or scan a table token",
-      "title": "Start your table experience",
-      "whatOpensNext": "What opens next"
+      "tableTokenDescription": "Enter the code shown by the venue. If you scanned the QR, this step is handled automatically.",
+      "tableTokenTitle": "Have a table code?",
+      "title": "Open your Balcona table",
+      "whatOpensNext": "What opens next",
+      "tableTokenPlaceholder": "Table code",
+      "savedTable": "Saved table",
+      "savedTableCode": "Table {table}",
+      "savedTableFallback": "Your previous table",
+      "resumeDescription": "Continue the same table session on this device.",
+      "forgetSavedTable": "Forget saved table",
+      "qrHint": "A new QR opens a new or resumed table session before the menu appears."
     },
     "errors": {
       "addCartItem": "We could not add this item to your cart. {message}",
@@ -151,10 +158,12 @@
       "serviceCallsLoad": "Service calls could not load",
       "serviceRequest": "We could not send that service request. Please try again from the table. {message}",
       "tableApiSlow": "The staging API is slow or unreachable. Please wait a moment and try again.",
-      "tableLinkFallback": "The table link could not open. Please try again.",
-      "tableNotFound": "This table QR code was not found. Ask the cafe team to check table token {token}.",
+      "tableLinkFallback": "We could not open this table. Please try again.",
+      "tableNotFound": "We could not find this table. Ask the venue team to check the table code {token}.",
       "tableServiceUnavailable": "The table service is temporarily unavailable. Please try again in a moment.",
-      "timelineLoad": "Timeline could not load"
+      "timelineLoad": "Timeline could not load",
+      "tableConnectionSlow": "The table connection is taking longer than expected. Try again in a moment.",
+      "tableTemporarilyUnavailable": "This table is temporarily unavailable. Try again in a moment."
     },
     "home": {
       "actionAiWaiterDescription": "Ask for menu-grounded suggestions before deciding.",
@@ -256,7 +265,8 @@
       "balconyLounge": "Balcony lounge",
       "servicePaceDescription": "Warm contrast, calm spacing, table-first layout",
       "servicePaceTitle": "Evening service pace",
-      "tonight": "Tonight"
+      "tonight": "Tonight",
+      "guestOrdering": "Order at your table"
     },
     "smartTable": "Smart table",
     "status": {
@@ -280,14 +290,14 @@
     "staffView": "Staff view",
     "tableLabel": "Table {token}",
     "tableStart": {
-      "descriptionOpening": "Starting or resuming the customer session for this table.",
+      "descriptionOpening": "Connecting this device to the table before the menu opens.",
       "eyebrow": "Opening table",
-      "loading": "Opening your table...",
-      "retrying": "Retrying the table session connection ({attempt} of {max}).",
-      "retryingConnection": "Retrying connection",
-      "startingSession": "Starting session",
-      "titleError": "Table link could not open",
-      "titleOpening": "Opening your table session"
+      "loading": "Getting your table ready...",
+      "retrying": "Connection was interrupted. Trying again ({attempt} of {max}).",
+      "retryingConnection": "Reconnecting",
+      "startingSession": "Connecting",
+      "titleError": "We could not open this table",
+      "titleOpening": "Opening your table"
     },
     "ai": {
       "actions": {
