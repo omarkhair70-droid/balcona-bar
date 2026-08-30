@@ -435,9 +435,6 @@ export function ServiceFloorBoard({
               );
             })}
 
-            <div className="absolute bottom-3 start-4 max-w-[75%] rounded bg-[#1B1815]/95 px-2 py-1 text-[9px] leading-4 text-[#6F6862]">
-              {t("serviceFloor.geometryNote")}
-            </div>
           </div>
 
           <div className="grid gap-2 md:hidden">
