@@ -8,13 +8,8 @@ import {
   useQuery,
   useQueryClient,
 } from "@tanstack/react-query";
-import {
-  LogIn,
-  LogOut,
-  RefreshCw
-} from "lucide-react";
+import { LogIn, LogOut } from "lucide-react";
 import { useMemo, useState } from "react";
-import { Badge } from "@/components/ui/badge";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { getAttentionSessionId } from "@/features/staff/attention-data";
