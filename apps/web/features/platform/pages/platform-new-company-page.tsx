@@ -11,7 +11,7 @@ import {
   RefreshCw,
   ShieldCheck
 } from "lucide-react";
-import { type FormEvent, useEffect, useMemo, useState } from "react";
+import { type FormEvent, useMemo, useState } from "react";
 import { PlatformAuthGate } from "@/features/platform/components/platform-auth-gate";
 import { PlatformShell } from "@/features/platform/platform-shell";
 import { formatErrorMessage } from "@/lib/api/error-message";
@@ -148,16 +148,9 @@ function PlatformNewCompanyContent() {
     [plansQuery.data?.plans]
   );
 
-  useEffect(() => {
-    if (
-      availablePlans.length > 0 &&
-      !availablePlans.some((plan) => plan.code === planCode)
-    ) {
-      setPlanCode(
-        availablePlans[0].code as BootstrapCompanyInput["subscription"]["planCode"]
-      );
-    }
-  }, [availablePlans, planCode]);
+  const selectedPlanCode = availablePlans.some((plan) => plan.code === planCode)
+    ? planCode
+    : (availablePlans[0]?.code as BootstrapCompanyInput["subscription"]["planCode"] | undefined);
 
   const createMutation = useMutation({
     mutationFn: (payload: BootstrapCompanyInput) =>
@@ -171,6 +164,10 @@ function PlatformNewCompanyContent() {
   function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setCreatedResult(null);
+    if (!selectedPlanCode) {
+      return;
+    }
+
     createMutation.mutate({
       company: {
         name: companyName.trim(),
@@ -186,7 +183,7 @@ function PlatformNewCompanyContent() {
         address: branchAddress.trim() || null
       },
       subscription: {
-        planCode,
+        planCode: selectedPlanCode,
         status: subscriptionStatus
       },
       starterTables: {
@@ -338,7 +335,7 @@ function PlatformNewCompanyContent() {
                 {L(locale, "Plan", "الخطة")}
                 <select
                   className={inputClass}
-                  value={planCode}
+                  value={selectedPlanCode ?? ""}
                   onChange={(event) =>
                     setPlanCode(event.target.value as BootstrapCompanyInput["subscription"]["planCode"])
                   }
