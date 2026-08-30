@@ -177,7 +177,7 @@ describe('TableSessionsService', () => {
 
     expect(result.session.id).toBe('session-1');
     expect(result.wasResumed).toBe(true);
-    expect(result.customerAccess.customerAccessToken).toBe('customer-token');
+    expect(result.customerAccess?.customerAccessToken).toBe('customer-token');
     expect(
       presenceNotificationsService.recordQrTableSessionPresence,
     ).toHaveBeenCalledWith(
