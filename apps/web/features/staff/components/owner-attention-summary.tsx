@@ -61,7 +61,7 @@ export function OwnerAttentionSummary({
             {t("attention.description")}
           </CardDescription>
         </div>
-        <Link href="/staff/waiter" className={buttonVariants({ variant: "secondary" })}>
+        <Link href="/service/waiter" className={buttonVariants({ variant: "secondary" })}>
           <AlertTriangle className="size-4" aria-hidden="true" />
           {t("actions.openWaiter")}
         </Link>

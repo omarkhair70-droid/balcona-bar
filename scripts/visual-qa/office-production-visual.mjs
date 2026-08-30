@@ -11,6 +11,7 @@ const OUTPUT_DIR = path.resolve("artifacts/office-visual-qa");
 
 const COMPANY_ID = "company-office-visual";
 const BRANCH_ID = "branch-office-visual";
+const BRANCH_2_ID = "branch-office-visual-2";
 
 const company = {
   id: COMPANY_ID,
@@ -28,7 +29,29 @@ const branch = {
   status: "active"
 };
 
+const branchSecondary = {
+  id: BRANCH_2_ID,
+  companyId: COMPANY_ID,
+  name: "Balcona Riverside",
+  slug: "riverside",
+  address: "Riverside Avenue",
+  status: "active"
+};
+
 const permissions = [
+  "owner_analytics.read",
+  "menu.read",
+  "menu.manage_categories",
+  "menu.manage_items",
+  "menu.manage_modifiers",
+  "menu.manage_branch_overrides",
+  "inventory.read",
+  "inventory.manage",
+  "settings.manage",
+  "saas.read"
+];
+
+const restrictedPermissions = [
   "owner_analytics.read",
   "menu.read",
   "inventory.read",
@@ -52,10 +75,30 @@ const access = {
       source: "company_membership",
       roles: ["owner"],
       permissions
+    },
+    {
+      company,
+      branch: branchSecondary,
+      source: "company_membership",
+      roles: ["owner"],
+      permissions
     }
   ],
   roles: ["owner"],
   permissions
+};
+
+const restrictedAccess = {
+  ...access,
+  companies: access.companies.map((entry) => ({
+    ...entry,
+    permissions: restrictedPermissions
+  })),
+  branches: access.branches.map((entry) => ({
+    ...entry,
+    permissions: restrictedPermissions
+  })),
+  permissions: restrictedPermissions
 };
 
 const staffUser = {
@@ -380,6 +423,50 @@ const dashboard = {
   generatedAt: "2026-08-29T14:15:00.000Z"
 };
 
+const dashboardSecondary = {
+  ...dashboard,
+  branch: branchSecondary,
+  summary: {
+    ...summary,
+    branch: branchSecondary,
+    paidRevenueMinor: 176800,
+    collectedMinor: 169500,
+    paidBillCount: 11,
+    submittedOrderCount: 16,
+    openWaiterCallCount: 1,
+    activeBillRequestCount: 1,
+    lowStockCount: 1,
+    outOfStockCount: 0,
+    stockBlockedMenuItemCount: 0
+  },
+  orders: {
+    ...orders,
+    branch: branchSecondary,
+    submittedOrderCount: 16
+  },
+  operations: {
+    ...operations,
+    branch: branchSecondary,
+    activeAttentionCount: 2,
+    urgentAttentionCount: 0,
+    failedPrintJobCount: 0
+  },
+  cashierShifts: {
+    ...cashierShifts,
+    branch: branchSecondary,
+    totalOverShortMinor: 0,
+    shiftCount: 1
+  },
+  aiWaiter: {
+    ...aiWaiter,
+    branch: branchSecondary,
+    aiSessionCount: 7,
+    aiMessageCount: 31,
+    escalatedCount: 1
+  },
+  generatedAt: "2026-08-29T14:15:00.000Z"
+};
+
 const dailyReport = {
   ...dashboard,
   reportType: "owner_daily_report",
@@ -546,6 +633,120 @@ const onboarding = {
   }
 };
 
+const menuAdminOverview = {
+  company,
+  branch,
+  stats: {
+    categories: 0,
+    items: 0,
+    visibleItems: 0,
+    unavailableItems: 0,
+    hiddenItems: 0,
+    modifierGroups: 0,
+    setupWarnings: 0
+  },
+  categories: [],
+  modifierGroups: [],
+  setupIssues: []
+};
+
+const inventoryItems = { company, items: [] };
+const inventoryLevels = {
+  company,
+  branch,
+  levels: [],
+  summary: {
+    totalInventoryItemCount: 0,
+    trackedLevelCount: 0,
+    lowStockCount: 0,
+    outOfStockCount: 0
+  },
+  lastMovementAt: null
+};
+const inventoryAlerts = {
+  company,
+  branch,
+  lowStockLevels: [],
+  outOfStockLevels: [],
+  stockBlockedMenuItems: [],
+  recentMovements: [],
+  summary: {
+    lowStockCount: 0,
+    outOfStockCount: 0,
+    stockBlockedMenuItemCount: 0
+  }
+};
+const inventoryMenuAvailability = {
+  company,
+  branch,
+  items: [],
+  summary: {
+    itemCount: 0,
+    canOrderCount: 0,
+    lowStockCount: 0,
+    outOfStockCount: 0,
+    stockBlockedCount: 0
+  }
+};
+const suppliers = { company, branch, suppliers: [] };
+const purchaseOrders = { company, branch, purchaseOrders: [] };
+const inventoryReceipts = { company, branch, receipts: [] };
+
+const branchAdminBranch = {
+  ...branch,
+  floorsCount: 0,
+  tablesCount: 0
+};
+const branchAdminOverview = {
+  company,
+  branches: [branchAdminBranch],
+  selectedBranch: branchAdminBranch,
+  floors: [],
+  tablesByFloor: [],
+  ungroupedTables: [],
+  activeSessions: [],
+  stats: {
+    totalTables: 0,
+    activeTables: 0,
+    inactiveTables: 0,
+    maintenanceTables: 0,
+    occupiedTables: 0,
+    activeSessions: 0,
+    needsAttention: 0,
+    tablesWithQrToken: 0,
+    tablesMissingQrToken: 0,
+    setupWarnings: 0
+  },
+  setupIssues: []
+};
+const printerStations = {
+  branch,
+  printerStations: [
+    {
+      id: "printer-kitchen",
+      companyId: COMPANY_ID,
+      branchId: BRANCH_ID,
+      name: "Kitchen Pass",
+      slug: "kitchen-pass",
+      station: "kitchen",
+      adapterType: "escpos_lan",
+      status: "active",
+      isDefault: true
+    },
+    {
+      id: "printer-barista",
+      companyId: COMPANY_ID,
+      branchId: BRANCH_ID,
+      name: "Barista Rail",
+      slug: "barista-rail",
+      station: "barista",
+      adapterType: "browser_print",
+      status: "active",
+      isDefault: true
+    }
+  ]
+};
+
 const experience = {
   company,
   branch,
@@ -588,14 +789,14 @@ const experience = {
   ]
 };
 
-function persistedStaffSession() {
+function persistedStaffSession(accessValue = access) {
   return JSON.stringify({
     state: {
       accessToken: "office-visual-token",
       expiresAt: "2099-01-01T00:00:00.000Z",
       staffUser,
       staffSession,
-      effectiveAccess: access,
+      effectiveAccess: accessValue,
       defaultBranch: branch,
       selectedBranchId: BRANCH_ID,
       lastLoadedAt: "2026-08-29T14:00:00.000Z"
@@ -612,7 +813,7 @@ function json(body, status = 200) {
   };
 }
 
-async function installApiMocks(page) {
+async function installApiMocks(page, accessValue = access) {
   const apiRoutePattern = ["**", "api", "v1", "**"].join("/");
 
   await page.route(apiRoutePattern, async (route) => {
@@ -621,7 +822,12 @@ async function installApiMocks(page) {
     const pathname = url.pathname;
 
     if (pathname === "/api/v1/staff-auth/me") {
-      return route.fulfill(json(staffContext));
+      return route.fulfill(
+        json({
+          ...staffContext,
+          staffAccess: accessValue
+        })
+      );
     }
 
     if (
@@ -636,6 +842,61 @@ async function installApiMocks(page) {
       `/api/v1/branches/${BRANCH_ID}/owner-analytics/daily-report`
     ) {
       return route.fulfill(json(dailyReport));
+    }
+
+    if (
+      pathname ===
+      `/api/v1/branches/${BRANCH_2_ID}/owner-analytics/dashboard`
+    ) {
+      return route.fulfill(json(dashboardSecondary));
+    }
+
+    if (pathname === `/api/v1/branches/${BRANCH_ID}/menu-admin/overview`) {
+      return route.fulfill(json(menuAdminOverview));
+    }
+
+    if (pathname === `/api/v1/companies/${COMPANY_ID}/inventory/items`) {
+      return route.fulfill(json(inventoryItems));
+    }
+
+    if (pathname === `/api/v1/branches/${BRANCH_ID}/inventory/levels`) {
+      return route.fulfill(json(inventoryLevels));
+    }
+
+    if (pathname === `/api/v1/branches/${BRANCH_ID}/inventory/alerts`) {
+      return route.fulfill(json(inventoryAlerts));
+    }
+
+    if (
+      pathname ===
+      `/api/v1/branches/${BRANCH_ID}/inventory/menu-availability`
+    ) {
+      return route.fulfill(json(inventoryMenuAvailability));
+    }
+
+    if (pathname === `/api/v1/branches/${BRANCH_ID}/suppliers`) {
+      return route.fulfill(json(suppliers));
+    }
+
+    if (pathname === `/api/v1/branches/${BRANCH_ID}/purchase-orders`) {
+      return route.fulfill(json(purchaseOrders));
+    }
+
+    if (
+      pathname === `/api/v1/branches/${BRANCH_ID}/inventory/receipts`
+    ) {
+      return route.fulfill(json(inventoryReceipts));
+    }
+
+    if (
+      pathname ===
+      `/api/v1/companies/${COMPANY_ID}/branch-admin/overview`
+    ) {
+      return route.fulfill(json(branchAdminOverview));
+    }
+
+    if (pathname === `/api/v1/branches/${BRANCH_ID}/printer-stations`) {
+      return route.fulfill(json(printerStations));
     }
 
     if (pathname === `/api/v1/branches/${BRANCH_ID}/onboarding`) {
@@ -679,7 +940,7 @@ async function installApiMocks(page) {
   });
 }
 
-async function newContext(browser, locale, viewport) {
+async function newContext(browser, locale, viewport, accessValue = access) {
   const context = await browser.newContext({
     viewport,
     deviceScaleFactor: 1,
@@ -701,7 +962,7 @@ async function newContext(browser, locale, viewport) {
     },
     {
       localeValue: locale,
-      staffValue: persistedStaffSession()
+      staffValue: persistedStaffSession(accessValue)
     }
   );
 
@@ -710,13 +971,21 @@ async function newContext(browser, locale, viewport) {
 
 async function capture(browser, {
   label,
+  routePath = "/office",
   hash = "",
   target,
   activeLabel,
+  scopeLabel,
+  accessValue = access,
   locale = "en",
   viewport = { width: 1440, height: 1000 }
 }) {
-  const context = await newContext(browser, locale, viewport);
+  const context = await newContext(
+    browser,
+    locale,
+    viewport,
+    accessValue
+  );
   const page = await context.newPage();
   const consoleErrors = [];
 
@@ -726,8 +995,8 @@ async function capture(browser, {
     }
   });
 
-  await installApiMocks(page);
-  await page.goto(`${BASE_URL}/staff/owner${hash}`, {
+  await installApiMocks(page, accessValue);
+  await page.goto(`${BASE_URL}${routePath}${hash}`, {
     waitUntil: "domcontentloaded",
     timeout: 30000
   });
@@ -738,6 +1007,11 @@ async function capture(browser, {
     timeout: 15000
   });
 
+  if (scopeLabel) {
+    await page.getByRole("button", { name: scopeLabel, exact: true }).click();
+    await page.waitForTimeout(700);
+  }
+
   if (target) {
     const locator = page.locator(target);
     await locator.waitFor({ state: "visible", timeout: 15000 });
@@ -747,9 +1021,12 @@ async function capture(browser, {
   await page.waitForTimeout(700);
 
   if (activeLabel) {
-    const current = page.locator('a[aria-current="page"]');
-    await current.waitFor({ state: "visible", timeout: 5000 });
-    const currentText = (await current.innerText()).trim();
+    const expectedCurrent = page
+      .locator('a[aria-current="page"]')
+      .filter({ hasText: activeLabel })
+      .first();
+    await expectedCurrent.waitFor({ state: "visible", timeout: 15000 });
+    const currentText = (await expectedCurrent.innerText()).trim();
 
     if (!currentText.includes(activeLabel)) {
       throw new Error(
@@ -820,6 +1097,7 @@ async function capture(browser, {
 
   const result = {
     label,
+    routePath,
     hash,
     locale,
     viewport,
@@ -841,79 +1119,83 @@ const results = [];
 try {
   results.push(
     await capture(browser, {
-      label: "01-office-home-desktop",
+      label: "01-office-home-1440",
       activeLabel: "Home"
     })
   );
   results.push(
     await capture(browser, {
-      label: "02-office-money-desktop",
-      hash: "#money",
-      target: "#money",
-      activeLabel: "Money"
+      label: "02-office-home-company-1440",
+      activeLabel: "Home",
+      scopeLabel: "Company"
     })
   );
   results.push(
     await capture(browser, {
-      label: "03-office-operations-desktop",
+      label: "03-office-operations-1280",
       hash: "#operations",
-      target: "#operations",
-      activeLabel: "Operations"
+      activeLabel: "Operations",
+      viewport: { width: 1280, height: 900 }
     })
   );
   results.push(
     await capture(browser, {
-      label: "04-office-insights-desktop",
+      label: "04-office-insights-tablet",
       hash: "#insights",
-      target: "#insights",
-      activeLabel: "Insights"
+      activeLabel: "Insights",
+      viewport: { width: 1024, height: 900 }
     })
   );
   results.push(
     await capture(browser, {
-      label: "05-office-team-desktop",
-      hash: "#team",
-      target: "#team",
-      activeLabel: "Team"
-    })
-  );
-  results.push(
-    await capture(browser, {
-      label: "06-office-experience-desktop",
-      hash: "#experience",
-      target: "#experience",
-      activeLabel: "Experience"
-    })
-  );
-  results.push(
-    await capture(browser, {
-      label: "07-office-settings-desktop",
-      hash: "#settings",
-      target: "#settings",
-      activeLabel: "Settings"
-    })
-  );
-  results.push(
-    await capture(browser, {
-      label: "08-office-home-mobile-390",
+      label: "05-office-home-mobile-390",
       activeLabel: "Home",
       viewport: { width: 390, height: 844 }
     })
   );
   results.push(
     await capture(browser, {
-      label: "09-office-money-mobile-390",
-      hash: "#money",
-      target: "#money",
-      activeLabel: "Money",
+      label: "06-office-insights-ar-rtl-390",
+      hash: "#insights",
+      activeLabel: "التحليلات",
+      locale: "ar",
       viewport: { width: 390, height: 844 }
     })
   );
   results.push(
     await capture(browser, {
-      label: "10-office-team-ar-rtl-390",
-      hash: "#team",
-      target: "#team",
+      label: "07-office-catalog-1440",
+      routePath: "/office/catalog",
+      activeLabel: "Catalog"
+    })
+  );
+  results.push(
+    await capture(browser, {
+      label: "08-office-inventory-1280",
+      routePath: "/office/inventory",
+      activeLabel: "Inventory",
+      viewport: { width: 1280, height: 900 }
+    })
+  );
+  results.push(
+    await capture(browser, {
+      label: "09-office-locations-tablet",
+      routePath: "/office/locations",
+      activeLabel: "Locations",
+      viewport: { width: 1024, height: 900 }
+    })
+  );
+  results.push(
+    await capture(browser, {
+      label: "10-office-control-money-isolation",
+      routePath: "/office/money",
+      activeLabel: "Money"
+    })
+  );
+  results.push(
+    await capture(browser, {
+      label: "11-office-control-team-rtl-isolation",
+      routePath: "/office/team",
       activeLabel: "الفريق",
       locale: "ar",
       viewport: { width: 390, height: 844 }
@@ -921,12 +1203,11 @@ try {
   );
   results.push(
     await capture(browser, {
-      label: "11-office-settings-ar-rtl-390",
-      hash: "#settings",
-      target: "#settings",
-      activeLabel: "الإعدادات",
-      locale: "ar",
-      viewport: { width: 390, height: 844 }
+      label: "12-office-catalog-permission-limited",
+      routePath: "/office/catalog",
+      activeLabel: "Catalog",
+      accessValue: restrictedAccess,
+      viewport: { width: 1280, height: 900 }
     })
   );
 } finally {

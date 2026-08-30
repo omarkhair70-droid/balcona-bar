@@ -1,5 +1,6 @@
-import { redirect } from "next/navigation";
+// Kitchen preview checkpoint: complete prototype tree
+import { KitchenPrototype } from "@/features/prototype/kitchen-prototype";
 
-export default function PrototypeRedirectPage() {
-  redirect("/staff/kitchen");
+export default function KitchenPrototypePage() {
+  return <KitchenPrototype />;
 }

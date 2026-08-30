@@ -215,4 +215,14 @@ export default () => ({
     enabled: process.env.SMOKE_BOOTSTRAP_ENABLED === "true",
     token: process.env.SMOKE_BOOTSTRAP_TOKEN || process.env.SMOKE_RESET_TOKEN,
   },
+  demoRequests: {
+    rateLimitWindowSeconds: Number.parseInt(
+      process.env.DEMO_REQUEST_RATE_LIMIT_WINDOW_SECONDS ?? "900",
+      10,
+    ),
+    rateLimitMax: Number.parseInt(
+      process.env.DEMO_REQUEST_RATE_LIMIT_MAX ?? "5",
+      10,
+    ),
+  },
 });

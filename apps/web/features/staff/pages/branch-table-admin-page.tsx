@@ -12,7 +12,6 @@ import {
   Layers3,
   LinkIcon,
   Loader2,
-  MonitorPlay,
   Printer,
   QrCode,
   RefreshCw,
@@ -45,7 +44,6 @@ import {
   branchTableAdminTabs,
   buildQrTokenFromParts,
   copyText,
-  formatBranchAdminDate,
   getBranchAdminErrorMessage,
   humanizeBranchAdminValue,
   slugifyBranchAdminValue,
@@ -62,6 +60,7 @@ import {
   deactivateBranch,
   deactivateTable,
   generateTableQrToken,
+  getBranchPrinterStations,
   getBranchTableAdminOverview,
   regenerateTableQrToken,
   updateBranch,
@@ -265,7 +264,7 @@ function customerPreviewHref(path?: string | null, qrToken?: string | null) {
   }
 
   if (qrToken) {
-    return `/customer/table/${encodeURIComponent(qrToken)}`;
+    return `/guest/table/${encodeURIComponent(qrToken)}`;
   }
 
   return null;
@@ -1164,145 +1163,81 @@ function QrLinksSection({
   );
 }
 
-function ActiveSessionsSection({
-  overview
+function readStationField(
+  station: Record<string, unknown>,
+  key: string,
+  fallback = "Not set"
+) {
+  const value = station[key];
+
+  if (typeof value === "string" && value.trim()) {
+    return value;
+  }
+
+  return fallback;
+}
+
+function DevicesStationsSection({
+  stations,
+  isLoading
 }: {
-  overview: BranchAdminOverviewResult;
+  stations: Record<string, unknown>[];
+  isLoading: boolean;
 }) {
   return (
     <Card variant="glass">
       <CardHeader>
-        <Badge variant="muted">Live table sessions</Badge>
-        <CardTitle>Active Sessions</CardTitle>
+        <Badge variant="muted">Branch hardware routing</Badge>
+        <CardTitle>Devices / Stations</CardTitle>
         <CardDescription>
-          Current open QR sessions for the selected branch. No destructive bulk
-          close actions are included in this phase.
+          Printer stations configured for kitchen, barista, dessert, or cashier
+          routing. Live ticket execution remains in Kitchen.
         </CardDescription>
       </CardHeader>
       <CardContent className="grid gap-3">
-        {overview.activeSessions.map((session) => (
-          <div key={session.id} className="rounded-card border bg-surface/70 p-4">
-            <div className="flex flex-wrap items-start justify-between gap-3">
-              <div>
-                <div className="flex flex-wrap items-center gap-2">
-                  <p className="font-semibold">
-                    {session.table?.displayName ?? session.tableId}
-                  </p>
-                  <Badge variant="success">{session.status}</Badge>
-                  {session.tableAttentionSnapshot ? (
-                    <Badge
-                      variant={statusVariant(
-                        session.tableAttentionSnapshot.status,
-                        session.tableAttentionSnapshot.status === "normal"
-                      )}
-                    >
-                      {humanizeBranchAdminValue(
-                        session.tableAttentionSnapshot.status
-                      )}
-                    </Badge>
-                  ) : null}
-                </div>
-                <p className="mt-1 text-sm text-muted-foreground">
-                  {session.guestLabel ?? "Guest"} / party{" "}
-                  {session.partySize ?? "not set"}
-                </p>
+        {isLoading ? <LoadingState label="Loading branch stations" /> : null}
+        {stations.map((station, index) => {
+          const id = readStationField(station, "id", `station-${index}`);
+          const name = readStationField(station, "name", "Unnamed station");
+          const route = readStationField(station, "station", "General");
+          const adapter = readStationField(station, "adapterType", "Not set");
+          const status = readStationField(station, "status", "unknown");
+          const isDefault = station.isDefault === true;
+
+          return (
+            <div
+              key={id}
+              className="grid gap-3 rounded-card border bg-surface/70 p-4 md:grid-cols-[minmax(0,1fr)_auto_auto_auto] md:items-center"
+            >
+              <div className="min-w-0">
+                <p className="truncate font-semibold">{name}</p>
                 <p className="mt-1 text-xs text-muted-foreground">
-                  Started {formatBranchAdminDate(session.startedAt)} / last seen{" "}
-                  {formatBranchAdminDate(session.lastSeenAt)}
+                  {readStationField(station, "slug", id)}
                 </p>
               </div>
-              <Link
-                href={`/customer/session/${session.id}/status`}
-                className={buttonVariants({ variant: "secondary", size: "sm" })}
-              >
-                <MonitorPlay className="size-3.5" aria-hidden="true" />
-                Status
-              </Link>
+              <Badge variant="muted">
+                {humanizeBranchAdminValue(route)}
+              </Badge>
+              <span className="text-sm text-muted-foreground">
+                {humanizeBranchAdminValue(adapter)}
+              </span>
+              <div className="flex flex-wrap items-center gap-2">
+                <Badge variant={status === "active" ? "success" : "warning"}>
+                  {humanizeBranchAdminValue(status)}
+                </Badge>
+                {isDefault ? <Badge variant="muted">Default</Badge> : null}
+              </div>
             </div>
-          </div>
-        ))}
-        {overview.activeSessions.length === 0 ? (
+          );
+        })}
+        {stations.length === 0 && !isLoading ? (
           <EmptyState
-            title="No active sessions"
-            description="Open customer table sessions will appear here."
+            title="No printer stations configured"
+            description="Supported branch printer stations will appear here after configuration."
           />
         ) : null}
       </CardContent>
     </Card>
-  );
-}
-
-function SetupIssuesSection({
-  overview
-}: {
-  overview: BranchAdminOverviewResult;
-}) {
-  const readyForQrDemo =
-    overview.selectedBranch?.status === "active" &&
-    overview.stats.activeTables > 0 &&
-    overview.stats.tablesMissingQrToken === 0 &&
-    overview.setupIssues.every((issue) => issue.severity !== "error");
-
-  return (
-    <section className="grid gap-4 xl:grid-cols-[0.8fr_1.2fr]">
-      <Card variant={readyForQrDemo ? "accent" : "quiet"}>
-        <CardHeader>
-          <Badge variant={readyForQrDemo ? "success" : "warning"}>
-            {readyForQrDemo ? "Ready for QR demo" : "Needs setup"}
-          </Badge>
-          <CardTitle>Readiness</CardTitle>
-          <CardDescription>
-            A branch is demo-ready when it is active, has active tables, QR
-            tokens exist, and no blocking setup issue remains.
-          </CardDescription>
-        </CardHeader>
-      </Card>
-      <Card variant="glass">
-        <CardHeader>
-          <Badge variant="muted">Backend warnings</Badge>
-          <CardTitle>Setup Issues</CardTitle>
-          <CardDescription>
-            These warnings come from the Branch/Table Admin API, not frontend
-            guesses.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="grid gap-3">
-          {overview.setupIssues.map((issue) => (
-            <div
-              key={`${issue.code}-${issue.tableId ?? issue.branchId ?? issue.scope}`}
-              className="rounded-card border bg-surface/70 p-4"
-            >
-              <div className="flex flex-wrap items-center gap-2">
-                <Badge
-                  variant={issue.severity === "error" ? "danger" : "warning"}
-                >
-                  {issue.severity}
-                </Badge>
-                <Badge variant="muted">
-                  {humanizeBranchAdminValue(issue.scope)}
-                </Badge>
-              </div>
-              <p className="mt-2 text-sm">{issue.message}</p>
-              <p className="mt-1 text-xs text-muted-foreground">{issue.code}</p>
-            </div>
-          ))}
-          {overview.setupIssues.length === 0 ? (
-            <div className="flex items-start gap-3 rounded-card border border-success/40 bg-success/10 p-4">
-              <CheckCircle2
-                className="mt-0.5 size-4 text-success"
-                aria-hidden="true"
-              />
-              <div>
-                <p className="font-semibold">No setup issues</p>
-                <p className="text-sm text-muted-foreground">
-                  This branch is ready for customer QR previews.
-                </p>
-              </div>
-            </div>
-          ) : null}
-        </CardContent>
-      </Card>
-    </section>
   );
 }
 
@@ -1345,6 +1280,16 @@ function BranchTableAdminContent() {
         accessToken
       ),
     enabled: Boolean(accessToken && selectedCompanyId),
+    staleTime: 30_000
+  });
+  const printerStationsQuery = useQuery({
+    queryKey: staffQueryKeys.printerStations(selectedBranchId),
+    queryFn: () =>
+      getBranchPrinterStations(
+        selectedBranchId ?? "",
+        accessToken ?? undefined
+      ),
+    enabled: Boolean(accessToken && selectedBranchId),
     staleTime: 30_000
   });
   const overview = overviewQuery.data;
@@ -1651,8 +1596,8 @@ function BranchTableAdminContent() {
               {overview.selectedBranch?.name ?? overview.company.name}
             </CardTitle>
             <CardDescription>
-              Manage branches, floors, tables, QR tokens, active sessions, and
-              setup warnings from one branch-scoped surface.
+              Manage branch profiles, floors, tables, and QR access from one
+              configuration-scoped surface. Live sessions stay in Operations.
             </CardDescription>
           </div>
           <StaffBranchSelector
@@ -1688,11 +1633,8 @@ function BranchTableAdminContent() {
             {tab.id === "qr" ? (
               <QrCode className="size-4" aria-hidden="true" />
             ) : null}
-            {tab.id === "sessions" ? (
-              <UsersRound className="size-4" aria-hidden="true" />
-            ) : null}
-            {tab.id === "issues" ? (
-              <AlertTriangle className="size-4" aria-hidden="true" />
+            {tab.id === "devices" ? (
+              <Printer className="size-4" aria-hidden="true" />
             ) : null}
             {tab.label}
           </Button>
@@ -1764,13 +1706,13 @@ function BranchTableAdminContent() {
         />
       ) : null}
 
-      {activeTab === "sessions" ? (
-        <ActiveSessionsSection overview={overview} />
+      {activeTab === "devices" ? (
+        <DevicesStationsSection
+          stations={printerStationsQuery.data?.printerStations ?? []}
+          isLoading={printerStationsQuery.isPending}
+        />
       ) : null}
 
-      {activeTab === "issues" ? (
-        <SetupIssuesSection overview={overview} />
-      ) : null}
     </div>
   );
 }

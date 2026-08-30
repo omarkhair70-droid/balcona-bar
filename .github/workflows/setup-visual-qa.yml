@@ -1,11 +1,13 @@
 name: Setup Visual QA
 
 on:
+  workflow_dispatch:
   push:
     branches:
-      - integration/a5-setup-shell
+      - closure/setup-s7
   pull_request:
     paths:
+      - "apps/api/src/tenant-onboarding/**"
       - "apps/web/features/staff/**"
       - "apps/web/messages/**"
       - "scripts/visual-qa/setup-production-visual.mjs"
@@ -16,9 +18,9 @@ permissions:
 
 jobs:
   setup-visual-qa:
-    name: Setup Desktop Mobile RTL Evidence
+    name: Setup Desktop Tablet Mobile RTL Gate Evidence
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 25
 
     steps:
       - name: Check out repository
@@ -40,6 +42,15 @@ jobs:
 
       - name: Check Setup visual harness
         run: node --check scripts/visual-qa/setup-production-visual.mjs
+
+      - name: Typecheck Setup web surface
+        run: pnpm --filter @balcona-bar/web typecheck
+
+      - name: Generate Prisma client
+        run: pnpm --filter @balcona-bar/api prisma:generate
+
+      - name: Test Setup readiness service
+        run: pnpm --filter @balcona-bar/api test -- tenant-onboarding/tenant-onboarding.service.spec.ts --runInBand
 
       - name: Install isolated Playwright
         run: |

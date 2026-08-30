@@ -1,5 +1,5 @@
-import { redirect } from "next/navigation";
+import { OfficeHomePrototype } from "@/features/prototype/office-home-prototype";
 
-export default function PrototypeRedirectPage() {
-  redirect("/staff/owner");
+export default function OfficeHomePrototypePage() {
+  return <OfficeHomePrototype />;
 }

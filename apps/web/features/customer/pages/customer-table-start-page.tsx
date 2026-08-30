@@ -39,11 +39,11 @@ function tableStartErrorMessage(
     }
 
     if (error.status === 0) {
-      return t("errors.tableApiSlow");
+      return t("errors.tableConnectionSlow");
     }
 
     if (error.status >= 500) {
-      return t("errors.tableServiceUnavailable");
+      return t("errors.tableTemporarilyUnavailable");
     }
   }
 
@@ -85,7 +85,7 @@ export function CustomerTableStartPage({
     },
     retry: false,
     onSuccess: (result) => {
-      router.replace(`/customer/session/${result.session.id}/menu`);
+      router.replace(`/guest/session/${result.session.id}/menu`);
     }
   });
   const { isIdle, mutate } = startMutation;
@@ -159,7 +159,7 @@ export function CustomerTableStartPage({
               <Button onClick={() => startMutation.mutate()}>
                 {t("actions.tryAgain")}
               </Button>
-              <Button variant="secondary" onClick={() => router.push("/customer")}>
+              <Button variant="secondary" onClick={() => router.push("/guest")}>
                 {t("actions.back")}
               </Button>
               <CopyDebugReportButton

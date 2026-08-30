@@ -151,27 +151,27 @@ async function runWebSurfaceSmoke(run) {
     ? [
         {
           label: "Customer menu page",
-          path: `/customer/session/${sessionId}/menu`,
+          path: `/guest/session/${sessionId}/menu`,
           coverage: { category: "Customer", name: "web menu route" }
         },
         {
           label: "Customer cart page",
-          path: `/customer/session/${sessionId}/cart`,
+          path: `/guest/session/${sessionId}/cart`,
           coverage: { category: "Customer", name: "web cart route" }
         },
         {
           label: "Customer order page",
-          path: `/customer/session/${sessionId}/status`,
+          path: `/guest/session/${sessionId}/status`,
           coverage: { category: "Customer", name: "web order route" }
         },
         {
           label: "Customer service and bill page",
-          path: `/customer/session/${sessionId}/service`,
+          path: `/guest/session/${sessionId}/service`,
           coverage: { category: "Customer", name: "web service/bill route" }
         },
         {
           label: "Customer AI waiter page",
-          path: `/customer/session/${sessionId}/ai-waiter`,
+          path: `/guest/session/${sessionId}/ai-waiter`,
           coverage: { category: "AI Waiter", name: "web AI waiter route" }
         }
       ]
@@ -183,39 +183,39 @@ async function runWebSurfaceSmoke(run) {
       path: "/",
       coverage: { category: "System", name: "web health/build metadata" }
     },
-    { label: "Balkona demo launcher", path: "/demo/balkona" },
-    { label: "Customer table page", path: `/customer/table/${run.config.tableQrToken ?? "balcona-main-t01"}` },
+    { label: "Balkona demo launcher", path: "/demo" },
+    { label: "Customer table page", path: `/guest/table/${run.config.tableQrToken ?? "balcona-main-t01"}` },
     ...customerSessionPages,
     { label: "Staff login page", path: "/staff/login" },
     {
       label: "Staff cashier page",
-      path: "/staff/cashier",
+      path: "/service/cashier",
       coverage: { category: "Staff Ops", name: "web cashier route" }
     },
     {
       label: "Staff waiter page",
-      path: "/staff/waiter",
+      path: "/service/waiter",
       coverage: { category: "Staff Ops", name: "web waiter route" }
     },
-    { label: "Staff kitchen page", path: "/staff/kitchen" },
+    { label: "Staff kitchen page", path: "/kitchen" },
     {
       label: "Staff owner page",
-      path: "/staff/owner",
+      path: "/office",
       coverage: { category: "Office", name: "web Office home route" }
     },
     {
       label: "Staff menu admin page",
-      path: "/staff/menu",
+      path: "/office/catalog",
       coverage: { category: "Office", name: "web Office catalog route" }
     },
     {
       label: "Staff inventory page",
-      path: "/staff/inventory",
+      path: "/office/inventory",
       coverage: { category: "Office", name: "web Office inventory route" }
     },
     {
       label: "Staff branches page",
-      path: "/staff/branches",
+      path: "/office/locations",
       coverage: { category: "Office", name: "web Office locations route" }
     },
     { label: "Platform login page", path: "/platform/login" },

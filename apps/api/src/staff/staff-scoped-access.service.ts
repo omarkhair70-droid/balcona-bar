@@ -501,6 +501,96 @@ export class StaffScopedAccessService {
     );
   }
 
+  async assertCanForExperienceProfile(
+    staffUserId: string,
+    permission: StaffPermission,
+    experienceProfileId: string,
+  ) {
+    const profile = await this.prisma.experienceProfile.findUnique({
+      where: { id: experienceProfileId },
+      select: { companyId: true, branchId: true },
+    });
+
+    return this.assertCanForRecord(
+      staffUserId,
+      permission,
+      profile,
+      "Experience profile",
+    );
+  }
+
+  async assertCanForContentBlock(
+    staffUserId: string,
+    permission: StaffPermission,
+    contentBlockId: string,
+  ) {
+    const block = await this.prisma.contentBlock.findUnique({
+      where: { id: contentBlockId },
+      select: { companyId: true, branchId: true },
+    });
+
+    return this.assertCanForRecord(
+      staffUserId,
+      permission,
+      block,
+      "Content block",
+    );
+  }
+
+  async assertCanForNotificationTemplate(
+    staffUserId: string,
+    permission: StaffPermission,
+    templateId: string,
+  ) {
+    const template = await this.prisma.notificationTemplate.findUnique({
+      where: { id: templateId },
+      select: { companyId: true, branchId: true },
+    });
+
+    return this.assertCanForRecord(
+      staffUserId,
+      permission,
+      template,
+      "Notification template",
+    );
+  }
+
+  async assertCanForMediaAsset(
+    staffUserId: string,
+    permission: StaffPermission,
+    mediaAssetId: string,
+  ) {
+    const asset = await this.prisma.mediaAsset.findUnique({
+      where: { id: mediaAssetId },
+      select: { companyId: true, branchId: true },
+    });
+
+    return this.assertCanForRecord(
+      staffUserId,
+      permission,
+      asset,
+      "Media asset",
+    );
+  }
+
+  async assertCanForMediaUsage(
+    staffUserId: string,
+    permission: StaffPermission,
+    mediaUsageId: string,
+  ) {
+    const usage = await this.prisma.mediaAssetUsage.findUnique({
+      where: { id: mediaUsageId },
+      select: { companyId: true, branchId: true },
+    });
+
+    return this.assertCanForRecord(
+      staffUserId,
+      permission,
+      usage,
+      "Media usage",
+    );
+  }
+
   async assertCanForVenueZone(
     staffUserId: string,
     permission: StaffPermission,

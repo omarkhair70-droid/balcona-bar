@@ -201,6 +201,17 @@ function PlatformStatusContent() {
               <DetailRow label="NODE_ENV" value={systemInfoQuery.data.nodeEnvironment} fallback="—" />
               <DetailRow label={L(locale, "API prefix", "بادئة API")} value={systemInfoQuery.data.apiPrefix} fallback="—" />
               <DetailRow label="Git SHA" value={systemInfoQuery.data.gitSha} fallback="—" />
+              <DetailRow label={L(locale, "Build time", "وقت البناء")} value={systemInfoQuery.data.buildTime} fallback="—" />
+              <DetailRow label={L(locale, "Migrations", "الترحيلات")} value={systemInfoQuery.data.migration?.status} fallback="—" />
+              <DetailRow
+                label={L(locale, "Applied", "المطبق")}
+                value={
+                  systemInfoQuery.data.migration
+                    ? `${systemInfoQuery.data.migration.applied ?? 0}/${systemInfoQuery.data.migration.expected ?? 0}`
+                    : undefined
+                }
+                fallback="—"
+              />
             </dl>
           ) : null}
         </article>
@@ -220,20 +231,20 @@ function PlatformStatusContent() {
         />
         <h2 className="mt-3 text-sm font-semibold">
           {apiSafety.status === "permanent"
-            ? L(locale, "Runtime target is production-shaped", "هدف التشغيل له شكل Production")
-            : L(locale, "Production target still needs closure", "هدف Production ما زال يحتاج إغلاق")}
+            ? L(locale, "API target configured", "هدف API مضبوط")
+            : L(locale, "API target needs attention", "هدف API يحتاج مراجعة")}
         </h2>
         <p className="mt-2 max-w-3xl text-xs leading-6 text-[#777771]">
           {apiSafety.status === "permanent"
             ? L(
                 locale,
-                "Platform sees a permanent API target. Final Oracle QA still verifies the deployed Web resource, CORS and end-to-end routes.",
-                "Platform يرى هدف API دائمًا. فحص Oracle النهائي ما زال يتحقق من Web المنشور وCORS والرحلات الكاملة."
+                "The Web app is configured to use a permanent API target. Live health and runtime metadata above show the current operational state.",
+                "تطبيق الويب مضبوط على هدف API دائم. الصحة الحية وبيانات التشغيل بالأعلى تعرض الحالة التشغيلية الحالية."
               )
             : L(
                 locale,
-                "The Web resource must point to the final Oracle/Coolify API target before production QA can close.",
-                "يجب أن يشير Web إلى هدف Oracle/Coolify النهائي قبل إغلاق فحص Production."
+                "The configured API target is temporary or local. Review the Web environment before relying on this runtime.",
+                "هدف API الحالي مؤقت أو محلي. راجع إعداد بيئة الويب قبل الاعتماد على هذا التشغيل."
               )}
         </p>
       </section>

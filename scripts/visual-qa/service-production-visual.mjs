@@ -909,42 +909,42 @@ try {
   results.push(
     await capture(browser, {
       label: "01-cashier-orders-desktop",
-      route: "/staff/cashier#orders",
+      route: "/service/cashier#orders",
       target: "#orders"
     })
   );
   results.push(
     await capture(browser, {
       label: "02-cashier-bills-desktop",
-      route: "/staff/cashier#bills",
+      route: "/service/cashier#bills",
       target: "#bills"
     })
   );
   results.push(
     await capture(browser, {
       label: "03-cashier-shift-desktop",
-      route: "/staff/cashier#shift",
+      route: "/service/cashier#shift",
       target: "#shift"
     })
   );
   results.push(
     await capture(browser, {
       label: "04-waiter-floor-desktop",
-      route: "/staff/waiter#floor",
+      route: "/service/waiter#floor",
       target: "#floor"
     })
   );
   results.push(
     await capture(browser, {
       label: "05-waiter-attention-desktop",
-      route: "/staff/waiter#attention",
+      route: "/service/waiter#attention",
       target: "#attention"
     })
   );
   results.push(
     await capture(browser, {
       label: "06-cashier-orders-mobile-390",
-      route: "/staff/cashier#orders",
+      route: "/service/cashier#orders",
       viewport: { width: 390, height: 844 },
       target: "#orders"
     })
@@ -952,7 +952,7 @@ try {
   results.push(
     await capture(browser, {
       label: "07-waiter-floor-mobile-390",
-      route: "/staff/waiter#floor",
+      route: "/service/waiter#floor",
       viewport: { width: 390, height: 844 },
       target: "#floor"
     })
@@ -960,7 +960,7 @@ try {
   results.push(
     await capture(browser, {
       label: "08-waiter-attention-ar-rtl-390",
-      route: "/staff/waiter#attention",
+      route: "/service/waiter#attention",
       locale: "ar",
       viewport: { width: 390, height: 844 },
       target: "#attention"

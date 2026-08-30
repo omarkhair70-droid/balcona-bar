@@ -1,5 +1,5 @@
-import { CustomerEntryPage } from "@/features/customer/pages/customer-entry-page";
+import { MarketingHomePage } from "@/features/marketing/marketing-home-page";
 
 export default function HomePage() {
-  return <CustomerEntryPage />;
+  return <MarketingHomePage />;
 }

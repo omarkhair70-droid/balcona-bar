@@ -21,7 +21,7 @@ export function CartSummary({ sessionId, cart }: CartSummaryProps) {
 
   return (
     <Link
-      href={`/customer/session/${sessionId}/cart`}
+      href={`/guest/session/${sessionId}/cart`}
       className="fixed bottom-[5.15rem] start-1/2 z-30 flex min-h-14 w-[calc(100%-2rem)] max-w-[416px] -translate-x-1/2 items-center gap-3 rounded-2xl bg-foreground px-4 text-start text-background shadow-xl rtl:translate-x-1/2"
     >
       <span className="flex size-8 shrink-0 items-center justify-center rounded-full bg-background/15 text-xs font-black">

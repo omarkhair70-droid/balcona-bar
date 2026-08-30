@@ -88,6 +88,18 @@ class EnvironmentVariables {
   @IsOptional()
   APP_BUILD_TIME?: string;
 
+  @IsInt()
+  @Min(60)
+  @Max(86400)
+  @IsOptional()
+  DEMO_REQUEST_RATE_LIMIT_WINDOW_SECONDS?: number;
+
+  @IsInt()
+  @Min(1)
+  @Max(100)
+  @IsOptional()
+  DEMO_REQUEST_RATE_LIMIT_MAX?: number;
+
   @IsString()
   DATABASE_URL!: string;
 

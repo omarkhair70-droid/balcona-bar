@@ -1,7 +1,7 @@
 import { SystemController } from "./system.controller";
 
 describe("SystemController", () => {
-  it("returns safe runtime metadata without secrets", () => {
+  it("returns safe runtime metadata without secrets", async () => {
     const configValues: Record<string, string> = {
       "app.name": "balcona-bar-api",
       "app.version": "0.1.0",
@@ -14,9 +14,27 @@ describe("SystemController", () => {
     const configService = {
       get: jest.fn((key: string) => configValues[key]),
     };
-    const controller = new SystemController(configService as never);
+    const migration = {
+      status: "ready" as const,
+      expected: 42,
+      applied: 42,
+      pending: 0,
+      failed: 0,
+      checkedAt: "2026-08-30T10:00:00.000Z",
+    };
+    const deploymentReadiness = {
+      snapshot: jest.fn().mockResolvedValue({
+        gitSha: "abc123",
+        buildTime: "2026-06-09T08:00:00.000Z",
+        migration,
+      }),
+    };
+    const controller = new SystemController(
+      configService as never,
+      deploymentReadiness as never,
+    );
 
-    const result = controller.info();
+    const result = await controller.info();
 
     expect(result).toEqual({
       name: "balcona-bar-api",
@@ -27,10 +45,7 @@ describe("SystemController", () => {
       apiPrefix: "api/v1",
       gitSha: "abc123",
       buildTime: "2026-06-09T08:00:00.000Z",
-      migration: {
-        status: "not_checked",
-        check: "pnpm --filter @balcona-bar/api prisma:migrate:deploy",
-      },
+      migration,
       timestamp: expect.any(String),
     });
     expect(JSON.stringify(result)).not.toContain("DATABASE_URL");

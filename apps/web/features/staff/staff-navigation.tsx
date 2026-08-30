@@ -33,7 +33,7 @@ export const staffNavItems: StaffNavItem[] = [
     icon: <LayoutDashboard className="size-4" aria-hidden="true" />
   },
   {
-    href: "/staff/cashier",
+    href: "/service/cashier",
     label: "Cashier",
     labelKey: "navigation.cashier",
     icon: <Receipt className="size-4" aria-hidden="true" />,
@@ -42,7 +42,7 @@ export const staffNavItems: StaffNavItem[] = [
     requiredPermissions: ["orders.cashier_review"]
   },
   {
-    href: "/staff/menu",
+    href: "/office/catalog",
     label: "Menu",
     labelKey: "navigation.menu",
     icon: <BookOpenText className="size-4" aria-hidden="true" />,
@@ -51,7 +51,7 @@ export const staffNavItems: StaffNavItem[] = [
     requiredPermissions: ["menu.read"]
   },
   {
-    href: "/staff/inventory",
+    href: "/office/inventory",
     label: "Inventory",
     labelKey: "navigation.inventory",
     icon: <Boxes className="size-4" aria-hidden="true" />,
@@ -60,7 +60,7 @@ export const staffNavItems: StaffNavItem[] = [
     requiredPermissions: ["inventory.read"]
   },
   {
-    href: "/staff/setup",
+    href: "/setup",
     label: "Setup",
     labelKey: "navigation.setup",
     icon: <Rocket className="size-4" aria-hidden="true" />,
@@ -69,7 +69,7 @@ export const staffNavItems: StaffNavItem[] = [
     requiredPermissions: ["tenant_onboarding.read"]
   },
   {
-    href: "/staff/billing",
+    href: "/office/account",
     label: "Billing",
     labelKey: "navigation.billing",
     icon: <CreditCard className="size-4" aria-hidden="true" />,
@@ -78,7 +78,7 @@ export const staffNavItems: StaffNavItem[] = [
     requiredPermissions: ["saas.read"]
   },
   {
-    href: "/staff/branches",
+    href: "/office/locations",
     label: "Branches",
     labelKey: "navigation.branches",
     icon: <Building2 className="size-4" aria-hidden="true" />,
@@ -93,7 +93,7 @@ export const staffNavItems: StaffNavItem[] = [
     icon: <LogIn className="size-4" aria-hidden="true" />
   },
   {
-    href: "/staff/kitchen",
+    href: "/kitchen",
     label: "Kitchen",
     labelKey: "navigation.kitchen",
     icon: <ChefHat className="size-4" aria-hidden="true" />,
@@ -102,7 +102,7 @@ export const staffNavItems: StaffNavItem[] = [
     requiredPermissions: ["preparation.read"]
   },
   {
-    href: "/staff/waiter",
+    href: "/service/waiter",
     label: "Waiter",
     labelKey: "navigation.waiter",
     icon: <Bell className="size-4" aria-hidden="true" />,
@@ -111,7 +111,7 @@ export const staffNavItems: StaffNavItem[] = [
     requiredPermissions: ["waiter_calls.read"]
   },
   {
-    href: "/staff/owner",
+    href: "/office",
     label: "Owner",
     labelKey: "navigation.owner",
     icon: <ChartNoAxesCombined className="size-4" aria-hidden="true" />,

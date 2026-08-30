@@ -8,9 +8,10 @@ import {
   Building2,
   Plus,
   QrCode,
+  RefreshCw,
   ShieldCheck
 } from "lucide-react";
-import { type FormEvent, useState } from "react";
+import { type FormEvent, useMemo, useState } from "react";
 import { PlatformAuthGate } from "@/features/platform/components/platform-auth-gate";
 import { PlatformShell } from "@/features/platform/platform-shell";
 import { formatErrorMessage } from "@/lib/api/error-message";
@@ -38,12 +39,6 @@ function slugify(value: string) {
     .replace(/^-+|-+$/g, "");
 }
 
-function planLabel(planCode: string) {
-  return planCode
-    .split("-")
-    .map((part) => part[0]?.toUpperCase() + part.slice(1))
-    .join(" ");
-}
 
 function SuccessPanel({ result }: { result: BootstrapCompanyResult }) {
   const { locale } = useI18n();
@@ -61,8 +56,8 @@ function SuccessPanel({ result }: { result: BootstrapCompanyResult }) {
           <p className="mt-1 text-xs leading-5 text-[#55705A]">
             {L(
               locale,
-              `${result.company.name} is ready for owner password handoff and Setup.`,
-              `${result.company.name} جاهزة لتسليم كلمة مرور المالك وSetup.`
+              `${result.company.name} is created. Continue owner access and Setup from the company record.`,
+              `تم إنشاء ${result.company.name}. أكمل وصول المالك وSetup من سجل الشركة.`
             )}
           </p>
         </div>
@@ -81,12 +76,22 @@ function SuccessPanel({ result }: { result: BootstrapCompanyResult }) {
         ))}
       </div>
 
+      <div className="mt-4 rounded-md border border-[#C8D7C8] bg-white p-3">
+        <p className="text-[10px] font-semibold uppercase tracking-[0.1em] text-[#6B7F6E]">
+          {L(locale, "OWNER ACCESS", "وصول المالك")}
+        </p>
+        <p className="mt-1 text-xs leading-5 text-[#55705A]">
+          {locale === "ar"
+            ? result.passwordSetup.passwordAlreadySet
+              ? "وصول المالك مفعّل بالفعل."
+              : "أنشئ دعوة للمالك من تفاصيل الشركة لإكمال الوصول الأول."
+            : result.passwordSetup.nextStep}
+        </p>
+      </div>
+
       <div className="mt-4 flex flex-wrap gap-2">
-        <Link href={result.setupUrl} className="inline-flex min-h-10 items-center rounded-md bg-[#292925] px-3 text-xs font-semibold !text-white">
-          {L(locale, "Open Setup", "افتح Setup")}
-        </Link>
-        <Link href={`/platform/companies/${result.companyId}`} className="inline-flex min-h-10 items-center rounded-md border border-[#B7B7B1] bg-white px-3 text-xs font-semibold">
-          {L(locale, "Company detail", "تفاصيل الشركة")}
+        <Link href={`/platform/companies/${result.companyId}`} className="inline-flex min-h-10 items-center rounded-md bg-[#292925] px-3 text-xs font-semibold !text-white">
+          {L(locale, "Open company detail", "افتح تفاصيل الشركة")}
         </Link>
       </div>
 
@@ -94,12 +99,12 @@ function SuccessPanel({ result }: { result: BootstrapCompanyResult }) {
         <div className="mt-4 border-t border-[#C8D7C8] pt-4">
           <div className="flex items-center gap-2 text-xs font-semibold">
             <QrCode className="size-4" />
-            {L(locale, "Starter QR examples", "أمثلة QR المبدئية")}
+            {L(locale, "Starter tables ready", "ترابيزات البداية جاهزة")}
           </div>
           <div className="mt-2 flex flex-wrap gap-2">
             {result.customerQrExamples.slice(0, 4).map((example) => (
               <span key={example.tableId} className="rounded-md border border-[#C8D7C8] bg-white px-2.5 py-1.5 text-[11px]">
-                {example.code} · {example.qrToken}
+                {example.code}
               </span>
             ))}
           </div>
@@ -138,6 +143,15 @@ function PlatformNewCompanyContent() {
     staleTime: 5 * 60_000
   });
 
+  const availablePlans = useMemo(
+    () => plansQuery.data?.plans.filter((plan) => plan.status === "active") ?? [],
+    [plansQuery.data?.plans]
+  );
+
+  const selectedPlanCode = availablePlans.some((plan) => plan.code === planCode)
+    ? planCode
+    : (availablePlans[0]?.code as BootstrapCompanyInput["subscription"]["planCode"] | undefined);
+
   const createMutation = useMutation({
     mutationFn: (payload: BootstrapCompanyInput) =>
       bootstrapPlatformCompany(payload, accessToken ?? ""),
@@ -150,6 +164,10 @@ function PlatformNewCompanyContent() {
   function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setCreatedResult(null);
+    if (!selectedPlanCode) {
+      return;
+    }
+
     createMutation.mutate({
       company: {
         name: companyName.trim(),
@@ -165,7 +183,7 @@ function PlatformNewCompanyContent() {
         address: branchAddress.trim() || null
       },
       subscription: {
-        planCode,
+        planCode: selectedPlanCode,
         status: subscriptionStatus
       },
       starterTables: {
@@ -187,7 +205,7 @@ function PlatformNewCompanyContent() {
         <section className={panelClass}>
           <div className="border-b border-[#E7E7E2] px-5 py-4">
             <span className="inline-flex rounded-full border border-[#D7D7D2] bg-[#F7F7F4] px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.1em] text-[#62625C]">
-              {L(locale, "BOOTSTRAP", "تجهيز جديد")}
+              {L(locale, "NEW TENANT", "شركة جديدة")}
             </span>
             <h2 className="mt-3 text-xl font-semibold">
               {L(locale, "Create the tenant foundation", "أنشئ أساس الشركة")}
@@ -195,8 +213,8 @@ function PlatformNewCompanyContent() {
             <p className="mt-1 max-w-2xl text-xs leading-5 text-[#777771]">
               {L(
                 locale,
-                "Company, first branch, owner handoff and optional starter tables in one bounded backend transaction.",
-                "الشركة والفرع الأول وتسليم المالك وترابيزات البداية الاختيارية في معاملة backend واحدة محددة."
+                "Create the company, first branch, owner access and optional starter tables in one controlled setup.",
+                "أنشئ الشركة والفرع الأول ووصول المالك وترابيزات البداية الاختيارية في إعداد واحد مضبوط."
               )}
             </p>
           </div>
@@ -232,7 +250,7 @@ function PlatformNewCompanyContent() {
 
             <div className="border-t border-[#ECECE8] pt-5">
               <p className="text-[10px] font-semibold uppercase tracking-[0.13em] text-[#7A746D]">
-                {L(locale, "OWNER HANDOFF", "تسليم المالك")}
+                {L(locale, "OWNER ACCESS", "وصول المالك")}
               </p>
               <div className="mt-3 grid gap-3 sm:grid-cols-2">
                 <label className={labelClass}>
@@ -307,8 +325,8 @@ function PlatformNewCompanyContent() {
             <p className="mt-1 text-xs leading-5 text-[#777771]">
               {L(
                 locale,
-                "Backend truth owns slugs, plan limits, owner membership, starter tables and audit events.",
-                "الـbackend هو مصدر الحقيقة للـslugs وحدود الخطة وعضوية المالك والترابيزات المبدئية وأحداث التدقيق."
+                "Plan limits and tenant configuration are validated before the workspace is created.",
+                "يتم التحقق من حدود الخطة وإعدادات الشركة قبل إنشاء مساحة العمل."
               )}
             </p>
 
@@ -317,25 +335,19 @@ function PlatformNewCompanyContent() {
                 {L(locale, "Plan", "الخطة")}
                 <select
                   className={inputClass}
-                  value={planCode}
+                  value={selectedPlanCode ?? ""}
                   onChange={(event) =>
                     setPlanCode(event.target.value as BootstrapCompanyInput["subscription"]["planCode"])
                   }
                 >
-                  {(plansQuery.data?.plans ?? []).length > 0
-                    ? plansQuery.data?.plans.map((plan) => (
-                        <option key={plan.code} value={plan.code}>
-                          {plan.name} ·{" "}
-                          {plan.monthlyPriceMinor === null || plan.monthlyPriceMinor === undefined
-                            ? L(locale, "Custom", "مخصص")
-                            : formatMoney(plan.monthlyPriceMinor, plan.currency)}
-                        </option>
-                      ))
-                    : ["pilot", "starter", "growth", "enterprise"].map((code) => (
-                        <option key={code} value={code}>
-                          {planLabel(code)}
-                        </option>
-                      ))}
+                  {availablePlans.map((plan) => (
+                    <option key={plan.code} value={plan.code}>
+                      {plan.name} ·{" "}
+                      {plan.monthlyPriceMinor === null || plan.monthlyPriceMinor === undefined
+                        ? L(locale, "Custom", "مخصص")
+                        : formatMoney(plan.monthlyPriceMinor, plan.currency)}
+                    </option>
+                  ))}
                 </select>
               </label>
 
@@ -398,6 +410,28 @@ function PlatformNewCompanyContent() {
                 </div>
               ) : null}
 
+              {plansQuery.isError ? (
+                <div className="rounded-md border border-[#E4C5C1] bg-[#FBEEEE] p-3 text-xs text-[#8D3F37]">
+                  <p>
+                    {L(locale, "Plans could not load. Retry before creating a tenant.", "تعذر تحميل الخطط. أعد المحاولة قبل إنشاء الشركة.")}
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => void plansQuery.refetch()}
+                    className="mt-2 inline-flex min-h-9 items-center gap-2 rounded-md border border-[#D9B9B5] bg-white px-3 text-xs font-semibold text-[#8D3F37]"
+                  >
+                    <RefreshCw className="size-4" />
+                    {L(locale, "Retry", "إعادة المحاولة")}
+                  </button>
+                </div>
+              ) : null}
+
+              {!plansQuery.isPending && !plansQuery.isError && availablePlans.length === 0 ? (
+                <p className="rounded-md border border-[#E5D2AD] bg-[#FFF8E9] p-3 text-xs text-[#805C25]">
+                  {L(locale, "No active plan is available for tenant creation.", "لا توجد خطة نشطة متاحة لإنشاء شركة.")}
+                </p>
+              ) : null}
+
               {createMutation.isError ? (
                 <p className="rounded-md border border-[#E4C5C1] bg-[#FBEEEE] p-3 text-xs text-[#8D3F37]">
                   {formatErrorMessage(createMutation.error)}
@@ -406,7 +440,12 @@ function PlatformNewCompanyContent() {
 
               <button
                 type="submit"
-                disabled={createMutation.isPending}
+                disabled={
+                  createMutation.isPending ||
+                  plansQuery.isPending ||
+                  plansQuery.isError ||
+                  availablePlans.length === 0
+                }
                 className="inline-flex min-h-11 items-center justify-center gap-2 rounded-md bg-[#292925] px-4 text-sm font-semibold !text-white disabled:opacity-50"
               >
                 <Plus className="size-4" />
@@ -425,8 +464,8 @@ function PlatformNewCompanyContent() {
             <p className="mt-2 text-xs leading-6 text-[#805C25]">
               {L(
                 locale,
-                "No public signup, recurring billing checkout, merchant credentials, production menu import or staff impersonation is created here.",
-                "لا يتم إنشاء تسجيل عام أو تحصيل دوري أو بيانات مزود دفع أو استيراد منيو production أو انتحال موظف من هنا."
+                "This flow does not create public signup, payment-provider credentials, menu imports or staff sessions.",
+                "هذه العملية لا تنشئ تسجيلًا عامًا أو بيانات مزود دفع أو استيراد منيو أو جلسات موظفين."
               )}
             </p>
           </section>
@@ -441,11 +480,11 @@ export function PlatformNewCompanyPage() {
 
   return (
     <PlatformShell
-      title={L(locale, "New Cafe / Bootstrap", "كافيه جديد / Bootstrap")}
+      title={L(locale, "New Cafe / Tenant Setup", "كافيه جديد / إعداد الشركة")}
       description={L(
         locale,
-        "Create the minimum tenant foundation through the existing platform-admin transaction.",
-        "أنشئ الحد الأدنى لمساحة الشركة من خلال معاملة PlatformAdmin الحالية."
+        "Create the company, first branch, plan and initial owner access in one controlled flow.",
+        "أنشئ الشركة والفرع الأول والخطة ووصول المالك الأول في عملية واحدة مضبوطة."
       )}
       actions={
         <Link

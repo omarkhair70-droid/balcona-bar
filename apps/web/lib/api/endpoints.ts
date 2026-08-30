@@ -72,6 +72,8 @@ import type {
   CreateModifierOptionPayload,
   CreateBranchPayload,
   CreateCashAdjustmentPayload,
+  CreateDemoRequestPayload,
+  CreateDemoRequestResult,
   CreatePlatformStaffInvitePayload,
   CreatePlatformStaffInviteResult,
   CreateOnboardingFloorPayload,
@@ -89,6 +91,8 @@ import type {
   CustomerStatusResult,
   CurrentCashierShiftResult,
   CustomerTimelineResult,
+  DemoRequest,
+  DemoRequestsResult,
   DeleteBranchMenuItemOverrideResult,
   DeleteMenuItemModifierGroupResult,
   EscalateAiWaiterPayload,
@@ -170,6 +174,7 @@ import type {
   UpdateBranchPayload,
   UpdateFloorPayload,
   UpdateInventoryItemPayload,
+  UpdateDemoRequestPayload,
   UpdatePurchaseOrderLinePayload,
   UpdatePurchaseOrderPayload,
   UpdateSupplierPayload,
@@ -220,6 +225,17 @@ export function getSystemInfo() {
   });
 }
 
+export function createDemoRequest(payload: CreateDemoRequestPayload) {
+  return apiRequest<CreateDemoRequestResult, CreateDemoRequestPayload>(
+    "/public/demo-requests",
+    {
+      method: "POST",
+      body: payload,
+      timeoutMs: 10_000,
+    },
+  );
+}
+
 export function platformLogin(payload: PlatformLoginPayload) {
   return apiRequest<PlatformAuthResponse, PlatformLoginPayload>(
     "/platform-auth/login",
@@ -240,6 +256,27 @@ export function getPlatformPlans(token: string) {
   return apiRequest<SaasPlansResult>("/platform/plans", {
     token,
   });
+}
+
+export function getPlatformDemoRequests(
+  token: string,
+  query?: { status?: string; search?: string; limit?: number },
+) {
+  return apiRequest<DemoRequestsResult>("/platform/demo-requests", {
+    token,
+    query,
+  });
+}
+
+export function updatePlatformDemoRequest(
+  id: string,
+  payload: UpdateDemoRequestPayload,
+  token: string,
+) {
+  return apiRequest<DemoRequest, UpdateDemoRequestPayload>(
+    `/platform/demo-requests/${id}`,
+    { method: "PATCH", body: payload, token },
+  );
 }
 
 export function getPlatformCompanies(token: string) {

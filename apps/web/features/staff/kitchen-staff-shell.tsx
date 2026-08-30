@@ -22,10 +22,13 @@ export function KitchenStaffShell({
 
   return (
     <main className="min-h-screen bg-[#151412] text-[#FFF8F0]">
+      <h1 className="sr-only">{title}</h1>
+      <p className="sr-only">{description}</p>
+
       <header className="sticky top-0 z-40 border-b border-[#34312E] bg-[#12110F]/96 backdrop-blur">
-        <div className="flex min-h-14 items-center gap-2 px-3">
+        <div className="flex min-h-14 items-center gap-3 px-3">
           <Link
-            href="/staff/kitchen"
+            href="/kitchen"
             className="flex shrink-0 items-center gap-2"
             aria-label={t("kitchen.shellProductLabel")}
           >
@@ -42,33 +45,14 @@ export function KitchenStaffShell({
             </span>
           </Link>
 
-          <div className="ms-auto flex items-center gap-2">
+          <div className="ms-auto flex min-w-0 items-center gap-2">
+            {actions}
             <LanguageSwitcher className="shrink-0 border-[#3E3A36] bg-[#1B1917]" />
           </div>
         </div>
-
-        {actions ? (
-          <div className="flex flex-wrap items-center justify-end gap-2 border-t border-[#282522] px-3 py-2">
-            {actions}
-          </div>
-        ) : null}
       </header>
 
-      <section className="border-b border-[#302D29] bg-[#171614] px-3 py-4 sm:px-4">
-        <div className="mx-auto max-w-[1600px]">
-          <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-[#8E8780]">
-            {t("kitchen.shellEyebrow")}
-          </p>
-          <h1 className="mt-1 text-xl font-black tracking-[-0.025em] text-[#FFF8F0] sm:text-2xl">
-            {title}
-          </h1>
-          <p className="mt-1 max-w-3xl text-xs leading-5 text-[#9B958E] sm:text-sm">
-            {description}
-          </p>
-        </div>
-      </section>
-
-      <div className="mx-auto max-w-[1600px] p-3 sm:p-4">{children}</div>
+      {children}
     </main>
   );
 }

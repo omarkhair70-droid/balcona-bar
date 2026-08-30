@@ -8,11 +8,11 @@ export const balkonaDemoStaff = {
 export const balkonaDemoRoutes = [
   {
     key: "customerQrDemo",
-    href: `/customer/table/${balkonaDemoQrToken}`,
+    href: `/guest/table/${balkonaDemoQrToken}`,
   },
   {
     key: "customerEntry",
-    href: "/customer",
+    href: "/guest",
   },
   {
     key: "staffLogin",
@@ -20,27 +20,27 @@ export const balkonaDemoRoutes = [
   },
   {
     key: "cashier",
-    href: "/staff/cashier",
+    href: "/service/cashier",
   },
   {
     key: "menuAdmin",
-    href: "/staff/menu",
+    href: "/office/catalog",
   },
   {
     key: "branchTables",
-    href: "/staff/branches",
+    href: "/office/locations",
   },
   {
     key: "kitchenBarista",
-    href: "/staff/kitchen",
+    href: "/kitchen",
   },
   {
     key: "waiterFloor",
-    href: "/staff/waiter",
+    href: "/service/waiter",
   },
   {
     key: "ownerManager",
-    href: "/staff/owner",
+    href: "/office",
   }
 ] as const;
 

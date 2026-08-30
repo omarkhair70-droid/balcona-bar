@@ -1,6 +1,7 @@
 name: Office Visual QA
 
 on:
+  workflow_dispatch:
   push:
     branches:
       - integration/a4-office-shell
@@ -9,6 +10,7 @@ on:
       - "apps/web/features/staff/**"
       - "apps/web/messages/**"
       - "scripts/visual-qa/office-production-visual.mjs"
+      - "scripts/visual-qa/office-control-production-visual.mjs"
       - ".github/workflows/office-visual-qa.yml"
 
 permissions:
@@ -40,6 +42,9 @@ jobs:
 
       - name: Check Office visual harness
         run: node --check scripts/visual-qa/office-production-visual.mjs
+
+      - name: Check Office control visual harness
+        run: node --check scripts/visual-qa/office-control-production-visual.mjs
 
       - name: Install isolated Playwright
         run: |
@@ -73,12 +78,26 @@ jobs:
           BALCONA_VISUAL_BASE_URL: http://localhost:3001
         run: node scripts/visual-qa/office-production-visual.mjs
 
+      - name: Capture Office control visual evidence
+        env:
+          BALCONA_VISUAL_BASE_URL: http://localhost:3001
+        run: node scripts/visual-qa/office-control-production-visual.mjs
+
       - name: Upload Office visual evidence
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: office-production-visual-qa
           path: artifacts/office-visual-qa
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Upload Office control visual evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: office-control-production-visual-qa
+          path: artifacts/office-control-visual-qa
           if-no-files-found: error
           retention-days: 14
 

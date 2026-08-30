@@ -71,9 +71,6 @@ export function AiCartProposalCard({
       <CardHeader>
         <div className="flex flex-wrap items-center gap-2">
           <Badge>{t("proposal.badge")}</Badge>
-          <Badge variant={status === "proposed" ? "warning" : "muted"}>
-            {status}
-          </Badge>
         </div>
         <CardTitle>{getProposalTitle(proposal, t)}</CardTitle>
         <CardDescription>
@@ -157,7 +154,7 @@ export function AiCartProposalCard({
           {isRejecting ? t("proposal.rejecting") : t("proposal.reject")}
         </Button>
         <Link
-          href={`/customer/session/${sessionId}/cart`}
+          href={`/guest/session/${sessionId}/cart`}
           className={buttonVariants({ variant: "secondary" })}
         >
           {t("actions.reviewCart")}

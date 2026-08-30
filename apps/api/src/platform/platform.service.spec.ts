@@ -202,6 +202,7 @@ function createPrisma(overrides: Record<string, unknown> = {}) {
     onlinePaymentIntent: { count: jest.fn().mockResolvedValue(0) },
     platformAuditEvent: {
       create: jest.fn().mockResolvedValue({ id: "platform-audit-1" }),
+      findMany: jest.fn().mockResolvedValue([]),
     },
   };
   const prisma = {
@@ -226,15 +227,6 @@ function buildService(overrides: Record<string, unknown> = {}) {
       limits: {},
       warnings: [],
       blockers: [],
-    }),
-  };
-  const configService = {
-    get: jest.fn((key: string, fallback?: unknown) => {
-      if (key === "staffAuth.devBootstrapEnabled") {
-        return true;
-      }
-
-      return fallback;
     }),
   };
   const staffInvitesService = {
@@ -262,7 +254,6 @@ function buildService(overrides: Record<string, unknown> = {}) {
   return {
     service: new PlatformService(
       prisma as never,
-      configService as never,
       saasService as never,
       staffInvitesService as never,
     ),

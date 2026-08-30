@@ -29,7 +29,8 @@ type OfficeDomain =
   | "money"
   | "insights"
   | "experience"
-  | "settings";
+  | "settings"
+  | "account";
 
 type OfficeStaffShellProps = {
   activeDomain: OfficeDomain;
@@ -45,16 +46,17 @@ const officeDomains: Array<{
   icon: typeof LayoutDashboard;
   href?: string;
 }> = [
-  { id: "home", labelKey: "office.home", icon: LayoutDashboard, href: "/staff/owner" },
-  { id: "operations", labelKey: "office.operations", icon: Sparkles, href: "/staff/owner#operations" },
-  { id: "catalog", labelKey: "office.catalog", icon: MenuSquare, href: "/staff/menu" },
-  { id: "inventory", labelKey: "office.inventory", icon: Boxes, href: "/staff/inventory" },
-  { id: "locations", labelKey: "office.locations", icon: MapPin, href: "/staff/branches" },
-  { id: "team", labelKey: "office.team", icon: Users, href: "/staff/owner#team" },
-  { id: "money", labelKey: "office.money", icon: CreditCard, href: "/staff/owner#money" },
-  { id: "insights", labelKey: "office.insights", icon: PackageSearch, href: "/staff/owner#insights" },
-  { id: "experience", labelKey: "office.experience", icon: WandSparkles, href: "/staff/owner#experience" },
-  { id: "settings", labelKey: "office.settings", icon: Settings, href: "/staff/owner#settings" }
+  { id: "home", labelKey: "office.home", icon: LayoutDashboard, href: "/office" },
+  { id: "operations", labelKey: "office.operations", icon: Sparkles, href: "/office#operations" },
+  { id: "catalog", labelKey: "office.catalog", icon: MenuSquare, href: "/office/catalog" },
+  { id: "inventory", labelKey: "office.inventory", icon: Boxes, href: "/office/inventory" },
+  { id: "locations", labelKey: "office.locations", icon: MapPin, href: "/office/locations" },
+  { id: "team", labelKey: "office.team", icon: Users, href: "/office/team" },
+  { id: "money", labelKey: "office.money", icon: CreditCard, href: "/office/money" },
+  { id: "insights", labelKey: "office.insights", icon: PackageSearch, href: "/office#insights" },
+  { id: "experience", labelKey: "office.experience", icon: WandSparkles, href: "/office/experience" },
+  { id: "settings", labelKey: "office.settings", icon: Settings, href: "/office/settings" },
+  { id: "account", labelKey: "office.account", icon: CreditCard, href: "/office/account" }
 ];
 
 const officeThemeStyle = {
@@ -101,22 +103,14 @@ export function OfficeStaffShell({
     return () => window.removeEventListener("hashchange", syncHash);
   }, []);
 
-  const hashDomain: OfficeDomain | undefined =
-    pathname === "/staff/owner"
-      ? hash === "#operations"
-        ? "operations"
-        : hash === "#money"
-          ? "money"
-          : hash === "#insights"
-            ? "insights"
-            : hash === "#team"
-              ? "team"
-              : hash === "#experience"
-                ? "experience"
-                : hash === "#settings"
-                  ? "settings"
-                  : undefined
-      : undefined;
+  const isOfficeRoot = pathname === "/office";
+  const hashDomain: OfficeDomain | undefined = isOfficeRoot
+    ? hash === "#operations"
+      ? "operations"
+      : hash === "#insights"
+        ? "insights"
+        : undefined
+    : undefined;
   const effectiveActiveDomain = hashDomain ?? activeDomain;
 
   return (
@@ -124,7 +118,7 @@ export function OfficeStaffShell({
       <div className="grid min-h-screen min-w-0 lg:grid-cols-[220px_minmax(0,1fr)]">
         <aside className="min-w-0 overflow-hidden border-b border-[#D8D8D3] bg-[#ECECE8] px-3 py-3 lg:overflow-visible lg:border-b-0 lg:border-e lg:py-4">
           <Link
-            href="/staff/owner"
+            href="/office"
             className="flex items-center gap-3 px-2"
             aria-label={t("office.productLabel")}
           >

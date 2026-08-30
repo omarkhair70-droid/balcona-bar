@@ -374,6 +374,12 @@ export const platformQueryKeys = {
   me: () => ["platform", "me"],
   systemInfo: () => ["platform", "system-info"],
   plans: () => ["platform", "plans"],
+  demoRequests: (status?: string, search?: string) => [
+    "platform",
+    "demo-requests",
+    status ?? "all",
+    search ?? "",
+  ],
   companies: () => ["platform", "companies"],
   company: (companyId?: string) => ["platform", "company", companyId],
 } as const;

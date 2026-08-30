@@ -4,6 +4,7 @@ import {
   CircleDollarSign,
   LayoutDashboard,
   LogIn,
+  Mail,
   Plus
 } from "lucide-react";
 import type { AppShellNavItem } from "@/components/ui/app-shell";
@@ -42,6 +43,12 @@ export function getPlatformNavItems(isAuthenticated?: boolean): PlatformNavItem[
       label: "New Cafe",
       labelKey: "navigation.addCafe",
       icon: <Plus className="size-4" aria-hidden="true" />
+    },
+    {
+      href: "/platform/leads",
+      label: "Demo requests",
+      labelKey: "navigation.leads",
+      icon: <Mail className="size-4" aria-hidden="true" />
     },
     {
       href: "/platform/plans",

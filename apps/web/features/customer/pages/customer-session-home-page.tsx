@@ -124,7 +124,7 @@ export function CustomerSessionHomePage({
             </CardHeader>
             <div className="px-6 pb-6">
               <Link
-                href={`/customer/session/${sessionId}/${action.href}`}
+                href={`/guest/session/${sessionId}/${action.href}`}
                 className={buttonVariants({ variant: "secondary" })}
               >
                 {t("actions.open")}

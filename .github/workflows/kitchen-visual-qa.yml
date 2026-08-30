@@ -1,6 +1,7 @@
-name: Kitchen Visual QA
+name: Kitchen Closure Visual QA
 
 on:
+  workflow_dispatch:
   push:
     branches:
       - integration/a3-kitchen-shell
@@ -16,7 +17,7 @@ permissions:
 
 jobs:
   kitchen-visual-qa:
-    name: Kitchen Desktop Mobile RTL Evidence
+    name: Kitchen 1440 Tablet RTL State Evidence
     runs-on: ubuntu-latest
     timeout-minutes: 20
 

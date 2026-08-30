@@ -93,6 +93,13 @@ enum PlatformAdminSessionStatus {
   expired
 }
 
+enum DemoRequestStatus {
+  new
+  contacted
+  qualified
+  closed
+}
+
 enum MenuCategoryStatus {
   active
   inactive
@@ -3602,4 +3609,29 @@ model NotificationDelivery {
   @@index([channel])
   @@index([status])
   @@index([createdAt])
+}
+
+model DemoRequest {
+  id              String            @id @default(uuid())
+  fullName        String
+  businessName    String
+  email           String
+  phone           String?
+  city            String?
+  locationCount   Int               @default(1)
+  message         String?
+  consent         Boolean
+  source          String?
+  utmSource       String?
+  utmMedium       String?
+  utmCampaign     String?
+  status          DemoRequestStatus @default(new)
+  internalNotes   String?
+  lastContactedAt DateTime?
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
+
+  @@index([status, createdAt])
+  @@index([email])
+  @@index([businessName])
 }

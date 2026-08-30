@@ -1,0 +1,109 @@
+name: Marketing S1 Visual QA
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - "closure/marketing-s1"
+  pull_request:
+    paths:
+      - "apps/web/app/page.tsx"
+      - "apps/web/app/product/**"
+      - "apps/web/app/solutions/**"
+      - "apps/web/app/pricing/**"
+      - "apps/web/app/demo/**"
+      - "apps/web/app/request-demo/**"
+      - "apps/web/app/login/**"
+      - "apps/web/app/support/**"
+      - "apps/web/features/marketing/**"
+      - "apps/web/lib/config/env.ts"
+      - "scripts/visual-qa/marketing-s1-visual.mjs"
+      - ".github/workflows/marketing-s1-visual-qa.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  marketing-s1-visual-qa:
+    name: Marketing Desktop Mobile RTL and Lead Flow
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Enable pnpm
+        run: |
+          corepack enable
+          corepack prepare pnpm@10.28.1 --activate
+          pnpm --version
+
+      - name: Install repository dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Check committed diff
+        if: github.event_name == 'pull_request'
+        run: git diff --check "${{ github.event.pull_request.base.sha }}...HEAD"
+
+      - name: Check branch diff
+        if: github.event_name == 'push'
+        run: |
+          git fetch origin codex/full-platform-closure-20260830-1214
+          git diff --check origin/codex/full-platform-closure-20260830-1214...HEAD
+
+      - name: Check Marketing visual harness
+        run: node --check scripts/visual-qa/marketing-s1-visual.mjs
+
+      - name: Install isolated Playwright
+        run: |
+          mkdir -p /tmp/balcona-marketing-visual-qa
+          cd /tmp/balcona-marketing-visual-qa
+          npm init -y
+          npm install --no-audit --no-fund playwright@1.55.0
+          npx playwright install --with-deps chromium
+
+      - name: Start Balcona web
+        env:
+          NEXT_PUBLIC_API_BASE_URL: http://127.0.0.1:3999/api/v1
+          NEXT_PUBLIC_APP_ENV: test
+          NEXT_PUBLIC_GIT_SHA: ${{ github.sha }}
+          NEXT_PUBLIC_DEMO_SANDBOX_URL: ""
+        run: |
+          pnpm web:dev > /tmp/balcona-marketing-web.log 2>&1 &
+          echo $! > /tmp/balcona-marketing-web.pid
+
+          for attempt in $(seq 1 60); do
+            if curl --fail --silent http://localhost:3001/ > /dev/null; then
+              exit 0
+            fi
+            sleep 1
+          done
+
+          cat /tmp/balcona-marketing-web.log
+          exit 1
+
+      - name: Capture and validate Marketing S1 evidence
+        env:
+          BALCONA_VISUAL_BASE_URL: http://localhost:3001
+        run: node scripts/visual-qa/marketing-s1-visual.mjs
+
+      - name: Upload Marketing S1 evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: marketing-s1-visual-qa
+          path: artifacts/marketing-s1-visual-qa
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Print web log on failure
+        if: failure()
+        run: cat /tmp/balcona-marketing-web.log || true

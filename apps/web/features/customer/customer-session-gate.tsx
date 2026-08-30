@@ -13,6 +13,31 @@ type CustomerSessionGateProps = {
   children: ReactNode;
 };
 
+function readinessKey(
+  reason:
+    | "hydrating"
+    | "missing_session"
+    | "session_mismatch"
+    | "missing_branch"
+    | "missing_token"
+    | "expired"
+) {
+  switch (reason) {
+    case "expired":
+      return "gate.reasons.expired";
+    case "session_mismatch":
+      return "gate.reasons.sessionMismatch";
+    case "missing_branch":
+      return "gate.reasons.missingTable";
+    case "missing_token":
+      return "gate.reasons.missingAccess";
+    case "hydrating":
+      return "gate.reasons.hydrating";
+    default:
+      return "gate.reasons.missingSession";
+  }
+}
+
 export function CustomerSessionGate({
   sessionId,
   children
@@ -66,11 +91,11 @@ export function CustomerSessionGate({
           {t("gate.reconnectTitle")}
         </h2>
         <p className="mt-2 text-sm leading-6 text-muted-foreground">
-          {readiness.message}
+          {t(readinessKey(readiness.reason))}
         </p>
         <div className="mt-5 grid gap-2">
           <Link
-            href="/customer"
+            href="/guest"
             className={`${buttonVariants()} min-h-11 w-full rounded-xl !bg-primary !text-primary-foreground`}
           >
             {t("gate.openTableEntry")}

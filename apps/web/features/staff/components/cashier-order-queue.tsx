@@ -42,7 +42,7 @@ export function CashierOrderQueue({
   const t = useTranslations("staff");
 
   return (
-    <section className="min-h-[34rem] min-w-0 border border-[#3B3028] bg-[#17120F]">
+    <section className="min-w-0 xl:min-h-[34rem] border border-[#3B3028] bg-[#17120F]">
       <div className="border-b border-[#342A23] p-3">
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">

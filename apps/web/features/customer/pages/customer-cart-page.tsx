@@ -189,7 +189,7 @@ export function CustomerCartPage({ sessionId }: CustomerCartPageProps) {
       void queryClient.invalidateQueries({
         queryKey: customerQueryKeys.status(sessionId)
       });
-      router.push(`/customer/session/${sessionId}/status`);
+      router.push(`/guest/session/${sessionId}/status`);
     },
     onError: () => {
       vibrateWarning();
@@ -263,7 +263,7 @@ export function CustomerCartPage({ sessionId }: CustomerCartPageProps) {
           description={t("cart.emptyDescription")}
           action={
             <Link
-              href={`/customer/session/${sessionId}/menu`}
+              href={`/guest/session/${sessionId}/menu`}
               className={buttonVariants({ variant: "secondary" })}
             >
               {t("actions.browseMenu")}

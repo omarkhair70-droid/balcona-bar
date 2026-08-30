@@ -14,6 +14,7 @@ import {
 async function bootstrap() {
   const logger = new StructuredLogger("Bootstrap");
   const app = await NestFactory.create(AppModule, { logger });
+  app.getHttpAdapter().getInstance().set("trust proxy", 1);
   const configService = app.get(ConfigService);
   const apiPrefix = configService.get<string>("app.prefix", "api/v1");
   const port = configService.get<number>("app.port", 3000);

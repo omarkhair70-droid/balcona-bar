@@ -25,8 +25,13 @@ RUN pnpm --filter @balcona-bar/api build
 
 FROM node:22-alpine AS runner
 
+ARG GIT_SHA=unknown
+ARG BUILD_TIME=not_provided
+
 ENV NODE_ENV=production
 ENV PORT=3000
+ENV GIT_SHA=$GIT_SHA
+ENV BUILD_TIME=$BUILD_TIME
 ENV PNPM_HOME="/pnpm"
 ENV PATH="$PNPM_HOME:$PATH"
 

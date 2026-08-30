@@ -25,39 +25,39 @@ const modes: Array<{
 }> = [
   {
     id: "cashier",
-    href: "/staff/cashier",
+    href: "/service/cashier",
     labelKey: "serviceShell.cashier"
   },
   {
     id: "waiter",
-    href: "/staff/waiter",
+    href: "/service/waiter",
     labelKey: "serviceShell.waiter"
   }
 ];
 
 const serviceViews = [
   {
-    href: "/staff/waiter#floor",
+    href: "/service/waiter#floor",
     labelKey: "serviceShell.floor" as const,
     icon: LayoutGrid
   },
   {
-    href: "/staff/cashier#orders",
+    href: "/service/cashier#orders",
     labelKey: "serviceShell.orders" as const,
     icon: ListChecks
   },
   {
-    href: "/staff/waiter#attention",
+    href: "/service/waiter#attention",
     labelKey: "serviceShell.attention" as const,
     icon: BellRing
   },
   {
-    href: "/staff/cashier#bills",
+    href: "/service/cashier#bills",
     labelKey: "serviceShell.bills" as const,
     icon: Receipt
   },
   {
-    href: "/staff/cashier#shift",
+    href: "/service/cashier#shift",
     labelKey: "serviceShell.shift" as const,
     icon: Banknote
   }
@@ -85,9 +85,9 @@ export function ServiceStaffShell({
 
   const effectiveHash =
     hash ||
-    (pathname === "/staff/cashier"
+    (pathname === "/service/cashier"
       ? "#orders"
-      : pathname === "/staff/waiter"
+      : pathname === "/service/waiter"
         ? "#floor"
         : "");
 
