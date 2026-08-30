@@ -75,8 +75,6 @@
       "currentBillState": "حالة الحساب الحالي",
       "description": "اطلب الحساب، تابع حالته، وكمّل الدفع من نفس جلسة الترابيزة.",
       "latestOnlinePayment": "حالة الدفع: {status}.",
-      "latestOnlinePaymentProvider": "",
-      "mockCheckoutUrl": "",
       "mockPaymentError": "مقدرناش نأكد الدفع.",
       "noActiveRequest": "لا يوجد طلب الحساب نشط حتى الآن.",
       "notAvailableYet": "غير متوفر بعد",
