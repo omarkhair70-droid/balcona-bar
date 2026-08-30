@@ -99,12 +99,12 @@ function SuccessPanel({ result }: { result: BootstrapCompanyResult }) {
         <div className="mt-4 border-t border-[#C8D7C8] pt-4">
           <div className="flex items-center gap-2 text-xs font-semibold">
             <QrCode className="size-4" />
-            {L(locale, "Starter QR examples", "أمثلة QR المبدئية")}
+            {L(locale, "Starter tables ready", "ترابيزات البداية جاهزة")}
           </div>
           <div className="mt-2 flex flex-wrap gap-2">
             {result.customerQrExamples.slice(0, 4).map((example) => (
               <span key={example.tableId} className="rounded-md border border-[#C8D7C8] bg-white px-2.5 py-1.5 text-[11px]">
-                {example.code} · {example.qrToken}
+                {example.code}
               </span>
             ))}
           </div>
