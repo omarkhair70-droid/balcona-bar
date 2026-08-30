@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useState } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   AlertTriangle,
   BadgeCheck,
@@ -23,12 +24,21 @@ import {
   CardTitle
 } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
+import { Input } from "@/components/ui/input";
 import { LoadingState } from "@/components/ui/loading-state";
 import { MetricCard } from "@/components/ui/metric-card";
 import { OfficeStaffShell } from "@/features/staff/office-staff-shell";
 import { formatDateTime, formatMoney, humanizeStatus } from "@/features/staff/staff-format";
 import { formatErrorMessage } from "@/lib/api/error-message";
-import { getBranchSaasStatus, getSaasPlans } from "@/lib/api/endpoints";
+import {
+  cancelCompanySaasBilling,
+  changeCompanySaasBillingPlan,
+  getBranchSaasStatus,
+  getCompanySaasBilling,
+  getSaasPlans,
+  startCompanySaasBillingCheckout,
+  syncCompanySaasBilling
+} from "@/lib/api/endpoints";
 import { staffQueryKeys } from "@/lib/api/query-keys";
 import type {
   SaasEntitlements,
@@ -36,6 +46,7 @@ import type {
   SaasStatusNotice,
   SaasUsageMetric
 } from "@/lib/api/types";
+import { canAccessStaffRoute } from "@/lib/staff/staff-access";
 import { useStaffAuthStore } from "@/lib/staff/staff-auth-store";
 import { cn } from "@/lib/utils/cn";
 import { StaffAuthGate } from "../components/staff-auth-gate";
@@ -233,6 +244,67 @@ function StaffBillingContent() {
     enabled: Boolean(accessToken),
     staleTime: 5 * 60_000
   });
+  const companyId = statusQuery.data?.company.id;
+  const canManage = canAccessStaffRoute({
+    access: effectiveAccess,
+    permissions: ["saas.manage"],
+    branchId: selectedBranchId,
+    branchScoped: true
+  });
+  const [checkoutForm, setCheckoutForm] = useState({
+    firstName: "",
+    lastName: "",
+    email: "",
+    phoneNumber: ""
+  });
+  const billingQuery = useQuery({
+    queryKey: staffQueryKeys.companySaasBilling(companyId),
+    queryFn: () => getCompanySaasBilling(companyId ?? "", accessToken),
+    enabled: Boolean(accessToken && companyId),
+    staleTime: 30_000,
+    retry: false
+  });
+  const refreshBilling = () => {
+    if (companyId) {
+      void queryClient.invalidateQueries({
+        queryKey: staffQueryKeys.companySaasBilling(companyId)
+      });
+      void queryClient.invalidateQueries({
+        queryKey: staffQueryKeys.companySaasStatus(companyId)
+      });
+    }
+    if (selectedBranchId) {
+      void queryClient.invalidateQueries({
+        queryKey: staffQueryKeys.branchSaasStatus(selectedBranchId)
+      });
+    }
+  };
+  const checkoutMutation = useMutation({
+    mutationFn: () =>
+      startCompanySaasBillingCheckout(companyId ?? "", checkoutForm, accessToken),
+    onSuccess: (result) => {
+      refreshBilling();
+      window.location.assign(result.checkout.url);
+    }
+  });
+  const syncMutation = useMutation({
+    mutationFn: () => syncCompanySaasBilling(companyId ?? "", accessToken),
+    onSuccess: refreshBilling
+  });
+  const planMutation = useMutation({
+    mutationFn: (planCode: string) =>
+      changeCompanySaasBillingPlan(companyId ?? "", { planCode }, accessToken),
+    onSuccess: refreshBilling
+  });
+  const cancelMutation = useMutation({
+    mutationFn: () =>
+      cancelCompanySaasBilling(
+        companyId ?? "",
+        { reason: "Cancelled from Balcona Account" },
+        accessToken
+      ),
+    onSuccess: refreshBilling
+  });
   const refresh = () => {
     if (selectedBranchId) {
       void queryClient.invalidateQueries({
@@ -241,6 +313,7 @@ function StaffBillingContent() {
     }
 
     void queryClient.invalidateQueries({ queryKey: staffQueryKeys.saasPlans() });
+    refreshBilling();
   };
 
   if (!selectedBranchId || !selectedBranch) {
