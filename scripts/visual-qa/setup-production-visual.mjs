@@ -219,17 +219,23 @@ const newTenantAccess = {
   permissions
 };
 
+const newTenantStaffSession = {
+  ...staffSession,
+  branchId: null
+};
+
 function persistedStaffSession({
   effectiveAccess = access,
   selectedBranchId = BRANCH_ID,
-  defaultBranch = branch
+  defaultBranch = branch,
+  session = staffSession
 } = {}) {
   return JSON.stringify({
     state: {
       accessToken: "setup-visual-token",
       expiresAt: "2099-01-01T00:00:00.000Z",
       staffUser,
-      staffSession,
+      staffSession: session,
       effectiveAccess,
       defaultBranch,
       selectedBranchId,
@@ -252,7 +258,11 @@ async function installApiMocks(page, scenario = "ready") {
       access;
 
     if (pathname === "/api/v1/staff-auth/me") {
-      return route.fulfill(json({ staffUser, staffSession, staffAccess: scenarioAccess }));
+      return route.fulfill(json({
+        staffUser,
+        staffSession: scenario === "new-tenant" ? newTenantStaffSession : staffSession,
+        staffAccess: scenarioAccess
+      }));
     }
     if (pathname === `/api/v1/companies/${COMPANY_ID}/onboarding`) {
       if (scenario === "new-tenant") return route.fulfill(json(newTenantCompanyOnboarding));
@@ -296,7 +306,8 @@ async function newContext(
   const sessionValue = persistedStaffSession({
     effectiveAccess,
     selectedBranchId: scenario === "new-tenant" ? null : BRANCH_ID,
-    defaultBranch: scenario === "new-tenant" ? null : branch
+    defaultBranch: scenario === "new-tenant" ? null : branch,
+    session: scenario === "new-tenant" ? newTenantStaffSession : staffSession
   });
 
   await context.addCookies([{ name:"balcona_locale", value:locale, url:BASE_URL }]);
