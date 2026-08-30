@@ -31,6 +31,7 @@ describe("paymentProviderCapabilities", () => {
         refund: false,
         settlementImport: false,
         recurringBilling: false,
+        bankTransferOrIpn: true,
       }),
     );
   });
