@@ -359,7 +359,7 @@ function StaffBillingContent() {
             <Badge
               variant={
                 billingQuery.data?.billing.ready
-                  ? billingQuery.data.billing.liveVerified
+                  ? billingQuery.data?.billing?.liveVerified
                     ? "success"
                     : "warning"
                   : "muted"
@@ -458,7 +458,7 @@ function StaffBillingContent() {
                 <Badge
                   variant={
                     billingQuery.data?.billing.ready
-                      ? billingQuery.data.billing.liveVerified
+                      ? billingQuery.data?.billing?.liveVerified
                         ? "success"
                         : "warning"
                       : "muted"
@@ -476,7 +476,7 @@ function StaffBillingContent() {
               </div>
               {billingQuery.data?.billing.environment ? (
                 <Badge variant="muted">
-                  {billingQuery.data.billing.environment.toUpperCase()}
+                  {billingQuery.data?.billing?.environment.toUpperCase()}
                 </Badge>
               ) : null}
             </div>
@@ -501,10 +501,10 @@ function StaffBillingContent() {
                       Provider readiness
                     </p>
                     <p className="mt-2 font-semibold text-foreground">
-                      {billingQuery.data.billing.ready ? "Ready" : "Blocked"}
+                      {billingQuery.data?.billing?.ready ? "Ready" : "Blocked"}
                     </p>
                     <p className="mt-1 text-sm leading-6 text-muted-foreground">
-                      {billingQuery.data.billing.readinessMessage}
+                      {billingQuery.data?.billing?.readinessMessage}
                     </p>
                   </div>
                   <div className="rounded-button border bg-surface/70 p-4">
@@ -512,14 +512,14 @@ function StaffBillingContent() {
                       Recurring subscription
                     </p>
                     <p className="mt-2 font-semibold text-foreground">
-                      {billingQuery.data.subscription.providerSubscriptionReference
+                      {billingQuery.data?.subscription?.providerSubscriptionReference
                         ? humanizeStatus(
-                            billingQuery.data.subscription.status
+                            billingQuery.data?.subscription?.status
                           )
                         : "Not enrolled"}
                     </p>
                     <p className="mt-1 text-sm leading-6 text-muted-foreground">
-                      {billingQuery.data.subscription.providerSubscriptionReference
+                      {billingQuery.data?.subscription?.providerSubscriptionReference
                         ? billingQuery.data.subscription
                             .providerSubscriptionReference
                         : "A provider subscription is created only after the first verified checkout."}
@@ -527,7 +527,7 @@ function StaffBillingContent() {
                   </div>
                 </div>
 
-                {billingQuery.data.subscription.providerSubscriptionReference ? (
+                {billingQuery.data?.subscription?.providerSubscriptionReference ? (
                   <div className="flex flex-wrap gap-2">
                     <Button
                       variant="secondary"
@@ -617,7 +617,7 @@ function StaffBillingContent() {
                     <Button
                       disabled={
                         !canManage ||
-                        !billingQuery.data.billing.ready ||
+                        !billingQuery.data?.billing?.ready ||
                         checkoutMutation.isPending ||
                         !checkoutForm.firstName.trim() ||
                         !checkoutForm.lastName.trim() ||
@@ -677,13 +677,13 @@ function StaffBillingContent() {
                     Payment attempts
                   </p>
                   <div className="grid gap-2">
-                    {billingQuery.data.paymentAttempts.slice(0, 4).length ===
+                    {billingQuery.data?.paymentAttempts ?? [].slice(0, 4).length ===
                     0 ? (
                       <p className="rounded-button border bg-surface/70 p-3 text-sm text-muted-foreground">
                         No subscription payment attempts yet.
                       </p>
                     ) : (
-                      billingQuery.data.paymentAttempts
+                      billingQuery.data?.paymentAttempts ?? []
                         .slice(0, 4)
                         .map((attempt) => (
                           <div
@@ -714,12 +714,12 @@ function StaffBillingContent() {
                     Invoices
                   </p>
                   <div className="grid gap-2">
-                    {billingQuery.data.invoices.slice(0, 4).length === 0 ? (
+                    {billingQuery.data?.invoices ?? [].slice(0, 4).length === 0 ? (
                       <p className="rounded-button border bg-surface/70 p-3 text-sm text-muted-foreground">
                         No billing invoices yet.
                       </p>
                     ) : (
-                      billingQuery.data.invoices.slice(0, 4).map((invoice) => (
+                      billingQuery.data?.invoices ?? [].slice(0, 4).map((invoice) => (
                         <div
                           key={invoice.id}
                           className="flex items-center justify-between gap-3 rounded-button border bg-surface/70 p-3"
