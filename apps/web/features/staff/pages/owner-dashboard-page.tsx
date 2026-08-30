@@ -735,6 +735,8 @@ function OwnerDashboardContent() {
   const companyTotals = companyRows.reduce(
     (totals, row) => {
       totals.revenueMinor += row.dashboard.summary.paidRevenueMinor;
+      totals.collectedMinor += row.dashboard.summary.collectedMinor;
+      totals.paidBillCount += row.dashboard.summary.paidBillCount;
       totals.orders += row.dashboard.orders.submittedOrderCount;
       totals.urgentAttention += row.dashboard.operations.urgentAttentionCount;
       totals.activeAttention += row.dashboard.operations.activeAttentionCount;
@@ -744,10 +746,17 @@ function OwnerDashboardContent() {
       totals.failedPrintJobs += row.dashboard.operations.failedPrintJobCount;
       totals.blockedMenuItems +=
         row.dashboard.summary.stockBlockedMenuItemCount ?? 0;
+      totals.cashOverShortMinor += row.dashboard.cashierShifts.totalOverShortMinor;
+      totals.shiftCount += row.dashboard.cashierShifts.shiftCount;
+      totals.aiSessions += row.dashboard.aiWaiter.aiSessionCount;
+      totals.aiMessages += row.dashboard.aiWaiter.aiMessageCount;
+      totals.aiEscalations += row.dashboard.aiWaiter.escalatedCount;
       return totals;
     },
     {
       revenueMinor: 0,
+      collectedMinor: 0,
+      paidBillCount: 0,
       orders: 0,
       urgentAttention: 0,
       activeAttention: 0,
@@ -755,7 +764,12 @@ function OwnerDashboardContent() {
       lowStock: 0,
       outOfStock: 0,
       failedPrintJobs: 0,
-      blockedMenuItems: 0
+      blockedMenuItems: 0,
+      cashOverShortMinor: 0,
+      shiftCount: 0,
+      aiSessions: 0,
+      aiMessages: 0,
+      aiEscalations: 0
     }
   );
   const companyScopePending =
