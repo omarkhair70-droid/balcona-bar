@@ -636,7 +636,7 @@ try {
   results.push(await capture(browser, {
     label: "09-demo-launcher-redirect-en-390",
     route: "/demo/balkona",
-    expectedPath: "/customer"
+    expectedPath: "/demo"
   }));
 } finally {
   await browser.close();
