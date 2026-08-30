@@ -205,6 +205,12 @@ export class OnlinePaymentsService {
       );
     }
 
+    if (provider === OnlinePaymentProvider.maestr) {
+      throw new ServiceUnavailableException(
+        "Maestr commercial IPN payments remain fail-closed until the PAY-8 merchant API contract is verified",
+      );
+    }
+
     if (provider !== OnlinePaymentProvider.mock) {
       throw new BadRequestException(
         "Online payment provider is not configured for live processing yet",
@@ -4928,6 +4934,10 @@ export class OnlinePaymentsService {
 
     if (provider === OnlinePaymentProvider.fawry) {
       return OnlinePaymentProvider.fawry;
+    }
+
+    if (provider === OnlinePaymentProvider.maestr) {
+      return OnlinePaymentProvider.maestr;
     }
 
     if (provider === OnlinePaymentProvider.external) {
