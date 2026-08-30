@@ -502,7 +502,7 @@ try {
   results.push(await capture(browser, {
     label: "03c-platform-leads-detail-desktop",
     pathName: "/platform/leads",
-    readyText: "Matching requests",
+    readyText: "Nile Bakery",
     afterOpen: async (page) => {
       await page.getByText("Nile Bakery", { exact: true }).click();
       await page.getByText("Consent & provenance", { exact: true }).waitFor({
