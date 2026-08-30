@@ -904,6 +904,7 @@
       "queueEmptyTitle": "لا توجد طلبات في هذا الممر",
       "queueTitle": "الطلبات",
       "qty": "الكمية {count}",
+      "customerNote": "ملاحظة العميل",
       "rejectReason": "رفض السبب",
       "rejectReasonPlaceholder": "سبب اختياري للفريق ومسار التدقيق",
       "selectDescription": "اختر طلبا من قائمة الانتظار لمراجعة العناصر والملاحظات والأحداث وإجراءات الكاشير.",
