@@ -220,7 +220,10 @@ function createPrisma(overrides: Record<string, unknown> = {}) {
   return { prisma, tx };
 }
 
-function buildService(overrides: Record<string, unknown> = {}) {
+function buildService(
+  overrides: Record<string, unknown> = {},
+  configValues: Record<string, unknown> = {},
+) {
   const { prisma, tx } = createPrisma(overrides);
   const saasService = {
     getCompanySaasStatus: jest.fn().mockResolvedValue({
@@ -255,15 +258,29 @@ function buildService(overrides: Record<string, unknown> = {}) {
       invitePath: '/staff/invite/balcona_staff_invite_test',
     }),
   };
+  const configService = {
+    get: jest.fn((key: string) =>
+      Object.prototype.hasOwnProperty.call(configValues, key)
+        ? configValues[key]
+        : false,
+    ),
+  };
   const service = new TenantOnboardingService(
     prisma as never,
-    { get: jest.fn().mockReturnValue(false) } as never,
+    configService as never,
     { assertCan: jest.fn().mockResolvedValue({ allowed: true }) } as never,
     saasService as never,
     staffInvitesService as never,
   );
 
-  return { service, prisma, tx, saasService, staffInvitesService };
+  return {
+    service,
+    prisma,
+    tx,
+    saasService,
+    staffInvitesService,
+    configService,
+  };
 }
 
 describe('TenantOnboardingService', () => {
@@ -310,6 +327,51 @@ describe('TenantOnboardingService', () => {
     expect(result.tables.qrReadyTableCount).toBe(1);
     expect(result.menu.aiWaiterMenuGroundingReady).toBe(true);
     expect(result.staff.roleCounts.cashier).toBe(1);
+    expect(
+      result.launchChecklist.find(
+        (item) => item.key === 'printer_foundation_ready',
+      ),
+    ).toMatchObject({
+      status: 'ready',
+      metadata: { physicalTransportVerified: false },
+    });
+    expect(
+      result.launchChecklist.find(
+        (item) => item.key === 'physical_printer_hardware_ready',
+      ),
+    ).toMatchObject({
+      status: 'needs_attention',
+      metadata: { externalGate: true, physicalTransportVerified: false },
+    });
+  });
+
+  it('never treats provider selection as live merchant certification', async () => {
+    const { service } = buildService(
+      {},
+      {
+        'onlinePayments.enabled': true,
+        'onlinePayments.provider': 'paymob',
+        'onlinePayments.mockEnabled': false,
+      },
+    );
+
+    const result = await service.getBranchOnboarding(branch.id);
+    const paymentGate = result.launchChecklist.find(
+      (item) => item.key === 'online_payment_provider_ready',
+    );
+
+    expect(paymentGate).toMatchObject({
+      status: 'blocked',
+      metadata: {
+        onlinePaymentsEnabled: true,
+        onlinePaymentProvider: 'paymob',
+        providerConfiguredBeyondMock: true,
+        externalCertificationVerified: false,
+      },
+    });
+    expect(paymentGate?.reason).toContain('external go-live gate');
+    expect(paymentGate?.metadata).not.toHaveProperty('secretKey');
+    expect(paymentGate?.metadata).not.toHaveProperty('apiKey');
   });
 
   it('bulk creates deterministic table labels and skips duplicates', async () => {

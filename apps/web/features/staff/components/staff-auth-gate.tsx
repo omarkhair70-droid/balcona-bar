@@ -25,6 +25,7 @@ type StaffAuthGateProps = {
   children: ReactNode;
   requiredPermissions?: StaffPermission[];
   branchScoped?: boolean;
+  allowUnscopedWhenNoBranch?: boolean;
   deniedTitle?: string;
   deniedDescription?: string;
 };
@@ -33,6 +34,7 @@ export function StaffAuthGate({
   children,
   requiredPermissions,
   branchScoped,
+  allowUnscopedWhenNoBranch,
   deniedTitle,
   deniedDescription
 }: StaffAuthGateProps) {
@@ -112,7 +114,8 @@ export function StaffAuthGate({
     access: restoredAccess,
     permissions: requiredPermissions,
     branchId: selectedBranchId,
-    branchScoped
+    branchScoped:
+      branchScoped && !(allowUnscopedWhenNoBranch && !selectedBranchId)
   });
 
   if (!canAccess) {
