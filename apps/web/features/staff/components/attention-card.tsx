@@ -6,6 +6,7 @@ import {
   getAttentionLastEvaluatedAt,
   getAttentionPriority,
   getAttentionReasons,
+  getAttentionRecommendedActions,
   getAttentionReasonMessage,
   getAttentionSessionId,
   getAttentionStatus,
@@ -39,12 +40,9 @@ function formatAge(value: string) {
 }
 
 function sourceForAttention(attention: Record<string, unknown>) {
-  const actions = Array.isArray(
-    (attention.attention as Record<string, unknown> | undefined)?.recommendedActions
-  )
-    ? ((attention.attention as Record<string, unknown>).recommendedActions as unknown[])
-    : [];
-  const actionKeys = actions.map(getAttentionActionKey);
+  const actionKeys = getAttentionRecommendedActions(attention).map(
+    getAttentionActionKey
+  );
   const reason = getAttentionReasonMessage(getAttentionReasons(attention)[0])
     .toLowerCase();
 
