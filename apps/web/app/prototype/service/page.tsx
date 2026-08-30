@@ -1,5 +1,5 @@
-import { redirect } from "next/navigation";
+import { ServicePrototype } from "@/features/prototype/service-prototype";
 
-export default function PrototypeRedirectPage() {
-  redirect("/staff");
+export default function ServicePrototypePage() {
+  return <ServicePrototype />;
 }
