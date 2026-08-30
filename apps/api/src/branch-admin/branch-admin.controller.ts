@@ -35,7 +35,10 @@ export class BranchAdminController {
   constructor(private readonly branchAdminService: BranchAdminService) {}
 
   @Get('companies/:companyId/branch-admin/overview')
-  @RequiredPermission('tables.read', { companyIdParam: 'companyId' })
+  @RequiredPermission('tables.read', {
+    companyIdParam: 'companyId',
+    branchIdQuery: 'branchId',
+  })
   getOverview(
     @Param() params: CompanyIdParamDto,
     @Query() query: BranchAdminOverviewQueryDto,
