@@ -158,6 +158,46 @@ describe("API runtime configuration", () => {
     });
   });
 
+  it("accepts the fail-closed Maestr provider slot in staging", () => {
+    withEnv({
+      NODE_ENV: "production",
+      APP_ENV: "staging",
+      DATABASE_URL: "postgresql://user:password@localhost:5432/balcona",
+      ONLINE_PAYMENTS_ENABLED: "true",
+      ONLINE_PAYMENT_PROVIDER: "maestr",
+      MAESTR_API_URL: "https://sandbox.example.maestr.invalid",
+      MAESTR_API_KEY: "server-api-key",
+      MAESTR_TIMEOUT_MS: "9000",
+    });
+
+    expect(() => validateEnvironment(process.env)).not.toThrow();
+
+    const config = configuration();
+
+    expect(config.onlinePayments.provider).toBe("maestr");
+    expect(config.onlinePayments.maestr).toEqual({
+      apiUrl: "https://sandbox.example.maestr.invalid",
+      apiKey: "server-api-key",
+      timeoutMs: 9000,
+    });
+  });
+
+  it("rejects Maestr as a production provider until the merchant API contract is complete", () => {
+    withEnv({
+      NODE_ENV: "production",
+      APP_ENV: "production",
+      DATABASE_URL: "postgresql://user:password@localhost:5432/balcona",
+      ONLINE_PAYMENTS_ENABLED: "true",
+      ONLINE_PAYMENT_PROVIDER: "maestr",
+      MAESTR_API_URL: "https://api.example.maestr.invalid",
+      MAESTR_API_KEY: "live-server-key",
+    });
+
+    expect(() => validateEnvironment(process.env)).toThrow(
+      "Maestr production payments are disabled until the PAY-8 merchant API contract is complete",
+    );
+  });
+
   it("accepts Fawry staging runtime with hosted checkout credentials", () => {
     withEnv({
       NODE_ENV: "production",
