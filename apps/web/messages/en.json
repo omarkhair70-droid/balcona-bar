@@ -904,6 +904,7 @@
       "queueEmptyTitle": "No orders in this lane",
       "queueTitle": "Orders",
       "qty": "Qty {count}",
+      "customerNote": "Customer note",
       "rejectReason": "Reject reason",
       "rejectReasonPlaceholder": "Optional reason for the team and audit trail",
       "selectDescription": "Choose an order from the queue to inspect items, notes, events, and cashier actions.",
