@@ -430,7 +430,9 @@ export function BillRequestCard({
 
       {billId &&
       balanceDueMinor > 0 &&
-      (billStatus === "presented" || billStatus === "payment_pending") ? (
+      (billStatus === "presented" || billStatus === "payment_pending") &&
+      !hasUnresolvedOnlinePayment &&
+      !paymentBlockedReason ? (
         <form
           className="mt-4 grid gap-3 rounded-md border border-[#47392E] bg-[#18130F] p-3"
           onSubmit={(event) => {
