@@ -1078,6 +1078,17 @@ function OwnerDashboardContent() {
               icon={<Receipt className="size-4" aria-hidden="true" />}
               tone={operations.failedPrintJobCount > 0 ? "warning" : "success"}
             />
+
+            <MetricCard
+              label={t("analytics.aiSessions")}
+              value={aiWaiter.aiSessionCount.toLocaleString("en")}
+              description={t("analytics.aiSessionsDescription", {
+                messages: aiWaiter.aiMessageCount.toLocaleString("en"),
+                escalations: aiWaiter.escalatedCount.toLocaleString("en")
+              })}
+              icon={<Bot className="size-4" aria-hidden="true" />}
+              tone="primary"
+            />
           </div>
 
           <div className="grid gap-5 xl:grid-cols-3">
@@ -1192,6 +1203,27 @@ function OwnerDashboardContent() {
             />
           </div>
 
+          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+            <MetricCard
+              label={t("analytics.cashOverShort")}
+              value={formatMoney(cashierShifts.totalOverShortMinor, currency)}
+              description={t("analytics.closedShiftsCount", {
+                count: cashierShifts.shiftCount.toLocaleString("en")
+              })}
+              icon={<WalletCards className="size-4" aria-hidden="true" />}
+              tone={
+                cashierShifts.totalOverShortMinor === 0 ? "success" : "warning"
+              }
+            />
+            <MetricCard
+              label={t("analytics.topItem")}
+              value={topItemName}
+              description={t("analytics.topItemDescription")}
+              icon={<ShoppingBag className="size-4" aria-hidden="true" />}
+              tone="muted"
+            />
+          </div>
+
           <div className="grid gap-5 xl:grid-cols-2">
             <MoneyRowsCard
               title={t("analytics.tenderBreakdown")}
@@ -1219,6 +1251,45 @@ function OwnerDashboardContent() {
               currency={currency}
             />
           </div>
+
+          {scopeMode === "company" && companyRows.length > 0 ? (
+            <Card variant="quiet">
+              <CardHeader>
+                <CardTitle>{officeT("office.locations")}</CardTitle>
+                <CardDescription>
+                  {officeT("office.insightsDescription")}
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="grid gap-2">
+                {companyRows.map((row) => (
+                  <div
+                    key={row.branch.id}
+                    className="grid gap-2 rounded-card border bg-surface/70 p-3 text-sm md:grid-cols-[minmax(0,1.5fr)_repeat(3,minmax(0,auto))] md:items-center"
+                  >
+                    <span className="font-semibold">{row.branch.name}</span>
+                    <span>
+                      {formatMoney(
+                        row.dashboard.summary.paidRevenueMinor,
+                        getDashboardCurrency(row.dashboard)
+                      )}
+                    </span>
+                    <span>
+                      {row.dashboard.orders.submittedOrderCount.toLocaleString("en")}{" "}
+                      {t("analytics.orders")}
+                    </span>
+                    <span>
+                      {row.dashboard.cashierShifts.totalOverShortMinor === 0
+                        ? t("health.levels.calm")
+                        : formatMoney(
+                            row.dashboard.cashierShifts.totalOverShortMinor,
+                            getDashboardCurrency(row.dashboard)
+                          )}
+                    </span>
+                  </div>
+                ))}
+              </CardContent>
+            </Card>
+          ) : null}
 
           <DailyReportPanel report={reportQuery.data} currency={currency} />
         </section>
