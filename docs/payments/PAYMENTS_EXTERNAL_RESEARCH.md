@@ -24,7 +24,10 @@ Current contract facts used by Balcona:
 - Subscription plans use `POST /api/acceptance/subscription-plans`.
 - Customer enrollment uses `POST /v1/intention/` with `subscription_plan_id`.
 - Subscription lookup supports `GET /api/acceptance/subscriptions/{subscription_id}` and filtering by transaction id.
-- Subscription lifecycle includes suspend, resume and cancel endpoints.
+- An individual subscription can be updated with `PUT /api/acceptance/subscriptions/{subscription_id}`; the current first-party collection documents `amount_cents`, `ends_at`, and `next_billing` as updatable fields.
+- Cancellation is `POST /api/acceptance/subscriptions/{subscription_id}/cancel`; the provider response state is documented as `canceled`/cancelled.
+- Subscription lifecycle also includes suspend and resume endpoints.
+- The official plan contract documents `use_transaction_amount`: when enabled, the initial transaction amount drives renewal amount and the initial payment counts toward deductions; when disabled, renewal uses the plan `amount_cents`.
 - Subscription cards and the primary-card lifecycle are provider-supported.
 - Egypt uses EGP minor units for subscription amount examples.
 
