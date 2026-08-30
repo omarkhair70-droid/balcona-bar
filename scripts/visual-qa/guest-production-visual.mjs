@@ -493,13 +493,13 @@ async function capture(browser, {
     });
 
     try {
-      await page.waitForURL(`**/customer/session/${SESSION_ID}`, {
+      await page.waitForURL(`**/customer/session/${SESSION_ID}/menu`, {
         timeout: 15000
       });
     } catch (error) {
       const bodyText = (await page.locator("body").innerText()).slice(0, 3000);
       throw new Error(
-        `QR bootstrap did not reach customer session. url=${page.url()} apiRequests=${JSON.stringify(apiRequests)} body=${JSON.stringify(bodyText)} cause=${String(error)}`
+        `QR bootstrap did not reach production customer menu. url=${page.url()} apiRequests=${JSON.stringify(apiRequests)} body=${JSON.stringify(bodyText)} cause=${String(error)}`
       );
     }
 
