@@ -217,7 +217,7 @@ export class OnlinePaymentsService {
       );
     }
 
-    return this.prisma.$transaction(async (tx) => {
+    const result = await this.prisma.$transaction(async (tx) => {
       const bill = await tx.bill.findUnique({
         where: { id: billId },
         select: {
@@ -339,6 +339,29 @@ export class OnlinePaymentsService {
 
       return this.toIntentResult(intent, "created");
     });
+
+    if (
+      this.configService.get<boolean>(
+        "onlinePayments.reviewerAutoApproveMock",
+      ) === true &&
+      result.onlinePaymentIntent.status !==
+        OnlinePaymentIntentStatus.succeeded
+    ) {
+      const succeeded = await this.mockSucceed(result.onlinePaymentIntent.id);
+
+      return {
+        ...succeeded,
+        checkout: {
+          ...succeeded.checkout,
+          url: null,
+          customerAction: undefined,
+          requiresCustomerAction: false,
+          requiresHostedCheckout: false,
+        },
+      };
+    }
+
+    return result;
   }
 
   private async createFawryIntentForCustomer(

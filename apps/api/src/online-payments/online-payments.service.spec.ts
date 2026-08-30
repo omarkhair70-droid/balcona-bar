@@ -132,7 +132,11 @@ function operation(
   };
 }
 
-function createService(provider = "mock", environment = "test") {
+function createService(
+  provider = "mock",
+  environment = "test",
+  reviewerAutoApproveMock = false,
+) {
   const tx = {
     $executeRaw: jest.fn().mockResolvedValue(1),
     onlinePaymentEvent: {
@@ -181,6 +185,10 @@ function createService(provider = "mock", environment = "test") {
 
       if (key === "onlinePayments.checkoutBaseUrl") {
         return "http://localhost:3001";
+      }
+
+      if (key === "onlinePayments.reviewerAutoApproveMock") {
+        return reviewerAutoApproveMock;
       }
 
       if (key === "app.environment") {
@@ -449,6 +457,62 @@ describe("OnlinePaymentsService", () => {
       tx.onlinePaymentIntent.findFirst.mock.invocationCallOrder[0],
     );
     expect(result.outcome).toBe("created");
+  });
+
+  it("auto-settles a staging reviewer mock through the normal webhook and bill settlement path", async () => {
+    const {
+      service,
+      tx,
+      billsService,
+      realtimeEventsService,
+    } = createService("mock", "staging", true);
+    const pendingIntent = intent(
+      OnlinePaymentIntentStatus.pending,
+      OnlinePaymentProvider.mock,
+    );
+    const succeededIntent = intent(
+      OnlinePaymentIntentStatus.succeeded,
+      OnlinePaymentProvider.mock,
+    );
+
+    tx.bill.findUnique.mockResolvedValueOnce({
+      id: "bill-1",
+      companyId: "company-1",
+      branchId: "branch-1",
+      tableSessionId: "session-1",
+      status: BillStatus.presented,
+      currency: "EGP",
+      totalMinor: 12500,
+      balanceDueMinor: 12500,
+    });
+    tx.onlinePaymentIntent.findFirst
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce(pendingIntent);
+    tx.onlinePaymentIntent.create.mockResolvedValueOnce(pendingIntent);
+    tx.onlinePaymentIntent.findUnique.mockResolvedValue(succeededIntent);
+
+    const result = await service.createIntentForCustomer(
+      "session-1",
+      "bill-1",
+      {
+        customerReturnUrl:
+          "https://balcona-bar-staging-web.vercel.app/customer/session/session-1/bill",
+      },
+    );
+
+    expect(billsService.settleBillWithOnlinePayment).toHaveBeenCalledTimes(1);
+    expect(
+      realtimeEventsService.recordOnlinePaymentSucceeded,
+    ).toHaveBeenCalledTimes(1);
+    expect(result.outcome).toBe("settled");
+    expect(result.onlinePaymentIntent.status).toBe(
+      OnlinePaymentIntentStatus.succeeded,
+    );
+    expect(result.checkout).toMatchObject({
+      url: null,
+      requiresCustomerAction: false,
+      requiresHostedCheckout: false,
+    });
   });
 
   it("rejects a stale active intent whose amount no longer matches the bill", async () => {

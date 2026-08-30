@@ -40,6 +40,41 @@ describe("API runtime configuration", () => {
     expect(config.onlinePayments.mockEnabled).toBe(true);
   });
 
+  it("enables reviewer auto-approval only for the staging app policy", () => {
+    withEnv({
+      NODE_ENV: "production",
+      APP_ENV: "staging",
+      DATABASE_URL: "postgresql://user:password@localhost:5432/balcona",
+      ONLINE_PAYMENTS_ENABLED: "true",
+      ONLINE_PAYMENT_PROVIDER: "mock",
+      MOCK_ONLINE_PAYMENTS_ENABLED: "true",
+      REVIEWER_AUTO_APPROVE_MOCK_PAYMENTS: "true",
+    });
+
+    expect(() => validateEnvironment(process.env)).not.toThrow();
+
+    const config = configuration();
+
+    expect(config.onlinePayments.mockEnabled).toBe(true);
+    expect(config.onlinePayments.reviewerAutoApproveMock).toBe(true);
+  });
+
+  it("rejects reviewer auto-approval in true production", () => {
+    withEnv({
+      NODE_ENV: "production",
+      APP_ENV: "production",
+      DATABASE_URL: "postgresql://user:password@localhost:5432/balcona",
+      ONLINE_PAYMENTS_ENABLED: "false",
+      ONLINE_PAYMENT_PROVIDER: "external",
+      MOCK_ONLINE_PAYMENTS_ENABLED: "false",
+      REVIEWER_AUTO_APPROVE_MOCK_PAYMENTS: "true",
+    });
+
+    expect(() => validateEnvironment(process.env)).toThrow(
+      "REVIEWER_AUTO_APPROVE_MOCK_PAYMENTS=true is forbidden when APP_ENV=production",
+    );
+  });
+
   it("allows true production to start with online payments explicitly disabled", () => {
     withEnv({
       NODE_ENV: "production",
