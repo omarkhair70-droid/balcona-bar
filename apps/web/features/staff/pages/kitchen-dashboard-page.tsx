@@ -20,7 +20,13 @@ import {
   UtensilsCrossed,
   XCircle
 } from "lucide-react";
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import {
+  useEffect,
+  useMemo,
+  useState,
+  useSyncExternalStore,
+  type ReactNode
+} from "react";
 import { CopyDebugReportButton } from "@/components/debug/copy-debug-report-button";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -120,6 +126,7 @@ type PrintJobFailedAction = PrintJobAction & {
 type PillTone = "neutral" | "warn" | "late" | "ready" | "danger";
 
 const STATION_STORAGE_KEY = "balcona.kitchen.station";
+const STATION_CHANGE_EVENT = "balcona:kitchen-station-change";
 const validStations = new Set<KdsStation>([
   "kitchen",
   "barista",
@@ -154,6 +161,32 @@ function stationIcon(station: KdsStation) {
 
 function stationApiValue(station: KdsStation) {
   return station === "expediter" ? "all" : station;
+}
+
+function getStationSnapshot(): KdsStation {
+  if (typeof window === "undefined") {
+    return "kitchen";
+  }
+
+  const stored = window.localStorage.getItem(STATION_STORAGE_KEY);
+
+  return stored && validStations.has(stored as KdsStation)
+    ? (stored as KdsStation)
+    : "kitchen";
+}
+
+function getStationServerSnapshot(): KdsStation {
+  return "kitchen";
+}
+
+function subscribeStation(onStoreChange: () => void) {
+  window.addEventListener("storage", onStoreChange);
+  window.addEventListener(STATION_CHANGE_EVENT, onStoreChange);
+
+  return () => {
+    window.removeEventListener("storage", onStoreChange);
+    window.removeEventListener(STATION_CHANGE_EVENT, onStoreChange);
+  };
 }
 
 function taskTone(age: number, status: TaskStatus): PillTone {
@@ -1147,20 +1180,16 @@ function KitchenDashboardContent() {
     (entry) => entry.branch.id === selectedBranchId
   );
   const selectedBranch = selectedBranchAccess?.branch;
-  const [station, setStation] = useState<KdsStation>("kitchen");
+  const station = useSyncExternalStore(
+    subscribeStation,
+    getStationSnapshot,
+    getStationServerSnapshot
+  );
   const [view, setView] = useState<KdsView>("board");
   const [notice, setNotice] = useState<Notice>();
   const [now, setNow] = useState(() => Date.now());
   const realtime = useStaffBranchRealtime(selectedBranchId, accessToken);
   const apiStation = stationApiValue(station);
-
-  useEffect(() => {
-    const stored = window.localStorage.getItem(STATION_STORAGE_KEY);
-
-    if (stored && validStations.has(stored as KdsStation)) {
-      setStation(stored as KdsStation);
-    }
-  }, []);
 
   useEffect(() => {
     const timer = window.setInterval(() => setNow(Date.now()), 30_000);
@@ -1169,8 +1198,8 @@ function KitchenDashboardContent() {
   }, []);
 
   const changeStation = (nextStation: KdsStation) => {
-    setStation(nextStation);
     window.localStorage.setItem(STATION_STORAGE_KEY, nextStation);
+    window.dispatchEvent(new Event(STATION_CHANGE_EVENT));
   };
 
   const tasksQuery = useQuery({
