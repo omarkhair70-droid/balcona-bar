@@ -1,4 +1,4 @@
-import { CustomerSessionHomePage } from "@/features/customer/pages/customer-session-home-page";
+import { redirect } from "next/navigation";
 
 type PageProps = {
   params: Promise<{ sessionId: string }>;
@@ -6,6 +6,5 @@ type PageProps = {
 
 export default async function Page({ params }: PageProps) {
   const { sessionId } = await params;
-
-  return <CustomerSessionHomePage sessionId={sessionId} />;
+  redirect(`/customer/session/${sessionId}/menu`);
 }
