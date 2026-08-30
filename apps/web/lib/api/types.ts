@@ -2439,8 +2439,7 @@ export type BootstrapCompanyResult = {
   passwordSetup: {
     ownerEmail: string;
     passwordAlreadySet: boolean;
-    devBootstrapAvailable: boolean;
-    instructions: string;
+    nextStep: string;
   };
 };
 
