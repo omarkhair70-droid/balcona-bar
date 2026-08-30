@@ -179,7 +179,7 @@ export function ServiceStaffShell({
         </div>
 
         {actions ? (
-          <div className="flex flex-wrap items-center justify-end gap-2 border-t border-[#2E251F] px-3 py-2 lg:hidden">
+          <div className="flex flex-nowrap items-center justify-end gap-2 overflow-x-auto border-t border-[#2E251F] px-3 py-2 lg:hidden">
             {actions}
           </div>
         ) : null}
