@@ -1390,6 +1390,7 @@ model StaffUser {
   preparationTaskEvents                   PreparationTaskEvent[]
   requestedPrintJobs                      PrintJob[]                         @relation("PrintJobRequestedByStaff")
   onlinePaymentOperations                 OnlinePaymentOperation[]           @relation("OnlinePaymentOperationRequestedByStaff")
+  terminalPaymentRequests                 TerminalPaymentRequest[]
   requestedPaymentReconciliationRuns      OnlinePaymentReconciliationRun[]   @relation("OnlinePaymentReconciliationRunRequestedByStaff")
   importedPaymentSettlementBatches        OnlinePaymentSettlementBatch[]     @relation("OnlinePaymentSettlementBatchImportedByStaff")
   acknowledgedPaymentReconciliationIssues OnlinePaymentReconciliationIssue[] @relation("OnlinePaymentReconciliationIssueAcknowledgedByStaff")
@@ -3002,7 +3003,8 @@ model TerminalPaymentRequest {
   company  Company         @relation(fields: [companyId], references: [id], onDelete: Cascade)
   branch   Branch          @relation(fields: [branchId], references: [id], onDelete: Cascade)
   bill     Bill            @relation(fields: [billId], references: [id], onDelete: Cascade)
-  terminal PaymentTerminal @relation(fields: [paymentTerminalId], references: [id], onDelete: Restrict)
+  terminal             PaymentTerminal @relation(fields: [paymentTerminalId], references: [id], onDelete: Restrict)
+  requestedByStaffUser StaffUser       @relation(fields: [requestedByStaffUserId], references: [id], onDelete: Restrict)
 
   @@unique([providerTransactionReference])
   @@index([companyId])
