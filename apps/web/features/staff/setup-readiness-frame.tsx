@@ -245,9 +245,13 @@ export function SetupReadinessFrame({
     const storedPhase = window.localStorage.getItem(resumeKey);
     const candidate = hashPhase || storedPhase;
 
-    if (phases.some((phase) => phase.id === candidate)) {
+    if (!phases.some((phase) => phase.id === candidate)) return;
+
+    const frame = window.requestAnimationFrame(() => {
       setActivePhase(candidate as SetupPhaseId);
-    }
+    });
+
+    return () => window.cancelAnimationFrame(frame);
   }, [onboarding.branch.id, phases]);
 
   useEffect(() => {
