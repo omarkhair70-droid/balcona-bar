@@ -33,7 +33,9 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { Input } from "@/components/ui/input";
 import { ServiceStaffShell, useServiceView } from "@/features/staff/service-staff-shell";
 import {
+  getBillStatus,
   getOrderId,
+  getOrderStatus,
   getOrderTableSessionId,
 } from "@/features/staff/cashier-data";
 import {
@@ -53,6 +55,7 @@ import {
   completeOrder,
   createCashAdjustment,
   getBranchBillRequests,
+  getBranchOnlinePayments,
   getCashierOrders,
   getCashierShiftXReport,
   getCurrentCashierShift,
@@ -297,6 +300,7 @@ function CashierShiftPanel({
   onXReport,
   onClose,
   onClearReport,
+  closeReadiness,
 }: {
   branchName: string;
   data?: CurrentCashierShiftResult;
@@ -312,6 +316,12 @@ function CashierShiftPanel({
   onXReport: () => void;
   onClose: (payload: CloseCashierShiftPayload) => void;
   onClearReport: () => void;
+  closeReadiness: {
+    openOrders: number;
+    unpaidBills: number;
+    unknownPayments: number;
+    isLoading: boolean;
+  };
 }) {
   const t = useTranslations("staff");
   const shift = data?.shift ?? null;
@@ -322,6 +332,7 @@ function CashierShiftPanel({
   const [adjustmentNote, setAdjustmentNote] = useState("");
   const [countedCash, setCountedCash] = useState("");
   const [closingNote, setClosingNote] = useState("");
+  const [closeMode, setCloseMode] = useState(false);
   const currency = getRecordString(shift ?? undefined, "currency", "EGP");
   const expectedCashMinor = getSnapshotNumber(
     summary,
@@ -709,6 +720,45 @@ function CashierDashboardContent() {
     enabled: Boolean(selectedBranchId && accessToken),
     staleTime: 10_000,
   });
+  const shiftOrdersQuery = useQuery({
+    queryKey: ["service", "shift", "orders", selectedBranchId],
+    queryFn: () =>
+      getCashierOrders(
+        selectedBranchId ?? "",
+        { status: "all" },
+        accessToken,
+      ),
+    enabled: Boolean(
+      serviceView === "shift" && selectedBranchId && accessToken
+    ),
+    staleTime: 10_000,
+  });
+  const shiftBillRequestsQuery = useQuery({
+    queryKey: ["service", "shift", "bill-requests", selectedBranchId],
+    queryFn: () =>
+      getBranchBillRequests(
+        selectedBranchId ?? "",
+        { status: "active", limit: 100 },
+        accessToken,
+      ),
+    enabled: Boolean(
+      serviceView === "shift" && selectedBranchId && accessToken
+    ),
+    staleTime: 10_000,
+  });
+  const shiftOnlinePaymentsQuery = useQuery({
+    queryKey: ["service", "shift", "online-payments", selectedBranchId],
+    queryFn: () =>
+      getBranchOnlinePayments(
+        selectedBranchId ?? "",
+        { status: "all", provider: "all", limit: 100 },
+        accessToken,
+      ),
+    enabled: Boolean(
+      serviceView === "shift" && selectedBranchId && accessToken
+    ),
+    staleTime: 10_000,
+  });
   const orders = useMemo(
     () => ordersQuery.data?.orders ?? emptyRecords,
     [ordersQuery.data?.orders],
@@ -716,6 +766,31 @@ function CashierDashboardContent() {
   const billRequests = useMemo(
     () => billRequestsQuery.data?.billRequests ?? emptyRecords,
     [billRequestsQuery.data?.billRequests],
+  );
+  const shiftOpenOrders = useMemo(
+    () =>
+      (shiftOrdersQuery.data?.orders ?? emptyRecords).filter((order) => {
+        const status = getOrderStatus(order);
+        return !["served", "completed", "cancelled", "rejected"].includes(status);
+      }).length,
+    [shiftOrdersQuery.data?.orders],
+  );
+  const shiftUnpaidBills = useMemo(
+    () =>
+      (shiftBillRequestsQuery.data?.billRequests ?? emptyRecords).filter(
+        (billRequest) => {
+          const status = getBillStatus(billRequest);
+          return status !== "paid" && status !== "cancelled";
+        },
+      ).length,
+    [shiftBillRequestsQuery.data?.billRequests],
+  );
+  const shiftUnknownPayments = useMemo(
+    () =>
+      (shiftOnlinePaymentsQuery.data?.onlinePaymentIntents ?? emptyRecords).filter(
+        (intent) => getRecordString(intent, "status") === "unknown",
+      ).length,
+    [shiftOnlinePaymentsQuery.data?.onlinePaymentIntents],
   );
   const currentShift = currentShiftQuery.data?.shift ?? null;
   const paymentBlockedReason = currentShiftQuery.isPending
@@ -1283,6 +1358,15 @@ function CashierDashboardContent() {
           }
         }}
         onClearReport={() => setShiftReport(null)}
+        closeReadiness={{
+          openOrders: shiftOpenOrders,
+          unpaidBills: shiftUnpaidBills,
+          unknownPayments: shiftUnknownPayments,
+          isLoading:
+            shiftOrdersQuery.isPending ||
+            shiftBillRequestsQuery.isPending ||
+            shiftOnlinePaymentsQuery.isPending
+        }}
         />
       </div>
       ) : null}
