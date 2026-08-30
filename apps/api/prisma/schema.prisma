@@ -26,6 +26,31 @@ enum CompanySubscriptionStatus {
   cancelled
 }
 
+enum SaasBillingProvider {
+  paymob
+}
+
+enum SaasBillingEnvironment {
+  test
+  live
+}
+
+enum SaasBillingPaymentAttemptStatus {
+  pending
+  requires_action
+  succeeded
+  failed
+  cancelled
+  unknown
+}
+
+enum SaasBillingInvoiceStatus {
+  open
+  paid
+  void
+  uncollectible
+}
+
 enum SaasFeatureKey {
   setup
   kds
@@ -1002,6 +1027,9 @@ model Company {
   customerSessionIdentities          CustomerSessionIdentity[]
   deviceSubscriptions                DeviceSubscription[]
   saasSubscription                   CompanySubscription?
+  saasBillingPaymentAttempts         SaasBillingPaymentAttempt[]
+  saasBillingInvoices                SaasBillingInvoice[]
+  saasBillingEvents                  SaasBillingEvent[]
   saasLimitOverrides                 CompanyPlanLimitOverride[]
   waiterCalls                        WaiterCall[]
   venueZones                         VenueZone[]
@@ -1041,25 +1069,125 @@ model SaasPlan {
 }
 
 model CompanySubscription {
-  id                 String                    @id @default(uuid())
-  companyId          String                    @unique
-  planId             String
-  status             CompanySubscriptionStatus @default(trialing)
-  currentPeriodStart DateTime?
-  currentPeriodEnd   DateTime?
-  trialEndsAt        DateTime?
-  suspendedAt        DateTime?
-  cancelledAt        DateTime?
-  cancellationReason String?
-  metadata           Json?
-  createdAt          DateTime                  @default(now())
-  updatedAt          DateTime                  @updatedAt
+  id                            String                    @id @default(uuid())
+  companyId                     String                    @unique
+  planId                        String
+  status                        CompanySubscriptionStatus @default(trialing)
+  currentPeriodStart            DateTime?
+  currentPeriodEnd              DateTime?
+  trialEndsAt                   DateTime?
+  suspendedAt                   DateTime?
+  cancelledAt                   DateTime?
+  cancellationReason            String?
+  billingProvider               SaasBillingProvider?
+  billingEnvironment            SaasBillingEnvironment?
+  providerCustomerReference     String?
+  providerSubscriptionReference String?
+  providerPlanReference         String?
+  graceEndsAt                   DateTime?
+  lastBillingSyncAt             DateTime?
+  billingMetadata               Json?
+  metadata                      Json?
+  createdAt                     DateTime                  @default(now())
+  updatedAt                     DateTime                  @updatedAt
 
-  company Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  plan    SaasPlan @relation(fields: [planId], references: [id], onDelete: Restrict)
+  company                Company                     @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  plan                   SaasPlan                    @relation(fields: [planId], references: [id], onDelete: Restrict)
+  billingPaymentAttempts SaasBillingPaymentAttempt[]
+  billingInvoices        SaasBillingInvoice[]
+  billingEvents          SaasBillingEvent[]
 
+  @@unique([billingProvider, providerSubscriptionReference])
   @@index([planId])
   @@index([status])
+  @@index([billingProvider, billingEnvironment])
+}
+
+model SaasBillingPaymentAttempt {
+  id                           String                          @id @default(uuid())
+  companySubscriptionId        String
+  companyId                    String
+  provider                     SaasBillingProvider
+  environment                  SaasBillingEnvironment
+  status                       SaasBillingPaymentAttemptStatus @default(pending)
+  providerIntentionReference   String?
+  providerOrderReference       String?
+  providerTransactionReference String?
+  amountMinor                  Int
+  currency                     String                          @default("EGP")
+  checkoutUrl                  String?
+  failureCode                  String?
+  failureMessage               String?
+  periodStart                  DateTime?
+  periodEnd                    DateTime?
+  succeededAt                  DateTime?
+  failedAt                     DateTime?
+  metadata                     Json?
+  createdAt                    DateTime                        @default(now())
+  updatedAt                    DateTime                        @updatedAt
+
+  subscription CompanySubscription  @relation(fields: [companySubscriptionId], references: [id], onDelete: Cascade)
+  company      Company              @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  invoices     SaasBillingInvoice[]
+  events       SaasBillingEvent[]
+
+  @@unique([provider, providerIntentionReference])
+  @@unique([provider, providerTransactionReference])
+  @@index([companySubscriptionId, createdAt])
+  @@index([companyId, createdAt])
+  @@index([status, createdAt])
+}
+
+model SaasBillingInvoice {
+  id                       String                   @id @default(uuid())
+  companySubscriptionId    String
+  companyId                String
+  paymentAttemptId         String?
+  provider                 SaasBillingProvider
+  environment              SaasBillingEnvironment
+  providerInvoiceReference String?
+  status                   SaasBillingInvoiceStatus @default(open)
+  amountMinor              Int
+  currency                 String                   @default("EGP")
+  periodStart              DateTime?
+  periodEnd                DateTime?
+  dueAt                    DateTime?
+  paidAt                   DateTime?
+  metadata                 Json?
+  createdAt                DateTime                 @default(now())
+  updatedAt                DateTime                 @updatedAt
+
+  subscription   CompanySubscription       @relation(fields: [companySubscriptionId], references: [id], onDelete: Cascade)
+  company        Company                   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  paymentAttempt SaasBillingPaymentAttempt? @relation(fields: [paymentAttemptId], references: [id], onDelete: SetNull)
+
+  @@unique([provider, providerInvoiceReference])
+  @@index([companySubscriptionId, createdAt])
+  @@index([companyId, createdAt])
+  @@index([status, dueAt])
+}
+
+model SaasBillingEvent {
+  id                    String              @id @default(uuid())
+  companySubscriptionId String?
+  companyId             String?
+  paymentAttemptId      String?
+  provider              SaasBillingProvider
+  providerEventKey      String              @unique
+  eventType             String
+  verified              Boolean             @default(false)
+  payloadHash           String
+  safeMetadata          Json?
+  processedAt           DateTime?
+  createdAt             DateTime            @default(now())
+
+  subscription   CompanySubscription?      @relation(fields: [companySubscriptionId], references: [id], onDelete: SetNull)
+  company        Company?                  @relation(fields: [companyId], references: [id], onDelete: SetNull)
+  paymentAttempt SaasBillingPaymentAttempt? @relation(fields: [paymentAttemptId], references: [id], onDelete: SetNull)
+
+  @@index([companySubscriptionId, createdAt])
+  @@index([companyId, createdAt])
+  @@index([provider, createdAt])
 }
 
 model CompanyPlanLimitOverride {
