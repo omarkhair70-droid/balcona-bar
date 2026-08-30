@@ -127,7 +127,11 @@
         "MWALLET": "Mobile wallet",
         "PayAtFawry": "Fawry reference",
         "VALU": "ValU"
-      }
+      },
+      "paymentQr": "Scan to pay",
+      "paymentQrDescription": "Use the payment app or method shown by the provider, then return here while Balcona verifies the payment.",
+      "paymentReference": "Payment reference",
+      "paymentReferenceDescription": "Use this provider-issued reference to complete payment. Balcona will confirm the payment from the provider before settling the bill."
     },
     "cart": {
       "clear": "Clear",
