@@ -147,6 +147,11 @@ import type {
   ResolveWaiterCallPayload,
   SaasPlansResult,
   SaasStatusResult,
+  SaasBillingOverview,
+  StartSaasBillingCheckoutPayload,
+  StartSaasBillingCheckoutResult,
+  ChangeSaasBillingPlanPayload,
+  SaasBillingMutationResult,
   SendAiWaiterMessagePayload,
   SendAiWaiterMessageResult,
   StaffAuthContext,
@@ -2116,6 +2121,57 @@ export function getCompanySaasStatus(companyId: string, token?: string) {
   return apiRequest<SaasStatusResult>(
     `/companies/${companyId}/saas/status`,
     { token },
+  );
+}
+
+export function getCompanySaasBilling(companyId: string, token?: string) {
+  return apiRequest<SaasBillingOverview>(
+    `/companies/${companyId}/saas/billing`,
+    { token },
+  );
+}
+
+export function startCompanySaasBillingCheckout(
+  companyId: string,
+  payload: StartSaasBillingCheckoutPayload,
+  token?: string,
+) {
+  return apiRequest<
+    StartSaasBillingCheckoutResult,
+    StartSaasBillingCheckoutPayload
+  >(`/companies/${companyId}/saas/billing/checkout`, {
+    method: "POST",
+    body: payload,
+    token,
+  });
+}
+
+export function syncCompanySaasBilling(companyId: string, token?: string) {
+  return apiRequest<SaasBillingMutationResult>(
+    `/companies/${companyId}/saas/billing/sync`,
+    { method: "POST", token },
+  );
+}
+
+export function changeCompanySaasBillingPlan(
+  companyId: string,
+  payload: ChangeSaasBillingPlanPayload,
+  token?: string,
+) {
+  return apiRequest<SaasBillingMutationResult, ChangeSaasBillingPlanPayload>(
+    `/companies/${companyId}/saas/billing/change-plan`,
+    { method: "POST", body: payload, token },
+  );
+}
+
+export function cancelCompanySaasBilling(
+  companyId: string,
+  payload: { reason?: string } = {},
+  token?: string,
+) {
+  return apiRequest<SaasBillingMutationResult, { reason?: string }>(
+    `/companies/${companyId}/saas/billing/cancel`,
+    { method: "POST", body: payload, token },
   );
 }
 
