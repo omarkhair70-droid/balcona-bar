@@ -637,7 +637,7 @@
       "balance": "Balance",
       "billFallback": "Bill {billNumber}",
       "billLines": "Bill lines",
-      "cardPos": "Card POS",
+      "cardPos": "External card terminal",
       "cash": "Cash",
       "description": "Present a stable bill, record a manual payment, then issue a receipt. No online payment is taken here.",
       "emptyDescription": "Customer bill requests will appear here when the backend marks them active.",
@@ -689,7 +689,8 @@
       "onlineProblemDetail": "{count} online payment attempt(s) failed, expired, or were cancelled. Verify the provider state before taking another payment.",
       "onlineUnknownDetail": "{count} online payment attempt(s) returned an unknown state. Treat payment as unresolved until the provider state is verified.",
       "onlinePendingDetail": "{count} online payment attempt(s) are still pending or awaiting customer action. Do not collect another payment until the provider state resolves.",
-      "paymentUnresolvedOnlineRequired": "An online payment is still unresolved. Check or recover the provider state before recording a manual payment."
+      "paymentUnresolvedOnlineRequired": "An online payment is still unresolved. Check or recover the provider state before recording a manual payment.",
+      "cardPosManualNotice": "Record this only after the external terminal has approved the payment. Balcona is not sending the amount to that device yet."
     },
     "cashier": {
       "activityDescription": "Latest branch realtime events returned by the API.",
