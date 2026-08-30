@@ -1330,56 +1330,46 @@ function OwnerDashboardContent() {
 
           {companyRows.length > 0 ? (
             <>
-              <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-                <MetricCard
-                  label={t("analytics.revenue")}
-                  value={
-                    companyCurrency
+              <OfficeMetricBand
+                metrics={[
+                  {
+                    label: t("analytics.revenue"),
+                    value: companyCurrency
                       ? formatMoney(companyTotals.revenueMinor, companyCurrency)
-                      : t("empty.noData")
-                  }
-                  description={t("analytics.revenueDescription")}
-                  icon={<BarChart3 className="size-4" aria-hidden="true" />}
-                  tone="success"
-                />
-                <MetricCard
-                  label={t("analytics.collected")}
-                  value={
-                    companyCurrency
+                      : t("empty.noData"),
+                    detail: t("analytics.revenueDescription"),
+                    tone: "success"
+                  },
+                  {
+                    label: t("analytics.collected"),
+                    value: companyCurrency
                       ? formatMoney(companyTotals.collectedMinor, companyCurrency)
-                      : t("empty.noData")
+                      : t("empty.noData"),
+                    detail: t("analytics.collectedDescription")
+                  },
+                  {
+                    label: t("analytics.averageTicket"),
+                    value:
+                      companyCurrency && companyTotals.paidBillCount > 0
+                        ? formatMoney(
+                            Math.round(
+                              companyTotals.revenueMinor /
+                                companyTotals.paidBillCount
+                            ),
+                            companyCurrency
+                          )
+                        : t("empty.noData"),
+                    detail: t("analytics.paidBillsCount", {
+                      count: companyTotals.paidBillCount.toLocaleString("en")
+                    })
+                  },
+                  {
+                    label: t("analytics.orders"),
+                    value: companyTotals.orders.toLocaleString("en"),
+                    detail: officeT("office.insightsDescription")
                   }
-                  description={t("analytics.collectedDescription")}
-                  icon={<WalletCards className="size-4" aria-hidden="true" />}
-                  tone="primary"
-                />
-                <MetricCard
-                  label={t("analytics.averageTicket")}
-                  value={
-                    companyCurrency && companyTotals.paidBillCount > 0
-                      ? formatMoney(
-                          Math.round(
-                            companyTotals.revenueMinor /
-                              companyTotals.paidBillCount
-                          ),
-                          companyCurrency
-                        )
-                      : t("empty.noData")
-                  }
-                  description={t("analytics.paidBillsCount", {
-                    count: companyTotals.paidBillCount.toLocaleString("en")
-                  })}
-                  icon={<Receipt className="size-4" aria-hidden="true" />}
-                  tone="accent"
-                />
-                <MetricCard
-                  label={t("analytics.orders")}
-                  value={companyTotals.orders.toLocaleString("en")}
-                  description={officeT("office.insightsDescription")}
-                  icon={<ShoppingBag className="size-4" aria-hidden="true" />}
-                  tone="muted"
-                />
-              </div>
+                ]}
+              />
 
               <div className="grid gap-4 md:grid-cols-2">
                 <MetricCard
@@ -1460,41 +1450,36 @@ function OwnerDashboardContent() {
           ) : (
             <>
 
-          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-            <MetricCard
-              label={t("analytics.revenue")}
-              value={formatMoney(summary.paidRevenueMinor, currency)}
-              description={t("analytics.revenueDescription")}
-              icon={<BarChart3 className="size-4" aria-hidden="true" />}
-              tone="success"
-            />
-            <MetricCard
-              label={t("analytics.collected")}
-              value={formatMoney(summary.collectedMinor, currency)}
-              description={t("analytics.collectedDescription")}
-              icon={<WalletCards className="size-4" aria-hidden="true" />}
-              tone="primary"
-            />
-            <MetricCard
-              label={t("analytics.averageTicket")}
-              value={formatMoney(summary.averageTicketMinor, currency)}
-              description={t("analytics.paidBillsCount", {
-                count: summary.paidBillCount.toLocaleString("en")
-              })}
-              icon={<Receipt className="size-4" aria-hidden="true" />}
-              tone="accent"
-            />
-            <MetricCard
-              label={t("analytics.orders")}
-              value={orders.submittedOrderCount.toLocaleString("en")}
-              description={t("analytics.ordersDescription", {
-                served: summary.servedOrderCount.toLocaleString("en"),
-                completed: summary.completedOrderCount.toLocaleString("en")
-              })}
-              icon={<ShoppingBag className="size-4" aria-hidden="true" />}
-              tone="muted"
-            />
-          </div>
+          <OfficeMetricBand
+            metrics={[
+              {
+                label: t("analytics.revenue"),
+                value: formatMoney(summary.paidRevenueMinor, currency),
+                detail: t("analytics.revenueDescription"),
+                tone: "success"
+              },
+              {
+                label: t("analytics.collected"),
+                value: formatMoney(summary.collectedMinor, currency),
+                detail: t("analytics.collectedDescription")
+              },
+              {
+                label: t("analytics.averageTicket"),
+                value: formatMoney(summary.averageTicketMinor, currency),
+                detail: t("analytics.paidBillsCount", {
+                  count: summary.paidBillCount.toLocaleString("en")
+                })
+              },
+              {
+                label: t("analytics.orders"),
+                value: orders.submittedOrderCount.toLocaleString("en"),
+                detail: t("analytics.ordersDescription", {
+                  served: summary.servedOrderCount.toLocaleString("en"),
+                  completed: summary.completedOrderCount.toLocaleString("en")
+                })
+              }
+            ]}
+          />
 
           <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
             <MetricCard
