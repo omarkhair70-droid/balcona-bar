@@ -111,7 +111,9 @@
       "paymentComplete": "تم الدفع",
       "paymentCompleteDescription": "حساب الترابيزة اتسدد.",
       "paymentUnavailable": "الدفع أونلاين مش متاح دلوقتي. تقدر تطلب مساعدة الفريق في الحساب.",
-      "requestErrorSimple": "مقدرناش نطلب الحساب دلوقتي. حاول تاني."
+      "requestErrorSimple": "مقدرناش نطلب الحساب دلوقتي. حاول تاني.",
+      "preparingBillTitle": "الحساب بيتجهز",
+      "preparingBillDescription": "الفريق بيراجع الحساب النهائي قبل ما الدفع يبقى متاح."
     },
     "cart": {
       "clear": "مسح",
@@ -306,7 +308,7 @@
     "smartTable": "الترابيزة الذكية",
     "status": {
       "current": "الحالة الحالية",
-      "customerFacingState": "حالة العميل الظاهرة",
+      "customerFacingState": "حالة الترابيزة",
       "description": "شوف طلبك وصل لفين من لحظة الإرسال لحد ما يوصل الترابيزة.",
       "eyebrow": "الطلب",
       "forThisSession": "الترابيزة دي",

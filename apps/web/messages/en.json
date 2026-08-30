@@ -111,7 +111,9 @@
       "paymentComplete": "Payment complete",
       "paymentCompleteDescription": "Your table bill is settled.",
       "paymentUnavailable": "Online payment is not available right now. You can still ask the team to help with the bill.",
-      "requestErrorSimple": "We could not request the bill yet. Please try again."
+      "requestErrorSimple": "We could not request the bill yet. Please try again.",
+      "preparingBillTitle": "Preparing your bill",
+      "preparingBillDescription": "The team is checking the final bill before payment becomes available."
     },
     "cart": {
       "clear": "Clear",
@@ -306,7 +308,7 @@
     "smartTable": "Smart table",
     "status": {
       "current": "Current status",
-      "customerFacingState": "Customer-facing state",
+      "customerFacingState": "Table status",
       "description": "See where your order is from the moment you send it until it reaches the table.",
       "eyebrow": "Order",
       "forThisSession": "this table",

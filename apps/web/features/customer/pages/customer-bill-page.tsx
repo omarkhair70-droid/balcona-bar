@@ -183,6 +183,7 @@ export function CustomerBillPage({ sessionId }: CustomerBillPageProps) {
     !isPaid &&
     (!latestIntent ||
       ["failed", "cancelled", "canceled", "expired"].includes(intentStatus));
+  const isBillPreparing = Boolean(bill) && !isPresented && !isPaid;
   const isRequested = Boolean(billRequest) && !bill;
   const hasNoBillableOrders = billQuery.isSuccess && orderCount === 0 && !bill;
   const canRequest =
@@ -190,7 +191,8 @@ export function CustomerBillPage({ sessionId }: CustomerBillPageProps) {
     orderCount > 0 &&
     !billRequest &&
     !bill &&
-    !receipt;
+    !receipt &&
+    !requestMutation.isSuccess;
 
   return (
     <CustomerSessionScreen
@@ -234,6 +236,7 @@ export function CustomerBillPage({ sessionId }: CustomerBillPageProps) {
               </p>
               <Button
                 onClick={() => requestMutation.mutate()}
+                disabled={requestMutation.isPending}
                 className="mt-5 min-h-12 w-full rounded-2xl"
               >
                 {requestMutation.isPending
@@ -265,6 +268,22 @@ export function CustomerBillPage({ sessionId }: CustomerBillPageProps) {
 
           {bill ? (
             <div className="rounded-[26px] border border-border bg-card p-5">
+              {isBillPreparing ? (
+                <div className="mb-5 rounded-2xl bg-muted p-4">
+                  <div className="flex items-start gap-3">
+                    <Clock3 className="mt-0.5 size-4 shrink-0 text-warning" aria-hidden="true" />
+                    <div>
+                      <p className="text-sm font-black text-foreground">
+                        {t("bill.preparingBillTitle")}
+                      </p>
+                      <p className="mt-1 text-xs leading-5 text-muted-foreground">
+                        {t("bill.preparingBillDescription")}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              ) : null}
+
               {isUnknown ? (
                 <div className="mb-5 rounded-2xl border border-danger/35 bg-danger/10 p-4">
                   <div className="flex gap-2">
