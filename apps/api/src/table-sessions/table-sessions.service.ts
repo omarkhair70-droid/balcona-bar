@@ -252,7 +252,10 @@ export class TableSessionsService {
       durationMs: Date.now() - startedAt,
     });
 
-    await this.runStartSideEffects(result);
+    // Presence notifications and realtime fan-out are post-start side effects.
+    // The guest already has a committed session and valid access token here, so
+    // never hold the QR/menu critical path open while those writes complete.
+    void this.runStartSideEffects(result);
 
     return this.toContextResponse(
       result.session,
