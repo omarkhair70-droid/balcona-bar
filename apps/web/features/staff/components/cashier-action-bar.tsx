@@ -55,44 +55,52 @@ export function CashierActionBar({
   return (
     <div className="sticky bottom-2 z-20 rounded-lg border border-[#47392E] bg-[#18130F]/96 p-3 shadow-[0_-12px_40px_rgba(0,0,0,.25)] backdrop-blur">
       <div className="flex flex-wrap items-center gap-2">
-        <Button
-          onClick={onAccept}
-          disabled={!canAccept || anyActionPending}
-          className="min-h-11 flex-1 bg-[#C68A4A] font-bold text-[#1A110B] hover:bg-[#D39A5B]"
-        >
-          <Check className="size-4" aria-hidden="true" />
-          {acceptPending ? t("actions.accepting") : t("actions.accept")}
-        </Button>
+        {canAccept ? (
+          <Button
+            onClick={onAccept}
+            disabled={anyActionPending}
+            className="min-h-11 flex-1 bg-[#C68A4A] font-bold text-[#1A110B] hover:bg-[#D39A5B]"
+          >
+            <Check className="size-4" aria-hidden="true" />
+            {acceptPending ? t("actions.accepting") : t("actions.accept")}
+          </Button>
+        ) : null}
 
-        <Button
-          variant="danger"
-          onClick={onReject}
-          disabled={!canReject || anyActionPending}
-          className="min-h-11 border border-[#76413C] bg-[#321F1D] text-[#F0A39B] hover:bg-[#3B2522]"
-        >
-          <X className="size-4" aria-hidden="true" />
-          {rejectPending ? t("actions.rejecting") : t("actions.reject")}
-        </Button>
+        {canReject ? (
+          <Button
+            variant="danger"
+            onClick={onReject}
+            disabled={anyActionPending}
+            className="min-h-11 border border-[#76413C] bg-[#321F1D] text-[#F0A39B] hover:bg-[#3B2522]"
+          >
+            <X className="size-4" aria-hidden="true" />
+            {rejectPending ? t("actions.rejecting") : t("actions.reject")}
+          </Button>
+        ) : null}
 
-        <Button
-          variant="secondary"
-          onClick={onComplete}
-          disabled={!canComplete || anyActionPending}
-          className="min-h-11 border-[#456144] bg-[#213022] text-[#A8D5A6] hover:bg-[#293B2A]"
-        >
-          <CheckCircle2 className="size-4" aria-hidden="true" />
-          {completePending ? t("actions.completing") : t("actions.complete")}
-        </Button>
+        {canComplete ? (
+          <Button
+            variant="secondary"
+            onClick={onComplete}
+            disabled={anyActionPending}
+            className="min-h-11 flex-1 border-[#456144] bg-[#213022] text-[#A8D5A6] hover:bg-[#293B2A]"
+          >
+            <CheckCircle2 className="size-4" aria-hidden="true" />
+            {completePending ? t("actions.completing") : t("actions.complete")}
+          </Button>
+        ) : null}
 
-        <Button
-          variant="danger"
-          onClick={() => setCancelMode(true)}
-          disabled={!canCancel || anyActionPending}
-          className="min-h-11 border border-[#4A3C32] bg-[#211A15] text-[#CBBCAF] hover:bg-[#292019]"
-        >
-          <Ban className="size-4" aria-hidden="true" />
-          {t("actions.cancel")}
-        </Button>
+        {canCancel ? (
+          <Button
+            variant="danger"
+            onClick={() => setCancelMode(true)}
+            disabled={anyActionPending}
+            className="min-h-11 border border-[#4A3C32] bg-[#211A15] text-[#CBBCAF] hover:bg-[#292019]"
+          >
+            <Ban className="size-4" aria-hidden="true" />
+            {t("actions.cancel")}
+          </Button>
+        ) : null}
 
         {!canAccept && !canReject && !canCancel && !canComplete ? (
           <span className="w-full text-xs text-[#91857A]">{disabledReason}</span>
