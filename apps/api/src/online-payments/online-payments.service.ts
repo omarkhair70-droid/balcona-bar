@@ -287,7 +287,10 @@ export class OnlinePaymentsService {
       const checkoutExpiresAt = new Date(
         Date.now() + MOCK_CHECKOUT_TTL_MINUTES * 60 * 1000,
       );
-      const providerCheckoutUrl = this.buildMockCheckoutUrl(providerIntentId);
+      const providerCheckoutUrl = this.buildMockCheckoutUrl(
+        providerIntentId,
+        body.customerReturnUrl,
+      );
       const intent = await tx.onlinePaymentIntent.create({
         data: {
           companyId: bill.companyId,
@@ -5003,13 +5006,31 @@ export class OnlinePaymentsService {
     return undefined;
   }
 
-  private buildMockCheckoutUrl(providerIntentId: string) {
-    const baseUrl =
+  private buildMockCheckoutUrl(
+    providerIntentId: string,
+    customerReturnUrl?: string,
+  ) {
+    let baseUrl =
       this.configService.get<string>("onlinePayments.checkoutBaseUrl") ??
       "http://localhost:3001";
+
+    if (customerReturnUrl) {
+      try {
+        const returnUrl = new URL(customerReturnUrl);
+
+        if (returnUrl.protocol === "https:" || returnUrl.protocol === "http:") {
+          baseUrl = returnUrl.origin;
+        }
+      } catch {
+        // Fall back to the configured checkout base for malformed client input.
+      }
+    }
+
     const normalizedBaseUrl = baseUrl.replace(/\/+$/, "");
 
-    return `${normalizedBaseUrl}/mock-payments/${providerIntentId}`;
+    return `${normalizedBaseUrl}/mock-payments/${encodeURIComponent(
+      providerIntentId,
+    )}`;
   }
 
   private toIntentResult(

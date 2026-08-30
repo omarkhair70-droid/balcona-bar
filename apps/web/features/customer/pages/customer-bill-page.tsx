@@ -171,9 +171,6 @@ export function CustomerBillPage({ sessionId }: CustomerBillPageProps) {
         queryKey: customerQueryKeys.bill(sessionId)
       });
       const created = record(result.onlinePaymentIntent);
-      const provider = (
-        stringValue(created, "provider") || result.checkout?.provider || ""
-      ).toLowerCase();
       const checkoutUrl =
         result.checkout?.url ?? stringValue(created, "providerCheckoutUrl");
       const customerAction = result.checkout?.customerAction;
@@ -183,7 +180,7 @@ export function CustomerBillPage({ sessionId }: CustomerBillPageProps) {
           ? customerAction.url
           : checkoutUrl;
 
-      if (actionUrl && provider !== "mock") {
+      if (actionUrl) {
         window.location.assign(actionUrl);
       }
     },
@@ -212,11 +209,6 @@ export function CustomerBillPage({ sessionId }: CustomerBillPageProps) {
   const refreshedIntent = record(intentQuery.data?.onlinePaymentIntent);
   const currentIntent = refreshedIntent ?? latestIntent;
   const intentStatus = stringValue(currentIntent, "status").toLowerCase();
-  const provider = (
-    stringValue(currentIntent, "provider") ||
-    paymentMutation.data?.checkout?.provider ||
-    ""
-  ).toLowerCase();
   const checkoutUrl =
     intentQuery.data?.checkout?.url ??
     paymentMutation.data?.checkout?.url ??
@@ -229,7 +221,7 @@ export function CustomerBillPage({ sessionId }: CustomerBillPageProps) {
     customerAction?.type === "deep_link"
       ? customerAction.url
       : checkoutUrl;
-  const isHostedCheckout = Boolean(actionUrl) && provider !== "mock";
+  const isHostedCheckout = Boolean(actionUrl);
   const qrPaymentValue =
     customerAction?.type === "qr" ? customerAction.value : undefined;
   const paymentReference =
