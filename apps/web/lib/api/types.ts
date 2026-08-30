@@ -2317,6 +2317,16 @@ export type PlatformOwnerAssignment = {
   recentInvite?: StaffInviteSummary | null;
 };
 
+export type PlatformAuditEventSummary = {
+  id: string;
+  action: string;
+  targetType?: string | null;
+  targetId?: string | null;
+  metadata?: Record<string, unknown> | null;
+  createdAt: string;
+  platformAdminUser?: Pick<PlatformAdminUser, "id" | "email" | "name" | "role"> | null;
+};
+
 export type PlatformCompanyDetail = {
   company: CompanySummary & {
     status?: string;
@@ -2336,6 +2346,7 @@ export type PlatformCompanyDetail = {
   >;
   owners: PlatformOwnerAssignment[];
   saas: SaasStatusResult;
+  auditEvents: PlatformAuditEventSummary[];
 };
 
 export type CreatePlatformStaffInvitePayload = {
