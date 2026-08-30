@@ -9,7 +9,6 @@ import {
   useQueryClient,
 } from "@tanstack/react-query";
 import {
-  AlertTriangle,
   Banknote,
   BellRing,
   CheckCircle2,
@@ -47,7 +46,6 @@ import {
   getRecordNumber,
   getRecordString,
   humanizeStatus,
-  shortId,
 } from "@/features/staff/staff-format";
 import { useStaffBranchRealtime } from "@/features/staff/use-staff-branch-realtime";
 import { pendingActionFor } from "@/lib/interaction/pending-scope";
@@ -59,8 +57,6 @@ import {
   completeOrder,
   createCashAdjustment,
   getBranchBillRequests,
-  getBranchPaymentTerminals,
-  getBranchRealtimeEvents,
   getCashierOrders,
   getCashierShiftXReport,
   getCurrentCashierShift,
