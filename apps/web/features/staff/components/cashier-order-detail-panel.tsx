@@ -52,7 +52,6 @@ import { formatErrorMessage } from "@/lib/api/error-message";
 import type { OrderDetailResult } from "@/lib/api/types";
 import { useTranslations } from "@/lib/i18n/i18n-provider";
 import { CashierActionBar } from "./cashier-action-bar";
-import { CashierOrderStatusPill } from "./cashier-order-status-pill";
 
 type CashierOrderDetailPanelProps = {
   order?: OrderDetailResult;
