@@ -1,5 +1,6 @@
 import {
   IsEmail,
+  IsObject,
   IsOptional,
   IsString,
   Matches,
@@ -45,5 +46,6 @@ export class PaymobSaasBillingWebhookQueryDto {
 }
 
 export class PaymobSaasBillingWebhookDto {
-  obj!: unknown;
+  @IsObject()
+  obj!: Record<string, unknown>;
 }
