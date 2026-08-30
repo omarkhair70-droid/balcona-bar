@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useSearchParams } from "next/navigation";
 import { type ReactNode, useEffect, useState } from "react";
 import { Banknote, BellRing, LayoutGrid, ListChecks, Receipt } from "lucide-react";
 import { LanguageSwitcher } from "@/components/i18n/language-switcher";
@@ -26,12 +26,12 @@ const modes: Array<{
 }> = [
   {
     id: "cashier",
-    href: "/service/cashier",
+    href: "/service/cashier?mode=cashier#orders",
     labelKey: "serviceShell.cashier"
   },
   {
     id: "waiter",
-    href: "/service/waiter",
+    href: "/service/waiter?mode=waiter#floor",
     labelKey: "serviceShell.waiter"
   }
 ];
@@ -43,6 +43,15 @@ const serviceViewIds = new Set<ServiceView>([
   "bills",
   "shift"
 ]);
+
+export function useServiceMode(routeMode: ServiceMode): ServiceMode {
+  const searchParams = useSearchParams();
+  const requestedMode = searchParams.get("mode");
+
+  return requestedMode === "cashier" || requestedMode === "waiter"
+    ? requestedMode
+    : routeMode;
+}
 
 export function useServiceView(mode: ServiceMode): ServiceView {
   const pathname = usePathname();
@@ -104,6 +113,7 @@ export function ServiceStaffShell({
   const t = useTranslations("staff");
   const pathname = usePathname();
   const activeView = useServiceView(mode);
+  const activeMode = useServiceMode(mode);
 
   useEffect(() => {
     const frame = window.requestAnimationFrame(() => {
@@ -140,7 +150,7 @@ export function ServiceStaffShell({
             aria-label="Service mode"
           >
             {modes.map((entry) => {
-              const active = entry.id === mode;
+              const active = entry.id === activeMode;
 
               return (
                 <Link
@@ -181,8 +191,8 @@ export function ServiceStaffShell({
           {serviceViews.map((entry) => {
             const Icon = entry.icon;
             const [entryPath, entryHash = ""] = entry.href.split("#");
-            const active =
-              pathname === entryPath && activeView === entryHash;
+            const active = activeView === entryHash;
+            const href = `${entryPath}?mode=${activeMode}#${entryHash}`;
 
             return (
               <Link
