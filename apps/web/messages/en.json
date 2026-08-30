@@ -914,6 +914,7 @@
       "ticketItemsOne": "{count} ticket item",
       "ticketsEmpty": "Ticket rows appear here after the order is accepted and routed to barista, kitchen, or dessert stations.",
       "timeline": "Timeline",
+      "operationalDetails": "Order lifecycle",
       "total": "Total",
       "updating": "Updating order..."
     },
