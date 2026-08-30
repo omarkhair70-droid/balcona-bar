@@ -40,7 +40,6 @@ import {
   getTableSessionAttention,
   getTableSessionOrders,
   muteTableSessionAttention,
-  rebuildBranchAttention,
   recalculateTableSessionAttention,
   resolveTableSessionAttention,
   serveOrder,
@@ -110,6 +109,7 @@ function WaiterDashboardActions() {
     (state) => state.setSelectedBranchId
   );
   const clearSession = useStaffAuthStore((state) => state.clearSession);
+  const realtime = useStaffBranchRealtime(selectedBranchId, accessToken);
   const logoutMutation = useMutation({
     mutationFn: () =>
       accessToken ? staffLogout(accessToken) : Promise.resolve({}),
@@ -130,6 +130,10 @@ function WaiterDashboardActions() {
 
   return (
     <>
+      <StaffRealtimeStatus
+        state={realtime.state}
+        lastEventType={realtime.lastEventType}
+      />
       <StaffBranchSelector
         access={effectiveAccess}
         selectedBranchId={selectedBranchId}
@@ -176,7 +180,6 @@ function WaiterDashboardContent() {
   );
   const selectedBranch = selectedBranchAccess?.branch;
   const selectedCompanyId = selectedBranchAccess?.company.id;
-  const realtime = useStaffBranchRealtime(selectedBranchId, accessToken);
   const waiterCallsQuery = useQuery({
     queryKey: staffQueryKeys.staffWaiterCalls(
       selectedBranchId,
@@ -530,20 +533,6 @@ function WaiterDashboardContent() {
       });
     },
   });
-  const rebuildAttentionMutation = useMutation({
-    mutationFn: (branchId: string) => rebuildBranchAttention(branchId, accessToken),
-    onSuccess: () => {
-      setNotice({ tone: "success", message: t("attention.branchRebuilt") });
-      invalidateAttentionState(selectedSessionId);
-    },
-    onError: (error: Error) => {
-      setNotice({
-        tone: "error",
-        message: t("attention.branchRebuildError", { message: error.message })
-      });
-    }
-  });
-
   const prefetchAttention = (sessionId: string) => {
     if (!accessToken) return;
     void queryClient.prefetchQuery({
@@ -591,45 +580,6 @@ function WaiterDashboardContent() {
 
   return (
     <div className="grid gap-5">
-      <div
-        data-service-status
-        className="flex flex-wrap items-center gap-2 border-b border-[#342A23] bg-[#17120F] px-3 py-2 text-xs text-[#B8AA9E]"
-      >
-        <Badge variant="muted">{selectedBranch.name}</Badge>
-        <StaffRealtimeStatus
-          state={realtime.state}
-          lastEventType={realtime.lastEventType}
-        />
-        <Button
-          size="sm"
-          variant="ghost"
-          className="ms-auto min-h-8 text-[#AFA195] hover:bg-[#292019] hover:text-[#F6EBDD]"
-          onClick={refreshBranch}
-          aria-label={t("actions.refreshBranch")}
-        >
-          <RefreshCw className="size-4" aria-hidden="true" />
-        </Button>
-        <Button
-          size="sm"
-          variant="ghost"
-          className="min-h-8 text-[#AFA195] hover:bg-[#292019] hover:text-[#F6EBDD]"
-          onClick={() => rebuildAttentionMutation.mutate(selectedBranchId)}
-          disabled={rebuildAttentionMutation.isPending}
-        >
-          <RefreshCw
-            className={
-              rebuildAttentionMutation.isPending
-                ? "size-4 animate-spin"
-                : "size-4"
-            }
-            aria-hidden="true"
-          />
-          {rebuildAttentionMutation.isPending
-            ? t("actions.rebuilding")
-            : t("actions.rebuildAttention")}
-        </Button>
-      </div>
-
       <NoticeBanner notice={notice} />
 
       {serviceView === "floor" ? (
