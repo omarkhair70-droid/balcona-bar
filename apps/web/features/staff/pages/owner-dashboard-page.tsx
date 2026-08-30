@@ -2,25 +2,24 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import {
-  useMutation,
-  useQueries,
-  useQuery,
-  useQueryClient
-} from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   BarChart3,
   Bot,
   Boxes,
+  ChefHat,
+  CreditCard,
+  Download,
   LogIn,
   LogOut,
   Receipt,
   RefreshCw,
   ShoppingBag,
+  Sparkles,
   UserRoundCheck,
   WalletCards
 } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button, buttonVariants } from "@/components/ui/button";
 import {
@@ -33,8 +32,14 @@ import {
 import { EmptyState } from "@/components/ui/empty-state";
 import { LoadingState } from "@/components/ui/loading-state";
 import { MetricCard } from "@/components/ui/metric-card";
+import { OfficeFoundationPanels } from "@/features/staff/components/office-foundation-panels";
 import { OfficeStaffShell } from "@/features/staff/office-staff-shell";
-import { formatMoney, humanizeStatus } from "@/features/staff/staff-format";
+import {
+  formatMoney,
+  getRecordNumber,
+  getRecordString,
+  humanizeStatus
+} from "@/features/staff/staff-format";
 import { useStaffBranchRealtime } from "@/features/staff/use-staff-branch-realtime";
 import { formatErrorMessage } from "@/lib/api/error-message";
 import {
@@ -568,6 +573,14 @@ function formatDuration(
   });
 }
 
+function formatAiCost(micros: number) {
+  if (micros <= 0) {
+    return "0";
+  }
+
+  return (micros / 1_000_000).toFixed(4);
+}
+
 function getDashboardCurrency(data: OwnerAnalyticsDashboardResult) {
   return (
     data.summary.activeCashierShift?.currency ??
@@ -577,38 +590,10 @@ function getDashboardCurrency(data: OwnerAnalyticsDashboardResult) {
   );
 }
 
-type OwnerOfficeView = "home" | "operations" | "insights";
-
-function useOwnerOfficeView() {
-  const [view, setView] = useState<OwnerOfficeView>("home");
-
-  useEffect(() => {
-    const syncView = () => {
-      if (window.location.hash === "#operations") {
-        setView("operations");
-        return;
-      }
-
-      if (window.location.hash === "#insights") {
-        setView("insights");
-        return;
-      }
-
-      setView("home");
-    };
-
-    syncView();
-    window.addEventListener("hashchange", syncView);
-
-    return () => window.removeEventListener("hashchange", syncView);
-  }, []);
-
-  return view;
-}
-
 function OwnerDashboardContent() {
   const t = useTranslations("owner");
   const officeT = useTranslations("staff");
+  const { locale } = useI18n();
   const queryClient = useQueryClient();
   const accessToken = useStaffAuthStore((state) => state.accessToken);
   const staffUser = useStaffAuthStore((state) => state.staffUser);
@@ -618,13 +603,7 @@ function OwnerDashboardContent() {
     (entry) => entry.branch.id === selectedBranchId
   );
   const selectedBranch = selectedBranchAccess?.branch;
-  const accessibleBranches = useMemo(
-    () => effectiveAccess?.branches ?? [],
-    [effectiveAccess]
-  );
   const [preset, setPreset] = useState<OwnerAnalyticsPreset>("today");
-  const [scopeMode, setScopeMode] = useState<"branch" | "company">("branch");
-  const officeView = useOwnerOfficeView();
   const analyticsQuery = useMemo(() => ({ preset }), [preset]);
   const realtime = useStaffBranchRealtime(selectedBranchId, accessToken);
   const dashboardQuery = useQuery({
@@ -647,22 +626,6 @@ function OwnerDashboardContent() {
       getOwnerDailyReport(selectedBranchId ?? "", analyticsQuery, accessToken),
     enabled: Boolean(selectedBranchId && accessToken),
     staleTime: 15_000
-  });
-  const companyDashboardQueries = useQueries({
-    queries: accessibleBranches.map((entry) => ({
-      queryKey: staffQueryKeys.ownerAnalyticsDashboard(
-        entry.branch.id,
-        analyticsQuery
-      ),
-      queryFn: () =>
-        getOwnerAnalyticsDashboard(
-          entry.branch.id,
-          analyticsQuery,
-          accessToken
-        ),
-      enabled: Boolean(accessToken && scopeMode === "company"),
-      staleTime: 15_000
-    }))
   });
   const refreshAll = () => {
     if (!selectedBranchId) {
@@ -718,63 +681,12 @@ function OwnerDashboardContent() {
   const aiWaiter = dashboard.aiWaiter;
   const currency = getDashboardCurrency(dashboard);
   const topItemName = items.topItemsByQuantity[0]?.name ?? t("empty.noData");
-  const companyRows = accessibleBranches.flatMap((entry, index) => {
-    const branchDashboard = companyDashboardQueries[index]?.data;
-
-    return branchDashboard
-      ? [{ branch: entry.branch, dashboard: branchDashboard }]
-      : [];
-  });
-  const companyCurrencies = new Set(
-    companyRows.map((row) => getDashboardCurrency(row.dashboard))
-  );
-  const companyCurrency =
-    companyCurrencies.size === 1
-      ? companyCurrencies.values().next().value ?? currency
-      : null;
-  const companyTotals = companyRows.reduce(
-    (totals, row) => {
-      totals.revenueMinor += row.dashboard.summary.paidRevenueMinor;
-      totals.collectedMinor += row.dashboard.summary.collectedMinor;
-      totals.paidBillCount += row.dashboard.summary.paidBillCount;
-      totals.orders += row.dashboard.orders.submittedOrderCount;
-      totals.urgentAttention += row.dashboard.operations.urgentAttentionCount;
-      totals.activeAttention += row.dashboard.operations.activeAttentionCount;
-      totals.waiterCalls += row.dashboard.summary.openWaiterCallCount;
-      totals.lowStock += row.dashboard.summary.lowStockCount ?? 0;
-      totals.outOfStock += row.dashboard.summary.outOfStockCount ?? 0;
-      totals.failedPrintJobs += row.dashboard.operations.failedPrintJobCount;
-      totals.blockedMenuItems +=
-        row.dashboard.summary.stockBlockedMenuItemCount ?? 0;
-      totals.cashOverShortMinor += row.dashboard.cashierShifts.totalOverShortMinor;
-      totals.shiftCount += row.dashboard.cashierShifts.shiftCount;
-      totals.aiSessions += row.dashboard.aiWaiter.aiSessionCount;
-      totals.aiMessages += row.dashboard.aiWaiter.aiMessageCount;
-      totals.aiEscalations += row.dashboard.aiWaiter.escalatedCount;
-      return totals;
-    },
-    {
-      revenueMinor: 0,
-      collectedMinor: 0,
-      paidBillCount: 0,
-      orders: 0,
-      urgentAttention: 0,
-      activeAttention: 0,
-      waiterCalls: 0,
-      lowStock: 0,
-      outOfStock: 0,
-      failedPrintJobs: 0,
-      blockedMenuItems: 0,
-      cashOverShortMinor: 0,
-      shiftCount: 0,
-      aiSessions: 0,
-      aiMessages: 0,
-      aiEscalations: 0
-    }
-  );
-  const companyScopePending =
-    scopeMode === "company" &&
-    companyDashboardQueries.some((query) => query.isPending);
+  const cashOverShortTone =
+    cashierShifts.totalOverShortMinor === 0
+      ? "success"
+      : cashierShifts.totalOverShortMinor > 0
+        ? "warning"
+        : "accent";
 
   return (
     <div className="grid gap-5">
@@ -782,55 +694,17 @@ function OwnerDashboardContent() {
         <CardHeader className="gap-4 xl:flex xl:flex-row xl:items-start xl:justify-between xl:space-y-0">
           <div>
             <div className="flex flex-wrap items-center gap-2">
-              <Badge variant="muted">
-                {officeView === "operations"
-                  ? officeT("office.operations")
-                  : officeView === "insights"
-                    ? officeT("office.insights")
-                    : officeT("office.home")}
-              </Badge>
-              <div className="flex rounded-md border border-[#D6D6D1] bg-white p-0.5">
-                <Button
-                  type="button"
-                  size="sm"
-                  variant={scopeMode === "company" ? "primary" : "ghost"}
-                  onClick={() => setScopeMode("company")}
-                  disabled={accessibleBranches.length < 2}
-                >
-                  {officeT("office.sourceCompany")}
-                </Button>
-                <Button
-                  type="button"
-                  size="sm"
-                  variant={scopeMode === "branch" ? "primary" : "ghost"}
-                  onClick={() => setScopeMode("branch")}
-                >
-                  {officeT("office.sourceBranch")}
-                </Button>
-              </div>
+              <Badge variant="muted">{t("dashboard.badge")}</Badge>
               <StaffRealtimeStatus
                 state={realtime.state}
                 lastEventType={realtime.lastEventType}
               />
             </div>
-            <CardTitle className="mt-3">
-              {scopeMode === "company"
-                ? selectedBranchAccess?.company.name ?? selectedBranch.name
-                : selectedBranch.name}
-            </CardTitle>
+            <CardTitle className="mt-3">{selectedBranch.name}</CardTitle>
             <CardDescription>
-              {scopeMode === "company"
-                ? `${accessibleBranches.length.toLocaleString("en")} ${officeT("office.locations")}`
-                : officeView === "operations"
-                  ? officeT("office.operationsDescription")
-                  : officeView === "insights"
-                    ? officeT("office.insightsDescription")
-                    : t("dashboard.viewingDescription", {
-                        name:
-                          staffUser?.name ||
-                          staffUser?.email ||
-                          t("dashboard.staffUserFallback")
-                      })}
+              {t("dashboard.viewingDescription", {
+                name: staffUser?.name || staffUser?.email || t("dashboard.staffUserFallback")
+              })}
             </CardDescription>
           </div>
           <div className="grid gap-3">
@@ -843,669 +717,345 @@ function OwnerDashboardContent() {
         </CardHeader>
       </Card>
 
-      <OwnerDataWarning
-        label={t("analytics.dailyReport")}
-        error={reportQuery.error}
-      />
+      <OwnerDataWarning label={t("analytics.dailyReport")} error={reportQuery.error} />
 
-      {officeView === "home" ? (
-        <>
-          {companyScopePending ? (
-            <LoadingState label={t("dashboard.loadingAnalytics")} />
-          ) : null}
+      <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+        <MetricCard
+          label={t("analytics.revenue")}
+          value={formatMoney(summary.paidRevenueMinor, currency)}
+          description={t("analytics.revenueDescription")}
+          icon={<BarChart3 className="size-4" aria-hidden="true" />}
+          tone="success"
+        />
+        <MetricCard
+          label={t("analytics.collected")}
+          value={formatMoney(summary.collectedMinor, currency)}
+          description={t("analytics.collectedDescription")}
+          icon={<WalletCards className="size-4" aria-hidden="true" />}
+          tone="primary"
+        />
+        <MetricCard
+          label={t("analytics.averageTicket")}
+          value={formatMoney(summary.averageTicketMinor, currency)}
+          description={t("analytics.paidBillsCount", {
+            count: summary.paidBillCount.toLocaleString("en")
+          })}
+          icon={<Receipt className="size-4" aria-hidden="true" />}
+          tone="accent"
+        />
+        <MetricCard
+          label={t("analytics.orders")}
+          value={orders.submittedOrderCount.toLocaleString("en")}
+          description={t("analytics.ordersDescription", {
+            served: summary.servedOrderCount.toLocaleString("en"),
+            completed: summary.completedOrderCount.toLocaleString("en")
+          })}
+          icon={<ShoppingBag className="size-4" aria-hidden="true" />}
+          tone="muted"
+        />
+        <MetricCard
+          label={t("analytics.cashOverShort")}
+          value={formatMoney(cashierShifts.totalOverShortMinor, currency)}
+          description={t("analytics.closedShiftsCount", {
+            count: cashierShifts.shiftCount.toLocaleString("en")
+          })}
+          icon={<WalletCards className="size-4" aria-hidden="true" />}
+          tone={cashOverShortTone}
+        />
+        <MetricCard
+          label={t("analytics.openWaiterCalls")}
+          value={summary.openWaiterCallCount.toLocaleString("en")}
+          description={t("analytics.activeBillRequestsCount", {
+            count: summary.activeBillRequestCount.toLocaleString("en")
+          })}
+          icon={<UserRoundCheck className="size-4" aria-hidden="true" />}
+          tone="warning"
+        />
+        <MetricCard
+          label={t("analytics.stockRisk")}
+          value={`${summary.lowStockCount ?? 0}/${summary.outOfStockCount ?? 0}`}
+          description={t("analytics.stockRiskDescription", {
+            count: summary.stockBlockedMenuItemCount ?? 0
+          })}
+          icon={<Boxes className="size-4" aria-hidden="true" />}
+          tone={
+            (summary.outOfStockCount ?? 0) > 0 ||
+            (summary.stockBlockedMenuItemCount ?? 0) > 0
+              ? "warning"
+              : "success"
+          }
+        />
+        <MetricCard
+          label={t("analytics.aiSessions")}
+          value={aiWaiter.aiSessionCount.toLocaleString("en")}
+          description={t("analytics.aiSessionsDescription", {
+            messages: aiWaiter.aiMessageCount.toLocaleString("en"),
+            escalations: aiWaiter.escalatedCount.toLocaleString("en")
+          })}
+          icon={<Bot className="size-4" aria-hidden="true" />}
+          tone="primary"
+        />
+        <MetricCard
+          label={t("analytics.topItem")}
+          value={topItemName}
+          description={t("analytics.topItemDescription")}
+          icon={<Sparkles className="size-4" aria-hidden="true" />}
+          tone="success"
+        />
+      </section>
 
-          {scopeMode === "company" && companyRows.length > 0 ? (
-            <>
-              <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-                <MetricCard
-                  label={t("pulse.urgent")}
-                  value={companyTotals.urgentAttention.toLocaleString("en")}
-                  description={t("pulse.urgentDescription")}
-                  icon={<UserRoundCheck className="size-4" aria-hidden="true" />}
-                  tone={companyTotals.urgentAttention > 0 ? "warning" : "success"}
-                />
-                <MetricCard
-                  label={t("analytics.openWaiterCalls")}
-                  value={companyTotals.waiterCalls.toLocaleString("en")}
-                  description={t("pulse.waiterCallsDescription")}
-                  icon={<UserRoundCheck className="size-4" aria-hidden="true" />}
-                  tone={companyTotals.waiterCalls > 0 ? "warning" : "success"}
-                />
-                <MetricCard
-                  label={t("analytics.stockRisk")}
-                  value={`${companyTotals.lowStock}/${companyTotals.outOfStock}`}
-                  description={t("analytics.stockRiskDescription", {
-                    count: companyTotals.blockedMenuItems
-                  })}
-                  icon={<Boxes className="size-4" aria-hidden="true" />}
-                  tone={
-                    companyTotals.outOfStock > 0 ||
-                    companyTotals.blockedMenuItems > 0
-                      ? "warning"
-                      : "success"
-                  }
-                />
-                <MetricCard
-                  label={t("orders.printJobs")}
-                  value={companyTotals.failedPrintJobs.toLocaleString("en")}
-                  description={t("orders.printJobsDescription", {
-                    count: companyTotals.failedPrintJobs.toLocaleString("en")
-                  })}
-                  icon={<Receipt className="size-4" aria-hidden="true" />}
-                  tone={companyTotals.failedPrintJobs > 0 ? "warning" : "success"}
-                />
-              </section>
+      <section id="money" className="scroll-mt-24 grid gap-3">
+        <div className="border-b border-[#DADAD5] pb-3">
+          <h2 className="text-lg font-semibold tracking-[-0.02em] text-[#20201D]">
+            {officeT("office.moneyTitle")}
+          </h2>
+          <p className="mt-1 text-xs leading-5 text-[#74746E]">
+            {officeT("office.moneyDescription")}
+          </p>
+        </div>
+        <div className="grid gap-5 xl:grid-cols-2">
+          <MoneyRowsCard
+            title={t("analytics.tenderBreakdown")}
+            description={t("analytics.tenderBreakdownDescription")}
+            rows={sales.tenderBreakdown}
+            currency={currency}
+          />
+          <MoneyRowsCard
+            title={t("analytics.revenueByDay")}
+            description={t("analytics.revenueByDayDescription")}
+            rows={sales.revenueByDay}
+            currency={currency}
+          />
+        </div>
 
-              <Card variant="quiet">
-                <CardHeader>
-                  <CardTitle>{officeT("office.locations")}</CardTitle>
-                  <CardDescription>
-                    {officeT("office.insightsDescription")}
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="grid gap-2">
-                  {companyRows.map((row) => (
-                    <div
-                      key={row.branch.id}
-                      className="grid gap-2 rounded-card border bg-surface/70 p-3 text-sm md:grid-cols-[minmax(0,1.5fr)_repeat(4,minmax(0,auto))] md:items-center"
-                    >
-                      <span className="font-semibold">{row.branch.name}</span>
-                      <span>
-                        {formatMoney(
-                          row.dashboard.summary.paidRevenueMinor,
-                          getDashboardCurrency(row.dashboard)
-                        )}
-                      </span>
-                      <span>
-                        {row.dashboard.orders.submittedOrderCount.toLocaleString("en")}{" "}
-                        {t("analytics.orders")}
-                      </span>
-                      <span>
-                        {row.dashboard.operations.urgentAttentionCount.toLocaleString("en")}{" "}
-                        {t("pulse.urgent")}
-                      </span>
-                      <span>
-                        {(row.dashboard.summary.outOfStockCount ?? 0).toLocaleString("en")}{" "}
-                        {t("analytics.stockRisk")}
-                      </span>
-                    </div>
-                  ))}
-                </CardContent>
-              </Card>
+        <CashierShiftPanel data={cashierShifts} currency={currency} />
+      </section>
 
-              <Card variant="quiet">
-                <CardContent className="grid gap-3 pt-5 md:grid-cols-2 xl:grid-cols-4">
-                  <ReportValue
-                    label={t("analytics.revenue")}
-                    value={
-                      companyCurrency
-                        ? formatMoney(companyTotals.revenueMinor, companyCurrency)
-                        : t("empty.noData")
-                    }
-                  />
-                  <ReportValue
-                    label={t("analytics.orders")}
-                    value={companyTotals.orders.toLocaleString("en")}
-                  />
-                  <ReportValue
-                    label={t("pulse.urgent")}
-                    value={companyTotals.activeAttention.toLocaleString("en")}
-                  />
-                  <ReportValue
-                    label={officeT("office.locations")}
-                    value={companyRows.length.toLocaleString("en")}
-                  />
-                </CardContent>
-              </Card>
-            </>
-          ) : null}
+      <section id="operations" className="scroll-mt-24 grid gap-3">
+        <div className="border-b border-[#DADAD5] pb-3">
+          <h2 className="text-lg font-semibold tracking-[-0.02em] text-[#20201D]">
+            {officeT("office.operationsTitle")}
+          </h2>
+          <p className="mt-1 text-xs leading-5 text-[#74746E]">
+            {officeT("office.operationsDescription")}
+          </p>
+        </div>
+        <div className="grid gap-5 xl:grid-cols-3">
+          <CountRowsCard
+            title={t("orders.statusTitle")}
+            description={t("orders.statusDescription")}
+            rows={orders.orderCountByStatus}
+          />
+          <CountRowsCard
+            title={t("orders.billStatusTitle")}
+            description={t("orders.billStatusDescription")}
+            rows={sales.billCountByStatus}
+          />
+          <CountRowsCard
+            title={t("orders.waiterCallsTitle")}
+            description={t("orders.waiterCallsDescription")}
+            rows={operations.waiterCallCountsByStatus}
+          />
+        </div>
 
-          {scopeMode === "branch" ? (
-            <>
-          <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-            <MetricCard
-              label={t("pulse.urgent")}
-              value={operations.urgentAttentionCount.toLocaleString("en")}
-              description={t("pulse.urgentDescription")}
-              icon={<UserRoundCheck className="size-4" aria-hidden="true" />}
-              tone={operations.urgentAttentionCount > 0 ? "warning" : "success"}
-            />
-            <MetricCard
-              label={t("analytics.openWaiterCalls")}
-              value={summary.openWaiterCallCount.toLocaleString("en")}
-              description={t("pulse.waiterCallsDescription")}
-              icon={<UserRoundCheck className="size-4" aria-hidden="true" />}
-              tone={summary.openWaiterCallCount > 0 ? "warning" : "success"}
-            />
-            <MetricCard
-              label={t("analytics.stockRisk")}
-              value={`${summary.lowStockCount ?? 0}/${summary.outOfStockCount ?? 0}`}
-              description={t("analytics.stockRiskDescription", {
-                count: summary.stockBlockedMenuItemCount ?? 0
-              })}
-              icon={<Boxes className="size-4" aria-hidden="true" />}
-              tone={
-                (summary.outOfStockCount ?? 0) > 0 ||
-                (summary.stockBlockedMenuItemCount ?? 0) > 0
-                  ? "warning"
-                  : "success"
-              }
-            />
-            <MetricCard
-              label={t("orders.printJobs")}
-              value={operations.failedPrintJobCount.toLocaleString("en")}
-              description={t("orders.printJobsDescription", {
-                count: operations.failedPrintJobCount.toLocaleString("en")
-              })}
-              icon={<Receipt className="size-4" aria-hidden="true" />}
-              tone={operations.failedPrintJobCount > 0 ? "warning" : "success"}
-            />
-          </section>
+        <Card variant="quiet">
+        <CardHeader>
+          <Badge variant="muted" className="w-fit">
+            {t("orders.lifecycleBadge")}
+          </Badge>
+          <CardTitle>{t("orders.timingTitle")}</CardTitle>
+          <CardDescription>
+            {t("orders.timingDescription")}
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
+          <DurationMetric
+            label={t("orders.submitToAccept")}
+            seconds={orders.lifecycleAverages.submittedToAcceptedSeconds}
+          />
+          <DurationMetric
+            label={t("orders.acceptToPrep")}
+            seconds={orders.lifecycleAverages.acceptedToPreparingSeconds}
+          />
+          <DurationMetric
+            label={t("orders.prepToReady")}
+            seconds={orders.lifecycleAverages.preparingToReadySeconds}
+          />
+          <DurationMetric
+            label={t("orders.readyToServed")}
+            seconds={orders.lifecycleAverages.readyToServedSeconds}
+          />
+          <DurationMetric
+            label={t("orders.submitToServed")}
+            seconds={orders.lifecycleAverages.submittedToServedSeconds}
+          />
+        </CardContent>
+        </Card>
 
+        <section className="grid gap-5 xl:grid-cols-3">
+          <CountRowsCard
+            title={t("orders.preparationTasks")}
+            description={t("orders.preparationTasksDescription")}
+            rows={operations.preparationTaskCountsByStatus}
+          />
+          <CountRowsCard
+            title={t("orders.kitchenTickets")}
+            description={t("orders.kitchenTicketsDescription")}
+            rows={operations.kitchenTicketCountsByStatus}
+          />
+          <CountRowsCard
+            title={t("orders.printJobs")}
+            description={t("orders.printJobsDescription", {
+              count: operations.failedPrintJobCount.toLocaleString("en")
+            })}
+            rows={operations.printJobCountsByStatus}
+          />
+        </section>
+      </section>
+
+      <section id="insights" className="scroll-mt-24 grid gap-3">
+        <div className="border-b border-[#DADAD5] pb-3">
+          <h2 className="text-lg font-semibold tracking-[-0.02em] text-[#20201D]">
+            {officeT("office.insightsTitle")}
+          </h2>
+          <p className="mt-1 text-xs leading-5 text-[#74746E]">
+            {officeT("office.insightsDescription")}
+          </p>
+        </div>
+        <div className="grid gap-5 xl:grid-cols-2">
+          <TopItemsCard
+          title={t("menu.topItemsByQuantity")}
+          rows={items.topItemsByQuantity}
+          currency={currency}
+        />
+          <TopItemsCard
+            title={t("menu.topItemsByRevenue")}
+            rows={items.topItemsByRevenue}
+            currency={currency}
+          />
+        </div>
+
+        <section className="grid gap-5 xl:grid-cols-[1fr_1fr_1fr]">
           <Card variant="quiet">
             <CardHeader>
-              <Badge variant="muted" className="w-fit">
-                {t("operations.snapshotBadge")}
-              </Badge>
-              <CardTitle>
-                {t("health.branchHealthTitle", {
-                  branchName: selectedBranch.name
-                })}
-              </CardTitle>
+              <CardTitle>{t("analytics.aiWaiterTitle")}</CardTitle>
               <CardDescription>
-                {operations.activeAttentionCount > 0
-                  ? t("health.descriptions.needsManagerAttention")
-                  : t("health.descriptions.calm")}
+                {t("analytics.aiWaiterDescription")}
               </CardDescription>
             </CardHeader>
-            <CardContent className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+            <CardContent className="grid gap-3">
               <ReportValue
-                label={t("analytics.revenue")}
-                value={formatMoney(summary.paidRevenueMinor, currency)}
+                label={t("analytics.proposals")}
+                value={t("analytics.proposalsValue", {
+                  applied: aiWaiter.appliedProposalCount.toLocaleString("en"),
+                  total: aiWaiter.proposalCount.toLocaleString("en")
+                })}
               />
               <ReportValue
-                label={t("analytics.orders")}
-                value={orders.submittedOrderCount.toLocaleString("en")}
+                label={t("analytics.tokens")}
+                value={t("analytics.tokensValue", {
+                  input: aiWaiter.inputTokens.toLocaleString("en"),
+                  output: aiWaiter.outputTokens.toLocaleString("en")
+                })}
               />
               <ReportValue
-                label={t("pulse.billRequests")}
-                value={summary.activeBillRequestCount.toLocaleString("en")}
-              />
-              <ReportValue
-                label={t("analytics.topItem")}
-                value={topItemName}
+                label={t("analytics.estimatedCost")}
+                value={formatAiCost(aiWaiter.estimatedCostMicros)}
               />
             </CardContent>
           </Card>
-
-          <div className="grid gap-5 xl:grid-cols-2">
-            <CountRowsCard
-              title={t("orders.waiterCallsTitle")}
-              description={t("orders.waiterCallsDescription")}
-              rows={operations.waiterCallCountsByStatus}
-            />
-            <CountRowsCard
-              title={t("orders.preparationTasks")}
-              description={t("orders.preparationTasksDescription")}
-              rows={operations.preparationTaskCountsByStatus}
-            />
-          </div>
-
-            </>
-          ) : null}
-        </>
-      ) : null}
-
-      {officeView === "operations" ? (
-        <section className="grid gap-5">
-          {scopeMode === "company" ? (
-            <>
-
-          {companyScopePending ? (
-            <LoadingState label={t("dashboard.loadingAnalytics")} />
-          ) : null}
-          {companyRows.length > 0 ? (
-            <>
-              <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
-                <MetricCard
-                  label={t("pulse.urgent")}
-                  value={companyTotals.urgentAttention.toLocaleString("en")}
-                  description={t("pulse.urgentDescription")}
-                  icon={<UserRoundCheck className="size-4" aria-hidden="true" />}
-                  tone={companyTotals.urgentAttention > 0 ? "warning" : "success"}
-                />
-                <MetricCard
-                  label={t("analytics.orders")}
-                  value={companyTotals.orders.toLocaleString("en")}
-                  description={officeT("office.operationsDescription")}
-                  icon={<ShoppingBag className="size-4" aria-hidden="true" />}
-                  tone="muted"
-                />
-                <MetricCard
-                  label={t("analytics.openWaiterCalls")}
-                  value={companyTotals.waiterCalls.toLocaleString("en")}
-                  description={t("pulse.waiterCallsDescription")}
-                  icon={<UserRoundCheck className="size-4" aria-hidden="true" />}
-                  tone={companyTotals.waiterCalls > 0 ? "warning" : "success"}
-                />
-                <MetricCard
-                  label={t("orders.printJobs")}
-                  value={companyTotals.failedPrintJobs.toLocaleString("en")}
-                  description={t("orders.printJobsDescription", {
-                    count: companyTotals.failedPrintJobs.toLocaleString("en")
-                  })}
-                  icon={<Receipt className="size-4" aria-hidden="true" />}
-                  tone={companyTotals.failedPrintJobs > 0 ? "warning" : "success"}
-                />
-                <MetricCard
-                  label={t("analytics.aiSessions")}
-                  value={companyTotals.aiSessions.toLocaleString("en")}
-                  description={t("analytics.aiSessionsDescription", {
-                    messages: companyTotals.aiMessages.toLocaleString("en"),
-                    escalations: companyTotals.aiEscalations.toLocaleString("en")
-                  })}
-                  icon={<Bot className="size-4" aria-hidden="true" />}
-                  tone="primary"
-                />
-              </div>
-
-              <Card variant="quiet">
-                <CardHeader>
-                  <CardTitle>{officeT("office.locations")}</CardTitle>
-                  <CardDescription>
-                    {officeT("office.operationsDescription")}
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="grid gap-2">
-                  {companyRows.map((row) => (
-                    <div
-                      key={row.branch.id}
-                      className="grid gap-2 rounded-card border bg-surface/70 p-3 text-sm md:grid-cols-[minmax(0,1.5fr)_repeat(4,minmax(0,auto))] md:items-center"
-                    >
-                      <span className="font-semibold">{row.branch.name}</span>
-                      <span>
-                        {row.dashboard.operations.urgentAttentionCount.toLocaleString("en")}{" "}
-                        {t("pulse.urgent")}
-                      </span>
-                      <span>
-                        {row.dashboard.orders.submittedOrderCount.toLocaleString("en")}{" "}
-                        {t("analytics.orders")}
-                      </span>
-                      <span>
-                        {row.dashboard.summary.openWaiterCallCount.toLocaleString("en")}{" "}
-                        {t("analytics.openWaiterCalls")}
-                      </span>
-                      <span>
-                        {row.dashboard.operations.failedPrintJobCount.toLocaleString("en")}{" "}
-                        {t("orders.printJobs")}
-                      </span>
-                    </div>
-                  ))}
-                </CardContent>
-              </Card>
-            </>
-          ) : null}
-
-            </>
-          ) : (
-            <>
-
-          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-            <MetricCard
-              label={t("pulse.urgent")}
-              value={operations.urgentAttentionCount.toLocaleString("en")}
-              description={t("pulse.urgentDescription")}
-              icon={<UserRoundCheck className="size-4" aria-hidden="true" />}
-              tone={operations.urgentAttentionCount > 0 ? "warning" : "success"}
-            />
-            <MetricCard
-              label={t("analytics.orders")}
-              value={orders.submittedOrderCount.toLocaleString("en")}
-              description={t("analytics.ordersDescription", {
-                served: summary.servedOrderCount.toLocaleString("en"),
-                completed: summary.completedOrderCount.toLocaleString("en")
-              })}
-              icon={<ShoppingBag className="size-4" aria-hidden="true" />}
-              tone="muted"
-            />
-            <MetricCard
-              label={t("analytics.openWaiterCalls")}
-              value={summary.openWaiterCallCount.toLocaleString("en")}
-              description={t("pulse.waiterCallsDescription")}
-              icon={<UserRoundCheck className="size-4" aria-hidden="true" />}
-              tone={summary.openWaiterCallCount > 0 ? "warning" : "success"}
-            />
-            <MetricCard
-              label={t("orders.printJobs")}
-              value={operations.failedPrintJobCount.toLocaleString("en")}
-              description={t("orders.printJobsDescription", {
-                count: operations.failedPrintJobCount.toLocaleString("en")
-              })}
-              icon={<Receipt className="size-4" aria-hidden="true" />}
-              tone={operations.failedPrintJobCount > 0 ? "warning" : "success"}
-            />
-
-            <MetricCard
-              label={t("analytics.aiSessions")}
-              value={aiWaiter.aiSessionCount.toLocaleString("en")}
-              description={t("analytics.aiSessionsDescription", {
-                messages: aiWaiter.aiMessageCount.toLocaleString("en"),
-                escalations: aiWaiter.escalatedCount.toLocaleString("en")
-              })}
-              icon={<Bot className="size-4" aria-hidden="true" />}
-              tone="primary"
-            />
-          </div>
-
-          <div className="grid gap-5 xl:grid-cols-3">
-            <CountRowsCard
-              title={t("orders.statusTitle")}
-              description={t("orders.statusDescription")}
-              rows={orders.orderCountByStatus}
-            />
-            <CountRowsCard
-              title={t("orders.billStatusTitle")}
-              description={t("orders.billStatusDescription")}
-              rows={sales.billCountByStatus}
-            />
-            <CountRowsCard
-              title={t("orders.waiterCallsTitle")}
-              description={t("orders.waiterCallsDescription")}
-              rows={operations.waiterCallCountsByStatus}
-            />
-          </div>
-
+          <CountRowsCard
+            title={t("analytics.aiEscalationReasons")}
+            description={t("analytics.aiEscalationReasonsDescription")}
+            rows={aiWaiter.topEscalationReasons}
+          />
           <Card variant="quiet">
             <CardHeader>
-              <Badge variant="muted" className="w-fit">
-                {t("orders.lifecycleBadge")}
-              </Badge>
-              <CardTitle>{t("orders.timingTitle")}</CardTitle>
-              <CardDescription>{t("orders.timingDescription")}</CardDescription>
+              <CardTitle>{t("analytics.latestPaidBill")}</CardTitle>
+              <CardDescription>
+                {t("analytics.latestPaidBillDescription")}
+              </CardDescription>
             </CardHeader>
-            <CardContent className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
-              <DurationMetric
-                label={t("orders.submitToAccept")}
-                seconds={orders.lifecycleAverages.submittedToAcceptedSeconds}
-              />
-              <DurationMetric
-                label={t("orders.acceptToPrep")}
-                seconds={orders.lifecycleAverages.acceptedToPreparingSeconds}
-              />
-              <DurationMetric
-                label={t("orders.prepToReady")}
-                seconds={orders.lifecycleAverages.preparingToReadySeconds}
-              />
-              <DurationMetric
-                label={t("orders.readyToServed")}
-                seconds={orders.lifecycleAverages.readyToServedSeconds}
-              />
-              <DurationMetric
-                label={t("orders.submitToServed")}
-                seconds={orders.lifecycleAverages.submittedToServedSeconds}
-              />
+            <CardContent>
+              {sales.topPaidBills[0] ? (
+                <div className="grid gap-2 rounded-card border bg-surface/70 p-4 text-sm text-muted-foreground">
+                  <p className="font-semibold text-foreground">
+                    {getRecordString(sales.topPaidBills[0], "billNumber", "Bill")}
+                  </p>
+                  <p>
+                    {formatMoney(
+                      getRecordNumber(sales.topPaidBills[0], "totalMinor"),
+                      currency
+                    )}
+                  </p>
+                  <p>
+                    {ownerStatusLabel(
+                      getRecordString(sales.topPaidBills[0], "status"),
+                      t
+                    )}
+                  </p>
+                </div>
+              ) : (
+                <EmptyRangeState />
+              )}
             </CardContent>
           </Card>
-
-          <div className="grid gap-5 xl:grid-cols-3">
-            <CountRowsCard
-              title={t("orders.preparationTasks")}
-              description={t("orders.preparationTasksDescription")}
-              rows={operations.preparationTaskCountsByStatus}
-            />
-            <CountRowsCard
-              title={t("orders.kitchenTickets")}
-              description={t("orders.kitchenTicketsDescription")}
-              rows={operations.kitchenTicketCountsByStatus}
-            />
-            <CountRowsCard
-              title={t("orders.printJobs")}
-              description={t("orders.printJobsDescription", {
-                count: operations.failedPrintJobCount.toLocaleString("en")
-              })}
-              rows={operations.printJobCountsByStatus}
-            />
-          </div>
-
-          <CashierShiftPanel data={cashierShifts} currency={currency} />
-
-            </>
-          )}
         </section>
-      ) : null}
 
-      {officeView === "insights" ? (
-        <section className="grid gap-5">
-          {scopeMode === "company" ? (
-            <>
+        <DailyReportPanel report={reportQuery.data} currency={currency} />
+      </section>
 
-          {companyScopePending ? (
-            <LoadingState label={t("dashboard.loadingAnalytics")} />
-          ) : null}
+      <OfficeFoundationPanels />
 
-          {companyRows.length > 0 ? (
-            <>
-              <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-                <MetricCard
-                  label={t("analytics.revenue")}
-                  value={
-                    companyCurrency
-                      ? formatMoney(companyTotals.revenueMinor, companyCurrency)
-                      : t("empty.noData")
-                  }
-                  description={t("analytics.revenueDescription")}
-                  icon={<BarChart3 className="size-4" aria-hidden="true" />}
-                  tone="success"
-                />
-                <MetricCard
-                  label={t("analytics.collected")}
-                  value={
-                    companyCurrency
-                      ? formatMoney(companyTotals.collectedMinor, companyCurrency)
-                      : t("empty.noData")
-                  }
-                  description={t("analytics.collectedDescription")}
-                  icon={<WalletCards className="size-4" aria-hidden="true" />}
-                  tone="primary"
-                />
-                <MetricCard
-                  label={t("analytics.averageTicket")}
-                  value={
-                    companyCurrency && companyTotals.paidBillCount > 0
-                      ? formatMoney(
-                          Math.round(
-                            companyTotals.revenueMinor /
-                              companyTotals.paidBillCount
-                          ),
-                          companyCurrency
-                        )
-                      : t("empty.noData")
-                  }
-                  description={t("analytics.paidBillsCount", {
-                    count: companyTotals.paidBillCount.toLocaleString("en")
-                  })}
-                  icon={<Receipt className="size-4" aria-hidden="true" />}
-                  tone="accent"
-                />
-                <MetricCard
-                  label={t("analytics.orders")}
-                  value={companyTotals.orders.toLocaleString("en")}
-                  description={officeT("office.insightsDescription")}
-                  icon={<ShoppingBag className="size-4" aria-hidden="true" />}
-                  tone="muted"
-                />
-              </div>
-
-              <div className="grid gap-4 md:grid-cols-2">
-                <MetricCard
-                  label={t("analytics.cashOverShort")}
-                  value={
-                    companyCurrency
-                      ? formatMoney(
-                          companyTotals.cashOverShortMinor,
-                          companyCurrency
-                        )
-                      : t("empty.noData")
-                  }
-                  description={t("analytics.closedShiftsCount", {
-                    count: companyTotals.shiftCount.toLocaleString("en")
-                  })}
-                  icon={<WalletCards className="size-4" aria-hidden="true" />}
-                  tone={
-                    companyTotals.cashOverShortMinor === 0
-                      ? "success"
-                      : "warning"
-                  }
-                />
-                <MetricCard
-                  label={officeT("office.locations")}
-                  value={companyRows.length.toLocaleString("en")}
-                  description={officeT("office.locationsDescription")}
-                  icon={<BarChart3 className="size-4" aria-hidden="true" />}
-                  tone="muted"
-                />
-              </div>
-
-              <Card variant="quiet">
-                <CardHeader>
-                  <CardTitle>{officeT("office.locations")}</CardTitle>
-                  <CardDescription>
-                    {officeT("office.insightsDescription")}
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="grid gap-2">
-                  {companyRows.map((row) => (
-                    <div
-                      key={row.branch.id}
-                      className="grid gap-2 rounded-card border bg-surface/70 p-3 text-sm md:grid-cols-[minmax(0,1.5fr)_repeat(4,minmax(0,auto))] md:items-center"
-                    >
-                      <span className="font-semibold">{row.branch.name}</span>
-                      <span>
-                        {formatMoney(
-                          row.dashboard.summary.paidRevenueMinor,
-                          getDashboardCurrency(row.dashboard)
-                        )}
-                      </span>
-                      <span>
-                        {row.dashboard.orders.submittedOrderCount.toLocaleString("en")}{" "}
-                        {t("analytics.orders")}
-                      </span>
-                      <span>
-                        {row.dashboard.cashierShifts.shiftCount.toLocaleString("en")}{" "}
-                        {t("analytics.closedShiftsCount", {
-                          count: row.dashboard.cashierShifts.shiftCount.toLocaleString("en")
-                        })}
-                      </span>
-                      <span>
-                        {row.dashboard.cashierShifts.totalOverShortMinor === 0
-                          ? t("health.levels.calm")
-                          : formatMoney(
-                              row.dashboard.cashierShifts.totalOverShortMinor,
-                              getDashboardCurrency(row.dashboard)
-                            )}
-                      </span>
-                    </div>
-                  ))}
-                </CardContent>
-              </Card>
-            </>
-          ) : null}
-
-            </>
-          ) : (
-            <>
-
-          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-            <MetricCard
-              label={t("analytics.revenue")}
-              value={formatMoney(summary.paidRevenueMinor, currency)}
-              description={t("analytics.revenueDescription")}
-              icon={<BarChart3 className="size-4" aria-hidden="true" />}
-              tone="success"
-            />
-            <MetricCard
-              label={t("analytics.collected")}
-              value={formatMoney(summary.collectedMinor, currency)}
-              description={t("analytics.collectedDescription")}
-              icon={<WalletCards className="size-4" aria-hidden="true" />}
-              tone="primary"
-            />
-            <MetricCard
-              label={t("analytics.averageTicket")}
-              value={formatMoney(summary.averageTicketMinor, currency)}
-              description={t("analytics.paidBillsCount", {
-                count: summary.paidBillCount.toLocaleString("en")
-              })}
-              icon={<Receipt className="size-4" aria-hidden="true" />}
-              tone="accent"
-            />
-            <MetricCard
-              label={t("analytics.orders")}
-              value={orders.submittedOrderCount.toLocaleString("en")}
-              description={t("analytics.ordersDescription", {
-                served: summary.servedOrderCount.toLocaleString("en"),
-                completed: summary.completedOrderCount.toLocaleString("en")
-              })}
-              icon={<ShoppingBag className="size-4" aria-hidden="true" />}
-              tone="muted"
-            />
+      <Card variant="quiet">
+        <CardHeader className="gap-4 md:flex md:flex-row md:items-center md:justify-between md:space-y-0">
+          <div>
+            <CardTitle>{t("dashboard.managerNavigation")}</CardTitle>
+            <CardDescription>
+              {t("dashboard.managerNavigationDescription")}
+            </CardDescription>
           </div>
-
-          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-            <MetricCard
-              label={t("analytics.cashOverShort")}
-              value={formatMoney(cashierShifts.totalOverShortMinor, currency)}
-              description={t("analytics.closedShiftsCount", {
-                count: cashierShifts.shiftCount.toLocaleString("en")
-              })}
-              icon={<WalletCards className="size-4" aria-hidden="true" />}
-              tone={
-                cashierShifts.totalOverShortMinor === 0 ? "success" : "warning"
-              }
-            />
-            <MetricCard
-              label={t("analytics.topItem")}
-              value={topItemName}
-              description={t("analytics.topItemDescription")}
-              icon={<ShoppingBag className="size-4" aria-hidden="true" />}
-              tone="muted"
-            />
-          </div>
-
-          <div className="grid gap-5 xl:grid-cols-2">
-            <MoneyRowsCard
-              title={t("analytics.tenderBreakdown")}
-              description={t("analytics.tenderBreakdownDescription")}
-              rows={sales.tenderBreakdown}
-              currency={currency}
-            />
-            <MoneyRowsCard
-              title={t("analytics.revenueByDay")}
-              description={t("analytics.revenueByDayDescription")}
-              rows={sales.revenueByDay}
-              currency={currency}
-            />
-          </div>
-
-          <div className="grid gap-5 xl:grid-cols-2">
-            <TopItemsCard
-              title={t("menu.topItemsByQuantity")}
-              rows={items.topItemsByQuantity}
-              currency={currency}
-            />
-            <TopItemsCard
-              title={t("menu.topItemsByRevenue")}
-              rows={items.topItemsByRevenue}
-              currency={currency}
-            />
-          </div>
-
-          <DailyReportPanel report={reportQuery.data} currency={currency} />
-
-            </>
-          )}
-        </section>
-      ) : null}
+          <Badge variant="muted">
+            {t("dashboard.generatedAt", {
+              date: formatOwnerDateTime(dashboard.generatedAt, locale)
+            })}
+          </Badge>
+        </CardHeader>
+        <CardContent className="flex flex-wrap gap-3">
+          <Link
+            href="/staff/billing"
+            className={buttonVariants({ variant: "secondary" })}
+          >
+            <CreditCard className="size-4" aria-hidden="true" />
+            {t("actions.planAndLimits")}
+          </Link>
+          <Link
+            href="/staff/cashier"
+            className={buttonVariants({ variant: "secondary" })}
+          >
+            <Receipt className="size-4" aria-hidden="true" />
+            {t("actions.openCashier")}
+          </Link>
+          <Link
+            href="/staff/kitchen"
+            className={buttonVariants({ variant: "secondary" })}
+          >
+            <ChefHat className="size-4" aria-hidden="true" />
+            {t("actions.openKitchen")}
+          </Link>
+          <Link
+            href="/staff/waiter"
+            className={buttonVariants({ variant: "secondary" })}
+          >
+            <UserRoundCheck className="size-4" aria-hidden="true" />
+            {t("actions.openWaiter")}
+          </Link>
+          <Button variant="secondary" onClick={refreshAll}>
+            <Download className="size-4" aria-hidden="true" />
+            {t("actions.refreshReport")}
+          </Button>
+        </CardContent>
+      </Card>
     </div>
   );
 }
