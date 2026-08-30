@@ -546,11 +546,14 @@ async function capture(browser, {
 
   await page.waitForTimeout(900);
 
-  const pageText = await page.locator("body").innerText();
-
-  if (expectedText && !pageText.includes(expectedText)) {
-    throw new Error(`${label}: expected text ${JSON.stringify(expectedText)} was not visible`);
+  if (expectedText) {
+    await page
+      .getByText(expectedText, { exact: false })
+      .first()
+      .waitFor({ state: "visible", timeout: 5000 });
   }
+
+  const pageText = await page.locator("body").innerText();
 
   if (
     route.startsWith("/customer/session/") &&
