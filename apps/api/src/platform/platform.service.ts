@@ -3,7 +3,6 @@ import {
   Injectable,
   NotFoundException,
 } from "@nestjs/common";
-import { ConfigService } from "@nestjs/config";
 import {
   BranchStatus,
   CompanyStatus,
@@ -163,7 +162,6 @@ type TableRecord = Prisma.CafeTableGetPayload<{ select: typeof tableSelect }>;
 export class PlatformService {
   constructor(
     private readonly prisma: PrismaService,
-    private readonly configService: ConfigService,
     private readonly saasService: SaasService,
     private readonly staffInvitesService: StaffInvitesService,
   ) {}
@@ -646,12 +644,9 @@ export class PlatformService {
           passwordSetup: {
             ownerEmail,
             passwordAlreadySet: Boolean(staffUser.passwordSetAt),
-            devBootstrapAvailable: this.configService.get<boolean>(
-              "staffAuth.devBootstrapEnabled",
-              false,
-            ),
-            instructions:
-              "Set the owner password through the secure staff auth flow. Local dev may use /api/v1/staff-auth/dev/bootstrap-password only when explicitly enabled.",
+            nextStep: staffUser.passwordSetAt
+              ? "Owner access is already established."
+              : "Create an owner invite from the company detail to establish initial access.",
           },
         };
       },
