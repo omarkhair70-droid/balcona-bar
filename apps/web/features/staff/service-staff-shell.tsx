@@ -183,19 +183,10 @@ export function ServiceStaffShell({
         </nav>
       </header>
 
-      <section className="border-b border-[#342A23] bg-[#1C1612] px-3 py-4 sm:px-4">
-        <div className="mx-auto max-w-[1600px]">
-          <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[#9D856D]">
-            {mode === "cashier" ? t("serviceShell.cashierEyebrow") : t("serviceShell.waiterEyebrow")}
-          </p>
-          <h1 className="mt-1 text-xl font-semibold tracking-[-0.02em] text-[#FFF4E6] sm:text-2xl">
-            {title}
-          </h1>
-          <p className="mt-1 max-w-3xl text-xs leading-5 text-[#9E9084] sm:text-sm">
-            {description}
-          </p>
-        </div>
-      </section>
+      <div className="sr-only">
+        <h1>{title}</h1>
+        <p>{description}</p>
+      </div>
 
       <div className="mx-auto max-w-[1600px] p-3 sm:p-4">{children}</div>
     </main>
