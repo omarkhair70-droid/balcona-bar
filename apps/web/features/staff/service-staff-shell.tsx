@@ -197,7 +197,8 @@ export function ServiceStaffShell({
             return (
               <Link
                 key={entry.href}
-                href={entry.href}
+                href={href}
+                scroll={false}
                 aria-current={active ? "page" : undefined}
                 className={cn(
                   "flex min-h-10 min-w-[112px] shrink-0 items-center justify-center gap-2 rounded-md px-3 text-xs font-semibold transition",
