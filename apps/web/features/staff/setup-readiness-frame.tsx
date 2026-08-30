@@ -4,6 +4,7 @@ import {
   AlertTriangle,
   BookOpenText,
   Building2,
+  ClipboardCheck,
   Check,
   ChefHat,
   Circle,
@@ -17,6 +18,7 @@ import {
   UsersRound
 } from "lucide-react";
 import {
+  useEffect,
   useMemo,
   useState,
   type ReactNode
@@ -29,10 +31,10 @@ import type {
 import { useI18n } from "@/lib/i18n/i18n-provider";
 
 export type SetupPhaseId =
+  | "home"
   | "business"
-  | "locations"
   | "menu"
-  | "tables"
+  | "locations"
   | "team"
   | "kitchen"
   | "payments"
@@ -119,24 +121,25 @@ export function SetupReadinessFrame({
   children
 }: SetupReadinessFrameProps) {
   const { locale, setLocale, dir } = useI18n();
-  const [activePhase, setActivePhase] = useState<SetupPhaseId>("business");
+  const [activePhase, setActivePhase] = useState<SetupPhaseId>("home");
 
   const phases = useMemo(
     () => [
+      {
+        id: "home" as const,
+        label: L(locale, "Setup Home", "الرئيسية"),
+        icon: ClipboardCheck,
+        state: launchSummary?.readyForPilot
+          ? ("ready" as const)
+          : launchSummary?.status === "blocked"
+            ? ("blocked" as const)
+            : ("needs_attention" as const)
+      },
       {
         id: "business" as const,
         label: L(locale, "Business", "الشركة"),
         icon: Building2,
         state: phaseStatusFromKeys(onboarding, ["company_profile", "branch_profile"])
-      },
-      {
-        id: "locations" as const,
-        label: L(locale, "Locations", "الفروع"),
-        icon: MapPinned,
-        state:
-          onboarding.tables.floorCount > 0
-            ? ("ready" as const)
-            : ("needs_attention" as const)
       },
       {
         id: "menu" as const,
@@ -150,9 +153,9 @@ export function SetupReadinessFrame({
         ])
       },
       {
-        id: "tables" as const,
-        label: L(locale, "Tables & QR", "الترابيزات وQR"),
-        icon: QrCode,
+        id: "locations" as const,
+        label: L(locale, "Locations / Tables / QR", "الفروع / الترابيزات / QR"),
+        icon: MapPinned,
         state: phaseStatusFromKeys(onboarding, [
           "floors_created",
           "tables_created",
@@ -221,6 +224,25 @@ export function SetupReadinessFrame({
     ],
     [locale, onboarding, launchSummary]
   );
+
+  useEffect(() => {
+    const resumeKey = `balcona_setup_resume:${onboarding.branch.id}`;
+    const hashPhase = window.location.hash.replace(/^#/, "");
+    const storedPhase = window.localStorage.getItem(resumeKey);
+    const candidate = hashPhase || storedPhase;
+
+    if (phases.some((phase) => phase.id === candidate)) {
+      setActivePhase(candidate as SetupPhaseId);
+    }
+  }, [onboarding.branch.id, phases]);
+
+  useEffect(() => {
+    if (!phases.some((phase) => phase.id === activePhase)) return;
+    window.localStorage.setItem(
+      `balcona_setup_resume:${onboarding.branch.id}`,
+      activePhase
+    );
+  }, [activePhase, onboarding.branch.id, phases]);
 
   const readyCount = phases.filter((phase) => phase.state === "ready").length;
   const blockedCount = phases.filter((phase) => phase.state === "blocked").length;
@@ -300,7 +322,14 @@ export function SetupReadinessFrame({
                   <button
                     key={phase.id}
                     type="button"
-                    onClick={() => setActivePhase(phase.id)}
+                    onClick={() => {
+                      setActivePhase(phase.id);
+                      window.history.replaceState(
+                        null,
+                        "",
+                        `${window.location.pathname}${window.location.search}#${phase.id}`
+                      );
+                    }}
                     aria-current={selected ? "step" : undefined}
                     className={`flex min-h-12 shrink-0 items-center gap-3 rounded-lg border px-3 text-start transition lg:w-full lg:shrink ${
                       selected
@@ -334,8 +363,8 @@ export function SetupReadinessFrame({
               <p className="mt-1.5 text-[11px] leading-5 text-[#81766C]">
                 {L(
                   locale,
-                  "After handoff, ongoing changes move to the owning Office domain.",
-                  "بعد التسليم، التعديلات المستمرة تروح للجزء المسؤول داخل Office."
+                  "After handoff, ongoing changes move to the owning Office domain. Your last viewed Setup step is saved on this device.",
+                  "بعد التسليم، التعديلات المستمرة تروح للجزء المسؤول داخل Office. آخر خطوة فتحتها في Setup محفوظة على هذا الجهاز."
                 )}
               </p>
             </div>
