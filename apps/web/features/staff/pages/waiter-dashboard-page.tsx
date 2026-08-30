@@ -780,69 +780,41 @@ function WaiterDashboardContent() {
     <div className="grid gap-5">
       <div
         data-service-status
-        className="flex flex-wrap items-center gap-2 border-b border-[#342A23] pb-3 text-xs text-[#B8AA9E]"
+        className="flex flex-wrap items-center gap-2 border-b border-[#342A23] bg-[#17120F] px-3 py-2 text-xs text-[#B8AA9E]"
       >
-        <div className="flex min-w-0 flex-wrap items-center gap-2">
-          <Badge variant="muted">{t("waiter.badge")}</Badge>
-          <StaffRealtimeStatus
-            state={realtime.state}
-            lastEventType={realtime.lastEventType}
+        <Badge variant="muted">{selectedBranch.name}</Badge>
+        <StaffRealtimeStatus
+          state={realtime.state}
+          lastEventType={realtime.lastEventType}
+        />
+        <Button
+          size="sm"
+          variant="ghost"
+          className="ms-auto min-h-8 text-[#AFA195] hover:bg-[#292019] hover:text-[#F6EBDD]"
+          onClick={refreshBranch}
+          aria-label={t("actions.refreshBranch")}
+        >
+          <RefreshCw className="size-4" aria-hidden="true" />
+        </Button>
+        <Button
+          size="sm"
+          variant="ghost"
+          className="min-h-8 text-[#AFA195] hover:bg-[#292019] hover:text-[#F6EBDD]"
+          onClick={() => rebuildAttentionMutation.mutate(selectedBranchId)}
+          disabled={rebuildAttentionMutation.isPending}
+        >
+          <RefreshCw
+            className={
+              rebuildAttentionMutation.isPending
+                ? "size-4 animate-spin"
+                : "size-4"
+            }
+            aria-hidden="true"
           />
-          <span className="truncate font-semibold text-[#F8EDDF]">
-            {selectedBranch.name}
-          </span>
-        </div>
-
-        <div className="ms-auto flex flex-wrap items-center gap-1.5">
-          <span className="inline-flex min-h-8 items-center gap-1.5 rounded-md border border-[#3B3028] bg-[#211A15] px-2.5">
-            <BellRing className="size-3.5 text-[#F0C66E]" aria-hidden="true" />
-            {t("waiter.openCallsLabel")}{" "}
-            <strong className="text-[#FFF5E8]">
-              {countWaiterCallsByStatus(allWaiterCalls, (status) => status === "open")}
-            </strong>
-          </span>
-          <span className="inline-flex min-h-8 items-center gap-1.5 rounded-md border border-[#3B3028] bg-[#211A15] px-2.5">
-            <AlertTriangle className="size-3.5 text-[#F09C94]" aria-hidden="true" />
-            {t("attention.immediateAttentionLabel")}{" "}
-            <strong className="text-[#FFF5E8]">
-              {countAttentionByStatus(
-                allAttentionQueue,
-                (status, priority) => status === "urgent" || priority === "urgent"
-              )}
-            </strong>
-          </span>
-          <span className="inline-flex min-h-8 items-center gap-1.5 rounded-md border border-[#3B3028] bg-[#211A15] px-2.5">
-            <HandPlatter className="size-3.5 text-[#7FC37E]" aria-hidden="true" />
-            {t("waiter.readyOrdersTitle")}{" "}
-            <strong className="text-[#FFF5E8]">{readyOrders.length}</strong>
-          </span>
-          <Button
-            size="sm"
-            variant="secondary"
-            onClick={refreshBranch}
-            aria-label={t("actions.refreshBranch")}
-          >
-            <RefreshCw className="size-4" aria-hidden="true" />
-          </Button>
-          <Button
-            size="sm"
-            variant="secondary"
-            onClick={() => rebuildAttentionMutation.mutate(selectedBranchId)}
-            disabled={rebuildAttentionMutation.isPending}
-          >
-            <RefreshCw
-              className={
-                rebuildAttentionMutation.isPending
-                  ? "size-4 animate-spin"
-                  : "size-4"
-              }
-              aria-hidden="true"
-            />
-            {rebuildAttentionMutation.isPending
-              ? t("actions.rebuilding")
-              : t("actions.rebuildAttention")}
-          </Button>
-        </div>
+          {rebuildAttentionMutation.isPending
+            ? t("actions.rebuilding")
+            : t("actions.rebuildAttention")}
+        </Button>
       </div>
 
       <NoticeBanner notice={notice} />
