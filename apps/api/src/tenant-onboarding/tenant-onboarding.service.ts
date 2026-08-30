@@ -1072,14 +1072,34 @@ export class TenantOnboardingService {
       ),
       this.item(
         "printer_foundation_ready",
-        "Printer foundation ready",
+        "Printer software routing ready",
         activePrinterStationCount > 0,
         activePrinterStationCount > 0
-          ? `${activePrinterStationCount} active printer station${activePrinterStationCount === 1 ? "" : "s"} configured.`
-          : "No active printer station is configured yet. Mock printer setup is enough for demo, hardware can follow.",
+          ? `${activePrinterStationCount} active printer station record${activePrinterStationCount === 1 ? "" : "s"} configured for software routing. Physical transport is not verified by Setup.`
+          : "No active printer station is configured yet. Configure software routing before venue hardware verification.",
         "/staff/kitchen",
-        { printerStationCount, activePrinterStationCount },
+        {
+          printerStationCount,
+          activePrinterStationCount,
+          physicalTransportVerified: false,
+        },
         activePrinterStationCount > 0 ? undefined : "needs_attention",
+      ),
+      this.item(
+        "physical_printer_hardware_ready",
+        "Physical printer installation verified",
+        false,
+        activePrinterStationCount > 0
+          ? "Software routing exists, but printer transport, cabling, and on-site device success require venue verification."
+          : "Configure printer software routing first, then verify the physical printer on site.",
+        "/staff/kitchen",
+        {
+          externalGate: true,
+          printerStationCount,
+          activePrinterStationCount,
+          physicalTransportVerified: false,
+        },
+        "needs_attention",
       ),
       this.item(
         "bills_payment_ready",
@@ -1094,20 +1114,23 @@ export class TenantOnboardingService {
       ),
       this.item(
         "online_payment_provider_ready",
-        "Online payment provider foundation",
-        onlinePaymentsEnabled && !onlinePaymentProviderIsMock,
-        onlinePaymentsEnabled
-          ? onlinePaymentProviderIsMock
-            ? "Mock online payments are enabled for local/dev checkout. Configure an external provider before production pilots."
-            : "Online payment provider foundation is configured beyond mock checkout."
-          : "Enable online payments before customer hosted checkout can be used.",
+        "Live online payment certification",
+        false,
+        !onlinePaymentsEnabled
+          ? "Online payments are disabled. Manual payment can remain the launch path unless hosted checkout is required."
+          : onlinePaymentProviderIsMock
+            ? "Mock checkout is not live merchant readiness. Configure and externally certify a production provider before hosted payment go-live."
+            : `${onlinePaymentProvider} is configured in software, but merchant/provider certification is an external go-live gate that Setup cannot assert.`,
         "/staff/cashier",
         {
           onlinePaymentsEnabled,
           onlinePaymentProvider,
           mockOnlinePaymentsEnabled,
+          providerConfiguredBeyondMock:
+            onlinePaymentsEnabled && !onlinePaymentProviderIsMock,
+          externalCertificationVerified: false,
         },
-        onlinePaymentProviderIsMock ? "needs_attention" : "missing",
+        onlinePaymentsEnabled ? "blocked" : "needs_attention",
       ),
       this.item(
         "kds_ready",
