@@ -231,25 +231,6 @@ function WaiterDashboardContent() {
     enabled: Boolean(selectedBranchId && accessToken),
     staleTime: 10_000
   });
-  const floorSessionOrdersQuery = useQuery({
-    queryKey: ["staff", "service", "floor", "session-orders", selectedSessionId],
-    queryFn: () =>
-      getTableSessionOrders(selectedSessionId ?? "", accessToken),
-    enabled: Boolean(
-      serviceView === "floor" && selectedSessionId && accessToken
-    ),
-    staleTime: 5_000,
-    placeholderData: keepPreviousData
-  });
-  const floorSessionBillQuery = useQuery({
-    queryKey: ["staff", "service", "floor", "session-bill", selectedSessionId],
-    queryFn: () => getBill(selectedSessionId ?? "", accessToken),
-    enabled: Boolean(
-      serviceView === "floor" && selectedSessionId && accessToken
-    ),
-    staleTime: 5_000,
-    placeholderData: keepPreviousData
-  });
   const waiterCalls = useMemo(
     () => waiterCallsQuery.data?.waiterCalls ?? emptyRecords,
     [waiterCallsQuery.data?.waiterCalls]
@@ -273,6 +254,25 @@ function WaiterDashboardContent() {
     selectedAttentionStillVisible && userSelectedSessionId
       ? userSelectedSessionId
       : getAttentionSessionId(attentionQueue[0]);
+  const floorSessionOrdersQuery = useQuery({
+    queryKey: ["staff", "service", "floor", "session-orders", selectedSessionId],
+    queryFn: () =>
+      getTableSessionOrders(selectedSessionId ?? "", accessToken),
+    enabled: Boolean(
+      serviceView === "floor" && selectedSessionId && accessToken
+    ),
+    staleTime: 5_000,
+    placeholderData: keepPreviousData
+  });
+  const floorSessionBillQuery = useQuery({
+    queryKey: ["staff", "service", "floor", "session-bill", selectedSessionId],
+    queryFn: () => getBill(selectedSessionId ?? "", accessToken),
+    enabled: Boolean(
+      serviceView === "floor" && selectedSessionId && accessToken
+    ),
+    staleTime: 5_000,
+    placeholderData: keepPreviousData
+  });
   const attentionDetailQuery = useQuery({
     queryKey: staffQueryKeys.staffTableSessionAttention(selectedSessionId),
     queryFn: () =>
