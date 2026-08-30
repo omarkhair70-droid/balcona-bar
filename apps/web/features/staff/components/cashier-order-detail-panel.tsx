@@ -235,8 +235,13 @@ export function CashierOrderDetailPanel({
                 })}
               </p>
               {getOrderCustomerNote(order) ? (
-                <div className="mt-4 rounded-md border border-[#71413A] bg-[#321F1C] p-3 text-sm text-[#E4A199]">
-                  {getOrderCustomerNote(order)}
+                <div className="mt-4 rounded-md border border-[#3A3028] bg-[#211A15] p-3">
+                  <p className="text-[10px] font-semibold uppercase tracking-[0.1em] text-[#8F8176]">
+                    {t("orders.customerNote")}
+                  </p>
+                  <p className="mt-1.5 text-sm text-[#D9CCC0]">
+                    {getOrderCustomerNote(order)}
+                  </p>
                 </div>
               ) : null}
               {progressStep || nextExpectedRole ? (
@@ -257,84 +262,92 @@ export function CashierOrderDetailPanel({
               ) : null}
             </div>
 
-            <section className="grid gap-3">
-              <h3 className="flex items-center gap-2 text-sm font-semibold text-[#F8EDDF]">
-                <ListChecks className="size-4 text-primary" aria-hidden="true" />
-                {t("orders.items")}
-              </h3>
+            <section className="overflow-hidden rounded-md border border-[#3C3129] bg-[#211A15]">
+              <div className="border-b border-[#3A3028] px-4 py-3">
+                <h3 className="flex items-center gap-2 text-sm font-semibold text-[#F8EDDF]">
+                  <ListChecks className="size-4 text-primary" aria-hidden="true" />
+                  {t("orders.items")}
+                </h3>
+              </div>
+
               {items.length === 0 ? (
-                <p className="rounded-md border border-dashed border-[#3A3028] bg-[#18130F] p-4 text-sm text-[#91857A]">
+                <p className="p-4 text-sm text-[#91857A]">
                   {t("orders.emptyItems")}
                 </p>
-              ) : null}
-              {items.map((item, index) => {
-                const modifiers = getRecordArray(item.modifierOptions);
-                const itemName =
-                  getRecordString(item, "itemNameSnapshot") ||
-                  t("orders.itemFallback", { index: index + 1 });
+              ) : (
+                <div className="divide-y divide-[#342B24]">
+                  {items.map((item, index) => {
+                    const modifiers = getRecordArray(item.modifierOptions);
+                    const itemName =
+                      getRecordString(item, "itemNameSnapshot") ||
+                      t("orders.itemFallback", { index: index + 1 });
 
-                return (
-                  <div
-                    key={getRecordString(item, "id") || itemName}
-                    className="rounded-md border border-[#3C3129] bg-[#211A15] p-4"
-                  >
-                    <div className="flex flex-wrap items-start justify-between gap-3">
-                      <div>
-                        <p className="text-sm font-semibold text-[#F8EDDF]">
-                          {itemName}
-                        </p>
-                        <p className="mt-1 text-xs text-[#91857A]">
-                          {t("orders.qty", {
-                            count: getRecordNumber(item, "quantity", 1)
-                          })}
-                        </p>
-                      </div>
-                      <p className="text-sm font-semibold text-[#F8EDDF]">
-                        {formatMoney(
-                          getMinorTotal(item),
-                          getCurrency(item)
-                        )}
-                      </p>
-                    </div>
-                    {getRecordString(item, "notes") ? (
-                      <p className="mt-3 text-xs text-warning">
-                        {getRecordString(item, "notes")}
-                      </p>
-                    ) : null}
-                    {modifiers.length > 0 ? (
-                      <div className="mt-3 flex flex-wrap gap-2">
-                        {modifiers.map((modifier, modifierIndex) => (
-                          <span
-                            key={
-                              getRecordString(modifier, "id") ||
-                              `${itemName}-${modifierIndex}`
-                            }
-                            className="rounded-button border bg-muted px-2.5 py-1 text-xs text-[#91857A]"
-                          >
-                            {getRecordString(
-                              modifier,
-                              "modifierOptionNameSnapshot",
-                              t("orders.modifierFallback")
+                    return (
+                      <div
+                        key={getRecordString(item, "id") || itemName}
+                        className="px-4 py-3"
+                      >
+                        <div className="flex flex-wrap items-start justify-between gap-3">
+                          <div>
+                            <p className="text-sm font-semibold text-[#F8EDDF]">
+                              {itemName}
+                            </p>
+                            <p className="mt-1 text-xs text-[#91857A]">
+                              {t("orders.qty", {
+                                count: getRecordNumber(item, "quantity", 1)
+                              })}
+                            </p>
+                          </div>
+                          <p className="text-sm font-semibold text-[#F8EDDF]">
+                            {formatMoney(
+                              getMinorTotal(item),
+                              getCurrency(item)
                             )}
-                            {getRecordNumber(
-                              modifier,
-                              "priceDeltaMinorSnapshot"
-                            ) > 0
-                              ? ` +${formatMoney(
-                                  getRecordNumber(
-                                    modifier,
-                                    "priceDeltaMinorSnapshot"
-                                  ),
-                                  getCurrency(item)
-                                )}`
-                              : ""}
-                          </span>
-                        ))}
+                          </p>
+                        </div>
+
+                        {getRecordString(item, "notes") ? (
+                          <p className="mt-2 text-xs text-warning">
+                            {getRecordString(item, "notes")}
+                          </p>
+                        ) : null}
+
+                        {modifiers.length > 0 ? (
+                          <div className="mt-2 flex flex-wrap gap-2">
+                            {modifiers.map((modifier, modifierIndex) => (
+                              <span
+                                key={
+                                  getRecordString(modifier, "id") ||
+                                  `${itemName}-${modifierIndex}`
+                                }
+                                className="rounded-button border border-[#3A3028] bg-[#18130F] px-2.5 py-1 text-xs text-[#91857A]"
+                              >
+                                {getRecordString(
+                                  modifier,
+                                  "modifierOptionNameSnapshot",
+                                  t("orders.modifierFallback")
+                                )}
+                                {getRecordNumber(
+                                  modifier,
+                                  "priceDeltaMinorSnapshot"
+                                ) > 0
+                                  ? ` +${formatMoney(
+                                      getRecordNumber(
+                                        modifier,
+                                        "priceDeltaMinorSnapshot"
+                                      ),
+                                      getCurrency(item)
+                                    )}`
+                                  : ""}
+                              </span>
+                            ))}
+                          </div>
+                        ) : null}
                       </div>
-                    ) : null}
-                  </div>
-                );
-              })}
+                    );
+                  })}
+                </div>
+              )}
             </section>
 
             <CashierActionBar
