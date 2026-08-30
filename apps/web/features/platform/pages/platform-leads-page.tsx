@@ -10,7 +10,7 @@ import {
   ShieldCheck,
   X
 } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { EmptyState } from "@/components/ui/empty-state";
 import { LoadingState } from "@/components/ui/loading-state";
 import { PlatformAuthGate } from "@/features/platform/components/platform-auth-gate";
@@ -59,10 +59,6 @@ function LeadDetail({
   const [notes, setNotes] = useState(lead.internalNotes ?? "");
   const [notice, setNotice] = useState("");
 
-  useEffect(() => {
-    setNotes(lead.internalNotes ?? "");
-    setNotice("");
-  }, [lead.id, lead.internalNotes]);
 
   const mutation = useMutation({
     mutationFn: (payload: UpdateDemoRequestPayload) =>
@@ -384,7 +380,12 @@ function LeadsContent() {
       </div>
 
       {selected ? (
-        <LeadDetail lead={selected} token={token} onClose={() => setSelectedId(null)} />
+        <LeadDetail
+          key={selected.id}
+          lead={selected}
+          token={token}
+          onClose={() => setSelectedId(null)}
+        />
       ) : null}
     </>
   );
