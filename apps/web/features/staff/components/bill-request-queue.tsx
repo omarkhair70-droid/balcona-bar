@@ -25,6 +25,7 @@ import {
   shortId
 } from "@/features/staff/staff-format";
 import { useTranslations } from "@/lib/i18n/i18n-provider";
+import { cn } from "@/lib/utils/cn";
 import { BillRequestCard } from "./bill-request-card";
 
 type BillRequestQueueProps = {
