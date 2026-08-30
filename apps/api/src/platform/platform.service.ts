@@ -258,6 +258,33 @@ export class PlatformService {
       company.id,
       company.staffMemberships.map((membership) => membership.staffUserId),
     );
+    const [saas, auditEvents] = await Promise.all([
+      this.saasService.getCompanySaasStatus(company.id),
+      this.prisma.platformAuditEvent.findMany({
+        where: {
+          targetType: "company",
+          targetId: company.id,
+        },
+        orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+        take: 12,
+        select: {
+          id: true,
+          action: true,
+          targetType: true,
+          targetId: true,
+          metadata: true,
+          createdAt: true,
+          platformAdminUser: {
+            select: {
+              id: true,
+              email: true,
+              name: true,
+              role: true,
+            },
+          },
+        },
+      }),
+    ]);
 
     return {
       company: {
@@ -287,7 +314,8 @@ export class PlatformService {
         recentInvite:
           latestInviteByStaffUserId.get(membership.staffUserId) ?? null,
       })),
-      saas: await this.saasService.getCompanySaasStatus(company.id),
+      saas,
+      auditEvents,
     };
   }
 
