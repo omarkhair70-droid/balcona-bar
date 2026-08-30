@@ -1,6 +1,7 @@
 name: Platform Visual QA
 
 on:
+  workflow_dispatch:
   push:
     branches:
       - integration/a6-platform-shell

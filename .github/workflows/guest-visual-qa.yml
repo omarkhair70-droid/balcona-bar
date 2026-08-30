@@ -1,6 +1,7 @@
 name: Guest Visual QA
 
 on:
+  workflow_dispatch:
   push:
     branches:
       - integration/a1-guest-shell
