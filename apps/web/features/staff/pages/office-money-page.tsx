@@ -1,6 +1,6 @@
 "use client";
 
-import { Dispatch, SetStateAction, useState } from "react";
+import { useState, type Dispatch, type SetStateAction } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   AlertTriangle,
@@ -115,10 +115,7 @@ function StructuredSettlementEditor({
     netMinor: number;
   };
 }) {
-  const updateLine = (
-    index: number,
-    patch: Partial<SettlementLineDraft>,
-  ) =>
+  const updateLine = (index: number, patch: Partial<SettlementLineDraft>) =>
     setDraft((current) => ({
       ...current,
       lines: current.lines.map((line, lineIndex) =>
@@ -394,7 +391,11 @@ function MoneyContent() {
   const billsQuery = useQuery({
     queryKey: ["office-control", "money", "bills", selectedBranchId],
     queryFn: () =>
-      getBranchBills(selectedBranchId ?? "", { status: "all", limit: 100 }, accessToken),
+      getBranchBills(
+        selectedBranchId ?? "",
+        { status: "all", limit: 100 },
+        accessToken,
+      ),
     enabled: Boolean(selectedBranchId && accessToken),
     retry: false,
   });
@@ -412,7 +413,12 @@ function MoneyContent() {
   });
 
   const integrationsQuery = useQuery({
-    queryKey: ["office-control", "money", "merchant-integrations", selectedBranchId],
+    queryKey: [
+      "office-control",
+      "money",
+      "merchant-integrations",
+      selectedBranchId,
+    ],
     queryFn: () =>
       getMerchantPaymentIntegrations(selectedBranchId ?? "", accessToken),
     enabled: Boolean(selectedBranchId && accessToken),
@@ -420,23 +426,27 @@ function MoneyContent() {
   });
 
   const runsQuery = useQuery({
-    queryKey: ["office-control", "money", "reconciliation-runs", selectedBranchId],
+    queryKey: [
+      "office-control",
+      "money",
+      "reconciliation-runs",
+      selectedBranchId,
+    ],
     queryFn: () =>
-      getOfficeReconciliationRuns(
-        selectedBranchId ?? "",
-        accessToken ?? "",
-      ),
+      getOfficeReconciliationRuns(selectedBranchId ?? "", accessToken ?? ""),
     enabled: Boolean(selectedBranchId && accessToken),
     retry: false,
   });
 
   const issuesQuery = useQuery({
-    queryKey: ["office-control", "money", "reconciliation-issues", selectedBranchId],
+    queryKey: [
+      "office-control",
+      "money",
+      "reconciliation-issues",
+      selectedBranchId,
+    ],
     queryFn: () =>
-      getOfficeReconciliationIssues(
-        selectedBranchId ?? "",
-        accessToken ?? "",
-      ),
+      getOfficeReconciliationIssues(selectedBranchId ?? "", accessToken ?? ""),
     enabled: Boolean(selectedBranchId && accessToken),
     retry: false,
   });
@@ -525,13 +535,19 @@ function MoneyContent() {
         !settlementDraft.periodEnd ||
         settlementDraft.lines.length === 0
       ) {
-        throw new Error("Complete the settlement header and add at least one line");
+        throw new Error(
+          "Complete the settlement header and add at least one line",
+        );
       }
       const statementCurrency = settlementDraft.currency.trim().toUpperCase();
       const lines = settlementDraft.lines.map((line, index) => ({
-        providerTransactionId: line.providerTransactionId.trim() || (() => {
-          throw new Error(`Line ${index + 1} needs a provider transaction reference`);
-        })(),
+        providerTransactionId:
+          line.providerTransactionId.trim() ||
+          (() => {
+            throw new Error(
+              `Line ${index + 1} needs a provider transaction reference`,
+            );
+          })(),
         movementType: line.movementType,
         amountMinor: toMinor(line.amount, `Line ${index + 1} amount`),
         feeMinor: toMinor(line.fee, `Line ${index + 1} fee`),
@@ -541,7 +557,11 @@ function MoneyContent() {
           ? { settlementReference: line.settlementReference.trim() }
           : {}),
         ...(line.settledAt
-          ? { settledAt: new Date(`${line.settledAt}T12:00:00.000Z`).toISOString() }
+          ? {
+              settledAt: new Date(
+                `${line.settledAt}T12:00:00.000Z`,
+              ).toISOString(),
+            }
           : {}),
       }));
       const payload = {
@@ -550,10 +570,18 @@ function MoneyContent() {
         ...(settlementDraft.payoutReference.trim()
           ? { payoutReference: settlementDraft.payoutReference.trim() }
           : {}),
-        periodStart: new Date(`${settlementDraft.periodStart}T00:00:00.000Z`).toISOString(),
-        periodEnd: new Date(`${settlementDraft.periodEnd}T23:59:59.999Z`).toISOString(),
+        periodStart: new Date(
+          `${settlementDraft.periodStart}T00:00:00.000Z`,
+        ).toISOString(),
+        periodEnd: new Date(
+          `${settlementDraft.periodEnd}T23:59:59.999Z`,
+        ).toISOString(),
         ...(settlementDraft.settledAt
-          ? { settledAt: new Date(`${settlementDraft.settledAt}T12:00:00.000Z`).toISOString() }
+          ? {
+              settledAt: new Date(
+                `${settlementDraft.settledAt}T12:00:00.000Z`,
+              ).toISOString(),
+            }
           : {}),
         currency: statementCurrency,
         grossMinor: lines
@@ -587,7 +615,7 @@ function MoneyContent() {
   const integrationMutation = useMutation({
     mutationFn: (status: "needs_setup" | "ready") => {
       const isPaymob = integrationDraft.provider === "paymob";
-      const secretReferences = isPaymob
+      const secretReferences: Record<string, string> = isPaymob
         ? {
             secretKey: integrationDraft.secretKeyReference.trim(),
             apiKey: integrationDraft.apiKeyReference.trim(),
@@ -596,7 +624,7 @@ function MoneyContent() {
         : integrationDraft.provider === "fawry"
           ? { secureKey: integrationDraft.secretKeyReference.trim() }
           : {};
-      const configurationMetadata = isPaymob
+      const configurationMetadata: Record<string, unknown> = isPaymob
         ? {
             publicKey: integrationDraft.publicKey.trim(),
             integrationIds: integrationDraft.integrationIds
@@ -701,7 +729,9 @@ function MoneyContent() {
   }
 
   const bills = (billsQuery.data?.bills ?? []).map(asRecord);
-  const intents = (paymentsQuery.data?.onlinePaymentIntents ?? []).map(asRecord);
+  const intents = (paymentsQuery.data?.onlinePaymentIntents ?? []).map(
+    asRecord,
+  );
   const runs = runsQuery.data ?? [];
   const issues = issuesQuery.data ?? [];
   const integrations = integrationsQuery.data?.integrations ?? [];
@@ -717,7 +747,10 @@ function MoneyContent() {
   const openIssues = issues.filter(
     (issue) => textValue(issue.status, "").toLowerCase() !== "resolved",
   );
-  const selectedProvider = textValue(selectedIntent?.provider, "").toLowerCase();
+  const selectedProvider = textValue(
+    selectedIntent?.provider,
+    "",
+  ).toLowerCase();
   const canVoidOrCapture = selectedProvider === "paymob";
   const canRefund =
     selectedProvider === "paymob" || selectedProvider === "fawry";
@@ -759,7 +792,11 @@ function MoneyContent() {
         <OfficeFact
           label="Financial exceptions"
           value={openIssues.length}
-          hint={openIssues.length ? "Requires reconciliation attention." : "No open reconciliation issue returned."}
+          hint={
+            openIssues.length
+              ? "Requires reconciliation attention."
+              : "No open reconciliation issue returned."
+          }
         />
       </div>
 
@@ -778,12 +815,20 @@ function MoneyContent() {
               <table className="w-full min-w-[860px] text-xs">
                 <thead className="text-[#777770]">
                   <tr className="border-b border-[#E4E4DF]">
-                    <th className="px-2 py-2 text-start font-medium">Created</th>
-                    <th className="px-2 py-2 text-start font-medium">Provider</th>
-                    <th className="px-2 py-2 text-start font-medium">Environment truth</th>
+                    <th className="px-2 py-2 text-start font-medium">
+                      Created
+                    </th>
+                    <th className="px-2 py-2 text-start font-medium">
+                      Provider
+                    </th>
+                    <th className="px-2 py-2 text-start font-medium">
+                      Environment truth
+                    </th>
                     <th className="px-2 py-2 text-start font-medium">Amount</th>
                     <th className="px-2 py-2 text-start font-medium">Status</th>
-                    <th className="px-2 py-2 text-end font-medium">Operations</th>
+                    <th className="px-2 py-2 text-end font-medium">
+                      Operations
+                    </th>
                   </tr>
                 </thead>
                 <tbody>
@@ -792,7 +837,9 @@ function MoneyContent() {
                       key={textValue(intent.id)}
                       className="border-b border-[#EFEFEA] last:border-0"
                     >
-                      <td className="px-2 py-3">{formatOfficeDate(intent.createdAt)}</td>
+                      <td className="px-2 py-3">
+                        {formatOfficeDate(intent.createdAt)}
+                      </td>
                       <td className="px-2 py-3 font-semibold">
                         {textValue(intent.provider)}
                       </td>
@@ -834,7 +881,9 @@ function MoneyContent() {
         <OfficeControlSection
           title="Payment operation"
           description="Refund, void, capture, and provider recovery call the real scoped API. Provider/state validation remains authoritative on the server."
-          action={<ShieldCheck className="size-4 text-[#777770]" aria-hidden="true" />}
+          action={
+            <ShieldCheck className="size-4 text-[#777770]" aria-hidden="true" />
+          }
         >
           {!selectedIntent ? (
             <OfficeInlineNotice title="Select a transaction">
@@ -999,7 +1048,9 @@ function MoneyContent() {
       <OfficeControlSection
         title="Payment methods & merchant readiness"
         description="The selected branch resolves a branch override first, then the company default. Secret values stay in runtime configuration; this surface stores references only."
-        action={<ShieldCheck className="size-4 text-[#777770]" aria-hidden="true" />}
+        action={
+          <ShieldCheck className="size-4 text-[#777770]" aria-hidden="true" />
+        }
       >
         <div className="grid gap-4 xl:grid-cols-[0.8fr_1.2fr]">
           <div className="space-y-2">
@@ -1023,11 +1074,15 @@ function MoneyContent() {
                   className="rounded-md border border-[#E4E4DF] p-3 text-xs"
                 >
                   <div className="flex items-center justify-between gap-2">
-                    <strong className="capitalize">{integration.provider}</strong>
+                    <strong className="capitalize">
+                      {integration.provider}
+                    </strong>
                     <OfficeStatusBadge value={integration.status} />
                   </div>
                   <p className="mt-1 text-[#707069]">
-                    {integration.branchId ? "Branch override" : "Company default"}
+                    {integration.branchId
+                      ? "Branch override"
+                      : "Company default"}
                     {" · "}
                     {integration.environment}
                   </p>
@@ -1035,9 +1090,16 @@ function MoneyContent() {
                     Methods: {integration.enabledChannels.join(", ") || "none"}
                   </p>
                   <p className="mt-1 text-[#707069]">
-                    Webhook {integration.webhookConfigured ? "configured" : "not configured"}
-                    {" · "}Recovery {integration.recoveryReady ? "ready" : "blocked"}
-                    {" · "}Settlement {integration.settlementConfigured ? "configured" : "not configured"}
+                    Webhook{" "}
+                    {integration.webhookConfigured
+                      ? "configured"
+                      : "not configured"}
+                    {" · "}Recovery{" "}
+                    {integration.recoveryReady ? "ready" : "blocked"}
+                    {" · "}Settlement{" "}
+                    {integration.settlementConfigured
+                      ? "configured"
+                      : "not configured"}
                   </p>
                   {integration.readinessMessage ? (
                     <p className="mt-2 text-[#8A6A2C]">
@@ -1077,7 +1139,10 @@ function MoneyContent() {
                     className="mt-1.5 min-h-11 w-full rounded-md border border-input bg-background px-3"
                     value={integrationDraft.provider}
                     onChange={(event) => {
-                      const provider = event.target.value as "paymob" | "fawry" | "maestr";
+                      const provider = event.target.value as
+                        | "paymob"
+                        | "fawry"
+                        | "maestr";
                       setIntegrationDraft((current) => ({
                         ...current,
                         provider,
@@ -1092,7 +1157,9 @@ function MoneyContent() {
                   >
                     <option value="paymob">Paymob</option>
                     <option value="fawry">Fawry</option>
-                    <option value="maestr">Commercial IPN / Maestr (blocked)</option>
+                    <option value="maestr">
+                      Commercial IPN / Maestr (blocked)
+                    </option>
                   </select>
                 </label>
                 <label className="text-xs font-medium">
@@ -1103,7 +1170,10 @@ function MoneyContent() {
                     onChange={(event) =>
                       setIntegrationDraft((current) => ({
                         ...current,
-                        environment: event.target.value as "sandbox" | "test" | "live",
+                        environment: event.target.value as
+                          | "sandbox"
+                          | "test"
+                          | "live",
                       }))
                     }
                   >
@@ -1153,7 +1223,10 @@ function MoneyContent() {
                           className="mt-1.5 font-mono"
                           value={integrationDraft.apiKeyReference}
                           onChange={(event) =>
-                            setIntegrationDraft((current) => ({ ...current, apiKeyReference: event.target.value }))
+                            setIntegrationDraft((current) => ({
+                              ...current,
+                              apiKeyReference: event.target.value,
+                            }))
                           }
                         />
                       </label>
@@ -1163,7 +1236,10 @@ function MoneyContent() {
                           className="mt-1.5 font-mono"
                           value={integrationDraft.hmacSecretReference}
                           onChange={(event) =>
-                            setIntegrationDraft((current) => ({ ...current, hmacSecretReference: event.target.value }))
+                            setIntegrationDraft((current) => ({
+                              ...current,
+                              hmacSecretReference: event.target.value,
+                            }))
                           }
                         />
                       </label>
@@ -1173,7 +1249,10 @@ function MoneyContent() {
                           className="mt-1.5 font-mono"
                           value={integrationDraft.publicKey}
                           onChange={(event) =>
-                            setIntegrationDraft((current) => ({ ...current, publicKey: event.target.value }))
+                            setIntegrationDraft((current) => ({
+                              ...current,
+                              publicKey: event.target.value,
+                            }))
                           }
                         />
                       </label>
@@ -1183,7 +1262,10 @@ function MoneyContent() {
                           className="mt-1.5 font-mono"
                           value={integrationDraft.integrationIds}
                           onChange={(event) =>
-                            setIntegrationDraft((current) => ({ ...current, integrationIds: event.target.value }))
+                            setIntegrationDraft((current) => ({
+                              ...current,
+                              integrationIds: event.target.value,
+                            }))
                           }
                         />
                       </label>
@@ -1195,7 +1277,10 @@ function MoneyContent() {
                         className="mt-1.5"
                         value={integrationDraft.returnUrl}
                         onChange={(event) =>
-                          setIntegrationDraft((current) => ({ ...current, returnUrl: event.target.value }))
+                          setIntegrationDraft((current) => ({
+                            ...current,
+                            returnUrl: event.target.value,
+                          }))
                         }
                       />
                     </label>
@@ -1206,7 +1291,10 @@ function MoneyContent() {
                       className="mt-1.5"
                       value={integrationDraft.notificationUrl}
                       onChange={(event) =>
-                        setIntegrationDraft((current) => ({ ...current, notificationUrl: event.target.value }))
+                        setIntegrationDraft((current) => ({
+                          ...current,
+                          notificationUrl: event.target.value,
+                        }))
                       }
                     />
                   </label>
@@ -1219,6 +1307,46 @@ function MoneyContent() {
                 </OfficeInlineNotice>
               )}
 
+              {integrationDraft.provider === "fawry" ? (
+                <fieldset className="mt-3">
+                  <legend className="text-xs font-medium">
+                    Enabled checkout methods
+                  </legend>
+                  <div className="mt-2 flex flex-wrap gap-3 text-xs">
+                    {[
+                      ["card", "Card"],
+                      ["wallet", "Mobile wallet"],
+                      ["reference_code", "Fawry reference code"],
+                    ].map(([channel, label]) => (
+                      <label key={channel} className="flex items-center gap-2">
+                        <input
+                          type="checkbox"
+                          checked={integrationDraft.enabledChannels.includes(
+                            channel,
+                          )}
+                          onChange={(event) =>
+                            setIntegrationDraft((current) => ({
+                              ...current,
+                              enabledChannels: event.target.checked
+                                ? Array.from(
+                                    new Set([
+                                      ...current.enabledChannels,
+                                      channel,
+                                    ]),
+                                  )
+                                : current.enabledChannels.filter(
+                                    (value) => value !== channel,
+                                  ),
+                            }))
+                          }
+                        />
+                        {label}
+                      </label>
+                    ))}
+                  </div>
+                </fieldset>
+              ) : null}
+
               <div className="mt-3 flex flex-wrap gap-3 text-xs">
                 {[
                   ["webhookConfigured", "Webhook configured"],
@@ -1228,7 +1356,14 @@ function MoneyContent() {
                   <label key={key} className="flex items-center gap-2">
                     <input
                       type="checkbox"
-                      checked={Boolean(integrationDraft[key as "webhookConfigured" | "recoveryReady" | "settlementConfigured"])}
+                      checked={Boolean(
+                        integrationDraft[
+                          key as
+                            | "webhookConfigured"
+                            | "recoveryReady"
+                            | "settlementConfigured"
+                        ],
+                      )}
                       onChange={(event) =>
                         setIntegrationDraft((current) => ({
                           ...current,
@@ -1251,7 +1386,10 @@ function MoneyContent() {
                 </Button>
                 <Button
                   size="sm"
-                  disabled={integrationMutation.isPending || integrationDraft.provider === "maestr"}
+                  disabled={
+                    integrationMutation.isPending ||
+                    integrationDraft.provider === "maestr"
+                  }
                   onClick={() => integrationMutation.mutate("ready")}
                 >
                   Validate & activate
@@ -1278,7 +1416,9 @@ function MoneyContent() {
         <OfficeControlSection
           title="Settlements & payouts"
           description="Imported settlement batches appear through reconciliation runs. Import is intentionally explicit because it changes financial reconciliation state."
-          action={<Banknote className="size-4 text-[#777770]" aria-hidden="true" />}
+          action={
+            <Banknote className="size-4 text-[#777770]" aria-hidden="true" />
+          }
         >
           <div className="space-y-3">
             {runs.length === 0 ? (
@@ -1312,9 +1452,7 @@ function MoneyContent() {
                           Matched {numberValue(run.matchedCount)} · Pending{" "}
                           {numberValue(run.pendingCount)}
                         </span>
-                        <span>
-                          Mismatches {numberValue(run.mismatchCount)}
-                        </span>
+                        <span>Mismatches {numberValue(run.mismatchCount)}</span>
                       </div>
                     </div>
                   );
@@ -1328,17 +1466,11 @@ function MoneyContent() {
                   Import settlement statement
                 </summary>
                 <p className="mt-2 text-[11px] leading-4 text-[#73736D]">
-                  Paste the normalized backend payload: provider,
-                  externalReference, periodStart/periodEnd, currency, grossMinor,
-                  adjustmentMinor, feeMinor, netMinor, and lines. Server
-                  validation rejects totals that do not match the supplied lines.
+                  Enter the provider statement header and movements below. The
+                  preview derives its totals from the lines, and server
+                  validation rejects an inconsistent statement before it changes
+                  reconciliation state.
                 </p>
-                <textarea
-                  className="hidden"
-                  value=""
-                  readOnly
-                  placeholder={'{"provider":"paymob","externalReference":"...","periodStart":"...","periodEnd":"...","currency":"EGP","grossMinor":0,"adjustmentMinor":0,"feeMinor":0,"netMinor":0,"lines":[]}'}
-                />
                 <StructuredSettlementEditor
                   draft={settlementDraft}
                   setDraft={setSettlementDraft}
@@ -1381,7 +1513,9 @@ function MoneyContent() {
         <OfficeControlSection
           title="Reconciliation"
           description="Provider inquiry reconciliation is a real server-to-server operation and can surface financial exceptions without inventing success."
-          action={<FileCheck2 className="size-4 text-[#777770]" aria-hidden="true" />}
+          action={
+            <FileCheck2 className="size-4 text-[#777770]" aria-hidden="true" />
+          }
         >
           {canManage ? (
             <div className="grid gap-3 sm:grid-cols-2">
@@ -1447,7 +1581,10 @@ function MoneyContent() {
         description="Mismatches and provider exceptions remain visible until explicitly acknowledged or resolved."
         action={
           openIssues.length > 0 ? (
-            <AlertTriangle className="size-4 text-[#8A6A2C]" aria-hidden="true" />
+            <AlertTriangle
+              className="size-4 text-[#8A6A2C]"
+              aria-hidden="true"
+            />
           ) : null
         }
       >
