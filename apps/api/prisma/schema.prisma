@@ -468,6 +468,37 @@ enum MerchantPaymentIntegrationStatus {
   disabled
 }
 
+enum PaymentTerminalProvider {
+  paymob
+  fawry
+  geidea
+  external
+}
+
+enum PaymentTerminalEnvironment {
+  test
+  live
+}
+
+enum PaymentTerminalStatus {
+  draft
+  blocked
+  ready
+  disabled
+}
+
+enum TerminalPaymentRequestStatus {
+  created
+  sent
+  pending
+  approved
+  declined
+  cancelled
+  timeout
+  unknown
+  blocked
+}
+
 enum OnlinePaymentIntentStatus {
   pending
   requires_action
@@ -1002,6 +1033,8 @@ model Company {
   kitchenTickets                     KitchenTicket[]
   manualPayments                     ManualPayment[]
   onlinePaymentIntents               OnlinePaymentIntent[]
+  paymentTerminals                    PaymentTerminal[]
+  terminalPaymentRequests             TerminalPaymentRequest[]
   merchantPaymentIntegrations        MerchantPaymentIntegration[]
   onlinePaymentEvents                OnlinePaymentEvent[]
   onlinePaymentOperations            OnlinePaymentOperation[]
@@ -1247,6 +1280,8 @@ model Branch {
   kitchenTickets                     KitchenTicket[]
   manualPayments                     ManualPayment[]
   onlinePaymentIntents               OnlinePaymentIntent[]
+  paymentTerminals                    PaymentTerminal[]
+  terminalPaymentRequests             TerminalPaymentRequest[]
   merchantPaymentIntegrations        MerchantPaymentIntegration[]
   onlinePaymentEvents                OnlinePaymentEvent[]
   onlinePaymentOperations            OnlinePaymentOperation[]
@@ -2830,6 +2865,7 @@ model Bill {
   onlinePaymentIntents    OnlinePaymentIntent[]
   onlinePaymentEvents     OnlinePaymentEvent[]
   onlinePaymentOperations OnlinePaymentOperation[]
+  terminalPaymentRequests  TerminalPaymentRequest[]
   receipt                 BillReceipt?
   events                  BillEvent[]
 
@@ -2906,6 +2942,75 @@ model ManualPayment {
   @@index([method])
   @@index([status])
   @@index([recordedAt])
+}
+
+model PaymentTerminal {
+  id                        String                     @id @default(uuid())
+  companyId                 String
+  branchId                  String
+  provider                  PaymentTerminalProvider
+  environment               PaymentTerminalEnvironment
+  status                    PaymentTerminalStatus      @default(draft)
+  displayName               String
+  providerTerminalReference String?
+  deviceReference           String?
+  merchantReference         String?
+  secretReference           String?
+  capabilities              Json?
+  readinessMessage          String?
+  lastSeenAt                DateTime?
+  liveVerifiedAt            DateTime?
+  createdAt                 DateTime                   @default(now())
+  updatedAt                 DateTime                   @updatedAt
+
+  company  Company                  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  branch   Branch                   @relation(fields: [branchId], references: [id], onDelete: Cascade)
+  requests TerminalPaymentRequest[]
+
+  @@unique([branchId, provider, providerTerminalReference])
+  @@index([companyId])
+  @@index([branchId])
+  @@index([provider, environment])
+  @@index([status])
+}
+
+model TerminalPaymentRequest {
+  id                            String                       @id @default(uuid())
+  companyId                     String
+  branchId                      String
+  billId                        String
+  paymentTerminalId             String
+  requestedByStaffUserId        String
+  idempotencyKey                String                       @unique
+  status                        TerminalPaymentRequestStatus @default(created)
+  amountMinor                   Int
+  currency                      String
+  providerRequestReference      String?
+  providerTransactionReference  String?
+  failureCode                   String?
+  failureMessage                String?
+  requestedAt                   DateTime                     @default(now())
+  sentAt                        DateTime?
+  approvedAt                    DateTime?
+  declinedAt                    DateTime?
+  cancelledAt                   DateTime?
+  timedOutAt                    DateTime?
+  metadata                      Json?
+  createdAt                     DateTime                     @default(now())
+  updatedAt                     DateTime                     @updatedAt
+
+  company  Company         @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  branch   Branch          @relation(fields: [branchId], references: [id], onDelete: Cascade)
+  bill     Bill            @relation(fields: [billId], references: [id], onDelete: Cascade)
+  terminal PaymentTerminal @relation(fields: [paymentTerminalId], references: [id], onDelete: Restrict)
+
+  @@unique([providerTransactionReference])
+  @@index([companyId])
+  @@index([branchId])
+  @@index([billId])
+  @@index([paymentTerminalId])
+  @@index([requestedByStaffUserId])
+  @@index([status, createdAt])
 }
 
 model OnlinePaymentIntent {
