@@ -41,12 +41,8 @@ import {
   staffLogout
 } from "@/lib/api/endpoints";
 import { staffQueryKeys } from "@/lib/api/query-keys";
-import type { TableAttentionPriority } from "@/lib/api/types";
 import { useStaffAuthStore } from "@/lib/staff/staff-auth-store";
-import {
-  AttentionQueue,
-  type AttentionStatusFilter
-} from "../components/attention-queue";
+import { AttentionQueue } from "../components/attention-queue";
 import { AttentionDetailPanel } from "../components/attention-detail-panel";
 import { StaffAuthGate } from "../components/staff-auth-gate";
 import { StaffBranchSelector } from "../components/staff-branch-selector";
@@ -68,10 +64,6 @@ type MuteAttentionAction = ResolveAttentionAction & {
 };
 
 const emptyRecords: Record<string, unknown>[] = [];
-
-function attentionQueryStatus(status: AttentionStatusFilter) {
-  return status === "active" ? undefined : status;
-}
 
 function NoticeBanner({ notice }: { notice?: Notice }) {
   if (!notice) {
@@ -155,10 +147,6 @@ function WaiterDashboardContent() {
   const staffUser = useStaffAuthStore((state) => state.staffUser);
   const effectiveAccess = useStaffAuthStore((state) => state.effectiveAccess);
   const selectedBranchId = useStaffAuthStore((state) => state.selectedBranchId);
-  const [attentionStatus, setAttentionStatus] =
-    useState<AttentionStatusFilter>("active");
-  const [attentionPriority, setAttentionPriority] =
-    useState<TableAttentionPriority>("all");
   const [userSelectedSessionId, setUserSelectedSessionId] = useState<string>();
   const [notice, setNotice] = useState<Notice>();
   const [pendingOrderIds, setPendingOrderIds] = useState<Set<string>>(
@@ -193,17 +181,13 @@ function WaiterDashboardContent() {
   const attentionQueueQuery = useQuery({
     queryKey: staffQueryKeys.staffAttentionQueue(
       selectedBranchId,
-      attentionStatus,
-      attentionPriority
+      "active",
+      "all"
     ),
     queryFn: () =>
       getBranchAttentionQueue(
         selectedBranchId ?? "",
-        {
-          status: attentionQueryStatus(attentionStatus),
-          priority: attentionPriority,
-          limit: 50
-        },
+        { limit: 50 },
         accessToken
       ),
     enabled: Boolean(selectedBranchId && accessToken),
@@ -602,13 +586,9 @@ function WaiterDashboardContent() {
       <section id="attention" className="grid min-h-[calc(100vh-8rem)] gap-0 lg:grid-cols-[minmax(0,1fr)_360px]">
         <AttentionQueue
           attentionQueue={attentionQueue}
-          status={attentionStatus}
-          priority={attentionPriority}
           selectedSessionId={selectedSessionId}
           isLoading={attentionQueueQuery.isPending}
           error={attentionQueueQuery.error ?? undefined}
-          onStatusChange={setAttentionStatus}
-          onPriorityChange={setAttentionPriority}
           onSelectAttention={setUserSelectedSessionId}
           onPrefetchAttention={prefetchAttention}
           onRefresh={refreshBranch}
