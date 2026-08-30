@@ -1,70 +1,153 @@
 "use client";
 
-import { Bell, ChefHat, Clock3, CreditCard, Sparkles, Utensils } from "lucide-react";
+import Link from "next/link";
+import { MonitorSmartphone } from "lucide-react";
+import { useState } from "react";
 import { useI18n } from "@/lib/i18n/i18n-provider";
 import { ML } from "./marketing-shell";
 
-export function ProductVisual() {
+export type ProductSurface =
+  | "guest"
+  | "service"
+  | "kitchen"
+  | "office"
+  | "setup";
+
+const previews: Record<
+  ProductSurface,
+  {
+    label: [string, string];
+    href: string;
+    previewHref: string;
+    description: [string, string];
+  }
+> = {
+  guest: {
+    label: ["Guest", "الضيف"],
+    href: "/product/guest-experience",
+    previewHref: "/prototype/guest",
+    description: [
+      "QR menu, ordering, service and bill journey",
+      "رحلة QR والمنيو والطلب والخدمة والفاتورة"
+    ]
+  },
+  service: {
+    label: ["Service", "الخدمة"],
+    href: "/product/service",
+    previewHref: "/prototype/service",
+    description: [
+      "Live floor attention, orders and payments",
+      "تنبيهات الصالة والطلبات والمدفوعات مباشرة"
+    ]
+  },
+  kitchen: {
+    label: ["Kitchen", "المطبخ"],
+    href: "/product/kitchen",
+    previewHref: "/prototype/kitchen",
+    description: [
+      "Production tasks and kitchen readiness",
+      "مهام التحضير وجاهزية المطبخ"
+    ]
+  },
+  office: {
+    label: ["Office", "الإدارة"],
+    href: "/product/office",
+    previewHref: "/prototype/office/home",
+    description: [
+      "Operational control, money and insight",
+      "التحكم التشغيلي والأموال والتحليلات"
+    ]
+  },
+  setup: {
+    label: ["Setup", "التجهيز"],
+    href: "/product/setup",
+    previewHref: "/prototype/setup",
+    description: [
+      "Finite path from tenant to service-ready branch",
+      "مسار واضح من الحساب إلى فرع جاهز للخدمة"
+    ]
+  }
+};
+
+export function ProductVisual({
+  initialSurface = "service"
+}: {
+  initialSurface?: ProductSurface;
+}) {
   const { locale } = useI18n();
+  const [surface, setSurface] = useState<ProductSurface>(initialSurface);
+  const preview = previews[surface];
 
   return (
-    <div className="relative overflow-hidden rounded-[28px] border border-[#49372A] bg-[#17120F] p-3 text-[#FFF8ED] shadow-[0_36px_90px_rgba(43,32,24,.28)] sm:p-5">
-      <div className="flex items-center justify-between border-b border-white/10 pb-4">
-        <div className="flex items-center gap-2">
-          <span className="size-2 rounded-full bg-[#78B77A] shadow-[0_0_12px_#78B77A]" />
-          <span className="text-[11px] font-bold uppercase tracking-[0.14em] text-white/60">{ML("Live service", "خدمة مباشرة", locale)}</span>
+    <div className="overflow-hidden rounded-[28px] border border-[#49372A] bg-[#17120F] text-[#FFF8ED] shadow-[0_36px_90px_rgba(43,32,24,.28)]">
+      <div className="flex flex-col gap-3 border-b border-white/10 px-4 py-4 sm:px-5">
+        <div className="flex items-center justify-between gap-4">
+          <div className="flex min-w-0 items-center gap-2">
+            <MonitorSmartphone className="size-4 shrink-0 text-[#D99B60]" />
+            <span className="truncate text-[11px] font-black uppercase tracking-[.13em] text-white/65">
+              {ML("Approved Balcona product preview", "معاينة معتمدة لمنتج بلكونة", locale)}
+            </span>
+          </div>
+          <span className="shrink-0 rounded-full border border-white/10 px-2.5 py-1 text-[10px] font-semibold text-white/50">
+            {ML("Read-only", "للمعاينة", locale)}
+          </span>
         </div>
-        <span className="rounded-full border border-white/10 px-2.5 py-1 text-[10px] font-semibold text-white/55">Zamalek · 08:42 PM</span>
+
+        <div
+          className="no-scrollbar flex gap-1.5 overflow-x-auto"
+          aria-label={ML("Choose product surface preview", "اختر واجهة المنتج للمعاينة", locale)}
+        >
+          {(Object.keys(previews) as ProductSurface[]).map((key) => (
+            <button
+              key={key}
+              type="button"
+              aria-pressed={surface === key}
+              onClick={() => setSurface(key)}
+              className={`min-h-9 shrink-0 rounded-lg border px-3 text-[11px] font-bold transition ${
+                surface === key
+                  ? "border-[#D99B60] bg-[#D99B60] text-[#17120F]"
+                  : "border-white/10 bg-white/[.035] text-white/65 hover:bg-white/[.08] hover:text-white"
+              }`}
+            >
+              {ML(previews[key].label[0], previews[key].label[1], locale)}
+            </button>
+          ))}
+        </div>
       </div>
 
-      <div className="mt-4 grid gap-3 lg:grid-cols-[.8fr_1.2fr_.85fr]">
-        <section className="rounded-2xl border border-white/10 bg-white/[.035] p-4">
-          <div className="flex items-center justify-between">
-            <p className="text-xs font-bold">{ML("Attention", "التنبيهات", locale)}</p>
-            <Bell className="size-4 text-[#E0A45F]" />
-          </div>
-          <div className="mt-4 space-y-2">
-            {[["T12", ML("Bill requested", "طلب الفاتورة", locale), "2m"], ["T04", ML("Order ready", "الطلب جاهز", locale), "1m"], ["T09", ML("Needs a waiter", "يحتاج نادلًا", locale), "now"]].map(([table, label, time], index) => (
-              <div key={table} className={`rounded-xl border p-3 ${index === 0 ? "border-[#B66E3D]/70 bg-[#8C512D]/20" : "border-white/10 bg-black/15"}`}>
-                <div className="flex items-center justify-between"><span className="text-sm font-black">{table}</span><span className="text-[10px] text-white/45">{time}</span></div>
-                <p className="mt-2 text-[11px] text-white/65">{label}</p>
-              </div>
-            ))}
-          </div>
-        </section>
+      <div className="relative h-[430px] overflow-hidden bg-[#0F0C0A] sm:h-[500px]">
+        <iframe
+          key={preview.previewHref}
+          src={preview.previewHref}
+          title={ML(
+            `Balcona ${preview.label[0]} product preview`,
+            `معاينة واجهة ${preview.label[1]} في بلكونة`,
+            locale
+          )}
+          className="h-full w-full border-0 bg-[#120D0A]"
+          loading="lazy"
+          tabIndex={-1}
+          aria-hidden="true"
+          style={{ pointerEvents: "none" }}
+        />
+        <div className="pointer-events-none absolute inset-x-0 bottom-0 h-20 bg-gradient-to-t from-[#17120F] to-transparent" />
+      </div>
 
-        <section className="rounded-2xl border border-white/10 bg-[#201914] p-4">
-          <div className="flex items-center justify-between">
-            <div><p className="text-[10px] font-bold uppercase tracking-[.13em] text-[#D99B60]">{ML("Kitchen", "المطبخ", locale)}</p><h2 className="mt-1 text-xl font-black">{ML("Production board", "لوحة التحضير", locale)}</h2></div>
-            <ChefHat className="size-5 text-white/55" />
-          </div>
-          <div className="mt-4 grid grid-cols-3 gap-2">
-            {[ML("New", "جديد", locale), ML("Preparing", "قيد التحضير", locale), ML("Ready", "جاهز", locale)].map((column, columnIndex) => (
-              <div key={column}>
-                <div className="mb-2 flex items-center justify-between text-[10px] font-bold text-white/55"><span>{column}</span><span>{columnIndex + 1}</span></div>
-                {[0, 1].slice(0, columnIndex === 1 ? 2 : 1).map((item) => (
-                  <article key={item} className={`mb-2 rounded-xl border p-3 ${columnIndex === 1 ? "border-[#D09050]/70 bg-[#3B281B]" : "border-white/10 bg-black/20"}`}>
-                    <div className="flex justify-between gap-2"><strong className="text-xs">#{117 + item}</strong><Clock3 className="size-3.5 text-white/45" /></div>
-                    <p className="mt-3 text-sm font-bold">{item ? "Spanish Latte" : "Flat White"}</p>
-                    <p className="mt-1 text-[10px] text-white/45">{ML("Oat milk · hot", "حليب شوفان · ساخن", locale)}</p>
-                  </article>
-                ))}
-              </div>
-            ))}
-          </div>
-        </section>
-
-        <section className="rounded-2xl border border-white/10 bg-white/[.035] p-4">
-          <p className="text-[10px] font-bold uppercase tracking-[.13em] text-white/45">{ML("Today", "اليوم", locale)}</p>
-          <p className="mt-2 text-3xl font-black tracking-[-.05em]">EGP 18,420</p>
-          <p className="mt-1 text-[11px] text-[#88C489]">+12.4% {ML("vs. last Sunday", "مقابل الأحد الماضي", locale)}</p>
-          <div className="mt-5 grid gap-2">
-            {[[Utensils, ML("Orders", "الطلبات", locale), "86"], [CreditCard, ML("Paid bills", "فواتير مدفوعة", locale), "73"], [Sparkles, ML("AI assists", "مساعدات AI", locale), "21"]].map(([Icon, label, value]) => {
-              const RowIcon = Icon as typeof Utensils;
-              return <div key={String(label)} className="flex items-center justify-between rounded-xl border border-white/10 p-3"><span className="flex items-center gap-2 text-[11px] text-white/60"><RowIcon className="size-3.5" />{label as string}</span><strong className="text-sm">{value as string}</strong></div>;
-            })}
-          </div>
-        </section>
+      <div className="flex flex-col gap-3 border-t border-white/10 px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-5">
+        <div>
+          <p className="text-sm font-black">
+            {ML(preview.label[0], preview.label[1], locale)}
+          </p>
+          <p className="mt-1 text-[11px] leading-5 text-white/50">
+            {ML(preview.description[0], preview.description[1], locale)}
+          </p>
+        </div>
+        <Link
+          href={preview.href}
+          className="inline-flex min-h-9 items-center justify-center rounded-lg border border-white/15 px-3 text-[11px] font-black text-white hover:bg-white/10"
+        >
+          {ML("Explore this surface", "استكشف الواجهة", locale)}
+        </Link>
       </div>
     </div>
   );

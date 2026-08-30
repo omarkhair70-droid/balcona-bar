@@ -340,7 +340,7 @@ function json(body, status = 200) {
   };
 }
 
-async function installApiMocks(page) {
+async function installApiMocks(page, billFixture = bill) {
   await page.route("**/api/v1/**", async (route) => {
     const request = route.request();
     const pathname = new URL(request.url()).pathname;
@@ -414,7 +414,7 @@ async function installApiMocks(page) {
     }
 
     if (pathname === `/api/v1/table-sessions/${SESSION_ID}/bill`) {
-      return route.fulfill(json(bill));
+      return route.fulfill(json(billFixture));
     }
 
     if (pathname === `/api/v1/table-sessions/${SESSION_ID}/ai-waiter`) {
@@ -444,9 +444,9 @@ async function installApiMocks(page) {
   });
 }
 
-async function newContext(browser, locale = "en") {
+async function newContext(browser, locale = "en", viewport = { width: 390, height: 844 }) {
   const context = await browser.newContext({
-    viewport: { width: 390, height: 844 },
+    viewport,
     deviceScaleFactor: 1,
     locale: locale === "ar" ? "ar-EG" : "en-US"
   });
@@ -467,9 +467,13 @@ async function capture(browser, {
   route,
   locale = "en",
   expired = false,
-  expectedPath
+  expectedPath,
+  viewport = { width: 390, height: 844 },
+  bootstrapSession = true,
+  billFixture = bill,
+  expectedText
 }) {
-  const context = await newContext(browser, locale);
+  const context = await newContext(browser, locale, viewport);
   const page = await context.newPage();
   const consoleErrors = [];
   const apiRequests = [];
@@ -485,9 +489,9 @@ async function capture(browser, {
     }
   });
 
-  await installApiMocks(page);
+  await installApiMocks(page, billFixture);
 
-  if (route.startsWith("/customer/session/")) {
+  if (route.startsWith("/customer/session/") && bootstrapSession) {
     await page.goto(`${BASE_URL}/customer/table/visual-table-12`, {
       waitUntil: "domcontentloaded",
       timeout: 30000
@@ -526,7 +530,7 @@ async function capture(browser, {
       ({ expectExpired }) => {
         const text = document.body.innerText;
         if (expectExpired) {
-          return text.includes("expired") || text.includes("انته");
+          return text.includes("expired") || text.includes("ended") || text.includes("انته");
         }
         return !text.includes("Restoring your table") && !text.includes("استعادة");
       },
@@ -541,6 +545,23 @@ async function capture(browser, {
   }
 
   await page.waitForTimeout(900);
+
+  if (expectedText) {
+    await page
+      .getByText(expectedText, { exact: false })
+      .first()
+      .waitFor({ state: "visible", timeout: 5000 });
+  }
+
+  const pageText = await page.locator("body").innerText();
+
+  if (
+    route.startsWith("/customer/session/") &&
+    !/prototype/i.test(route) &&
+    /\b(?:backend|idempotency|mock checkout|confirm mock payment|provider checkout)\b/i.test(pageText)
+  ) {
+    throw new Error(`${label}: guest surface exposed implementation terminology`);
+  }
 
   if (expectedPath) {
     const finalPath = new URL(page.url()).pathname;
@@ -587,6 +608,7 @@ async function capture(browser, {
     expectedPath: expectedPath ?? null,
     finalUrl: page.url(),
     screenshot,
+    viewport,
     metrics,
     consoleErrors: consoleErrors.slice(0, 20),
     apiRequests: apiRequests.slice(0, 40)
@@ -621,22 +643,68 @@ try {
     route: `/customer/session/${SESSION_ID}/status`
   }));
   results.push(await capture(browser, {
-    label: "06-production-service-bill-en-390",
-    route: `/customer/session/${SESSION_ID}/service#bill`
+    label: "06-production-service-en-390",
+    route: `/customer/session/${SESSION_ID}/service`
   }));
   results.push(await capture(browser, {
-    label: "07-production-ai-waiter-en-390",
+    label: "07-production-bill-en-390",
+    route: `/customer/session/${SESSION_ID}/bill`
+  }));
+  results.push(await capture(browser, {
+    label: "08-production-ai-waiter-en-390",
     route: `/customer/session/${SESSION_ID}/ai-waiter`
   }));
   results.push(await capture(browser, {
-    label: "08-production-expired-session-en-390",
+    label: "09-production-menu-en-360",
     route: `/customer/session/${SESSION_ID}/menu`,
-    expired: true
+    viewport: { width: 360, height: 800 }
   }));
   results.push(await capture(browser, {
-    label: "09-demo-launcher-redirect-en-390",
+    label: "10-production-menu-en-desktop",
+    route: `/customer/session/${SESSION_ID}/menu`,
+    viewport: { width: 1280, height: 900 }
+  }));
+  results.push(await capture(browser, {
+    label: "11-production-bill-ar-rtl-390",
+    route: `/customer/session/${SESSION_ID}/bill`,
+    locale: "ar"
+  }));
+  results.push(await capture(browser, {
+    label: "12-production-expired-session-en-390",
+    route: `/customer/session/${SESSION_ID}/menu`,
+    expired: true,
+    expectedText: "This table session has ended."
+  }));
+  results.push(await capture(browser, {
+    label: "13-production-missing-session-en-390",
+    route: `/customer/session/${SESSION_ID}/menu`,
+    bootstrapSession: false,
+    expectedText: "Open the QR at your table again"
+  }));
+  const unknownPaymentBill = structuredClone(bill);
+  unknownPaymentBill.activeBill.onlinePaymentIntents = [
+    {
+      id: "intent-unknown",
+      status: "unknown",
+      provider: "paymob",
+      providerCheckoutUrl: null
+    }
+  ];
+  results.push(await capture(browser, {
+    label: "14-production-payment-unknown-en-390",
+    route: `/customer/session/${SESSION_ID}/bill`,
+    billFixture: unknownPaymentBill,
+    expectedText: "Don't pay again yet"
+  }));
+  results.push(await capture(browser, {
+    label: "15-service-bill-compatibility-en-390",
+    route: `/customer/session/${SESSION_ID}/service#bill`,
+    expectedPath: `/customer/session/${SESSION_ID}/bill`
+  }));
+  results.push(await capture(browser, {
+    label: "16-demo-launcher-compatibility-en-390",
     route: "/demo/balkona",
-    expectedPath: "/customer"
+    expectedPath: "/demo"
   }));
 } finally {
   await browser.close();
@@ -645,7 +713,11 @@ try {
 const report = {
   generatedAt: new Date().toISOString(),
   baseUrl: BASE_URL,
-  viewport: { width: 390, height: 844 },
+  viewports: [
+    { width: 360, height: 800 },
+    { width: 390, height: 844 },
+    { width: 1280, height: 900 }
+  ],
   results
 };
 

@@ -19,10 +19,8 @@ import {
   Save,
   Search,
   Send,
-  SlidersHorizontal,
   Trash2,
   Truck,
-  Utensils
 } from "lucide-react";
 import { type FormEvent, type ReactNode, useMemo, useState } from "react";
 import { Badge } from "@/components/ui/badge";
@@ -177,29 +175,23 @@ type ReceivingFormState = {
 
 type InventoryTab =
   | "overview"
-  | "items"
-  | "levels"
+  | "stock"
   | "alerts"
-  | "adjustments"
+  | "movements"
+  | "requirements"
   | "suppliers"
   | "purchase_orders"
-  | "receiving"
-  | "requirements"
-  | "availability"
-  | "movements";
+  | "receiving";
 
 const inventoryTabs: Array<{ id: InventoryTab; label: string }> = [
   { id: "overview", label: "Overview" },
-  { id: "items", label: "Items" },
-  { id: "levels", label: "Stock levels" },
+  { id: "stock", label: "Stock" },
   { id: "alerts", label: "Alerts" },
-  { id: "adjustments", label: "Adjustments" },
+  { id: "movements", label: "Movements" },
+  { id: "requirements", label: "Requirements / Recipes" },
   { id: "suppliers", label: "Suppliers" },
   { id: "purchase_orders", label: "Purchase orders" },
-  { id: "receiving", label: "Receiving" },
-  { id: "requirements", label: "Requirements" },
-  { id: "availability", label: "Menu availability" },
-  { id: "movements", label: "Recent movements" }
+  { id: "receiving", label: "Receiving" }
 ];
 
 const supplierStatuses: SupplierStatus[] = ["active", "inactive", "archived"];
@@ -649,11 +641,7 @@ function TabIcon({ tabId }: { tabId: InventoryTab }) {
     return <Gauge className="size-4" aria-hidden="true" />;
   }
 
-  if (tabId === "items") {
-    return <Boxes className="size-4" aria-hidden="true" />;
-  }
-
-  if (tabId === "levels") {
+  if (tabId === "stock") {
     return <PackageCheck className="size-4" aria-hidden="true" />;
   }
 
@@ -661,8 +649,12 @@ function TabIcon({ tabId }: { tabId: InventoryTab }) {
     return <AlertTriangle className="size-4" aria-hidden="true" />;
   }
 
-  if (tabId === "adjustments") {
-    return <SlidersHorizontal className="size-4" aria-hidden="true" />;
+  if (tabId === "movements") {
+    return <History className="size-4" aria-hidden="true" />;
+  }
+
+  if (tabId === "requirements") {
+    return <ClipboardList className="size-4" aria-hidden="true" />;
   }
 
   if (tabId === "suppliers") {
@@ -673,19 +665,7 @@ function TabIcon({ tabId }: { tabId: InventoryTab }) {
     return <FilePlus2 className="size-4" aria-hidden="true" />;
   }
 
-  if (tabId === "receiving") {
-    return <ReceiptText className="size-4" aria-hidden="true" />;
-  }
-
-  if (tabId === "requirements") {
-    return <ClipboardList className="size-4" aria-hidden="true" />;
-  }
-
-  if (tabId === "availability") {
-    return <Utensils className="size-4" aria-hidden="true" />;
-  }
-
-  return <History className="size-4" aria-hidden="true" />;
+  return <ReceiptText className="size-4" aria-hidden="true" />;
 }
 
 function StaffInventoryContent() {
@@ -1706,7 +1686,7 @@ function StaffInventoryContent() {
           />
         ) : null}
 
-        {activeTab === "items" ? (
+        {activeTab === "stock" ? (
           <InventoryItemsSection
             canManageCompanyInventory={canManageCompanyInventory}
             itemForm={itemForm}
@@ -1731,7 +1711,7 @@ function StaffInventoryContent() {
           />
         ) : null}
 
-        {activeTab === "levels" ? (
+        {activeTab === "stock" ? (
           <StockLevelsSection
             levels={sortedLevels}
             latestMovementByItemId={latestMovementByItemId}
@@ -1746,7 +1726,7 @@ function StaffInventoryContent() {
           />
         ) : null}
 
-        {activeTab === "adjustments" ? (
+        {activeTab === "movements" ? (
           <AdjustmentSection
             canManageBranchStock={canManageBranchStock}
             adjustmentForm={adjustmentForm}
@@ -1883,14 +1863,6 @@ function StaffInventoryContent() {
           />
         ) : null}
 
-        {activeTab === "availability" ? (
-          <MenuAvailabilitySection
-            items={
-              menuAvailabilityQuery.data?.items ?? emptyMenuAvailabilityItems
-            }
-            isLoading={menuAvailabilityQuery.isPending}
-          />
-        ) : null}
 
         {activeTab === "movements" ? (
           <RecentMovementsSection movements={recentMovements} />
@@ -1992,7 +1964,7 @@ function InventoryOverview({
               selected branch.
             </CardDescription>
           </div>
-          <Button size="sm" variant="secondary" onClick={() => onOpenTab("levels")}>
+          <Button size="sm" variant="secondary" onClick={() => onOpenTab("stock")}>
             Stock levels
           </Button>
         </CardHeader>
@@ -2032,7 +2004,7 @@ function InventoryOverview({
           <Button
             size="sm"
             variant="secondary"
-            onClick={() => onOpenTab("adjustments")}
+            onClick={() => onOpenTab("movements")}
           >
             Adjust stock
           </Button>
@@ -3581,6 +3553,76 @@ function ReceivingSection({
   );
 }
 
+function MenuAvailabilityRow({
+  item
+}: {
+  item: InventoryMenuAvailabilityItem;
+}) {
+  return (
+    <div className="grid gap-3 rounded-card border bg-surface/70 p-4 md:grid-cols-[1fr_auto]">
+      <div>
+        <div className="flex flex-wrap items-center gap-2">
+          <p className="font-semibold text-foreground">{item.name}</p>
+          <Badge variant={item.canOrder ? "success" : "danger"}>
+            {item.canOrder ? "Can order" : "Blocked"}
+          </Badge>
+          <Badge variant={inventoryStatusBadgeVariant(item.stockStatus)}>
+            {item.stockStatus === "in_stock"
+              ? "OK"
+              : humanizeInventoryValue(item.stockStatus)}
+          </Badge>
+        </div>
+        <p className="mt-1 text-sm text-muted-foreground">
+          Catalog state: {item.branchVisible ? "visible" : "hidden"} /{" "}
+          {item.branchAvailable ? "available" : "unavailable"}
+          {item.reasons.length > 0
+            ? ` / ${item.reasons.map(humanizeInventoryValue).join(", ")}`
+            : ""}
+        </p>
+        {item.missingRequirements.length > 0 ? (
+          <div className="mt-3 grid gap-2">
+            {item.missingRequirements.map((requirement) => (
+              <p
+                key={requirement.inventoryItemId}
+                className="rounded-button border border-danger/40 bg-danger/10 px-3 py-2 text-sm text-foreground"
+              >
+                Missing {requirement.name}: needs{" "}
+                {quantityWithUnit(
+                  requirement.quantityRequired,
+                  requirement.unit
+                )}
+                , has{" "}
+                {quantityWithUnit(requirement.quantityOnHand, requirement.unit)}
+                , shortage{" "}
+                {quantityWithUnit(
+                  requirement.shortageQuantity,
+                  requirement.unit
+                )}
+                .
+              </p>
+            ))}
+          </div>
+        ) : null}
+        {item.lowStockRequirements.length > 0 ? (
+          <div className="mt-3 grid gap-2">
+            {item.lowStockRequirements.map((requirement) => (
+              <p
+                key={requirement.inventoryItemId}
+                className="rounded-button border border-warning/40 bg-warning/10 px-3 py-2 text-sm text-foreground"
+              >
+                Low after order: {requirement.name} goes to{" "}
+                {quantityWithUnit(requirement.quantityAfter, requirement.unit)}
+                ; threshold{" "}
+                {quantityWithUnit(requirement.threshold, requirement.unit)}.
+              </p>
+            ))}
+          </div>
+        ) : null}
+      </div>
+    </div>
+  );
+}
+
 function InventoryAlertsSection({
   lowStockLevels,
   outOfStockLevels,
@@ -3865,105 +3907,6 @@ function RequirementsSection({
         </div>
       </CardContent>
     </Card>
-  );
-}
-
-function MenuAvailabilitySection({
-  items,
-  isLoading
-}: {
-  items: InventoryMenuAvailabilityItem[];
-  isLoading: boolean;
-}) {
-  return (
-    <Card variant="glass">
-      <CardHeader>
-        <Badge variant="muted">Computed only</Badge>
-        <CardTitle>Menu availability by stock</CardTitle>
-        <CardDescription>
-          Inventory availability is separate from manual menu visibility and
-          branch availability overrides.
-        </CardDescription>
-      </CardHeader>
-      <CardContent className="grid gap-3">
-        {isLoading ? <LoadingState label="Loading stock availability" /> : null}
-        {items.map((item) => (
-          <MenuAvailabilityRow key={item.menuItemId} item={item} />
-        ))}
-        {items.length === 0 && !isLoading ? (
-          <EmptyState
-            title="No menu availability rows"
-            description="Create menu items and requirements to compute inventory availability."
-          />
-        ) : null}
-      </CardContent>
-    </Card>
-  );
-}
-
-function MenuAvailabilityRow({ item }: { item: InventoryMenuAvailabilityItem }) {
-  return (
-    <div className="grid gap-3 rounded-card border bg-surface/70 p-4 md:grid-cols-[1fr_auto]">
-      <div>
-        <div className="flex flex-wrap items-center gap-2">
-          <p className="font-semibold text-foreground">{item.name}</p>
-          <Badge variant={item.canOrder ? "success" : "danger"}>
-            {item.canOrder ? "Can order" : "Blocked"}
-          </Badge>
-          <Badge variant={inventoryStatusBadgeVariant(item.stockStatus)}>
-            {item.stockStatus === "in_stock"
-              ? "OK"
-              : humanizeInventoryValue(item.stockStatus)}
-          </Badge>
-        </div>
-        <p className="mt-1 text-sm text-muted-foreground">
-          Manual menu state: {item.branchVisible ? "visible" : "hidden"} /{" "}
-          {item.branchAvailable ? "available" : "unavailable"}
-          {item.reasons.length > 0
-            ? ` / ${item.reasons.map(humanizeInventoryValue).join(", ")}`
-            : ""}
-        </p>
-        {item.missingRequirements.length > 0 ? (
-          <div className="mt-3 grid gap-2">
-            {item.missingRequirements.map((requirement) => (
-              <p
-                key={requirement.inventoryItemId}
-                className="rounded-button border border-danger/40 bg-danger/10 px-3 py-2 text-sm text-foreground"
-              >
-                Missing {requirement.name}: needs{" "}
-                {quantityWithUnit(
-                  requirement.quantityRequired,
-                  requirement.unit
-                )}
-                , has{" "}
-                {quantityWithUnit(requirement.quantityOnHand, requirement.unit)}
-                , shortage{" "}
-                {quantityWithUnit(
-                  requirement.shortageQuantity,
-                  requirement.unit
-                )}
-                .
-              </p>
-            ))}
-          </div>
-        ) : null}
-        {item.lowStockRequirements.length > 0 ? (
-          <div className="mt-3 grid gap-2">
-            {item.lowStockRequirements.map((requirement) => (
-              <p
-                key={requirement.inventoryItemId}
-                className="rounded-button border border-warning/40 bg-warning/10 px-3 py-2 text-sm text-foreground"
-              >
-                Low after order: {requirement.name} goes to{" "}
-                {quantityWithUnit(requirement.quantityAfter, requirement.unit)}
-                ; threshold{" "}
-                {quantityWithUnit(requirement.threshold, requirement.unit)}.
-              </p>
-            ))}
-          </div>
-        ) : null}
-      </div>
-    </div>
   );
 }
 

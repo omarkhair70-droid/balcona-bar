@@ -25,11 +25,10 @@ export function MarketingShell({ children }: { children: ReactNode }) {
     <div className="min-h-screen bg-[#F2EFE7] text-[#211D18] [--accent:#8C512D] [--background:#F2EFE7] [--border:#D8D0C3] [--foreground:#211D18] [--muted:#E8E2D7] [--muted-foreground:#6E665D] [--primary:#8C512D] [--primary-foreground:#FFF9EF] [--ring:#A8643A] [--surface:#FBF8F1] [--surface-2:#EAE3D8]">
       <header className="sticky top-0 z-50 border-b border-[#D6CFC3]/90 bg-[#F2EFE7]/94 backdrop-blur-xl">
         <div className="mx-auto flex min-h-16 max-w-[1240px] items-center justify-between gap-5 px-5 lg:px-8">
-          <Link href="/" className="flex items-center gap-3" aria-label="Balcona home">
-            <span className="grid size-9 place-items-center rounded-lg bg-[#211D18] text-sm font-black text-[#FFF8ED]">B</span>
-            <span>
-              <span className="block text-[15px] font-black tracking-[-0.03em]">Balcona</span>
-              <span className="block text-[9px] font-bold uppercase tracking-[0.16em] text-[#766C62]">Hospitality OS</span>
+          <Link href="/" className="flex items-baseline gap-2" aria-label="Balcona home">
+            <span className="text-xl font-black tracking-[-.045em]">Balcona</span>
+            <span className="hidden text-[9px] font-bold uppercase tracking-[0.16em] text-[#766C62] sm:inline">
+              Hospitality OS
             </span>
           </Link>
 
@@ -52,14 +51,21 @@ export function MarketingShell({ children }: { children: ReactNode }) {
             </Link>
           </div>
 
-          <button type="button" onClick={() => setOpen((value) => !value)} className="grid size-10 place-items-center rounded-lg border border-[#D6CFC3] lg:hidden" aria-expanded={open} aria-label="Toggle navigation">
+          <button
+            type="button"
+            onClick={() => setOpen((value) => !value)}
+            className="grid size-10 place-items-center rounded-lg border border-[#D6CFC3] lg:hidden"
+            aria-expanded={open}
+            aria-controls="marketing-mobile-navigation"
+            aria-label={ML("Toggle navigation", "فتح أو إغلاق التنقل", locale)}
+          >
             {open ? <X className="size-5" /> : <Menu className="size-5" />}
           </button>
         </div>
 
         {open ? (
-          <div className="border-t border-[#D6CFC3] px-5 py-4 lg:hidden">
-            <nav className="mx-auto grid max-w-[1240px] gap-2">
+          <div id="marketing-mobile-navigation" className="border-t border-[#D6CFC3] px-5 py-4 lg:hidden">
+            <nav className="mx-auto grid max-w-[1240px] gap-2" aria-label={ML("Mobile navigation", "تنقل الموبايل", locale)}>
               {nav.map(([href, en, ar]) => (
                 <Link key={href} href={href} onClick={() => setOpen(false)} className="rounded-lg px-3 py-3 text-sm font-bold hover:bg-[#E8E2D7]">
                   {ML(en, ar, locale)}
@@ -67,8 +73,12 @@ export function MarketingShell({ children }: { children: ReactNode }) {
               ))}
               <div className="mt-2 flex flex-wrap items-center gap-2 border-t border-[#D6CFC3] pt-4">
                 <LanguageSwitcher />
-                <Link href="/login" className="rounded-lg border border-[#CFC6B8] px-4 py-2 text-sm font-bold">{ML("Sign in", "الدخول", locale)}</Link>
-                <Link href="/request-demo" className="rounded-lg bg-[#211D18] px-4 py-2 text-sm font-bold text-white">{ML("Request a demo", "اطلب عرضًا", locale)}</Link>
+                <Link href="/login" onClick={() => setOpen(false)} className="rounded-lg border border-[#CFC6B8] px-4 py-2 text-sm font-bold">
+                  {ML("Sign in", "الدخول", locale)}
+                </Link>
+                <Link href="/request-demo" onClick={() => setOpen(false)} className="rounded-lg bg-[#211D18] px-4 py-2 text-sm font-bold text-white">
+                  {ML("Request a demo", "اطلب عرضًا", locale)}
+                </Link>
               </div>
             </nav>
           </div>
@@ -87,6 +97,8 @@ export function MarketingShell({ children }: { children: ReactNode }) {
           </div>
           <div className="grid content-start gap-2 text-sm font-semibold text-[#625A52]">
             <Link href="/product">{ML("Product", "المنتج", locale)}</Link>
+            <Link href="/product/multi-location">{ML("Multi-location", "تعدد الفروع", locale)}</Link>
+            <Link href="/solutions/multi-branch">{ML("Multi-branch operators", "مشغلو الفروع المتعددة", locale)}</Link>
             <Link href="/demo">{ML("Product tour", "جولة المنتج", locale)}</Link>
             <Link href="/pricing">{ML("Pricing", "الأسعار", locale)}</Link>
           </div>

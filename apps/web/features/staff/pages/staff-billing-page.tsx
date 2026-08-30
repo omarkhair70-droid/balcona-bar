@@ -531,9 +531,9 @@ function StaffBillingContent() {
 export function StaffBillingPage() {
   return (
     <OfficeStaffShell
-      activeDomain="settings"
-      title="Plan and tenant limits"
-      description="Internal subscription status, plan entitlements, and tenant usage limits for the selected branch."
+      activeDomain="account"
+      title="Account · Plan & billing"
+      description="Balcona SaaS plan, subscription status, entitlements, and tenant usage limits. Restaurant/customer money is managed separately."
       actions={
         <div className="flex flex-wrap gap-3">
           <Link href="/staff/setup" className={buttonVariants({ variant: "secondary" })}>
@@ -550,7 +550,7 @@ export function StaffBillingPage() {
       <StaffAuthGate
         requiredPermissions={["saas.read"]}
         branchScoped
-        deniedTitle="Billing access required"
+        deniedTitle="Account access required"
         deniedDescription="Plan and tenant limit status is available to owner and branch manager roles."
       >
         <StaffBillingContent />

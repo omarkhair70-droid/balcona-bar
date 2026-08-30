@@ -234,8 +234,9 @@ function getVisibleMenuAdminTabs(canManageFullMenu: boolean) {
     ? menuAdminTabs
     : menuAdminTabs.filter(
         (tab) =>
-          tab.id === "overview" ||
+          tab.id === "menus" ||
           tab.id === "availability" ||
+          tab.id === "branch_overrides" ||
           tab.id === "preview"
       );
 }
@@ -1274,7 +1275,66 @@ function ItemSection({
   );
 }
 
-function AvailabilitySection({
+function EffectiveAvailabilitySection({
+  items
+}: {
+  items: MenuAdminItem[];
+}) {
+  return (
+    <Card variant="glass">
+      <CardHeader>
+        <Badge variant="muted">Effective branch catalog</Badge>
+        <CardTitle>Availability</CardTitle>
+        <CardDescription>
+          Review the effective sellability returned for this branch. Inherited
+          company values stay distinct from explicit branch overrides.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="grid gap-2">
+        <div className="hidden grid-cols-[minmax(0,1.6fr)_auto_auto_auto_auto] gap-3 border-b px-3 pb-2 text-xs font-semibold uppercase text-muted-foreground md:grid">
+          <span>Item</span>
+          <span>Visibility</span>
+          <span>Availability</span>
+          <span>Effective price</span>
+          <span>Source</span>
+        </div>
+        {items.map((item) => (
+          <div
+            key={item.id}
+            className="grid gap-2 rounded-card border bg-surface/70 p-3 text-sm md:grid-cols-[minmax(0,1.6fr)_auto_auto_auto_auto] md:items-center"
+          >
+            <div className="min-w-0">
+              <p className="truncate font-semibold">{item.name}</p>
+              <p className="text-xs text-muted-foreground">
+                {item.category?.name ?? "Catalog item"}
+              </p>
+            </div>
+            <Badge variant={item.isVisible ? "success" : "warning"}>
+              {item.isVisible ? "Visible" : "Hidden"}
+            </Badge>
+            <Badge variant={item.isAvailable ? "success" : "warning"}>
+              {item.isAvailable ? "Available" : "Unavailable"}
+            </Badge>
+            <span className="font-semibold">
+              {formatMenuMoney(item.effectivePriceMinor, item.currency)}
+            </span>
+            <Badge variant={item.hasBranchOverride ? "warning" : "muted"}>
+              {item.hasBranchOverride ? "Branch override" : "Inherited"}
+            </Badge>
+          </div>
+        ))}
+        {items.length === 0 ? (
+          <EmptyState
+            title="No catalog items"
+            description="Create items before reviewing branch availability."
+          />
+        ) : null}
+      </CardContent>
+    </Card>
+  );
+}
+
+function BranchOverridesSection({
   items,
   drafts,
   isSaving,
@@ -1296,9 +1356,9 @@ function AvailabilitySection({
       <CardHeader className="gap-4 md:flex md:flex-row md:items-start md:justify-between md:space-y-0">
         <div>
           <Badge variant="muted">Branch overrides</Badge>
-          <CardTitle>Availability management</CardTitle>
+          <CardTitle>Branch overrides</CardTitle>
           <CardDescription>
-            These controls decide what the selected branch can sell right now.
+            Override inherited visibility, sellability, price, or sort order for the selected branch.
             {canManageOverrides
               ? " Changes are saved as branch overrides."
               : " This account can inspect availability but cannot save branch overrides."}
@@ -2109,7 +2169,7 @@ function MenuAdminContent() {
   const setSelectedBranchId = useStaffAuthStore(
     (state) => state.setSelectedBranchId
   );
-  const [activeTab, setActiveTab] = useState<MenuAdminTab>("overview");
+  const [activeTab, setActiveTab] = useState<MenuAdminTab>("menus");
   const [categoryForm, setCategoryForm] =
     useState<CategoryFormState>(emptyCategoryForm);
   const [itemForm, setItemForm] = useState<ItemFormState>(emptyItemForm);
@@ -2155,7 +2215,7 @@ function MenuAdminContent() {
   );
   const activeVisibleTab = visibleTabs.some((tab) => tab.id === activeTab)
     ? activeTab
-    : visibleTabs[0]?.id ?? "overview";
+    : visibleTabs[0]?.id ?? "menus";
 
   function refreshMenuAdmin(message?: string) {
     if (!selectedBranchId) {
@@ -2655,7 +2715,7 @@ function MenuAdminContent() {
             variant={activeVisibleTab === tab.id ? "primary" : "ghost"}
             onClick={() => setActiveTab(tab.id)}
           >
-            {tab.id === "overview" ? (
+            {tab.id === "menus" ? (
               <LayoutDashboard className="size-4" aria-hidden="true" />
             ) : null}
             {tab.id === "categories" ? (
@@ -2664,11 +2724,14 @@ function MenuAdminContent() {
             {tab.id === "items" ? (
               <BookOpenText className="size-4" aria-hidden="true" />
             ) : null}
-            {tab.id === "availability" ? (
-              <SlidersHorizontal className="size-4" aria-hidden="true" />
-            ) : null}
             {tab.id === "modifiers" ? (
               <Settings2 className="size-4" aria-hidden="true" />
+            ) : null}
+            {tab.id === "availability" ? (
+              <Eye className="size-4" aria-hidden="true" />
+            ) : null}
+            {tab.id === "branch_overrides" ? (
+              <SlidersHorizontal className="size-4" aria-hidden="true" />
             ) : null}
             {tab.id === "preview" ? (
               <AlertTriangle className="size-4" aria-hidden="true" />
@@ -2678,7 +2741,7 @@ function MenuAdminContent() {
         ))}
       </div>
 
-      {activeVisibleTab === "overview" ? (
+      {activeVisibleTab === "menus" ? (
         <OverviewSection overview={overview} />
       ) : null}
 
@@ -2717,7 +2780,11 @@ function MenuAdminContent() {
       ) : null}
 
       {activeVisibleTab === "availability" ? (
-        <AvailabilitySection
+        <EffectiveAvailabilitySection items={allItems} />
+      ) : null}
+
+      {activeVisibleTab === "branch_overrides" ? (
+        <BranchOverridesSection
           items={allItems}
           drafts={availabilityDrafts}
           isSaving={isMutating}

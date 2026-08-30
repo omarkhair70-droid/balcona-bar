@@ -6,7 +6,6 @@ import {
   AlertTriangle,
   ArrowUpRight,
   CheckCircle2,
-  ClipboardCheck,
   Copy,
   ExternalLink,
   Loader2,
@@ -26,14 +25,12 @@ import {
 } from "@/features/staff/setup-readiness-frame";
 import { formatErrorMessage } from "@/lib/api/error-message";
 import {
-  bulkCreateOnboardingTables,
-  createOnboardingFloor,
   getBranchLaunchChecklist,
   getBranchOnboarding,
+  getCompanyOnboarding,
   inviteOnboardingStaff,
   updateBranchOnboardingProfile,
-  updateCompanyOnboardingProfile,
-  updateOnboardingReadinessCheck
+  updateCompanyOnboardingProfile
 } from "@/lib/api/endpoints";
 import { staffQueryKeys } from "@/lib/api/query-keys";
 import type {
@@ -93,6 +90,16 @@ function readinessText(
       label: "ملف الفرع مكتمل",
       ready: "اسم الفرع والمعرف والعنوان والحالة جاهزة.",
       pending: "أكمل بيانات الفرع والعنوان والحالة قبل التشغيل."
+    },
+    branches_created: {
+      label: "تم إنشاء فرع",
+      ready: "يوجد فرع واحد على الأقل داخل الشركة.",
+      pending: "أنشئ أول فرع للانتقال من تجهيز الشركة إلى تجهيز التشغيل."
+    },
+    active_branch_ready: {
+      label: "يوجد فرع نشط",
+      ready: "يوجد فرع نشط يمكن استكمال تجهيزه.",
+      pending: "فعّل أول فرع قبل تشغيل QR واستكمال الجاهزية."
     },
     floors_created: {
       label: "تم إنشاء الأدوار أو المناطق",
@@ -175,9 +182,14 @@ function readinessText(
       pending: "جهّز الكاشير والترابيزات قبل بدء الشِفت."
     },
     printer_foundation_ready: {
-      label: "أساس الطباعة جاهز",
-      ready: "محطات الطباعة البرمجية مهيأة.",
-      pending: "دورة الطباعة البرمجية جاهزة جزئيًا؛ النقل للطابعة الفعلية يظل بوابة مكان."
+      label: "مسار الطباعة البرمجي جاهز",
+      ready: "محطات الطباعة مهيأة لمسار السوفتوير؛ نجاح الطابعة الفعلية غير مُثبت هنا.",
+      pending: "جهّز مسار الطباعة البرمجي قبل اختبار هاردوير المكان."
+    },
+    physical_printer_hardware_ready: {
+      label: "اختبار الطابعة الفعلية",
+      ready: "تم التحقق من الطابعة الفعلية.",
+      pending: "توصيل الطابعة والكابلات ونجاح النقل الفعلي يحتاج تحققًا داخل المكان."
     },
     bills_payment_ready: {
       label: "رحلة الفاتورة والدفع اليدوي جاهزة",
@@ -185,9 +197,9 @@ function readinessText(
       pending: "أكمل متطلبات الكاشير قبل تسليم رحلة الفاتورة والدفع."
     },
     online_payment_provider_ready: {
-      label: "أساس مزود الدفع الإلكتروني",
-      ready: "مزود الدفع الإلكتروني مهيأ خارج وضع المحاكاة.",
-      pending: "تفعيل التاجر أو المزود الخارجي ما زال مطلوبًا."
+      label: "اعتماد الدفع الإلكتروني الحي",
+      ready: "تم التحقق من اعتماد مزود الدفع الحي.",
+      pending: "اختيار المزود في السوفتوير لا يثبت اعتماد التاجر؛ التحقق الخارجي ما زال مطلوبًا."
     },
     kds_ready: {
       label: "نظام KDS جاهز",
@@ -410,6 +422,16 @@ function StaffSetupContent() {
     selectedBranchId
   );
 
+  const companyQuery = useQuery({
+    queryKey: staffQueryKeys.companyOnboarding(selectedCompanyId),
+    queryFn: () => getCompanyOnboarding(selectedCompanyId ?? "", accessToken),
+    enabled: Boolean(
+      accessToken &&
+      selectedCompanyId &&
+      effectiveAccess?.branches.length === 0
+    ),
+    staleTime: 30_000
+  });
   const branchQuery = useQuery({
     queryKey: staffQueryKeys.branchOnboarding(selectedBranchId),
     queryFn: () => getBranchOnboarding(selectedBranchId ?? "", accessToken),
@@ -437,14 +459,6 @@ function StaffSetupContent() {
     address: string;
     status: string;
   }>>({});
-  const [floorForm, setFloorForm] = useState({ name: "", sortOrder: "0" });
-  const [tableForm, setTableForm] = useState({
-    floorLabel: "Main Floor",
-    tablePrefix: "T",
-    startNumber: "1",
-    count: "8",
-    seats: "2"
-  });
   const [staffForm, setStaffForm] = useState<InviteOnboardingStaffPayload>({
     name: "",
     email: "",
@@ -452,7 +466,6 @@ function StaffSetupContent() {
   });
   const [lastInviteUrl, setLastInviteUrl] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
-  const [acknowledgedMessage, setAcknowledgedMessage] = useState<string | null>(null);
 
   const companyForm = {
     name: onboarding?.company.name ?? "",
@@ -469,14 +482,19 @@ function StaffSetupContent() {
   };
 
   function refresh() {
-    if (!selectedBranchId) return;
-
-    void queryClient.invalidateQueries({
-      queryKey: staffQueryKeys.branchOnboarding(selectedBranchId)
-    });
-    void queryClient.invalidateQueries({
-      queryKey: staffQueryKeys.branchLaunchChecklist(selectedBranchId)
-    });
+    if (selectedCompanyId) {
+      void queryClient.invalidateQueries({
+        queryKey: staffQueryKeys.companyOnboarding(selectedCompanyId)
+      });
+    }
+    if (selectedBranchId) {
+      void queryClient.invalidateQueries({
+        queryKey: staffQueryKeys.branchOnboarding(selectedBranchId)
+      });
+      void queryClient.invalidateQueries({
+        queryKey: staffQueryKeys.branchLaunchChecklist(selectedBranchId)
+      });
+    }
     void queryClient.invalidateQueries({ queryKey: staffQueryKeys.me() });
   }
 
@@ -507,36 +525,6 @@ function StaffSetupContent() {
       ),
     onSuccess: refresh
   });
-  const floorMutation = useMutation({
-    mutationFn: () =>
-      createOnboardingFloor(
-        selectedBranchId ?? "",
-        {
-          name: floorForm.name,
-          sortOrder: Number.parseInt(floorForm.sortOrder, 10) || 0
-        },
-        accessToken
-      ),
-    onSuccess: () => {
-      setFloorForm({ name: "", sortOrder: "0" });
-      refresh();
-    }
-  });
-  const tablesMutation = useMutation({
-    mutationFn: () =>
-      bulkCreateOnboardingTables(
-        selectedBranchId ?? "",
-        {
-          floorLabel: tableForm.floorLabel,
-          tablePrefix: tableForm.tablePrefix,
-          startNumber: Math.max(1, Number.parseInt(tableForm.startNumber, 10) || 1),
-          count: Math.max(1, Number.parseInt(tableForm.count, 10) || 1),
-          seats: Math.max(1, Number.parseInt(tableForm.seats, 10) || 2)
-        },
-        accessToken
-      ),
-    onSuccess: refresh
-  });
   const staffMutation = useMutation({
     mutationFn: () =>
       inviteOnboardingStaff(selectedBranchId ?? "", staffForm, accessToken),
@@ -551,30 +539,10 @@ function StaffSetupContent() {
       refresh();
     }
   });
-  const readinessMutation = useMutation({
-    mutationFn: (item: TenantOnboardingChecklistItem) =>
-      updateOnboardingReadinessCheck(
-        selectedBranchId ?? "",
-        {
-          key: item.key,
-          status: item.status === "blocked" ? "blocked" : "pending",
-          note: item.reason
-        },
-        accessToken
-      ),
-    onSuccess: (result) => {
-      setAcknowledgedMessage(result.message);
-      refresh();
-    }
-  });
-
   const mutationError =
     companyMutation.error ??
     branchMutation.error ??
-    floorMutation.error ??
-    tablesMutation.error ??
-    staffMutation.error ??
-    readinessMutation.error;
+    staffMutation.error;
 
   const roleCounts = useMemo(() => onboarding?.staff.roleCounts ?? {}, [onboarding]);
   const staffRoles: TenantOnboardingStaffRole[] = [
@@ -588,15 +556,70 @@ function StaffSetupContent() {
   ];
 
   if (effectiveAccess?.branches.length === 0) {
+    if (companyQuery.isPending) {
+      return <LoadingState label={L(locale, "Loading Setup Home", "جارٍ تحميل الرئيسية")} />;
+    }
+
+    if (companyQuery.isError || !companyQuery.data) {
+      return (
+        <EmptyState
+          title={L(locale, "Setup Home could not load", "تعذر تحميل الرئيسية")}
+          description={formatErrorMessage(companyQuery.error)}
+        />
+      );
+    }
+
+    const companySetup = companyQuery.data;
+    const companyChecklist = companySetup.sections.flatMap((section) => section.items);
+    const nextItem = companyChecklist.find((item) => item.status !== "ready");
+
     return (
-      <EmptyState
-        title={L(locale, "No branch access", "لا يوجد وصول لفرع")}
-        description={L(
-          locale,
-          "Setup is branch-scoped. Add branch access before opening launch setup.",
-          "التجهيز مرتبط بالفرع. أضف صلاحية فرع قبل فتح تجهيز التشغيل."
-        )}
-      />
+      <div dir={locale === "ar" ? "rtl" : "ltr"} className="min-h-screen bg-[#F4F0EA] text-[#2B2520]">
+        <header className="border-b border-[#D8D1C8] bg-[#F8F5F0]">
+          <div className="mx-auto flex min-h-16 max-w-[1100px] items-center gap-3 px-4 sm:px-6">
+            <div className="flex size-9 items-center justify-center rounded-md bg-[#2D2823] text-xs font-black text-white">B</div>
+            <div>
+              <p className="text-sm font-semibold">Balcona Setup</p>
+              <p className="text-[10px] text-[#82776D]">{L(locale, "Setup Home · company readiness", "الرئيسية · جاهزية الشركة")}</p>
+            </div>
+          </div>
+        </header>
+        <main className="mx-auto grid max-w-[1100px] gap-4 px-4 py-6 sm:px-6">
+          <Panel
+            eyebrow={L(locale, "SETUP HOME", "الرئيسية")}
+            title={L(locale, "Create the first operating location.", "أنشئ أول فرع للتشغيل.")}
+            description={L(
+              locale,
+              "Company readiness is available before a branch exists. Setup will become branch-scoped after the first location is created.",
+              "جاهزية الشركة متاحة قبل وجود فرع. بعد إنشاء أول فرع تتحول الرحلة إلى جاهزية تشغيل خاصة بالفرع."
+            )}
+            footer={
+              <Link href="/staff/branches" className={secondaryButtonClass}>
+                {L(locale, "Create first location in Office", "أنشئ أول فرع في Office")}
+                <ArrowUpRight className="size-4" aria-hidden="true" />
+              </Link>
+            }
+          >
+            <div className="mb-4 grid gap-3 sm:grid-cols-3">
+              <Metric label={L(locale, "Company", "الشركة")} value={companySetup.company.name} detail={L(locale, "Foundation exists", "الأساس موجود")} />
+              <Metric label={L(locale, "Locations", "الفروع")} value={String(companySetup.branches.length)} detail={L(locale, "Create one to continue", "أنشئ فرعًا للمتابعة")} />
+              <Metric label={L(locale, "Menu items", "منتجات المنيو")} value={String(companySetup.menu.activeItemCount)} detail={L(locale, "Company catalog truth", "بيانات كتالوج الشركة")} />
+            </div>
+            <ReadinessRows locale={locale} items={companyChecklist} />
+          </Panel>
+          <Panel
+            eyebrow={L(locale, "RECOMMENDED NEXT ACTION", "الخطوة التالية")}
+            title={nextItem ? readinessText(locale, nextItem).label : L(locale, "Company foundation is ready", "أساس الشركة جاهز")}
+            description={nextItem ? readinessText(locale, nextItem).reason : L(locale, "Create the first location to continue the finite launch journey.", "أنشئ أول فرع لاستكمال رحلة التجهيز المحددة.")}
+            footer={
+              <Link href={nextItem?.actionHref ?? "/staff/branches"} className={secondaryButtonClass}>
+                {L(locale, "Continue in the owning surface", "تابع في الجزء المسؤول")}
+                <ArrowUpRight className="size-4" aria-hidden="true" />
+              </Link>
+            }
+          />
+        </main>
+      </div>
     );
   }
 
@@ -615,6 +638,30 @@ function StaffSetupContent() {
 
   const setup = onboarding;
   const checklist = checklistQuery.data?.launchChecklist ?? setup.launchChecklist;
+  const unresolvedItems = checklist.filter((item) => item.status !== "ready");
+  const nextItem = unresolvedItems[0];
+  const readyCheckCount = checklist.length - unresolvedItems.length;
+  const blockedCheckCount = checklist.filter((item) => item.status === "blocked").length;
+  const attentionCheckCount = checklist.filter((item) => item.status === "needs_attention" || item.status === "missing").length;
+
+  function actionHrefFor(item?: TenantOnboardingChecklistItem) {
+    if (!item) return "/staff/setup#final";
+    if (item.actionHref && item.actionHref !== "/staff/setup") return item.actionHref;
+
+    const setupPhaseByKey: Record<string, SetupPhaseId> = {
+      company_profile: "business",
+      branch_profile: "business",
+      floors_created: "locations",
+      tables_created: "locations",
+      qr_links_ready: "locations",
+      owner_staff_ready: "team",
+      cashier_staff_ready: "team",
+      kitchen_staff_ready: "team",
+      waiter_staff_ready: "team"
+    };
+
+    return `/staff/setup#${setupPhaseByKey[item.key] ?? "final"}`;
+  }
 
   function linkButton(href: string, label: string) {
     return (
@@ -626,6 +673,77 @@ function StaffSetupContent() {
   }
 
   function renderPhase(phase: SetupPhaseId) {
+    if (phase === "home") {
+      return (
+        <div className="grid gap-4 xl:grid-cols-[1.1fr_0.9fr]">
+          <Panel
+            eyebrow={L(locale, "SETUP HOME", "الرئيسية")}
+            title={
+              launchSummary?.readyForPilot
+                ? unresolvedItems.length > 0
+                  ? L(locale, "Software pilot ready — go-live gates remain.", "الـPilot البرمجي جاهز — ما زالت بوابات التشغيل الحي.")
+                  : L(locale, "Ready for final go-live rehearsal.", "جاهز لتجربة التشغيل النهائية.")
+                : launchSummary?.readyForDemo
+                  ? L(locale, "Demo ready — continue launch readiness.", "جاهز للديمو — أكمل جاهزية التشغيل.")
+                  : L(locale, "Continue the highest-impact readiness work.", "كمّل أهم خطوة ناقصة في الجاهزية.")
+            }
+            description={L(
+              locale,
+              "This is a finite launch project. Readiness comes from persisted product records; the last viewed step is only a resume preference on this device.",
+              "دي رحلة تجهيز محددة. الجاهزية محسوبة من سجلات المنتج المحفوظة؛ آخر خطوة مفتوحة مجرد تفضيل Resume على الجهاز."
+            )}
+          >
+            <div className="grid gap-3 sm:grid-cols-3">
+              <Metric
+                label={L(locale, "Live checks ready", "فحوص جاهزة")}
+                value={`${readyCheckCount}/${checklist.length}`}
+                detail={L(locale, "Backend-derived", "محسوبة من الـbackend")}
+              />
+              <Metric
+                label={L(locale, "Needs attention", "يحتاج انتباه")}
+                value={String(attentionCheckCount)}
+                detail={L(locale, "Recommended work", "شغل موصى به")}
+              />
+              <Metric
+                label={L(locale, "Blocked", "متوقف")}
+                value={String(blockedCheckCount)}
+                detail={L(locale, "Explicit gates", "بوابات صريحة")}
+              />
+            </div>
+          </Panel>
+
+          <Panel
+            eyebrow={L(locale, "RECOMMENDED NEXT ACTION", "الخطوة التالية")}
+            title={
+              nextItem
+                ? readinessText(locale, nextItem).label
+                : L(locale, "All current readiness checks are satisfied.", "كل فحوص الجاهزية الحالية مكتملة.")
+            }
+            description={
+              nextItem
+                ? readinessText(locale, nextItem).reason
+                : L(locale, "Move to final rehearsal and operational handoff.", "انتقل للتجربة النهائية وتسليم التشغيل.")
+            }
+            footer={linkButton(
+              nextItem ? actionHrefFor(nextItem) : "/staff/setup#final",
+              nextItem
+                ? L(locale, "Continue recommended action", "كمّل الخطوة المقترحة")
+                : L(locale, "Open final readiness", "افتح الجاهزية النهائية")
+            )}
+          >
+            {nextItem ? (
+              <ReadinessRows locale={locale} items={[nextItem]} />
+            ) : (
+              <div className="flex items-center gap-2 text-sm text-[#365B3B]">
+                <ShieldCheck className="size-4" aria-hidden="true" />
+                {L(locale, "No unresolved readiness signal remains.", "لا توجد إشارة جاهزية غير محسومة.")}
+              </div>
+            )}
+          </Panel>
+        </div>
+      );
+    }
+
     if (phase === "business") {
       return (
         <div className="grid gap-4 xl:grid-cols-2">
@@ -759,6 +877,11 @@ function StaffSetupContent() {
     }
 
     if (phase === "locations") {
+      const items = phaseItems(checklist, [
+        "floors_created",
+        "tables_created",
+        "qr_links_ready"
+      ]);
       return (
         <div className="grid gap-4">
           <div className="grid gap-3 sm:grid-cols-3">
@@ -778,27 +901,49 @@ function StaffSetupContent() {
               detail={L(locale, "Customer entry readiness", "جاهزية دخول العميل")}
             />
           </div>
-          <Panel
-            eyebrow={L(locale, "LOCATION STRUCTURE", "هيكل الفرع")}
-            title={L(locale, "Configured floors and areas", "الأدوار والمناطق المجهزة")}
-            footer={linkButton("/staff/branches", L(locale, "Open Locations in Office", "افتح الفروع في Office"))}
-          >
-            <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
-              {setup.tables.floors.map((floor) => (
-                <div key={floor.id} className="rounded-lg border border-[#DDD6CD] bg-white p-4">
-                  <p className="font-semibold">{floor.name}</p>
-                  <p className="mt-1 text-xs text-[#81766C]">
-                    {L(locale, "Sort order", "الترتيب")} {floor.sortOrder}
+
+          <div className="grid gap-4 xl:grid-cols-[1.05fr_0.95fr]">
+            <Panel
+              eyebrow={L(locale, "LOCATIONS / TABLES / QR", "الفروع / الترابيزات / QR")}
+              title={L(locale, "Verify the service map, then manage it in Office.", "راجع خريطة الخدمة ثم أدِرها من Office.")}
+              description={L(
+                locale,
+                "Setup owns readiness and handoff. Ongoing floor, table, and QR administration belongs to the Locations surface.",
+                "Setup مسؤول عن الجاهزية والتسليم. الإدارة المستمرة للأدوار والترابيزات وQR مكانها Locations."
+              )}
+              footer={linkButton("/staff/branches", L(locale, "Open Locations in Office", "افتح Locations في Office"))}
+            >
+              <ReadinessRows locale={locale} items={items} />
+            </Panel>
+
+            <Panel
+              eyebrow={L(locale, "QR ENTRY PROOF", "إثبات دخول QR")}
+              title={L(locale, "Recent customer entry links", "أحدث روابط دخول العملاء")}
+              footer={linkButton("/staff/branches", L(locale, "Manage Tables & QR in Office", "إدارة الترابيزات وQR في Office"))}
+            >
+              <div className="grid gap-2">
+                {setup.tables.recentTables.slice(0, 8).map((table) => (
+                  <div key={table.id} className="grid gap-2 rounded-lg border border-[#DDD6CD] bg-white p-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center">
+                    <div className="min-w-0">
+                      <p className="text-sm font-semibold">{table.displayName}</p>
+                      <p className="truncate text-[11px] text-[#81766C]">{table.qrToken ?? L(locale, "QR pending", "QR غير جاهز")}</p>
+                    </div>
+                    {table.customerPreviewPath ? (
+                      <Link href={table.customerPreviewPath} className={secondaryButtonClass}>
+                        <ExternalLink className="size-4" aria-hidden="true" />
+                        {L(locale, "Open guest entry", "افتح دخول الضيف")}
+                      </Link>
+                    ) : null}
+                  </div>
+                ))}
+                {setup.tables.recentTables.length === 0 ? (
+                  <p className="text-sm text-[#766B61]">
+                    {L(locale, "No customer table entry exists yet.", "لا يوجد دخول عميل عبر ترابيزة حتى الآن.")}
                   </p>
-                </div>
-              ))}
-              {setup.tables.floors.length === 0 ? (
-                <p className="text-sm text-[#766B61]">
-                  {L(locale, "No floor or area exists yet.", "لا يوجد دور أو منطقة حتى الآن.")}
-                </p>
-              ) : null}
-            </div>
-          </Panel>
+                ) : null}
+              </div>
+            </Panel>
+          </div>
         </div>
       );
     }
@@ -825,114 +970,6 @@ function StaffSetupContent() {
             footer={linkButton("/staff/menu", L(locale, "Open Catalog in Office", "افتح الكتالوج في Office"))}
           >
             <ReadinessRows locale={locale} items={items} />
-          </Panel>
-        </div>
-      );
-    }
-
-    if (phase === "tables") {
-      return (
-        <div className="grid gap-4 xl:grid-cols-[1.05fr_0.95fr]">
-          <Panel
-            eyebrow={L(locale, "TABLE SERVICE", "خدمة الترابيزات")}
-            title={L(locale, "Create the service map", "أنشئ خريطة الخدمة")}
-            description={L(
-              locale,
-              "Floor and table writes use the real onboarding endpoints and deterministic QR tokens.",
-              "إنشاء الأدوار والترابيزات يستخدم endpoints الحقيقية وQR حقيقي."
-            )}
-          >
-            <div className="grid gap-5">
-              <form
-                className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_130px_auto] sm:items-end"
-                onSubmit={(event) => {
-                  event.preventDefault();
-                  floorMutation.mutate();
-                }}
-              >
-                <Field label={L(locale, "Floor / area", "الدور / المنطقة")}>
-                  <input
-                    className={inputClass}
-                    value={floorForm.name}
-                    placeholder={L(locale, "Terrace", "التراس")}
-                    disabled={!canManageBranch}
-                    onChange={(event) =>
-                      setFloorForm((current) => ({ ...current, name: event.target.value }))
-                    }
-                  />
-                </Field>
-                <Field label={L(locale, "Sort order", "الترتيب")}>
-                  <input
-                    className={inputClass}
-                    type="number"
-                    value={floorForm.sortOrder}
-                    disabled={!canManageBranch}
-                    onChange={(event) =>
-                      setFloorForm((current) => ({ ...current, sortOrder: event.target.value }))
-                    }
-                  />
-                </Field>
-                <button
-                  className={primaryButtonClass}
-                  disabled={!canManageBranch || floorMutation.isPending || !floorForm.name.trim()}
-                >
-                  {L(locale, "Add floor", "أضف دور")}
-                </button>
-              </form>
-
-              <form
-                className="grid gap-3"
-                onSubmit={(event) => {
-                  event.preventDefault();
-                  tablesMutation.mutate();
-                }}
-              >
-                <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
-                  <Field label={L(locale, "Floor", "الدور")}>
-                    <input className={inputClass} value={tableForm.floorLabel} onChange={(event) => setTableForm((current) => ({ ...current, floorLabel: event.target.value }))} />
-                  </Field>
-                  <Field label={L(locale, "Prefix", "البادئة")}>
-                    <input className={inputClass} value={tableForm.tablePrefix} onChange={(event) => setTableForm((current) => ({ ...current, tablePrefix: event.target.value }))} />
-                  </Field>
-                  <Field label={L(locale, "Start", "البداية")}>
-                    <input className={inputClass} type="number" value={tableForm.startNumber} onChange={(event) => setTableForm((current) => ({ ...current, startNumber: event.target.value }))} />
-                  </Field>
-                  <Field label={L(locale, "Count", "العدد")}>
-                    <input className={inputClass} type="number" value={tableForm.count} onChange={(event) => setTableForm((current) => ({ ...current, count: event.target.value }))} />
-                  </Field>
-                  <Field label={L(locale, "Seats", "المقاعد")}>
-                    <input className={inputClass} type="number" value={tableForm.seats} onChange={(event) => setTableForm((current) => ({ ...current, seats: event.target.value }))} />
-                  </Field>
-                </div>
-                <button className={primaryButtonClass} disabled={!canManageBranch || tablesMutation.isPending}>
-                  {tablesMutation.isPending ? <Loader2 className="size-4 animate-spin" /> : null}
-                  {L(locale, "Bulk create tables", "أنشئ الترابيزات")}
-                </button>
-              </form>
-            </div>
-          </Panel>
-
-          <Panel
-            eyebrow={L(locale, "QR PREVIEW", "معاينة QR")}
-            title={L(locale, "Recent customer entry links", "أحدث روابط دخول العملاء")}
-            footer={linkButton("/staff/branches", L(locale, "Manage Tables & QR in Office", "إدارة الترابيزات وQR في Office"))}
-          >
-            <div className="grid gap-2">
-              {setup.tables.recentTables.slice(0, 8).map((table) => (
-                <div key={table.id} className="grid gap-2 rounded-lg border border-[#DDD6CD] bg-white p-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center">
-                  <div className="min-w-0">
-                    <p className="text-sm font-semibold">{table.displayName}</p>
-                    <p className="truncate text-[11px] text-[#81766C]">{table.qrToken ?? L(locale, "QR pending", "QR غير جاهز")}</p>
-                  </div>
-                  {table.customerPreviewPath ? (
-                    <Link href={table.customerPreviewPath} className={secondaryButtonClass}>
-                      <ExternalLink className="size-4" />
-                      {L(locale, "Open", "افتح")}
-                    </Link>
-                  ) : null}
-                </div>
-              ))}
-            </div>
           </Panel>
         </div>
       );
@@ -1018,7 +1055,11 @@ function StaffSetupContent() {
     }
 
     if (phase === "kitchen") {
-      const items = phaseItems(checklist, ["kds_ready", "printer_foundation_ready"]);
+      const items = phaseItems(checklist, [
+        "kds_ready",
+        "printer_foundation_ready",
+        "physical_printer_hardware_ready"
+      ]);
       return (
         <Panel
           eyebrow={L(locale, "PRODUCTION READINESS", "جاهزية الإنتاج")}
@@ -1126,18 +1167,20 @@ function StaffSetupContent() {
     return (
       <div className="grid gap-4 xl:grid-cols-[1.15fr_0.85fr]">
         <Panel
-          eyebrow={L(locale, "FINAL READINESS", "الجاهزية النهائية")}
+          eyebrow={L(locale, "FINAL READINESS / GO LIVE", "الجاهزية النهائية / التشغيل")}
           title={
             launchSummary?.readyForPilot
-              ? L(locale, "Ready for pilot rehearsal", "جاهز لتجربة Pilot")
+              ? unresolvedItems.length > 0
+                ? L(locale, "Software pilot ready — live gates remain", "الـPilot البرمجي جاهز — ما زالت بوابات التشغيل الحي")
+                : L(locale, "Ready for final go-live rehearsal", "جاهز لتجربة التشغيل النهائية")
               : launchSummary?.readyForDemo
                 ? L(locale, "Demo ready — pilot gates remain", "جاهز للديمو — ما زالت بوابات Pilot")
                 : L(locale, "Launch blockers remain", "ما زالت هناك عوائق تشغيل")
           }
           description={L(
             locale,
-            "This result is computed from backend records; Setup does not manufacture completion.",
-            "النتيجة محسوبة من سجلات الـbackend؛ Setup لا يصنع حالة اكتمال وهمية."
+            "This result is computed from backend records. Provider certification and physical device success stay explicit until externally verified.",
+            "النتيجة محسوبة من سجلات الـbackend. اعتماد مزود الدفع ونجاح الأجهزة الفعلية يظلان واضحين حتى يتم التحقق خارجيًا."
           )}
         >
           <ReadinessRows locale={locale} items={checklist} />
@@ -1148,10 +1191,10 @@ function StaffSetupContent() {
             eyebrow={L(locale, "GO / NO-GO", "قرار التشغيل")}
             title={
               launchSummary?.readyForPilot
-                ? L(locale, "Pilot ready", "جاهز للـPilot")
+                ? L(locale, "Pilot path is available", "مسار الـPilot متاح")
                 : launchSummary?.readyForDemo
-                  ? L(locale, "Demo ready", "جاهز للديمو")
-                  : L(locale, "Blocked", "متوقف")
+                  ? L(locale, "Demo path is available", "مسار الديمو متاح")
+                  : L(locale, "Critical setup is blocked", "التجهيز الحرج متوقف")
             }
           >
             <div className="grid gap-3">
@@ -1170,36 +1213,30 @@ function StaffSetupContent() {
           </Panel>
 
           <Panel
-            eyebrow={L(locale, "ACKNOWLEDGEMENT", "تأكيد المراجعة")}
-            title={L(locale, "Manual notes do not override live truth.", "الملاحظات اليدوية لا تتجاوز الحقيقة الحية.")}
-            description={L(
-              locale,
-              "Acknowledging a signal records the review action only; readiness is still recomputed from production data.",
-              "تأكيد الإشارة يسجل المراجعة فقط؛ الجاهزية تظل محسوبة من بيانات الإنتاج."
+            eyebrow={L(locale, "NEXT HANDOFF", "التسليم التالي")}
+            title={
+              nextItem
+                ? readinessText(locale, nextItem).label
+                : L(locale, "Hand off to live operations", "سلّم للتشغيل الحي")
+            }
+            description={
+              nextItem
+                ? readinessText(locale, nextItem).reason
+                : L(locale, "All current readiness signals are satisfied. Run the final service rehearsal.", "كل إشارات الجاهزية الحالية مكتملة. شغّل تجربة الخدمة النهائية.")
+            }
+            footer={linkButton(
+              nextItem ? actionHrefFor(nextItem) : "/staff/cashier",
+              nextItem
+                ? L(locale, "Resolve next readiness gate", "اقفل بوابة الجاهزية التالية")
+                : L(locale, "Open service rehearsal", "افتح تجربة الخدمة")
             )}
           >
-            {acknowledgedMessage ? (
-              <p className="mb-3 rounded-lg border border-[#CAD7C9] bg-[#F0F6EF] p-3 text-xs text-[#365B3B]">
-                {acknowledgedMessage}
-              </p>
-            ) : null}
-            {checklist.find((item) => item.status !== "ready") ? (
-              <button
-                type="button"
-                className={secondaryButtonClass}
-                disabled={readinessMutation.isPending}
-                onClick={() => {
-                  const item = checklist.find((entry) => entry.status !== "ready");
-                  if (item) readinessMutation.mutate(item);
-                }}
-              >
-                <ClipboardCheck className="size-4" />
-                {L(locale, "Acknowledge next attention", "أكد مراجعة أول نقطة")}
-              </button>
+            {nextItem ? (
+              <ReadinessRows locale={locale} items={[nextItem]} />
             ) : (
               <div className="flex items-center gap-2 text-sm text-[#365B3B]">
-                <ShieldCheck className="size-4" />
-                {L(locale, "All current checks are ready.", "كل الفحوص الحالية جاهزة.")}
+                <ShieldCheck className="size-4" aria-hidden="true" />
+                {L(locale, "No unresolved readiness signal remains.", "لا توجد إشارة جاهزية غير محسومة.")}
               </div>
             )}
           </Panel>
@@ -1226,10 +1263,10 @@ function StaffSetupContent() {
         type="button"
         className={secondaryButtonClass}
         onClick={refresh}
-        disabled={branchQuery.isFetching || checklistQuery.isFetching}
+        disabled={companyQuery.isFetching || branchQuery.isFetching || checklistQuery.isFetching}
       >
         <RefreshCw
-          className={`size-4 ${branchQuery.isFetching || checklistQuery.isFetching ? "animate-spin" : ""}`}
+          className={`size-4 ${companyQuery.isFetching || branchQuery.isFetching || checklistQuery.isFetching ? "animate-spin" : ""}`}
         />
         <span className="hidden sm:inline">{L(locale, "Refresh", "تحديث")}</span>
       </button>
@@ -1259,6 +1296,7 @@ export function StaffSetupPage() {
     <StaffAuthGate
       requiredPermissions={["tenant_onboarding.read"]}
       branchScoped
+      allowUnscopedWhenNoBranch
       deniedTitle="Tenant setup access required"
       deniedDescription="This staff account can open its operational surfaces, but tenant launch setup requires owner or branch manager access."
     >

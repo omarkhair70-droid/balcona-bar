@@ -83,18 +83,18 @@ export function RequestDemoPage() {
               <div>
                 <CheckCircle2 className="mx-auto size-12 text-[#426B43]" />
                 <h2 className="mt-5 font-serif text-4xl font-semibold">{ML("Request received.", "استلمنا طلبك.", locale)}</h2>
-                <p className="mx-auto mt-3 max-w-md text-sm leading-7 text-[#655E56]">{ML("Your request is stored securely in Balcona Platform. We’ll use the contact details you provided to arrange the session.", "طلبك اتحفظ بأمان داخل Balcona Platform، وهنستخدم بيانات التواصل اللي قدمتها لترتيب الجلسة.", locale)}</p>
+                <p className="mx-auto mt-3 max-w-md text-sm leading-7 text-[#655E56]">{ML("Your request is stored in Balcona Platform. We’ll use the contact details you provided to arrange the session.", "طلبك اتحفظ داخل Balcona Platform، وهنستخدم بيانات التواصل اللي قدمتها لترتيب الجلسة.", locale)}</p>
                 <p className="mt-5 rounded-lg bg-[#E9E3D8] px-3 py-2 font-mono text-xs">{ML("Reference", "رقم المرجع", locale)}: {confirmation.id}</p>
                 <button type="button" onClick={() => setConfirmation(undefined)} className="mt-6 text-sm font-black text-[#8C512D]">{ML("Send another request", "أرسل طلبًا آخر", locale)}</button>
               </div>
             </div>
           ) : (
-            <form onSubmit={submit} className="grid gap-5 sm:grid-cols-2">
-              <label className="text-xs font-bold">{ML("Your name", "اسمك", locale)}<input required minLength={2} maxLength={120} value={form.fullName} onChange={(event) => setForm({ ...form, fullName: event.target.value })} className={fieldClass} /></label>
-              <label className="text-xs font-bold">{ML("Business name", "اسم النشاط", locale)}<input required minLength={2} maxLength={160} value={form.businessName} onChange={(event) => setForm({ ...form, businessName: event.target.value })} className={fieldClass} /></label>
-              <label className="text-xs font-bold">{ML("Work email", "إيميل العمل", locale)}<input required type="email" maxLength={255} value={form.email} onChange={(event) => setForm({ ...form, email: event.target.value })} className={fieldClass} /></label>
-              <label className="text-xs font-bold">{ML("Phone", "الموبايل", locale)}<input type="tel" maxLength={40} value={form.phone} onChange={(event) => setForm({ ...form, phone: event.target.value })} className={fieldClass} /></label>
-              <label className="text-xs font-bold">{ML("City", "المدينة", locale)}<input maxLength={100} value={form.city} onChange={(event) => setForm({ ...form, city: event.target.value })} className={fieldClass} /></label>
+            <form onSubmit={submit} aria-busy={mutation.isPending} className="grid gap-5 sm:grid-cols-2">
+              <label className="text-xs font-bold">{ML("Your name", "اسمك", locale)}<input required minLength={2} maxLength={120} autoComplete="name" value={form.fullName} onChange={(event) => setForm({ ...form, fullName: event.target.value })} className={fieldClass} /></label>
+              <label className="text-xs font-bold">{ML("Business name", "اسم النشاط", locale)}<input required minLength={2} maxLength={160} autoComplete="organization" value={form.businessName} onChange={(event) => setForm({ ...form, businessName: event.target.value })} className={fieldClass} /></label>
+              <label className="text-xs font-bold">{ML("Work email", "إيميل العمل", locale)}<input required type="email" maxLength={255} autoComplete="email" value={form.email} onChange={(event) => setForm({ ...form, email: event.target.value })} className={fieldClass} /></label>
+              <label className="text-xs font-bold">{ML("Phone", "الموبايل", locale)}<input type="tel" maxLength={40} autoComplete="tel" value={form.phone} onChange={(event) => setForm({ ...form, phone: event.target.value })} className={fieldClass} /></label>
+              <label className="text-xs font-bold">{ML("City", "المدينة", locale)}<input maxLength={100} autoComplete="address-level2" value={form.city} onChange={(event) => setForm({ ...form, city: event.target.value })} className={fieldClass} /></label>
               <label className="text-xs font-bold">{ML("Number of locations", "عدد الفروع", locale)}<input required type="number" min={1} max={500} value={form.locationCount} onChange={(event) => setForm({ ...form, locationCount: event.target.value })} className={fieldClass} /></label>
               <label className="text-xs font-bold sm:col-span-2">{ML("What should we understand before the demo?", "إيه أهم حاجة نفهمها قبل العرض؟", locale)}<textarea rows={5} maxLength={2000} value={form.message} onChange={(event) => setForm({ ...form, message: event.target.value })} className={`${fieldClass} py-3`} /></label>
               <label className="absolute -left-[10000px]" aria-hidden="true">Website<input tabIndex={-1} autoComplete="off" value={form.website} onChange={(event) => setForm({ ...form, website: event.target.value })} /></label>

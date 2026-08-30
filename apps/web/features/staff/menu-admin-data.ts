@@ -6,12 +6,13 @@ import type {
 } from "@/lib/api/types";
 
 export const menuAdminTabs = [
-  { id: "overview", label: "Overview" },
+  { id: "menus", label: "Menus" },
   { id: "categories", label: "Categories" },
   { id: "items", label: "Items" },
-  { id: "availability", label: "Availability" },
   { id: "modifiers", label: "Modifiers" },
-  { id: "preview", label: "Preview Issues" }
+  { id: "availability", label: "Availability" },
+  { id: "branch_overrides", label: "Branch overrides" },
+  { id: "preview", label: "Preview" }
 ] as const;
 
 export type MenuAdminTab = (typeof menuAdminTabs)[number]["id"];

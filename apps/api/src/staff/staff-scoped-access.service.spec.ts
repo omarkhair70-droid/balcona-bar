@@ -250,4 +250,118 @@ describe('StaffScopedAccessService', () => {
       { companyId: 'company-1', branchId: 'branch-3' },
     );
   });
+  it('resolves experience profile branch scope before asserting permission', async () => {
+    const prisma = {
+      experienceProfile: {
+        findUnique: jest.fn().mockResolvedValue({
+          companyId: 'company-1',
+          branchId: 'branch-4',
+        }),
+      },
+    };
+    const staffAccessService = {
+      assertCan: jest.fn().mockResolvedValue({ allowed: true }),
+    };
+    const service = new StaffScopedAccessService(
+      prisma as never,
+      staffAccessService as never,
+    );
+
+    await service.assertCanForExperienceProfile(
+      'staff-1',
+      'experience.manage',
+      'profile-1',
+    );
+
+    expect(staffAccessService.assertCan).toHaveBeenCalledWith(
+      'staff-1',
+      'experience.manage',
+      { companyId: 'company-1', branchId: 'branch-4' },
+    );
+  });
+
+  it('resolves company-scoped content blocks without leaking a branch scope', async () => {
+    const prisma = {
+      contentBlock: {
+        findUnique: jest.fn().mockResolvedValue({
+          companyId: 'company-2',
+          branchId: null,
+        }),
+      },
+    };
+    const staffAccessService = {
+      assertCan: jest.fn().mockResolvedValue({ allowed: true }),
+    };
+    const service = new StaffScopedAccessService(
+      prisma as never,
+      staffAccessService as never,
+    );
+
+    await service.assertCanForContentBlock(
+      'staff-1',
+      'content.read',
+      'content-1',
+    );
+
+    expect(staffAccessService.assertCan).toHaveBeenCalledWith(
+      'staff-1',
+      'content.read',
+      { companyId: 'company-2' },
+    );
+  });
+
+  it('resolves media asset branch scope before allowing lifecycle mutations', async () => {
+    const prisma = {
+      mediaAsset: {
+        findUnique: jest.fn().mockResolvedValue({
+          companyId: 'company-1',
+          branchId: 'branch-9',
+        }),
+      },
+    };
+    const staffAccessService = {
+      assertCan: jest.fn().mockResolvedValue({ allowed: true }),
+    };
+    const service = new StaffScopedAccessService(
+      prisma as never,
+      staffAccessService as never,
+    );
+
+    await service.assertCanForMediaAsset(
+      'staff-1',
+      'media.manage',
+      'asset-1',
+    );
+
+    expect(staffAccessService.assertCan).toHaveBeenCalledWith(
+      'staff-1',
+      'media.manage',
+      { companyId: 'company-1', branchId: 'branch-9' },
+    );
+  });
+
+  it('rejects missing notification templates before permission checks', async () => {
+    const prisma = {
+      notificationTemplate: {
+        findUnique: jest.fn().mockResolvedValue(null),
+      },
+    };
+    const staffAccessService = {
+      assertCan: jest.fn(),
+    };
+    const service = new StaffScopedAccessService(
+      prisma as never,
+      staffAccessService as never,
+    );
+
+    await expect(
+      service.assertCanForNotificationTemplate(
+        'staff-1',
+        'content.manage',
+        'template-1',
+      ),
+    ).rejects.toBeInstanceOf(NotFoundException);
+    expect(staffAccessService.assertCan).not.toHaveBeenCalled();
+  });
+
 });
