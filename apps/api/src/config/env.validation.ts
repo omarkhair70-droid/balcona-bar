@@ -231,6 +231,10 @@ class EnvironmentVariables {
   @IsOptional()
   MOCK_ONLINE_PAYMENTS_ENABLED?: string;
 
+  @IsBooleanString()
+  @IsOptional()
+  REVIEWER_AUTO_APPROVE_MOCK_PAYMENTS?: string;
+
   @IsString()
   @IsOptional()
   ONLINE_PAYMENT_CHECKOUT_BASE_URL?: string;
@@ -541,6 +545,15 @@ export function validateEnvironment(config: Record<string, unknown>) {
   ) {
     throw new Error(
       "MOCK_ONLINE_PAYMENTS_ENABLED=true is forbidden when APP_ENV=production",
+    );
+  }
+
+  if (
+    effectiveAppEnvironment === "production" &&
+    validatedConfig.REVIEWER_AUTO_APPROVE_MOCK_PAYMENTS === "true"
+  ) {
+    throw new Error(
+      "REVIEWER_AUTO_APPROVE_MOCK_PAYMENTS=true is forbidden when APP_ENV=production",
     );
   }
 
