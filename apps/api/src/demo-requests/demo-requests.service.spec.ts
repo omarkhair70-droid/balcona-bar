@@ -10,6 +10,9 @@ describe("DemoRequestsService", () => {
       findUnique: jest.fn(),
       update: jest.fn(),
     },
+    platformAuditEvent: {
+      create: jest.fn(),
+    },
     $transaction: jest.fn(),
   };
   const service = new DemoRequestsService(prisma as never);
@@ -50,6 +53,41 @@ describe("DemoRequestsService", () => {
         consent: false,
       }),
     ).toThrow(BadRequestException);
+  });
+
+  it("attributes internal follow-up changes to the platform admin", async () => {
+    const updatedAt = new Date("2026-08-30T10:00:00.000Z");
+    prisma.demoRequest.findUnique.mockResolvedValue({ id: "lead-1" });
+    prisma.demoRequest.update.mockResolvedValue({
+      id: "lead-1",
+      status: "contacted",
+      lastContactedAt: updatedAt,
+    });
+
+    const result = await service.update(
+      "lead-1",
+      {
+        status: "contacted",
+        internalNotes: "Follow up tomorrow",
+        lastContactedAt: updatedAt.toISOString(),
+      },
+      "platform-admin-1",
+    );
+
+    expect(result.status).toBe("contacted");
+    expect(prisma.platformAuditEvent.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        platformAdminUserId: "platform-admin-1",
+        action: "demo_request_updated",
+        targetType: "demo_request",
+        targetId: "lead-1",
+        metadata: expect.objectContaining({
+          status: "contacted",
+          lastContactedAt: updatedAt.toISOString(),
+          notesUpdated: true,
+        }),
+      }),
+    });
   });
 
   it("does not silently update a missing lead", async () => {
