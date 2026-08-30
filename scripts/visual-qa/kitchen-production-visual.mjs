@@ -656,7 +656,6 @@ async function newContext(browser, locale, viewport, permissions) {
     ({ localeValue, staffValue }) => {
       window.localStorage.setItem("balcona.locale", localeValue);
       window.localStorage.setItem("balcona_staff_session", staffValue);
-      window.localStorage.removeItem("balcona.kitchen.station");
     },
     {
       localeValue: locale,
