@@ -45,7 +45,6 @@ import {
   restoreOfficeMediaAsset,
   setDefaultOfficeExperienceProfile,
   updateOfficeOperatingSettings,
-  type OfficeRecord,
 } from "@/features/staff/office-control-data";
 import { formatErrorMessage } from "@/lib/api/error-message";
 import {
