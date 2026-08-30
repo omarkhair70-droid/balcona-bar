@@ -1301,42 +1301,42 @@ try {
   results.push(
     await capture(browser, {
       label: "12-office-s6-team-desktop",
-      pathname: "/staff/team",
+      pathname: "/office/team",
       activeLabel: "Team"
     })
   );
   results.push(
     await capture(browser, {
       label: "13-office-s6-money-desktop",
-      pathname: "/staff/money",
+      pathname: "/office/money",
       activeLabel: "Money"
     })
   );
   results.push(
     await capture(browser, {
       label: "14-office-s6-experience-desktop",
-      pathname: "/staff/experience",
+      pathname: "/office/experience",
       activeLabel: "Experience"
     })
   );
   results.push(
     await capture(browser, {
       label: "15-office-s6-settings-desktop",
-      pathname: "/staff/settings",
+      pathname: "/office/settings",
       activeLabel: "Settings"
     })
   );
   results.push(
     await capture(browser, {
       label: "16-office-s6-account-desktop",
-      pathname: "/staff/account",
+      pathname: "/office/account",
       activeLabel: "Account"
     })
   );
   results.push(
     await capture(browser, {
       label: "17-office-s6-money-tablet-1024",
-      pathname: "/staff/money",
+      pathname: "/office/money",
       activeLabel: "Money",
       viewport: { width: 1024, height: 900 }
     })
@@ -1344,7 +1344,7 @@ try {
   results.push(
     await capture(browser, {
       label: "18-office-s6-team-ar-rtl-tablet-820",
-      pathname: "/staff/team",
+      pathname: "/office/team",
       activeLabel: "الفريق",
       locale: "ar",
       viewport: { width: 820, height: 900 }
