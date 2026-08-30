@@ -108,6 +108,12 @@ export const staffQueryKeys = {
     "company",
     companyId,
   ],
+  companySaasBilling: (companyId?: string) => [
+    "staff",
+    "saas",
+    "billing",
+    companyId,
+  ],
   branchSaasStatus: (branchId?: string) => [
     "staff",
     "saas",
