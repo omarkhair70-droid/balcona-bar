@@ -16,13 +16,8 @@ export function StaffOverviewPage() {
   useEffect(() => {
     const persist = useStaffAuthStore.persist;
 
-    if (!persist) {
-      setHydrated(true);
-      return;
-    }
-
     if (persist.hasHydrated()) {
-      setHydrated(true);
+      queueMicrotask(() => setHydrated(true));
       return;
     }
 
