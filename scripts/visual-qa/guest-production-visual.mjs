@@ -466,7 +466,8 @@ async function capture(browser, {
   label,
   route,
   locale = "en",
-  expired = false
+  expired = false,
+  expectedPath
 }) {
   const context = await newContext(browser, locale);
   const page = await context.newPage();
@@ -493,13 +494,13 @@ async function capture(browser, {
     });
 
     try {
-      await page.waitForURL(`**/customer/session/${SESSION_ID}`, {
+      await page.waitForURL(`**/customer/session/${SESSION_ID}/menu`, {
         timeout: 15000
       });
     } catch (error) {
       const bodyText = (await page.locator("body").innerText()).slice(0, 3000);
       throw new Error(
-        `QR bootstrap did not reach customer session. url=${page.url()} apiRequests=${JSON.stringify(apiRequests)} body=${JSON.stringify(bodyText)} cause=${String(error)}`
+        `QR bootstrap did not reach production customer menu. url=${page.url()} apiRequests=${JSON.stringify(apiRequests)} body=${JSON.stringify(bodyText)} cause=${String(error)}`
       );
     }
 
@@ -541,6 +542,20 @@ async function capture(browser, {
 
   await page.waitForTimeout(900);
 
+  if (expectedPath) {
+    const finalPath = new URL(page.url()).pathname;
+    if (finalPath !== expectedPath) {
+      throw new Error(
+        `${label}: expected canonical path ${expectedPath}, got ${finalPath}`
+      );
+    }
+
+    const bodyText = await page.locator("body").innerText();
+    if (/UI Phase|prototype|demo launcher/i.test(bodyText)) {
+      throw new Error(`${label}: legacy development surface is still visible`);
+    }
+  }
+
   const metrics = await page.evaluate(() => ({
     innerWidth: window.innerWidth,
     clientWidth: document.documentElement.clientWidth,
@@ -569,6 +584,8 @@ async function capture(browser, {
     route,
     locale,
     expired,
+    expectedPath: expectedPath ?? null,
+    finalUrl: page.url(),
     screenshot,
     metrics,
     consoleErrors: consoleErrors.slice(0, 20),
@@ -586,8 +603,9 @@ try {
     route: `/customer/session/${SESSION_ID}/menu`
   }));
   results.push(await capture(browser, {
-    label: "02-prototype-guest-en-390",
-    route: "/prototype/guest"
+    label: "02-prototype-guest-redirect-en-390",
+    route: "/prototype/guest",
+    expectedPath: "/customer"
   }));
   results.push(await capture(browser, {
     label: "03-production-menu-ar-rtl-390",
@@ -595,9 +613,10 @@ try {
     locale: "ar"
   }));
   results.push(await capture(browser, {
-    label: "04-prototype-guest-ar-rtl-390",
+    label: "04-prototype-guest-redirect-ar-rtl-390",
     route: "/prototype/guest",
-    locale: "ar"
+    locale: "ar",
+    expectedPath: "/customer"
   }));
   results.push(await capture(browser, {
     label: "05-production-order-en-390",
@@ -615,6 +634,11 @@ try {
     label: "08-production-expired-session-en-390",
     route: `/customer/session/${SESSION_ID}/menu`,
     expired: true
+  }));
+  results.push(await capture(browser, {
+    label: "09-demo-launcher-redirect-en-390",
+    route: "/demo/balkona",
+    expectedPath: "/customer"
   }));
 } finally {
   await browser.close();

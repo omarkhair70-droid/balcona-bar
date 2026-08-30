@@ -25,7 +25,7 @@ import {
 import { EmptyState } from "@/components/ui/empty-state";
 import { LoadingState } from "@/components/ui/loading-state";
 import { MetricCard } from "@/components/ui/metric-card";
-import { StaffPageShell } from "@/features/staff/staff-page-shell";
+import { OfficeStaffShell } from "@/features/staff/office-staff-shell";
 import { formatDateTime, formatMoney, humanizeStatus } from "@/features/staff/staff-format";
 import { formatErrorMessage } from "@/lib/api/error-message";
 import { getBranchSaasStatus, getSaasPlans } from "@/lib/api/endpoints";
@@ -530,8 +530,9 @@ function StaffBillingContent() {
 
 export function StaffBillingPage() {
   return (
-    <StaffPageShell
-      title="Billing and plan limits"
+    <OfficeStaffShell
+      activeDomain="settings"
+      title="Plan and tenant limits"
       description="Internal subscription status, plan entitlements, and tenant usage limits for the selected branch."
       actions={
         <div className="flex flex-wrap gap-3">
@@ -554,6 +555,6 @@ export function StaffBillingPage() {
       >
         <StaffBillingContent />
       </StaffAuthGate>
-    </StaffPageShell>
+    </OfficeStaffShell>
   );
 }

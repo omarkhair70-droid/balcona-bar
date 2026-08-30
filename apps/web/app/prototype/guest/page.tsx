@@ -1,5 +1,5 @@
-import { GuestPrototype } from "@/features/prototype/guest-prototype";
+import { redirect } from "next/navigation";
 
-export default function GuestPrototypePage() {
-  return <GuestPrototype />;
+export default function PrototypeRedirectPage() {
+  redirect("/customer");
 }
