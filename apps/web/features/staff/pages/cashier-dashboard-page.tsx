@@ -34,7 +34,7 @@ import {
 } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Input } from "@/components/ui/input";
-import { ServiceStaffShell } from "@/features/staff/service-staff-shell";
+import { ServiceStaffShell, useServiceView } from "@/features/staff/service-staff-shell";
 import {
   getBillRequestStatus,
   getOrderId,
@@ -680,6 +680,7 @@ function CashierDashboardActions() {
 function CashierDashboardContent() {
   const t = useTranslations("staff");
   const queryClient = useQueryClient();
+  const serviceView = useServiceView("cashier");
   const accessToken = useStaffAuthStore((state) => state.accessToken);
   const staffUser = useStaffAuthStore((state) => state.staffUser);
   const effectiveAccess = useStaffAuthStore((state) => state.effectiveAccess);
@@ -1254,7 +1255,8 @@ function CashierDashboardContent() {
 
       <NoticeBanner notice={notice} />
 
-      <section id="orders" className="scroll-mt-36 grid gap-3 xl:grid-cols-[360px_minmax(0,1fr)]">
+      {serviceView === "orders" ? (
+      <section id="orders" className="grid min-h-[calc(100vh-8rem)] gap-0 lg:grid-cols-[360px_minmax(0,1fr)]">
         <CashierOrderQueue
           orders={orders}
           status={orderStatus}
@@ -1298,8 +1300,10 @@ function CashierDashboardContent() {
           }}
         />
       </section>
+      ) : null}
 
-      <section id="bills" className="scroll-mt-36 grid gap-5 xl:grid-cols-[1fr_22rem]">
+      {serviceView === "bills" ? (
+      <section id="bills" className="grid min-h-[calc(100vh-8rem)] gap-0 lg:grid-cols-[350px_minmax(0,1fr)]">
         <BillRequestQueue
           billRequests={billRequests}
           status={billStatus}
@@ -1396,8 +1400,10 @@ function CashierDashboardContent() {
           </CardContent>
         </Card>
       </section>
+      ) : null}
 
-      <div id="shift" className="scroll-mt-36">
+      {serviceView === "shift" ? (
+      <div id="shift" className="min-h-[calc(100vh-8rem)] bg-[#1E1814] p-3 sm:p-4">
         <CashierShiftPanel
         branchName={selectedBranch.name}
         data={currentShiftQuery.data}
@@ -1433,6 +1439,7 @@ function CashierDashboardContent() {
         onClearReport={() => setShiftReport(null)}
         />
       </div>
+      ) : null}
 
     </div>
   );
