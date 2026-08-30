@@ -46,7 +46,8 @@ export function getPlatformNavItems(isAuthenticated?: boolean): PlatformNavItem[
     },
     {
       href: "/platform/leads",
-      label: "Demo leads",
+      label: "Demo requests",
+      labelKey: "navigation.leads",
       icon: <Mail className="size-4" aria-hidden="true" />
     },
     {
