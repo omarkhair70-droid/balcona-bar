@@ -681,30 +681,12 @@ function CashierDashboardContent() {
   );
   const selectedBranch = selectedBranchAccess?.branch;
   const realtime = useStaffBranchRealtime(selectedBranchId, accessToken);
-  const allOrdersQuery = useQuery({
-    queryKey: staffQueryKeys.branchOrders(selectedBranchId, "all"),
-    queryFn: () =>
-      getCashierOrders(selectedBranchId ?? "", { status: "all" }, accessToken),
-    enabled: Boolean(selectedBranchId && accessToken),
-    staleTime: 10_000,
-  });
   const ordersQuery = useQuery({
     queryKey: staffQueryKeys.branchOrders(selectedBranchId, orderStatus),
     queryFn: () =>
       getCashierOrders(
         selectedBranchId ?? "",
         { status: orderStatus },
-        accessToken,
-      ),
-    enabled: Boolean(selectedBranchId && accessToken),
-    staleTime: 10_000,
-  });
-  const activeBillRequestsQuery = useQuery({
-    queryKey: staffQueryKeys.branchBillRequests(selectedBranchId, "active"),
-    queryFn: () =>
-      getBranchBillRequests(
-        selectedBranchId ?? "",
-        { status: "active", limit: 30 },
         accessToken,
       ),
     enabled: Boolean(selectedBranchId && accessToken),
@@ -731,17 +713,9 @@ function CashierDashboardContent() {
     () => ordersQuery.data?.orders ?? emptyRecords,
     [ordersQuery.data?.orders],
   );
-  const allOrders = useMemo(
-    () => allOrdersQuery.data?.orders ?? orders,
-    [allOrdersQuery.data?.orders, orders],
-  );
   const billRequests = useMemo(
     () => billRequestsQuery.data?.billRequests ?? emptyRecords,
     [billRequestsQuery.data?.billRequests],
-  );
-  const activeBillRequests = useMemo(
-    () => activeBillRequestsQuery.data?.billRequests ?? billRequests,
-    [activeBillRequestsQuery.data?.billRequests, billRequests],
   );
   const currentShift = currentShiftQuery.data?.shift ?? null;
   const paymentBlockedReason = currentShiftQuery.isPending
