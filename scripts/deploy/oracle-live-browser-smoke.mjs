@@ -95,11 +95,11 @@ try {
     throw new Error("customer-table: HTTP " + (response?.status() ?? "no-response"));
   }
 
-  await page.waitForURL(/\/customer\/session\/[^/]+(?:\/)?$/, { timeout: 20000 });
+  await page.waitForURL(/\/customer\/session\/[^/]+\/menu\/?$/, { timeout: 20000 });
   await page.waitForTimeout(900);
   const sessionUrl = new URL(page.url());
-  const match = sessionUrl.pathname.match(/^\/customer\/session\/([^/]+)\/?$/);
-  if (!match) throw new Error("customer-table: did not resolve a real session");
+  const match = sessionUrl.pathname.match(/^\/customer\/session\/([^/]+)\/menu\/?$/);
+  if (!match) throw new Error("customer-table: did not resolve a real session menu");
   const sessionId = match[1];
 
   const sessionMetrics = await assertHealthyDocument("customer-session");
