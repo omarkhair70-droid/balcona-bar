@@ -179,6 +179,7 @@ function setup(enabled = true) {
       create: jest.fn(),
       findMany: jest.fn().mockResolvedValue([]),
       findUnique: jest.fn().mockResolvedValue(attempt),
+      findFirst: jest.fn().mockResolvedValue(null),
       update: jest.fn().mockResolvedValue(attempt),
     },
     saasBillingInvoice: {
@@ -243,6 +244,59 @@ describe("SaasBillingService", () => {
     expect(prisma.saasBillingEvent.findUnique).not.toHaveBeenCalled();
     expect(prisma.saasBillingPaymentAttempt.update).not.toHaveBeenCalled();
     expect(prisma.companySubscription.update).not.toHaveBeenCalled();
+  });
+
+  it("reuses a recurring attempt already linked to the provider transaction", async () => {
+    const { service, prisma, attempt } = setup(true);
+    const recurring = webhookObject({
+      order: {
+        id: 700002,
+        merchant_order_id: "provider-recurring-order",
+      },
+      integration_id: 202,
+    });
+    const hmac = signWebhook(recurring);
+
+    prisma.saasBillingPaymentAttempt.findUnique.mockResolvedValueOnce(null);
+    prisma.saasBillingPaymentAttempt.findFirst.mockResolvedValueOnce({
+      ...attempt,
+      providerTransactionReference: "555001",
+      providerOrderReference: "700002",
+    });
+
+    global.fetch = jest
+      .fn()
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        text: async () => JSON.stringify({ token: "provider-auth-token" }),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        text: async () =>
+          JSON.stringify([
+            {
+              id: 991,
+              state: "active",
+              plan_id: 55,
+              starts_at: "2026-08-30T12:00:00.000Z",
+              next_billing: "2026-09-29T12:00:00.000Z",
+            },
+          ]),
+      }) as typeof fetch;
+
+    await service.processPaymobTransactionWebhook(hmac, recurring);
+
+    expect(prisma.saasBillingPaymentAttempt.findFirst).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: {
+          provider: SaasBillingProvider.paymob,
+          providerTransactionReference: "555001",
+        },
+      }),
+    );
+    expect(prisma.saasBillingPaymentAttempt.create).not.toHaveBeenCalled();
   });
 
   it("activates the subscription only after verified provider transaction truth", async () => {
