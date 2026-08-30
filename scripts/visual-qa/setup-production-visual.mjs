@@ -58,26 +58,26 @@ const staffSession = {
 };
 
 const checklist = [
-  ["company_profile", "Company profile complete", "ready", "Company name, slug, and active status are set.", "/staff/setup"],
-  ["branch_profile", "Branch profile complete", "ready", "Branch name, slug, address, and active status are set.", "/staff/setup"],
-  ["floors_created", "Floors or areas created", "ready", "2 floor or area records ready.", "/staff/setup"],
-  ["tables_created", "Active tables created", "ready", "18 active tables ready.", "/staff/setup"],
-  ["qr_links_ready", "QR links ready", "ready", "Every active table has a QR token.", "/staff/branches"],
-  ["owner_staff_ready", "Owner or manager ready", "ready", "2 matching staff assignments found.", "/staff/setup"],
-  ["cashier_staff_ready", "Cashier ready", "ready", "1 matching staff assignment found.", "/staff/setup"],
-  ["kitchen_staff_ready", "Kitchen or barista ready", "ready", "1 matching staff assignment found.", "/staff/kitchen"],
-  ["waiter_staff_ready", "Waiter ready", "ready", "1 matching staff assignment found.", "/staff/waiter"],
-  ["menu_categories_ready", "Menu categories ready", "ready", "5 active categories ready.", "/staff/menu"],
-  ["menu_items_ready", "Active menu items ready", "ready", "24 branch-available items.", "/staff/menu"],
-  ["modifiers_ready", "Modifier structure checked", "ready", "Modifier groups are linked.", "/staff/menu"],
-  ["ai_waiter_menu_grounding_ready", "AI waiter menu grounding ready", "ready", "Grounding is ready.", "/staff/menu"],
-  ["inventory_foundation_ready", "Inventory foundation ready", "ready", "Inventory and branch stock are ready.", "/staff/inventory"],
-  ["cashier_shift_ready", "Cashier shift can open", "ready", "Cashier role and active tables are ready.", "/staff/cashier"],
-  ["printer_foundation_ready", "Printer software routing ready", "ready", "Software routing is configured; physical transport is not verified by Setup.", "/staff/kitchen"],
-  ["physical_printer_hardware_ready", "Physical printer installation verified", "needs_attention", "Venue hardware verification remains external.", "/staff/kitchen"],
-  ["bills_payment_ready", "Bill and manual payment flow ready", "ready", "Bill presentation and manual payment are enabled.", "/staff/cashier"],
-  ["online_payment_provider_ready", "Live online payment certification", "blocked", "Paymob is configured in software, but merchant certification remains an external go-live gate.", "/staff/cashier"],
-  ["kds_ready", "KDS ticket system ready", "ready", "Kitchen staff can work tasks and tickets.", "/staff/kitchen"],
+  ["company_profile", "Company profile complete", "ready", "Company name, slug, and active status are set.", "/setup"],
+  ["branch_profile", "Branch profile complete", "ready", "Branch name, slug, address, and active status are set.", "/setup"],
+  ["floors_created", "Floors or areas created", "ready", "2 floor or area records ready.", "/setup"],
+  ["tables_created", "Active tables created", "ready", "18 active tables ready.", "/setup"],
+  ["qr_links_ready", "QR links ready", "ready", "Every active table has a QR token.", "/office/locations"],
+  ["owner_staff_ready", "Owner or manager ready", "ready", "2 matching staff assignments found.", "/setup"],
+  ["cashier_staff_ready", "Cashier ready", "ready", "1 matching staff assignment found.", "/setup"],
+  ["kitchen_staff_ready", "Kitchen or barista ready", "ready", "1 matching staff assignment found.", "/kitchen"],
+  ["waiter_staff_ready", "Waiter ready", "ready", "1 matching staff assignment found.", "/service/waiter"],
+  ["menu_categories_ready", "Menu categories ready", "ready", "5 active categories ready.", "/office/catalog"],
+  ["menu_items_ready", "Active menu items ready", "ready", "24 branch-available items.", "/office/catalog"],
+  ["modifiers_ready", "Modifier structure checked", "ready", "Modifier groups are linked.", "/office/catalog"],
+  ["ai_waiter_menu_grounding_ready", "AI waiter menu grounding ready", "ready", "Grounding is ready.", "/office/catalog"],
+  ["inventory_foundation_ready", "Inventory foundation ready", "ready", "Inventory and branch stock are ready.", "/office/inventory"],
+  ["cashier_shift_ready", "Cashier shift can open", "ready", "Cashier role and active tables are ready.", "/service/cashier"],
+  ["printer_foundation_ready", "Printer software routing ready", "ready", "Software routing is configured; physical transport is not verified by Setup.", "/kitchen"],
+  ["physical_printer_hardware_ready", "Physical printer installation verified", "needs_attention", "Venue hardware verification remains external.", "/kitchen"],
+  ["bills_payment_ready", "Bill and manual payment flow ready", "ready", "Bill presentation and manual payment are enabled.", "/service/cashier"],
+  ["online_payment_provider_ready", "Live online payment certification", "blocked", "Paymob is configured in software, but merchant certification remains an external go-live gate.", "/service/cashier"],
+  ["kds_ready", "KDS ticket system ready", "ready", "Kitchen staff can work tasks and tickets.", "/kitchen"],
   ["analytics_ready", "Owner analytics access ready", "ready", "Owner analytics access exists.", "/staff/owner"]
 ].map(([key,label,status,reason,actionHref]) => ({ key,label,status,reason,actionHref }));
 
@@ -103,7 +103,7 @@ const onboarding = {
     missingQrTableCount: 0,
     floors: [{ id: "floor-1", branchId: BRANCH_ID, name: "Main Floor", sortOrder: 0 }],
     recentTables: [
-      { id:"table-1", branchId:BRANCH_ID, floorId:"floor-1", code:"T01", displayName:"Table 01", capacity:2, qrToken:"balcona-main-t01", status:"active", customerPreviewPath:"/customer/table/balcona-main-t01" }
+      { id:"table-1", branchId:BRANCH_ID, floorId:"floor-1", code:"T01", displayName:"Table 01", capacity:2, qrToken:"balcona-main-t01", status:"active", customerPreviewPath:"/guest/table/balcona-main-t01" }
     ]
   },
   staff: {
@@ -159,11 +159,11 @@ const companyOnboarding = {
 };
 
 const newTenantChecklist = [
-  ["company_profile", "Company profile complete", "ready", "Company name, slug, and active status are set.", "/staff/setup"],
-  ["branches_created", "Branches created", "missing", "Create at least one branch before launch setup can continue.", "/staff/branches"],
-  ["active_branch_ready", "Active branch ready", "missing", "At least one branch must be active before customer QR sessions can launch.", "/staff/branches"],
-  ["owner_staff_ready", "Owner or branch manager ready", "ready", "Owner access is present.", "/staff/setup"],
-  ["menu_items_ready", "Company menu has items", "needs_attention", "Create active menu categories and items before customer ordering.", "/staff/menu"]
+  ["company_profile", "Company profile complete", "ready", "Company name, slug, and active status are set.", "/setup"],
+  ["branches_created", "Branches created", "missing", "Create at least one branch before launch setup can continue.", "/office/locations"],
+  ["active_branch_ready", "Active branch ready", "missing", "At least one branch must be active before customer QR sessions can launch.", "/office/locations"],
+  ["owner_staff_ready", "Owner or branch manager ready", "ready", "Owner access is present.", "/setup"],
+  ["menu_items_ready", "Company menu has items", "needs_attention", "Create active menu categories and items before customer ordering.", "/office/catalog"]
 ].map(([key,label,status,reason,actionHref]) => ({ key,label,status,reason,actionHref }));
 
 const newTenantCompanyOnboarding = {
@@ -346,7 +346,7 @@ async function capture(browser, {
   });
 
   await installApiMocks(page, scenario);
-  await page.goto(`${BASE_URL}/staff/setup${hash ? `#${hash}` : ""}`, { waitUntil:"domcontentloaded", timeout:30000 });
+  await page.goto(`${BASE_URL}/setup${hash ? `#${hash}` : ""}`, { waitUntil:"domcontentloaded", timeout:30000 });
 
   const title =
     scenario === "new-tenant"
@@ -423,7 +423,7 @@ async function captureLoading(browser) {
   const context = await newContext(browser, "en", {width:834,height:1112}, { scenario:"loading" });
   const page = await context.newPage();
   await installApiMocks(page, "loading");
-  await page.goto(`${BASE_URL}/staff/setup`, { waitUntil:"domcontentloaded", timeout:30000 });
+  await page.goto(`${BASE_URL}/setup`, { waitUntil:"domcontentloaded", timeout:30000 });
   await page.getByText("Loading Setup", { exact:false }).waitFor({ state:"visible", timeout:5000 });
   const screenshot = path.join(OUTPUT_DIR, `${label}.png`);
   await page.screenshot({ path:screenshot, fullPage:true });

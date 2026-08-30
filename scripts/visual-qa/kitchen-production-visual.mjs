@@ -803,7 +803,7 @@ async function capture(browser, {
   });
 
   await installApiMocks(page, scenario, permissions);
-  await page.goto(BASE_URL + "/staff/kitchen", {
+  await page.goto(BASE_URL + "/kitchen", {
     waitUntil: "domcontentloaded",
     timeout: 30000
   });
@@ -950,7 +950,7 @@ async function verifyStationPersistence(browser) {
   const page = await context.newPage();
   await installApiMocks(page, "normal", fullPermissions);
 
-  await page.goto(BASE_URL + "/staff/kitchen", {
+  await page.goto(BASE_URL + "/kitchen", {
     waitUntil: "domcontentloaded",
     timeout: 30000
   });
@@ -1003,7 +1003,7 @@ async function verifyReadOnlyPermissions(browser) {
   const page = await context.newPage();
   await installApiMocks(page, "normal", readOnlyPermissions);
 
-  await page.goto(BASE_URL + "/staff/kitchen", {
+  await page.goto(BASE_URL + "/kitchen", {
     waitUntil: "domcontentloaded",
     timeout: 30000
   });

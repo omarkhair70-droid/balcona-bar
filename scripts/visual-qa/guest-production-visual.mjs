@@ -388,14 +388,14 @@ async function installApiMocks(page, billFixture = bill) {
       return route.fulfill(json(orders));
     }
 
-    if (pathname === `/api/v1/table-sessions/${SESSION_ID}/customer-status`) {
+    if (pathname === `/api/v1/table-sessions/${SESSION_ID}/guest-status`) {
       return route.fulfill(json({
         customerStatus: "preparing",
         orders: orders.orders
       }));
     }
 
-    if (pathname === `/api/v1/table-sessions/${SESSION_ID}/customer-timeline`) {
+    if (pathname === `/api/v1/table-sessions/${SESSION_ID}/guest-timeline`) {
       return route.fulfill(json(timeline));
     }
 
@@ -491,8 +491,8 @@ async function capture(browser, {
 
   await installApiMocks(page, billFixture);
 
-  if (route.startsWith("/customer/session/") && bootstrapSession) {
-    await page.goto(`${BASE_URL}/customer/table/visual-table-12`, {
+  if (route.startsWith("/guest/session/") && bootstrapSession) {
+    await page.goto(`${BASE_URL}/guest/table/visual-table-12`, {
       waitUntil: "domcontentloaded",
       timeout: 30000
     });
@@ -556,7 +556,7 @@ async function capture(browser, {
   const pageText = await page.locator("body").innerText();
 
   if (
-    route.startsWith("/customer/session/") &&
+    route.startsWith("/guest/session/") &&
     !/prototype/i.test(route) &&
     /\b(?:backend|idempotency|mock checkout|confirm mock payment|provider checkout)\b/i.test(pageText)
   ) {
@@ -622,7 +622,7 @@ const results = [];
 try {
   results.push(await capture(browser, {
     label: "01-production-menu-en-390",
-    route: `/customer/session/${SESSION_ID}/menu`
+    route: `/guest/session/${SESSION_ID}/menu`
   }));
   results.push(await capture(browser, {
     label: "02-prototype-guest-en-390",
@@ -630,7 +630,7 @@ try {
   }));
   results.push(await capture(browser, {
     label: "03-production-menu-ar-rtl-390",
-    route: `/customer/session/${SESSION_ID}/menu`,
+    route: `/guest/session/${SESSION_ID}/menu`,
     locale: "ar"
   }));
   results.push(await capture(browser, {
@@ -640,44 +640,44 @@ try {
   }));
   results.push(await capture(browser, {
     label: "05-production-order-en-390",
-    route: `/customer/session/${SESSION_ID}/status`
+    route: `/guest/session/${SESSION_ID}/status`
   }));
   results.push(await capture(browser, {
     label: "06-production-service-en-390",
-    route: `/customer/session/${SESSION_ID}/service`
+    route: `/guest/session/${SESSION_ID}/service`
   }));
   results.push(await capture(browser, {
     label: "07-production-bill-en-390",
-    route: `/customer/session/${SESSION_ID}/bill`
+    route: `/guest/session/${SESSION_ID}/bill`
   }));
   results.push(await capture(browser, {
     label: "08-production-ai-waiter-en-390",
-    route: `/customer/session/${SESSION_ID}/ai-waiter`
+    route: `/guest/session/${SESSION_ID}/ai-waiter`
   }));
   results.push(await capture(browser, {
     label: "09-production-menu-en-360",
-    route: `/customer/session/${SESSION_ID}/menu`,
+    route: `/guest/session/${SESSION_ID}/menu`,
     viewport: { width: 360, height: 800 }
   }));
   results.push(await capture(browser, {
     label: "10-production-menu-en-desktop",
-    route: `/customer/session/${SESSION_ID}/menu`,
+    route: `/guest/session/${SESSION_ID}/menu`,
     viewport: { width: 1280, height: 900 }
   }));
   results.push(await capture(browser, {
     label: "11-production-bill-ar-rtl-390",
-    route: `/customer/session/${SESSION_ID}/bill`,
+    route: `/guest/session/${SESSION_ID}/bill`,
     locale: "ar"
   }));
   results.push(await capture(browser, {
     label: "12-production-expired-session-en-390",
-    route: `/customer/session/${SESSION_ID}/menu`,
+    route: `/guest/session/${SESSION_ID}/menu`,
     expired: true,
     expectedText: "This table session has ended."
   }));
   results.push(await capture(browser, {
     label: "13-production-missing-session-en-390",
-    route: `/customer/session/${SESSION_ID}/menu`,
+    route: `/guest/session/${SESSION_ID}/menu`,
     bootstrapSession: false,
     expectedText: "Open the QR at your table again"
   }));
@@ -692,14 +692,14 @@ try {
   ];
   results.push(await capture(browser, {
     label: "14-production-payment-unknown-en-390",
-    route: `/customer/session/${SESSION_ID}/bill`,
+    route: `/guest/session/${SESSION_ID}/bill`,
     billFixture: unknownPaymentBill,
     expectedText: "Don't pay again yet"
   }));
   results.push(await capture(browser, {
     label: "15-service-bill-compatibility-en-390",
-    route: `/customer/session/${SESSION_ID}/service#bill`,
-    expectedPath: `/customer/session/${SESSION_ID}/bill`
+    route: `/guest/session/${SESSION_ID}/service#bill`,
+    expectedPath: `/guest/session/${SESSION_ID}/bill`
   }));
   results.push(await capture(browser, {
     label: "16-demo-launcher-compatibility-en-390",
