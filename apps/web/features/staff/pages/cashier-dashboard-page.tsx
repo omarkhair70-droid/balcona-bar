@@ -1198,81 +1198,63 @@ function CashierDashboardContent() {
 
   return (
     <div className="grid gap-5">
-      <section
+      <div
         data-service-status
-        className="overflow-hidden rounded-lg border border-[#3B3028] bg-[#1E1814]"
+        className="flex flex-wrap items-center gap-2 border-b border-[#342A23] pb-3 text-xs text-[#B8AA9E]"
       >
-        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#342A23] px-3 py-3">
-          <div className="min-w-0">
-            <div className="flex flex-wrap items-center gap-2">
-              <Badge variant="muted">{t("cashier.badge")}</Badge>
-              <StaffRealtimeStatus
-                state={realtime.state}
-                lastEventType={realtime.lastEventType}
-              />
-            </div>
-            <p className="mt-2 truncate text-sm font-semibold text-[#FFF5E8]">
-              {selectedBranch.name}
-            </p>
-          </div>
-          <Button size="sm" variant="secondary" onClick={refreshBranch}>
+        <div className="flex min-w-0 flex-wrap items-center gap-2">
+          <Badge variant="muted">{t("cashier.badge")}</Badge>
+          <StaffRealtimeStatus
+            state={realtime.state}
+            lastEventType={realtime.lastEventType}
+          />
+          <span className="truncate font-semibold text-[#F8EDDF]">
+            {selectedBranch.name}
+          </span>
+        </div>
+
+        <div className="ms-auto flex flex-wrap items-center gap-1.5">
+          <span className="inline-flex min-h-8 items-center gap-1.5 rounded-md border border-[#3B3028] bg-[#211A15] px-2.5">
+            <Receipt className="size-3.5 text-[#E0A764]" aria-hidden="true" />
+            {t("cashier.submittedLabel")}{" "}
+            <strong className="text-[#FFF5E8]">
+              {countOrdersByStatus(allOrders, (status) => status === "submitted")}
+            </strong>
+          </span>
+          <span className="inline-flex min-h-8 items-center gap-1.5 rounded-md border border-[#3B3028] bg-[#211A15] px-2.5">
+            <CheckCircle2 className="size-3.5 text-[#7FC37E]" aria-hidden="true" />
+            {t("cashier.inServiceLabel")}{" "}
+            <strong className="text-[#FFF5E8]">
+              {countOrdersByStatus(allOrders, (status) => activeOrderStatuses.has(status))}
+            </strong>
+          </span>
+          <span className="inline-flex min-h-8 items-center gap-1.5 rounded-md border border-[#3B3028] bg-[#211A15] px-2.5">
+            <BellRing className="size-3.5 text-[#F0C66E]" aria-hidden="true" />
+            {t("cashier.billRequestsLabel")}{" "}
+            <strong className="text-[#FFF5E8]">
+              {countBillsByStatus(activeBillRequests, (status) => activeBillStatuses.has(status))}
+            </strong>
+          </span>
+          <span className="inline-flex min-h-8 items-center gap-1.5 rounded-md border border-[#3B3028] bg-[#211A15] px-2.5">
+            <Banknote className="size-3.5 text-[#C68A4A]" aria-hidden="true" />
+            {currentShift
+              ? t("serviceShift.shiftOpen")
+              : t("serviceShift.noOpenShift")}
+          </span>
+          <Button
+            size="sm"
+            variant="secondary"
+            onClick={refreshBranch}
+            aria-label={t("actions.refreshBranch")}
+          >
             <RefreshCw className="size-4" aria-hidden="true" />
-            {t("actions.refreshBranch")}
           </Button>
         </div>
-        <div className="grid grid-cols-2 divide-x divide-[#342A23] border-[#342A23] sm:grid-cols-4 rtl:divide-x-reverse">
-          <div className="flex min-h-16 items-center gap-2 px-3 py-2">
-            <Receipt className="size-4 shrink-0 text-[#E0A764]" aria-hidden="true" />
-            <div>
-              <strong className="block text-lg leading-none text-[#FFF5E8]">
-                {countOrdersByStatus(allOrders, (status) => status === "submitted")}
-              </strong>
-              <span className="mt-1 block text-[10px] text-[#91857A]">
-                {t("cashier.submittedLabel")}
-              </span>
-            </div>
-          </div>
-          <div className="flex min-h-16 items-center gap-2 border-t border-[#342A23] px-3 py-2 sm:border-t-0">
-            <CheckCircle2 className="size-4 shrink-0 text-[#7FC37E]" aria-hidden="true" />
-            <div>
-              <strong className="block text-lg leading-none text-[#FFF5E8]">
-                {countOrdersByStatus(allOrders, (status) => activeOrderStatuses.has(status))}
-              </strong>
-              <span className="mt-1 block text-[10px] text-[#91857A]">
-                {t("cashier.inServiceLabel")}
-              </span>
-            </div>
-          </div>
-          <div className="flex min-h-16 items-center gap-2 border-t border-[#342A23] px-3 py-2 sm:border-t-0">
-            <BellRing className="size-4 shrink-0 text-[#F0C66E]" aria-hidden="true" />
-            <div>
-              <strong className="block text-lg leading-none text-[#FFF5E8]">
-                {countBillsByStatus(activeBillRequests, (status) => activeBillStatuses.has(status))}
-              </strong>
-              <span className="mt-1 block text-[10px] text-[#91857A]">
-                {t("cashier.billRequestsLabel")}
-              </span>
-            </div>
-          </div>
-          <div className="flex min-h-16 items-center gap-2 border-t border-[#342A23] px-3 py-2 sm:border-t-0">
-            <Banknote className="size-4 shrink-0 text-[#C68A4A]" aria-hidden="true" />
-            <div>
-              <strong className="block text-xs font-semibold text-[#FFF5E8]">
-                {currentShift
-                  ? t("serviceShift.shiftOpen")
-                  : t("serviceShift.noOpenShift")}
-              </strong>
-              <span className="mt-1 block text-[10px] text-[#91857A]">
-                {t("serviceShift.title")}
-              </span>
-            </div>
-          </div>
-        </div>
-      </section>
+      </div>
 
       <NoticeBanner notice={notice} />
 
-      <section id="orders" className="scroll-mt-36 grid gap-5 xl:grid-cols-[minmax(20rem,26rem)_1fr]">
+      <section id="orders" className="scroll-mt-36 grid gap-3 xl:grid-cols-[360px_minmax(0,1fr)]">
         <CashierOrderQueue
           orders={orders}
           status={orderStatus}
