@@ -78,7 +78,7 @@ const checklist = [
   ["bills_payment_ready", "Bill and manual payment flow ready", "ready", "Bill presentation and manual payment are enabled.", "/service/cashier"],
   ["online_payment_provider_ready", "Live online payment certification", "blocked", "Paymob is configured in software, but merchant certification remains an external go-live gate.", "/service/cashier"],
   ["kds_ready", "KDS ticket system ready", "ready", "Kitchen staff can work tasks and tickets.", "/kitchen"],
-  ["analytics_ready", "Owner analytics access ready", "ready", "Owner analytics access exists.", "/staff/owner"]
+  ["analytics_ready", "Owner analytics access ready", "ready", "Owner analytics access exists.", "/office"]
 ].map(([key,label,status,reason,actionHref]) => ({ key,label,status,reason,actionHref }));
 
 const sections = [
