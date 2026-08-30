@@ -201,6 +201,17 @@ function PlatformStatusContent() {
               <DetailRow label="NODE_ENV" value={systemInfoQuery.data.nodeEnvironment} fallback="—" />
               <DetailRow label={L(locale, "API prefix", "بادئة API")} value={systemInfoQuery.data.apiPrefix} fallback="—" />
               <DetailRow label="Git SHA" value={systemInfoQuery.data.gitSha} fallback="—" />
+              <DetailRow label={L(locale, "Build time", "وقت البناء")} value={systemInfoQuery.data.buildTime} fallback="—" />
+              <DetailRow label={L(locale, "Migrations", "الترحيلات")} value={systemInfoQuery.data.migration?.status} fallback="—" />
+              <DetailRow
+                label={L(locale, "Applied", "المطبق")}
+                value={
+                  systemInfoQuery.data.migration
+                    ? `${systemInfoQuery.data.migration.applied ?? 0}/${systemInfoQuery.data.migration.expected ?? 0}`
+                    : undefined
+                }
+                fallback="—"
+              />
             </dl>
           ) : null}
         </article>

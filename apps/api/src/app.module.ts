@@ -47,6 +47,8 @@ import { TablesModule } from "./tables/tables.module";
 import { TenantOnboardingModule } from "./tenant-onboarding/tenant-onboarding.module";
 import { VenueZonesModule } from "./venue-zones/venue-zones.module";
 import { WaiterCallsModule } from "./waiter-calls/waiter-calls.module";
+import { DeploymentModule } from "./deployment/deployment.module";
+import { DemoRequestsModule } from "./demo-requests/demo-requests.module";
 
 @Module({
   imports: [
@@ -64,6 +66,8 @@ import { WaiterCallsModule } from "./waiter-calls/waiter-calls.module";
     StaffInvitesModule,
     PlatformAuthModule,
     PrismaModule,
+    DeploymentModule,
+    DemoRequestsModule,
     RedisModule,
     HealthModule,
     InventoryModule,

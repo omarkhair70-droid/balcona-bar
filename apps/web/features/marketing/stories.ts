@@ -1,0 +1,90 @@
+import { Building2, ChefHat, CircleDollarSign, ClipboardCheck, Layers3, LifeBuoy, Radio, Smartphone, Sparkles, Store } from "lucide-react";
+import type { MarketingStory } from "./marketing-story-page";
+
+export const stories = {
+  product: {
+    eyebrow: ["The complete product", "المنتج الكامل"],
+    title: ["One operation. Six purpose-built surfaces.", "تشغيل واحد. ست واجهات مصممة لكل دور."],
+    description: ["Balcona carries the same business truth from the guest’s first scan to the platform team’s multi-tenant view.", "بلكونة تحمل نفس حقيقة النشاط من أول مسح للضيف لحد رؤية فريق المنصة لكل الشركات."],
+    outcomes: [["Guest intent becomes structured work instead of disconnected messages.", "طلب الضيف يتحول لشغل منظم بدل رسائل منفصلة."], ["Service and kitchen share live order state and attention.", "الخدمة والمطبخ يشتركوا في حالة الطلب والتنبيهات مباشرة."], ["Office decisions are grounded in the same operational data.", "قرارات الإدارة مبنية على نفس بيانات التشغيل."], ["Setup and Platform make readiness and ownership explicit.", "Setup وPlatform يوضحوا الجاهزية والملكية."]],
+    icon: Layers3,
+  },
+  guest: {
+    eyebrow: ["Guest experience", "تجربة الضيف"],
+    title: ["A table journey that stays in context.", "رحلة ترابيزة تفضل في سياق واحد."],
+    description: ["Scan, browse, customize, order, track, ask for service, use the AI waiter and settle the bill without losing the session.", "يمسح ويختار ويعدل ويطلب ويتابع وينادي الخدمة ويستخدم النادل الذكي ويدفع من غير ما يضيع سياق الجلسة."],
+    outcomes: [["A branch-scoped menu with modifier and availability truth.", "منيو مرتبطة بالفرع وحقيقة الإضافات والتوفر."], ["Cart validation happens before the order reaches operations.", "الطلب يتراجع قبل ما يوصل للتشغيل."], ["AI answers and proposals remain grounded in the live menu.", "إجابات واقتراحات AI مرتبطة بالمنيو الفعلية."], ["Status, service and bill actions stay tied to one table session.", "الحالة والخدمة والفاتورة مربوطين بجلسة ترابيزة واحدة."]],
+    icon: Smartphone,
+  },
+  service: {
+    eyebrow: ["Service floor", "أرضية الخدمة"],
+    title: ["One queue for what needs attention now.", "طابور واحد للي محتاج انتباه دلوقتي."],
+    description: ["Cashiers and waiters work from live orders, calls, bills, payments and table attention with role-aware controls.", "الكاشير والويتر يشتغلوا من الطلبات والنداءات والفواتير والمدفوعات وتنبيهات الترابيزات بصلاحيات واضحة."],
+    outcomes: [["Floor attention combines operational urgency into one view.", "تنبيهات الصالة تجمع الأولوية التشغيلية في شاشة واحدة."], ["Order and bill actions update the canonical backend state.", "إجراءات الطلب والفاتورة تحدث الحالة الأساسية في النظام."], ["Cash shifts preserve payment accountability.", "ورديات الكاش تحفظ مسؤولية المدفوعات."], ["Realtime updates reduce manual refresh and verbal relays.", "التحديث المباشر يقلل الريفرش والنقل الشفهي."]],
+    icon: Radio,
+  },
+  kitchen: {
+    eyebrow: ["Kitchen production", "تشغيل المطبخ"],
+    title: ["Production clarity at kitchen speed.", "وضوح تشغيل بسرعة المطبخ."],
+    description: ["Preparation tasks, stations, tickets and print jobs share a high-contrast workflow built for distance and urgency.", "مهام التحضير والمحطات والتذاكر والطباعة داخل مسار عالي الوضوح للسرعة والمسافة."],
+    outcomes: [["New, preparing and ready are explicit production states.", "جديد وقيد التحضير وجاهز حالات إنتاج واضحة."], ["Station filters keep each team focused.", "فلترة المحطات تخلي كل فريق مركز."], ["Ticket actions write back to real preparation tasks.", "إجراءات التذكرة تحدث مهام التحضير الحقيقية."], ["Print failures stay visible and recoverable.", "أخطاء الطباعة تفضل ظاهرة وقابلة للمعالجة."]],
+    icon: ChefHat,
+  },
+  office: {
+    eyebrow: ["Back office", "الإدارة"],
+    title: ["Control the operation behind the shift.", "تحكم في التشغيل اللي ورا الوردية."],
+    description: ["Catalog, branches, floors, inventory, purchasing, experience, people, money and insights stay within one management grammar.", "المنيو والفروع والأدوار والمخزون والمشتريات والتجربة والفريق والأموال والتحليلات داخل لغة إدارة واحدة."],
+    outcomes: [["Branch controls preserve company and location scope.", "تحكم الفروع يحافظ على نطاق الشركة والموقع."], ["Inventory requirements connect menu availability to stock.", "متطلبات المخزون تربط توفر المنيو بالمخزون."], ["Analytics report real operational events and money.", "التحليلات تعرض أحداث التشغيل والأموال الحقيقية."], ["Experience settings flow into the guest surface.", "إعدادات التجربة تصل لواجهة الضيف."]],
+    icon: Store,
+  },
+  setup: {
+    eyebrow: ["Setup and readiness", "التجهيز والجاهزية"],
+    title: ["Go live with a finite readiness path.", "ابدأ التشغيل بمسار جاهزية محدد."],
+    description: ["Company, branch, floor, tables, team and checks move from incomplete to demonstrably ready without hidden setup work.", "الشركة والفرع والصالة والترابيزات والفريق والفحوصات تتحول من ناقصة لجاهزة بشكل مثبت."],
+    outcomes: [["Every readiness check has a visible status and owner.", "كل فحص جاهزية له حالة ومالك واضح."], ["Floor and table creation use production records.", "إنشاء الصالة والترابيزات يستخدم سجلات الإنتاج."], ["Staff invitations connect setup to real access.", "دعوات الفريق تربط التجهيز بدخول حقيقي."], ["Launch status distinguishes demo, pilot and blocked states.", "حالة الإطلاق تفرق بين Demo وPilot والحظر."]],
+    icon: ClipboardCheck,
+  },
+  multiLocation: {
+    eyebrow: ["Multi-location", "تعدد الفروع"],
+    title: ["Company-wide truth without losing branch control.", "حقيقة على مستوى الشركة من غير فقدان تحكم الفرع."],
+    description: ["Platform ownership, company configuration and branch-scoped operations make growth manageable instead of duplicating dashboards.", "ملكية Platform وإعدادات الشركة وتشغيل كل فرع يخلي النمو قابل للإدارة بدل نسخ لوحات التحكم."],
+    outcomes: [["Platform provisions and governs tenant companies.", "Platform تنشئ وتحكم شركات العملاء."], ["Permissions keep company and branch boundaries intact.", "الصلاحيات تحافظ على حدود الشركة والفرع."], ["Shared catalog and branch overrides coexist deliberately.", "الكتالوج المشترك واستثناءات الفرع يعيشوا بشكل مقصود."], ["Cross-branch insights use consistent operational definitions.", "تحليلات الفروع تستخدم تعريفات تشغيل موحدة."]],
+    icon: Building2,
+  },
+  independent: {
+    eyebrow: ["For independent cafés", "للكافيهات المستقلة"],
+    title: ["Enterprise operating clarity without enterprise clutter.", "وضوح تشغيل المنصات الكبيرة من غير تعقيدها."],
+    description: ["Start with one branch and connect the guest, service, kitchen and owner workflows without assembling separate tools.", "ابدأ بفرع واحد واربط الضيف والخدمة والمطبخ والمالك من غير تجميع أدوات منفصلة."],
+    outcomes: [["A single live flow replaces chat groups and paper relays.", "مسار مباشر واحد يستبدل جروبات الشات والورق."], ["Setup shows what remains before launch.", "Setup يوضح إيه ناقص قبل التشغيل."], ["The owner sees operations and money from one source.", "المالك يرى التشغيل والأموال من مصدر واحد."], ["The system can grow into more branches without a rebuild.", "النظام يكبر لفروع أكثر من غير إعادة بناء."]],
+    icon: Store,
+  },
+  multiBranch: {
+    eyebrow: ["For multi-branch operators", "لمشغلي الفروع المتعددة"],
+    title: ["Standardize the system, keep each branch legible.", "وحّد النظام وخلي كل فرع واضح."],
+    description: ["Use shared company rules and catalog truth while preserving branch readiness, stock, floors, permissions and live operations.", "استخدم قواعد وكتالوج الشركة مع الحفاظ على جاهزية ومخزون وصالات وصلاحيات وتشغيل كل فرع."],
+    outcomes: [["Company-level governance avoids duplicate configuration.", "حوكمة الشركة تمنع تكرار الإعدادات."], ["Branch overrides are explicit and reversible.", "استثناءات الفرع واضحة وقابلة للرجوع."], ["Operational views stay branch-scoped for safe action.", "شاشات التشغيل مرتبطة بالفرع لإجراءات آمنة."], ["Platform maintains a canonical tenant registry.", "Platform تحتفظ بسجل أساسي للعملاء."]],
+    icon: Building2,
+  },
+  pricing: {
+    eyebrow: ["Pricing", "الأسعار"],
+    title: ["Scope the plan around the operation.", "حدد الخطة على أساس التشغيل."],
+    description: ["Balcona plans are entitlement-based across branches, tables, staff, menu, inventory, analytics, payments and AI usage. Current commercial pricing is confirmed during the demo.", "خطط بلكونة مبنية على صلاحيات وحدود الفروع والترابيزات والفريق والمنيو والمخزون والتحليلات والمدفوعات واستخدام AI. السعر التجاري الحالي يتأكد أثناء العرض."],
+    outcomes: [["Plan limits are enforced by the product, not hidden in a document.", "حدود الخطة يطبقها المنتج، مش مستخبية في ملف."], ["Features can be enabled by operational need.", "الخصائص تتفعل حسب احتياج التشغيل."], ["Multi-branch and advanced reports remain explicit entitlements.", "تعدد الفروع والتقارير المتقدمة صلاحيات واضحة."], ["No public price is invented before the commercial model is approved.", "لا يتم اختراع سعر عام قبل اعتماد النموذج التجاري."]],
+    icon: CircleDollarSign,
+  },
+  support: {
+    eyebrow: ["Support", "الدعم"],
+    title: ["Start with the route you actually use.", "ابدأ من المسار اللي بتستخدمه فعلًا."],
+    description: ["Guests enter from the table QR. Restaurant teams sign in through Staff. Balcona operators use a separate Platform identity.", "الضيف يدخل من QR الترابيزة، وفريق المطعم يدخل من Staff، وفريق بلكونة يستخدم هوية Platform منفصلة."],
+    outcomes: [["Guest sessions are tied to a branch and table.", "جلسة الضيف مرتبطة بفرع وترابيزة."], ["Staff access is scoped by role and tenant.", "دخول الفريق محدد بالدور والعميل."], ["Platform access is intentionally separate from restaurant staff auth.", "دخول Platform منفصل عمدًا عن حسابات المطعم."], ["For account help, use the contact details provided by your Balcona operator.", "لمساعدة الحساب استخدم بيانات التواصل اللي وفرها مسؤول بلكونة."]],
+    icon: LifeBuoy,
+    cta: ["/login", "Choose your sign-in", "اختار تسجيل الدخول"],
+  },
+  demo: {
+    eyebrow: ["Guided product tour", "جولة موجهة للمنتج"],
+    title: ["Follow one order through the entire operation.", "تابع طلبًا واحدًا عبر التشغيل كله."],
+    description: ["The product tour explains how the six approved surfaces connect. A live working demo uses a provisioned branch so every action is backed by real data.", "جولة المنتج تشرح إزاي الست واجهات المعتمدة مترابطة، والعرض المباشر يستخدم فرعًا مجهزًا علشان كل إجراء يكون على بيانات حقيقية."],
+    outcomes: [["Begin with the guest scan and menu journey.", "ابدأ بمسح الضيف ورحلة المنيو."], ["Watch service and kitchen receive the same order.", "شاهد الخدمة والمطبخ يستلموا نفس الطلب."], ["Trace the operational result into Office insights.", "تتبع نتيجة التشغيل داخل تحليلات Office."], ["Review setup readiness and platform ownership.", "راجع جاهزية Setup وملكية Platform."]],
+    icon: Sparkles,
+  },
+} satisfies Record<string, MarketingStory>;

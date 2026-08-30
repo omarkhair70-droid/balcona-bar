@@ -1,24 +1,26 @@
 import { Controller, Get } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
+import { DeploymentReadinessService } from "../deployment/deployment-readiness.service";
 
 @Controller("health")
 export class HealthController {
-  constructor(private readonly configService: ConfigService) {}
+  constructor(
+    private readonly configService: ConfigService,
+    private readonly deploymentReadiness: DeploymentReadinessService,
+  ) {}
 
   @Get()
-  check() {
+  async check() {
+    const deployment = await this.deploymentReadiness.snapshot();
+
     return {
       status: "ok",
       service: this.configService.get<string>("app.name"),
       version: this.configService.get<string>("app.version"),
       environment: this.configService.get<string>("app.environment"),
-      gitSha: this.configService.get<string>("app.gitSha"),
-      buildTime:
-        this.configService.get<string>("app.buildTime") ?? "not_provided",
-      migration: {
-        status: "not_checked",
-        check: "pnpm --filter @balcona-bar/api prisma:migrate:deploy",
-      },
+      gitSha: deployment.gitSha,
+      buildTime: deployment.buildTime,
+      migration: deployment.migration,
       timestamp: new Date().toISOString(),
     };
   }

@@ -20,9 +20,68 @@ export type SystemInfoResult = {
   migration?: {
     status?: string;
     check?: string;
+    expected?: number;
+    applied?: number;
+    pending?: number;
+    failed?: number;
+    checkedAt?: string;
   };
   timestamp?: string;
 };
+
+export type DemoRequestStatus = "new" | "contacted" | "qualified" | "closed";
+
+export type DemoRequest = {
+  id: string;
+  fullName: string;
+  businessName: string;
+  email: string;
+  phone?: string | null;
+  city?: string | null;
+  locationCount: number;
+  message?: string | null;
+  consent: boolean;
+  source?: string | null;
+  utmSource?: string | null;
+  utmMedium?: string | null;
+  utmCampaign?: string | null;
+  status: DemoRequestStatus;
+  internalNotes?: string | null;
+  lastContactedAt?: string | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type CreateDemoRequestPayload = Pick<
+  DemoRequest,
+  "fullName" | "businessName" | "email" | "locationCount" | "consent"
+> &
+  Partial<
+    Pick<
+      DemoRequest,
+      | "phone"
+      | "city"
+      | "message"
+      | "source"
+      | "utmSource"
+      | "utmMedium"
+      | "utmCampaign"
+    >
+  > & { website?: string };
+
+export type CreateDemoRequestResult = Pick<
+  DemoRequest,
+  "id" | "status" | "createdAt"
+>;
+
+export type DemoRequestsResult = {
+  requests: DemoRequest[];
+  total: number;
+};
+
+export type UpdateDemoRequestPayload = Partial<
+  Pick<DemoRequest, "status" | "internalNotes" | "lastContactedAt">
+>;
 
 export type CompanySummary = {
   id: string;

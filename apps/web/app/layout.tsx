@@ -13,10 +13,13 @@ import { QueryProvider } from "@/lib/query/query-provider";
 import { ThemeProvider } from "@/lib/theme/theme-provider";
 
 export const metadata: Metadata = {
-  title: "Balcona Bar Smart Cafe",
+  title: {
+    default: "Balcona — Hospitality Operating System",
+    template: "%s · Balcona"
+  },
   description:
-    "Frontend foundation for the Cafe AI Waiter App and smart cafe operating system.",
-  applicationName: "Balcona Bar",
+    "One connected operating system for the guest, service floor, kitchen and back office.",
+  applicationName: "Balcona",
   manifest: "/manifest.json",
   icons: {
     icon: "/icons/icon.svg",
