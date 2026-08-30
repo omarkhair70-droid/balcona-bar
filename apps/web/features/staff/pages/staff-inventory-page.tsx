@@ -177,29 +177,23 @@ type ReceivingFormState = {
 
 type InventoryTab =
   | "overview"
-  | "items"
-  | "levels"
+  | "stock"
   | "alerts"
-  | "adjustments"
+  | "movements"
+  | "requirements"
   | "suppliers"
   | "purchase_orders"
-  | "receiving"
-  | "requirements"
-  | "availability"
-  | "movements";
+  | "receiving";
 
 const inventoryTabs: Array<{ id: InventoryTab; label: string }> = [
   { id: "overview", label: "Overview" },
-  { id: "items", label: "Items" },
-  { id: "levels", label: "Stock levels" },
+  { id: "stock", label: "Stock" },
   { id: "alerts", label: "Alerts" },
-  { id: "adjustments", label: "Adjustments" },
+  { id: "movements", label: "Movements" },
+  { id: "requirements", label: "Requirements / Recipes" },
   { id: "suppliers", label: "Suppliers" },
   { id: "purchase_orders", label: "Purchase orders" },
-  { id: "receiving", label: "Receiving" },
-  { id: "requirements", label: "Requirements" },
-  { id: "availability", label: "Menu availability" },
-  { id: "movements", label: "Recent movements" }
+  { id: "receiving", label: "Receiving" }
 ];
 
 const supplierStatuses: SupplierStatus[] = ["active", "inactive", "archived"];
@@ -649,11 +643,7 @@ function TabIcon({ tabId }: { tabId: InventoryTab }) {
     return <Gauge className="size-4" aria-hidden="true" />;
   }
 
-  if (tabId === "items") {
-    return <Boxes className="size-4" aria-hidden="true" />;
-  }
-
-  if (tabId === "levels") {
+  if (tabId === "stock") {
     return <PackageCheck className="size-4" aria-hidden="true" />;
   }
 
@@ -661,8 +651,12 @@ function TabIcon({ tabId }: { tabId: InventoryTab }) {
     return <AlertTriangle className="size-4" aria-hidden="true" />;
   }
 
-  if (tabId === "adjustments") {
-    return <SlidersHorizontal className="size-4" aria-hidden="true" />;
+  if (tabId === "movements") {
+    return <History className="size-4" aria-hidden="true" />;
+  }
+
+  if (tabId === "requirements") {
+    return <ClipboardList className="size-4" aria-hidden="true" />;
   }
 
   if (tabId === "suppliers") {
@@ -673,19 +667,7 @@ function TabIcon({ tabId }: { tabId: InventoryTab }) {
     return <FilePlus2 className="size-4" aria-hidden="true" />;
   }
 
-  if (tabId === "receiving") {
-    return <ReceiptText className="size-4" aria-hidden="true" />;
-  }
-
-  if (tabId === "requirements") {
-    return <ClipboardList className="size-4" aria-hidden="true" />;
-  }
-
-  if (tabId === "availability") {
-    return <Utensils className="size-4" aria-hidden="true" />;
-  }
-
-  return <History className="size-4" aria-hidden="true" />;
+  return <ReceiptText className="size-4" aria-hidden="true" />;
 }
 
 function StaffInventoryContent() {
@@ -1706,7 +1688,7 @@ function StaffInventoryContent() {
           />
         ) : null}
 
-        {activeTab === "items" ? (
+        {activeTab === "stock" ? (
           <InventoryItemsSection
             canManageCompanyInventory={canManageCompanyInventory}
             itemForm={itemForm}
@@ -1731,7 +1713,7 @@ function StaffInventoryContent() {
           />
         ) : null}
 
-        {activeTab === "levels" ? (
+        {activeTab === "stock" ? (
           <StockLevelsSection
             levels={sortedLevels}
             latestMovementByItemId={latestMovementByItemId}
@@ -1746,7 +1728,7 @@ function StaffInventoryContent() {
           />
         ) : null}
 
-        {activeTab === "adjustments" ? (
+        {activeTab === "movements" ? (
           <AdjustmentSection
             canManageBranchStock={canManageBranchStock}
             adjustmentForm={adjustmentForm}
@@ -1883,14 +1865,6 @@ function StaffInventoryContent() {
           />
         ) : null}
 
-        {activeTab === "availability" ? (
-          <MenuAvailabilitySection
-            items={
-              menuAvailabilityQuery.data?.items ?? emptyMenuAvailabilityItems
-            }
-            isLoading={menuAvailabilityQuery.isPending}
-          />
-        ) : null}
 
         {activeTab === "movements" ? (
           <RecentMovementsSection movements={recentMovements} />
@@ -1992,7 +1966,7 @@ function InventoryOverview({
               selected branch.
             </CardDescription>
           </div>
-          <Button size="sm" variant="secondary" onClick={() => onOpenTab("levels")}>
+          <Button size="sm" variant="secondary" onClick={() => onOpenTab("stock")}>
             Stock levels
           </Button>
         </CardHeader>
@@ -2032,7 +2006,7 @@ function InventoryOverview({
           <Button
             size="sm"
             variant="secondary"
-            onClick={() => onOpenTab("adjustments")}
+            onClick={() => onOpenTab("movements")}
           >
             Adjust stock
           </Button>
