@@ -7,9 +7,7 @@ export const branchTableAdminTabs = [
   { id: "branches", label: "Branches" },
   { id: "floors", label: "Floors" },
   { id: "tables", label: "Tables" },
-  { id: "qr", label: "QR Links" },
-  { id: "sessions", label: "Active Sessions" },
-  { id: "issues", label: "Setup Issues" }
+  { id: "qr", label: "QR" }
 ] as const;
 
 export type BranchTableAdminTab = (typeof branchTableAdminTabs)[number]["id"];
