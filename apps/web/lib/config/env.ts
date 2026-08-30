@@ -10,7 +10,8 @@ const envSchema = z.object({
   NEXT_PUBLIC_APP_ENV: z.enum(webAppEnvironments).default("development"),
   NEXT_PUBLIC_APP_VERSION: z.string().default("0.1.0"),
   NEXT_PUBLIC_GIT_SHA: z.string().default("local"),
-  NEXT_PUBLIC_BUILD_TIME: z.string().default("not_provided")
+  NEXT_PUBLIC_BUILD_TIME: z.string().default("not_provided"),
+  NEXT_PUBLIC_DEMO_SANDBOX_URL: z.string().default("")
 });
 
 function webAppEnvironment() {
@@ -38,7 +39,9 @@ export const env = envSchema.parse({
     process.env.VERCEL_GIT_COMMIT_SHA ??
     "local",
   NEXT_PUBLIC_BUILD_TIME:
-    process.env.NEXT_PUBLIC_BUILD_TIME ?? process.env.BUILD_TIME ?? "not_provided"
+    process.env.NEXT_PUBLIC_BUILD_TIME ?? process.env.BUILD_TIME ?? "not_provided",
+  NEXT_PUBLIC_DEMO_SANDBOX_URL:
+    process.env.NEXT_PUBLIC_DEMO_SANDBOX_URL ?? ""
 });
 
 export type ApiBaseUrlSafety = {
@@ -83,6 +86,25 @@ export function getApiBaseUrlSafety(
     reason: "API URL uses a stable public host",
     host
   };
+}
+
+export function getDemoSandboxHref() {
+  const value = env.NEXT_PUBLIC_DEMO_SANDBOX_URL.trim();
+
+  if (!value) {
+    return null;
+  }
+
+  if (value.startsWith("/")) {
+    return value;
+  }
+
+  try {
+    const url = new URL(value);
+    return url.protocol === "https:" || url.protocol === "http:" ? value : null;
+  } catch {
+    return null;
+  }
 }
 
 function isHostedStagingOrProduction() {
