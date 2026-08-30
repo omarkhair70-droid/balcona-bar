@@ -716,7 +716,12 @@
       "shiftManualPaymentsRequireOpen": "وتقتضي المدفوعات اليدوية نوبة أمين مفتوح لهذا الفرع.",
       "staffUserFallback": "مستخدم فريق العمل",
       "submittedDescription": "يحتاج إلى قرار الكاشير",
-      "submittedLabel": "مُقدم"
+      "submittedLabel": "مُقدم",
+      "directTerminalTitle": "جهاز الدفع المباشر / SoftPOS",
+      "directTerminalChecking": "جارٍ فحص جاهزية جهاز الدفع للفرع…",
+      "directTerminalUnavailable": "تعذر تحميل جاهزية جهاز الدفع. يظل جهاز البطاقة الخارجي تسجيل دفع يدوي فقط.",
+      "directTerminalReady": "تشغيل جهاز الدفع المباشر متصل لهذا الفرع.",
+      "directTerminalBlocked": "تشغيل جهاز الدفع المباشر غير متصل بعد. استخدم جهاز البطاقة الخارجي فقط بعد موافقة الجهاز المنفصل على الدفع."
     },
     "errors": {
       "orderActionFailed": "تعذر تنفيذ إجراء {action} على الطلب. {message}"
