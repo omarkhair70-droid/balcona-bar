@@ -41,6 +41,19 @@ const branchSecondary = {
 const permissions = [
   "owner_analytics.read",
   "menu.read",
+  "menu.manage_categories",
+  "menu.manage_items",
+  "menu.manage_modifiers",
+  "menu.manage_branch_overrides",
+  "inventory.read",
+  "inventory.manage",
+  "settings.manage",
+  "saas.read"
+];
+
+const restrictedPermissions = [
+  "owner_analytics.read",
+  "menu.read",
   "inventory.read",
   "settings.manage",
   "saas.read"
@@ -73,6 +86,19 @@ const access = {
   ],
   roles: ["owner"],
   permissions
+};
+
+const restrictedAccess = {
+  ...access,
+  companies: access.companies.map((entry) => ({
+    ...entry,
+    permissions: restrictedPermissions
+  })),
+  branches: access.branches.map((entry) => ({
+    ...entry,
+    permissions: restrictedPermissions
+  })),
+  permissions: restrictedPermissions
 };
 
 const staffUser = {
@@ -763,14 +789,14 @@ const experience = {
   ]
 };
 
-function persistedStaffSession() {
+function persistedStaffSession(accessValue = access) {
   return JSON.stringify({
     state: {
       accessToken: "office-visual-token",
       expiresAt: "2099-01-01T00:00:00.000Z",
       staffUser,
       staffSession,
-      effectiveAccess: access,
+      effectiveAccess: accessValue,
       defaultBranch: branch,
       selectedBranchId: BRANCH_ID,
       lastLoadedAt: "2026-08-29T14:00:00.000Z"
@@ -787,7 +813,7 @@ function json(body, status = 200) {
   };
 }
 
-async function installApiMocks(page) {
+async function installApiMocks(page, accessValue = access) {
   const apiRoutePattern = ["**", "api", "v1", "**"].join("/");
 
   await page.route(apiRoutePattern, async (route) => {
@@ -796,7 +822,12 @@ async function installApiMocks(page) {
     const pathname = url.pathname;
 
     if (pathname === "/api/v1/staff-auth/me") {
-      return route.fulfill(json(staffContext));
+      return route.fulfill(
+        json({
+          ...staffContext,
+          staffAccess: accessValue
+        })
+      );
     }
 
     if (
@@ -909,7 +940,7 @@ async function installApiMocks(page) {
   });
 }
 
-async function newContext(browser, locale, viewport) {
+async function newContext(browser, locale, viewport, accessValue = access) {
   const context = await browser.newContext({
     viewport,
     deviceScaleFactor: 1,
@@ -931,7 +962,7 @@ async function newContext(browser, locale, viewport) {
     },
     {
       localeValue: locale,
-      staffValue: persistedStaffSession()
+      staffValue: persistedStaffSession(accessValue)
     }
   );
 
@@ -945,10 +976,16 @@ async function capture(browser, {
   target,
   activeLabel,
   scopeLabel,
+  accessValue = access,
   locale = "en",
   viewport = { width: 1440, height: 1000 }
 }) {
-  const context = await newContext(browser, locale, viewport);
+  const context = await newContext(
+    browser,
+    locale,
+    viewport,
+    accessValue
+  );
   const page = await context.newPage();
   const consoleErrors = [];
 
@@ -958,7 +995,7 @@ async function capture(browser, {
     }
   });
 
-  await installApiMocks(page);
+  await installApiMocks(page, accessValue);
   await page.goto(`${BASE_URL}${routePath}${hash}`, {
     waitUntil: "domcontentloaded",
     timeout: 30000
@@ -1163,6 +1200,15 @@ try {
       activeLabel: "الفريق",
       locale: "ar",
       viewport: { width: 390, height: 844 }
+    })
+  );
+  results.push(
+    await capture(browser, {
+      label: "12-office-catalog-permission-limited",
+      routePath: "/staff/menu",
+      activeLabel: "Catalog",
+      accessValue: restrictedAccess,
+      viewport: { width: 1280, height: 900 }
     })
   );
 } finally {
