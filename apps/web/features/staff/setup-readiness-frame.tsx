@@ -19,6 +19,7 @@ import {
 import {
   useEffect,
   useMemo,
+  useRef,
   useState,
   type ReactNode
 } from "react";
@@ -121,6 +122,7 @@ export function SetupReadinessFrame({
 }: SetupReadinessFrameProps) {
   const { locale, setLocale, dir } = useI18n();
   const [activePhase, setActivePhase] = useState<SetupPhaseId>("home");
+  const resumeHydratedRef = useRef(false);
 
   const phases = useMemo(
     () => [
@@ -245,9 +247,13 @@ export function SetupReadinessFrame({
     const storedPhase = window.localStorage.getItem(resumeKey);
     const candidate = hashPhase || storedPhase;
 
-    if (!phases.some((phase) => phase.id === candidate)) return;
+    if (!phases.some((phase) => phase.id === candidate)) {
+      resumeHydratedRef.current = true;
+      return;
+    }
 
     const frame = window.requestAnimationFrame(() => {
+      resumeHydratedRef.current = true;
       setActivePhase(candidate as SetupPhaseId);
     });
 
@@ -255,6 +261,7 @@ export function SetupReadinessFrame({
   }, [onboarding.branch.id, phases]);
 
   useEffect(() => {
+    if (!resumeHydratedRef.current) return;
     if (!phases.some((phase) => phase.id === activePhase)) return;
     window.localStorage.setItem(
       `balcona_setup_resume:${onboarding.branch.id}`,
