@@ -170,7 +170,7 @@ export function CustomerStatusPage({ sessionId }: CustomerStatusPageProps) {
                 description={t("empty.statusOrdersDescription")}
                 action={
                   <Link
-                    href={`/customer/session/${sessionId}/menu`}
+                    href={`/guest/session/${sessionId}/menu`}
                     className={buttonVariants({ variant: "secondary" })}
                   >
                     {t("actions.browseMenu")}
