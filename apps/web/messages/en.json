@@ -683,7 +683,9 @@
       "onlineProblem": "Online problem",
       "onlineUnknown": "Online unknown",
       "onlineProblemDetail": "{count} online payment attempt(s) failed, expired, or were cancelled. Verify the provider state before taking another payment.",
-      "onlineUnknownDetail": "{count} online payment attempt(s) returned an unknown state. Treat payment as unresolved until the provider state is verified."
+      "onlineUnknownDetail": "{count} online payment attempt(s) returned an unknown state. Treat payment as unresolved until the provider state is verified.",
+      "onlinePendingDetail": "{count} online payment attempt(s) are still pending or awaiting customer action. Do not collect another payment until the provider state resolves.",
+      "paymentUnresolvedOnlineRequired": "An online payment is still unresolved. Check or recover the provider state before recording a manual payment."
     },
     "cashier": {
       "activityDescription": "Latest branch realtime events returned by the API.",
