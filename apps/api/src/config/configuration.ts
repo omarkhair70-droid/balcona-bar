@@ -91,6 +91,9 @@ export default () => ({
     mockEnabled:
       process.env.MOCK_ONLINE_PAYMENTS_ENABLED !== "false" &&
       appEnvironment() !== "production",
+    reviewerAutoApproveMock:
+      process.env.REVIEWER_AUTO_APPROVE_MOCK_PAYMENTS === "true" &&
+      appEnvironment() !== "production",
     checkoutBaseUrl:
       process.env.ONLINE_PAYMENT_CHECKOUT_BASE_URL ?? "http://localhost:3001",
     maestr: {
