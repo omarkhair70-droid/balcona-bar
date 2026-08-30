@@ -2,6 +2,7 @@
 
 import { FormEvent, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { QRCodeSVG } from "qrcode.react";
 import {
   AlertTriangle,
   Check,
@@ -176,9 +177,15 @@ export function CustomerBillPage({ sessionId }: CustomerBillPageProps) {
       ).toLowerCase();
       const checkoutUrl =
         result.checkout?.url ?? stringValue(created, "providerCheckoutUrl");
+      const customerAction = result.checkout?.customerAction;
+      const actionUrl =
+        customerAction?.type === "redirect" ||
+        customerAction?.type === "deep_link"
+          ? customerAction.url
+          : checkoutUrl;
 
-      if (checkoutUrl && provider !== "mock") {
-        window.location.assign(checkoutUrl);
+      if (actionUrl && provider !== "mock") {
+        window.location.assign(actionUrl);
       }
     },
     onError: () => vibrateWarning()
@@ -212,9 +219,24 @@ export function CustomerBillPage({ sessionId }: CustomerBillPageProps) {
     ""
   ).toLowerCase();
   const checkoutUrl =
+    intentQuery.data?.checkout?.url ??
     paymentMutation.data?.checkout?.url ??
     stringValue(currentIntent, "providerCheckoutUrl");
-  const isHostedCheckout = Boolean(checkoutUrl) && provider !== "mock";
+  const customerAction =
+    intentQuery.data?.checkout?.customerAction ??
+    paymentMutation.data?.checkout?.customerAction;
+  const actionUrl =
+    customerAction?.type === "redirect" ||
+    customerAction?.type === "deep_link"
+      ? customerAction.url
+      : checkoutUrl;
+  const isHostedCheckout = Boolean(actionUrl) && provider !== "mock";
+  const qrPaymentValue =
+    customerAction?.type === "qr" ? customerAction.value : undefined;
+  const paymentReference =
+    customerAction?.type === "display_reference"
+      ? customerAction.reference
+      : undefined;
 
   const isPaid =
     Boolean(receipt) ||
@@ -635,9 +657,54 @@ export function CustomerBillPage({ sessionId }: CustomerBillPageProps) {
                   <p className="mt-1 text-[11px] leading-5 text-muted-foreground">
                     {t("bill.paymentPendingDescription")}
                   </p>
-                  {isHostedCheckout ? (
+                  {qrPaymentValue ? (
+                    <div className="mt-4 rounded-2xl border border-border bg-card p-4">
+                      <div className="mx-auto w-fit rounded-xl bg-white p-3">
+                        <QRCodeSVG
+                          value={qrPaymentValue}
+                          size={176}
+                          level="M"
+                          aria-label={t("bill.paymentQr")}
+                        />
+                      </div>
+                      <p className="mt-3 text-sm font-black text-foreground">
+                        {t("bill.paymentQr")}
+                      </p>
+                      <p className="mt-1 text-[11px] leading-5 text-muted-foreground">
+                        {t("bill.paymentQrDescription")}
+                      </p>
+                      <Button
+                        variant="secondary"
+                        onClick={() => void intentQuery.refetch()}
+                        className="mt-3 w-full"
+                      >
+                        <RefreshCw className="size-4" aria-hidden="true" />
+                        {t("bill.checkPayment")}
+                      </Button>
+                    </div>
+                  ) : paymentReference ? (
+                    <div className="mt-4 rounded-2xl border border-border bg-card p-4">
+                      <p className="text-xs font-semibold text-muted-foreground">
+                        {t("bill.paymentReference")}
+                      </p>
+                      <p className="mt-2 break-all font-mono text-lg font-black tracking-wide text-foreground">
+                        {paymentReference}
+                      </p>
+                      <p className="mt-2 text-[11px] leading-5 text-muted-foreground">
+                        {t("bill.paymentReferenceDescription")}
+                      </p>
+                      <Button
+                        variant="secondary"
+                        onClick={() => void intentQuery.refetch()}
+                        className="mt-3 w-full"
+                      >
+                        <RefreshCw className="size-4" aria-hidden="true" />
+                        {t("bill.checkPayment")}
+                      </Button>
+                    </div>
+                  ) : isHostedCheckout ? (
                     <a
-                      href={checkoutUrl}
+                      href={actionUrl}
                       className={`${buttonVariants()} mt-3 min-h-11 w-full rounded-xl`}
                     >
                       {t("bill.continuePayment")}
@@ -645,7 +712,7 @@ export function CustomerBillPage({ sessionId }: CustomerBillPageProps) {
                   ) : (
                     <Button
                       variant="secondary"
-                      onClick={() => void billQuery.refetch()}
+                      onClick={() => void intentQuery.refetch()}
                       className="mt-3 w-full"
                     >
                       <RefreshCw className="size-4" aria-hidden="true" />
