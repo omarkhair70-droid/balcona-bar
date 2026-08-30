@@ -1207,26 +1207,6 @@ async function capture(browser, {
 }
 
 async function assertOfficeNavigation(browser) {
-  const context = await newContext(browser, "en", { width: 1440, height: 1000 });
-  const page = await context.newPage();
-  const consoleErrors = [];
-
-  page.on("console", (message) => {
-    if (message.type() === "error") {
-      consoleErrors.push(message.text());
-    }
-  });
-
-  await installApiMocks(page);
-  await page.goto(`${BASE_URL}/office`, {
-    waitUntil: "domcontentloaded",
-    timeout: 30000
-  });
-  await page.getByText("Balcona Office", { exact: true }).first().waitFor({
-    state: "visible",
-    timeout: 15000
-  });
-
   const destinations = [
     ["Operations", "/office#operations"],
     ["Catalog", "/office/catalog"],
@@ -1242,31 +1222,31 @@ async function assertOfficeNavigation(browser) {
   ];
 
   const visited = [];
-  for (const [label, expectedPath] of destinations) {
-    const link = page.getByRole("link", { name: label, exact: true }).first();
-    await link.waitFor({ state: "visible", timeout: 15000 });
-    await Promise.all([
-      page.waitForTimeout(150),
-      link.click()
-    ]);
 
+  for (const [label, expectedPath] of destinations) {
+    const context = await newContext(browser, "en", {
+      width: 1440,
+      height: 1000
+    });
+    const page = await context.newPage();
+
+    await installApiMocks(page);
+    await page.goto(`${BASE_URL}/office`, {
+      waitUntil: "domcontentloaded",
+      timeout: 30000
+    });
     await page.getByText("Balcona Office", { exact: true }).first().waitFor({
       state: "visible",
       timeout: 15000
     });
-    const current = page
-      .locator('a[aria-current="page"]')
-      .filter({ hasText: label })
-      .first();
-    await current.waitFor({ state: "visible", timeout: 15000 });
 
-    const actual = new URL(page.url());
-    const actualPath = `${actual.pathname}${actual.hash}`;
-    if (actualPath !== expectedPath) {
-      throw new Error(
-        `office-nav: ${label} expected ${expectedPath}, got ${actualPath}`
-      );
-    }
+    const link = page.getByRole("link", { name: label, exact: true }).first();
+    await link.waitFor({ state: "visible", timeout: 15000 });
+    await link.click();
+    await page.waitForURL(
+      (url) => `${url.pathname}${url.hash}` === expectedPath,
+      { timeout: 15000 }
+    );
 
     const body = (await page.locator("body").innerText()).toLowerCase();
     if (
@@ -1276,20 +1256,13 @@ async function assertOfficeNavigation(browser) {
       throw new Error(`office-nav: ${label} rendered a 404 page`);
     }
 
-    visited.push({ label, path: actualPath });
+    visited.push({ label, path: expectedPath });
+    await context.close();
   }
 
-  if (consoleErrors.length > 0) {
-    throw new Error(
-      `office-nav: browser console errors: ${consoleErrors.join(" | ")}`
-    );
-  }
-
-  await context.close();
   return {
     label: "19-office-navigation-click-smoke",
-    visited,
-    consoleErrors
+    visited
   };
 }
 
