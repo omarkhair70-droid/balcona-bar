@@ -165,14 +165,19 @@ export function CustomerBillPage({ sessionId }: CustomerBillPageProps) {
     Boolean(receipt) ||
     ["paid", "closed"].includes(billStatus) ||
     intentStatus === "succeeded";
-  const isUnknown = [
-    "unknown",
-    "processing",
-    "pending_verification",
-    "requires_review"
-  ].includes(intentStatus);
+  const isUnknown =
+    [
+      "unknown",
+      "processing",
+      "pending_verification",
+      "requires_review"
+    ].includes(intentStatus) ||
+    (intentQuery.isError &&
+      Boolean(latestIntentId) &&
+      ["pending", "requires_action"].includes(latestIntentStatus));
   const isPaymentPending =
     !isPaid &&
+    !isUnknown &&
     (billStatus === "payment_pending" ||
       ["pending", "requires_action"].includes(intentStatus));
   const isPresented =
