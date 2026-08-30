@@ -563,12 +563,22 @@ export class SaasBillingService {
     const attemptId = this.attemptIdFromMerchantReference(
       transaction.merchantReference,
     );
-    const attempt = attemptId
+    let attempt = attemptId
       ? await this.prisma.saasBillingPaymentAttempt.findUnique({
           where: { id: attemptId },
           include: { subscription: { include: { plan: true } } },
         })
       : null;
+
+    if (!attempt) {
+      attempt = await this.prisma.saasBillingPaymentAttempt.findFirst({
+        where: {
+          provider: SaasBillingProvider.paymob,
+          providerTransactionReference: transaction.providerTransactionId,
+        },
+        include: { subscription: { include: { plan: true } } },
+      });
+    }
 
     const remoteSubscription = await this.findProviderSubscriptionByTransaction(
       transaction.providerTransactionId,
