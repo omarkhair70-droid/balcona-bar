@@ -1189,7 +1189,8 @@
       "featureAiWaiter": "النادل الذكي",
       "featureInventory": "المخزون",
       "featureOnlinePayments": "الدفع أونلاين",
-      "featureSmartCashier": "الكاشير الذكي"
+      "featureSmartCashier": "الكاشير الذكي",
+      "account": "الحساب"
     }
   },
   "cashier": {

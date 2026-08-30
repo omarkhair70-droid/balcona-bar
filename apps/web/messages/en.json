@@ -1189,7 +1189,8 @@
       "featureAiWaiter": "AI waiter",
       "featureInventory": "Inventory",
       "featureOnlinePayments": "Online payments",
-      "featureSmartCashier": "Smart cashier"
+      "featureSmartCashier": "Smart cashier",
+      "account": "Account"
     }
   },
   "cashier": {
