@@ -836,6 +836,118 @@ function OwnerDashboardContent() {
 
       {officeView === "home" ? (
         <>
+          {companyScopePending ? (
+            <LoadingState label={t("dashboard.loadingAnalytics")} />
+          ) : null}
+
+          {scopeMode === "company" && companyRows.length > 0 ? (
+            <>
+              <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+                <MetricCard
+                  label={t("pulse.urgent")}
+                  value={companyTotals.urgentAttention.toLocaleString("en")}
+                  description={t("pulse.urgentDescription")}
+                  icon={<UserRoundCheck className="size-4" aria-hidden="true" />}
+                  tone={companyTotals.urgentAttention > 0 ? "warning" : "success"}
+                />
+                <MetricCard
+                  label={t("analytics.openWaiterCalls")}
+                  value={companyTotals.waiterCalls.toLocaleString("en")}
+                  description={t("pulse.waiterCallsDescription")}
+                  icon={<UserRoundCheck className="size-4" aria-hidden="true" />}
+                  tone={companyTotals.waiterCalls > 0 ? "warning" : "success"}
+                />
+                <MetricCard
+                  label={t("analytics.stockRisk")}
+                  value={`${companyTotals.lowStock}/${companyTotals.outOfStock}`}
+                  description={t("analytics.stockRiskDescription", {
+                    count: companyTotals.blockedMenuItems
+                  })}
+                  icon={<Boxes className="size-4" aria-hidden="true" />}
+                  tone={
+                    companyTotals.outOfStock > 0 ||
+                    companyTotals.blockedMenuItems > 0
+                      ? "warning"
+                      : "success"
+                  }
+                />
+                <MetricCard
+                  label={t("orders.printJobs")}
+                  value={companyTotals.failedPrintJobs.toLocaleString("en")}
+                  description={t("orders.printJobsDescription", {
+                    count: companyTotals.failedPrintJobs.toLocaleString("en")
+                  })}
+                  icon={<Receipt className="size-4" aria-hidden="true" />}
+                  tone={companyTotals.failedPrintJobs > 0 ? "warning" : "success"}
+                />
+              </section>
+
+              <Card variant="quiet">
+                <CardHeader>
+                  <CardTitle>{officeT("office.locations")}</CardTitle>
+                  <CardDescription>
+                    {officeT("office.insightsDescription")}
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="grid gap-2">
+                  {companyRows.map((row) => (
+                    <div
+                      key={row.branch.id}
+                      className="grid gap-2 rounded-card border bg-surface/70 p-3 text-sm md:grid-cols-[minmax(0,1.5fr)_repeat(4,minmax(0,auto))] md:items-center"
+                    >
+                      <span className="font-semibold">{row.branch.name}</span>
+                      <span>
+                        {formatMoney(
+                          row.dashboard.summary.paidRevenueMinor,
+                          getDashboardCurrency(row.dashboard)
+                        )}
+                      </span>
+                      <span>
+                        {row.dashboard.orders.submittedOrderCount.toLocaleString("en")}{" "}
+                        {t("analytics.orders")}
+                      </span>
+                      <span>
+                        {row.dashboard.operations.urgentAttentionCount.toLocaleString("en")}{" "}
+                        {t("pulse.urgent")}
+                      </span>
+                      <span>
+                        {(row.dashboard.summary.outOfStockCount ?? 0).toLocaleString("en")}{" "}
+                        {t("analytics.stockRisk")}
+                      </span>
+                    </div>
+                  ))}
+                </CardContent>
+              </Card>
+
+              <Card variant="quiet">
+                <CardContent className="grid gap-3 pt-5 md:grid-cols-2 xl:grid-cols-4">
+                  <ReportValue
+                    label={t("analytics.revenue")}
+                    value={
+                      companyCurrency
+                        ? formatMoney(companyTotals.revenueMinor, companyCurrency)
+                        : t("empty.noData")
+                    }
+                  />
+                  <ReportValue
+                    label={t("analytics.orders")}
+                    value={companyTotals.orders.toLocaleString("en")}
+                  />
+                  <ReportValue
+                    label={t("pulse.urgent")}
+                    value={companyTotals.activeAttention.toLocaleString("en")}
+                  />
+                  <ReportValue
+                    label={officeT("office.locations")}
+                    value={companyRows.length.toLocaleString("en")}
+                  />
+                </CardContent>
+              </Card>
+            </>
+          ) : null}
+
+          {scopeMode === "branch" ? (
+            <>
           <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
             <MetricCard
               label={t("pulse.urgent")}
@@ -924,6 +1036,9 @@ function OwnerDashboardContent() {
               rows={operations.preparationTaskCountsByStatus}
             />
           </div>
+
+            </>
+          ) : null}
         </>
       ) : null}
 
