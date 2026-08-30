@@ -1,6 +1,8 @@
 "use client";
 
-import { RefreshCw } from "lucide-react";
+import { useState } from "react";
+import { RefreshCw, ReceiptText } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/ui/empty-state";
 import { LoadingState } from "@/components/ui/loading-state";
 import type {
@@ -8,8 +10,24 @@ import type {
   RecordManualPaymentPayload
 } from "@/lib/api/types";
 import { cn } from "@/lib/utils/cn";
-import { getBillRequestId } from "@/features/staff/cashier-data";
-import { humanizeStatus } from "@/features/staff/staff-format";
+import {
+  getBillId,
+  getBillNumber,
+  getBillRequestFloor,
+  getBillRequestId,
+  getBillRequestStatus,
+  getBillRequestTable,
+  getBillStatus,
+  getBillTotals
+} from "@/features/staff/cashier-data";
+import {
+  formatMoney,
+  getRecordNumber,
+  getRecordString,
+  getTableLabel,
+  humanizeStatus,
+  shortId
+} from "@/features/staff/staff-format";
 import { useTranslations } from "@/lib/i18n/i18n-provider";
 import { BillRequestCard } from "./bill-request-card";
 
@@ -40,6 +58,22 @@ const statusOptions: BranchBillRequestStatusFilter[] = [
   "all"
 ];
 
+function statusVariant(status: string) {
+  if (status === "paid" || status === "presented" || status === "acknowledged") {
+    return "success" as const;
+  }
+
+  if (status === "open" || status === "requested" || status === "payment_pending") {
+    return "warning" as const;
+  }
+
+  if (status === "cancelled" || status === "failed" || status === "unknown") {
+    return "danger" as const;
+  }
+
+  return "muted" as const;
+}
+
 export function BillRequestQueue({
   billRequests,
   status,
@@ -56,17 +90,18 @@ export function BillRequestQueue({
   onRecordManualPayment
 }: BillRequestQueueProps) {
   const t = useTranslations("staff");
+  const [selectedId, setSelectedId] = useState<string>();
+  const selected =
+    billRequests.find((entry) => getBillRequestId(entry) === selectedId) ??
+    billRequests[0];
 
   return (
-    <section className="min-w-0 border border-[#3B3028] bg-[#17120F]">
-      <div className="border-b border-[#342A23] p-3">
+    <div className="grid min-h-[calc(100vh-8rem)] min-w-0 lg:grid-cols-[350px_minmax(0,1fr)]">
+      <section className="min-w-0 border-e border-[#342A23] bg-[#17120F] p-3">
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
-            <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[#9D856D]">
+            <h2 className="text-base font-semibold text-[#FFF5E8]">
               {t("serviceShell.bills")}
-            </p>
-            <h2 className="mt-1 text-base font-semibold text-[#FFF5E8]">
-              {t("billRequests.title")}
             </h2>
             <p className="mt-1 text-xs leading-5 text-[#95887D]">
               {t("billRequests.description")}
@@ -99,45 +134,111 @@ export function BillRequestQueue({
             </button>
           ))}
         </div>
-      </div>
 
-      <div className="p-3">
-        {isLoading ? <LoadingState label={t("billRequests.loading")} /> : null}
-        {error ? (
-          <EmptyState
-            title={t("billRequests.errorTitle")}
-            description={error.message}
-            debug={{
-              action: "bill_request_list",
-              flow: "staff_cashier",
-              error
-            }}
-          />
-        ) : null}
-        {!isLoading && !error && billRequests.length === 0 ? (
-          <EmptyState
-            title={t("billRequests.emptyTitle")}
-            description={t("billRequests.emptyDescription")}
-          />
-        ) : null}
-        {!isLoading && !error && billRequests.length > 0 ? (
-          <div className="grid gap-2">
-            {billRequests.map((billRequest, index) => (
-              <BillRequestCard
-                key={getBillRequestId(billRequest) || String(index)}
-                billRequest={billRequest}
-                pendingActionId={pendingActionId}
-                pendingPaymentId={pendingPaymentId}
-                paymentBlockedReason={paymentBlockedReason}
-                paymentError={paymentError}
-                onAcknowledge={onAcknowledge}
-                onPresent={onPresent}
-                onRecordManualPayment={onRecordManualPayment}
-              />
-            ))}
-          </div>
-        ) : null}
-      </div>
-    </section>
+        <div className="mt-3">
+          {isLoading ? <LoadingState label={t("billRequests.loading")} /> : null}
+          {error ? (
+            <EmptyState
+              title={t("billRequests.errorTitle")}
+              description={error.message}
+              debug={{
+                action: "bill_request_list",
+                flow: "staff_cashier",
+                error
+              }}
+            />
+          ) : null}
+          {!isLoading && !error && billRequests.length === 0 ? (
+            <EmptyState
+              title={t("billRequests.emptyTitle")}
+              description={t("billRequests.emptyDescription")}
+            />
+          ) : null}
+
+          {!isLoading && !error && billRequests.length > 0 ? (
+            <div className="grid gap-2">
+              {billRequests.map((billRequest, index) => {
+                const requestId = getBillRequestId(billRequest);
+                const billId = getBillId(billRequest);
+                const displayId =
+                  (billId && getBillNumber(billRequest)) ||
+                  shortId(requestId) ||
+                  String(index + 1);
+                const displayStatus =
+                  getBillStatus(billRequest) ||
+                  getBillRequestStatus(billRequest) ||
+                  "open";
+                const totals = getBillTotals(billRequest);
+                const totalMinor = getRecordNumber(
+                  totals,
+                  "totalMinor",
+                  getRecordNumber(totals, "subtotalMinor")
+                );
+                const currency = getRecordString(totals, "currency", "EGP");
+                const tableLabel = getTableLabel(
+                  getBillRequestTable(billRequest),
+                  getBillRequestFloor(billRequest)
+                );
+                const active = selected === billRequest;
+
+                return (
+                  <button
+                    key={requestId || billId || String(index)}
+                    type="button"
+                    onClick={() => setSelectedId(requestId)}
+                    className={cn(
+                      "w-full rounded-md border p-3 text-start transition",
+                      active
+                        ? "border-[#8A6239] bg-[#34271E]"
+                        : "border-[#3B3028] bg-[#211A15] hover:border-[#554238] hover:bg-[#292019]"
+                    )}
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <p className="flex items-center gap-2 truncate text-sm font-semibold text-[#FFF4E6]">
+                          <ReceiptText className="size-4 shrink-0 text-[#C68A4A]" aria-hidden="true" />
+                          {displayId}
+                        </p>
+                        <p className="mt-1 truncate text-xs text-[#9A8D81]">
+                          {tableLabel}
+                        </p>
+                      </div>
+                      <Badge variant={statusVariant(displayStatus)}>
+                        {humanizeStatus(displayStatus)}
+                      </Badge>
+                    </div>
+                    <p className="mt-3 text-lg font-semibold text-[#FFF4E6]">
+                      {formatMoney(totalMinor, currency)}
+                    </p>
+                  </button>
+                );
+              })}
+            </div>
+          ) : null}
+        </div>
+      </section>
+
+      <section className="min-w-0 bg-[#1E1814] p-3 sm:p-4 lg:p-5">
+        <div className="mx-auto max-w-3xl">
+          {selected ? (
+            <BillRequestCard
+              billRequest={selected}
+              pendingActionId={pendingActionId}
+              pendingPaymentId={pendingPaymentId}
+              paymentBlockedReason={paymentBlockedReason}
+              paymentError={paymentError}
+              onAcknowledge={onAcknowledge}
+              onPresent={onPresent}
+              onRecordManualPayment={onRecordManualPayment}
+            />
+          ) : !isLoading && !error ? (
+            <EmptyState
+              title={t("billRequests.emptyTitle")}
+              description={t("billRequests.emptyDescription")}
+            />
+          ) : null}
+        </div>
+      </section>
+    </div>
   );
 }
