@@ -264,7 +264,7 @@ function customerPreviewHref(path?: string | null, qrToken?: string | null) {
   }
 
   if (qrToken) {
-    return `/customer/table/${encodeURIComponent(qrToken)}`;
+    return `/guest/table/${encodeURIComponent(qrToken)}`;
   }
 
   return null;

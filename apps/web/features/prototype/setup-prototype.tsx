@@ -174,7 +174,7 @@ function getStep(locale: Locale, phase: PhaseId): StepData {
       checks: [
         { label: L(locale, "Active tables", "ترابيزات نشطة"), detail: "8", state: "complete" },
         { label: L(locale, "QR readiness", "جاهزية QR"), detail: "8/8", state: "complete" },
-        { label: L(locale, "Customer preview", "معاينة العميل"), detail: "/customer/table/…", state: "complete" }
+        { label: L(locale, "Customer preview", "معاينة العميل"), detail: "/guest/table/…", state: "complete" }
       ],
       side: [
         { label: L(locale, "QR missing", "QR ناقص"), value: "0", state: "complete" },

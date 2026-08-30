@@ -594,7 +594,7 @@ function StaffSetupContent() {
               "جاهزية الشركة متاحة قبل وجود فرع. بعد إنشاء أول فرع تتحول الرحلة إلى جاهزية تشغيل خاصة بالفرع."
             )}
             footer={
-              <Link href="/staff/branches" className={secondaryButtonClass}>
+              <Link href="/office/locations" className={secondaryButtonClass}>
                 {L(locale, "Create first location in Office", "أنشئ أول فرع في Office")}
                 <ArrowUpRight className="size-4" aria-hidden="true" />
               </Link>
@@ -612,7 +612,7 @@ function StaffSetupContent() {
             title={nextItem ? readinessText(locale, nextItem).label : L(locale, "Company foundation is ready", "أساس الشركة جاهز")}
             description={nextItem ? readinessText(locale, nextItem).reason : L(locale, "Create the first location to continue the finite launch journey.", "أنشئ أول فرع لاستكمال رحلة التجهيز المحددة.")}
             footer={
-              <Link href={nextItem?.actionHref ?? "/staff/branches"} className={secondaryButtonClass}>
+              <Link href={nextItem?.actionHref ?? "/office/locations"} className={secondaryButtonClass}>
                 {L(locale, "Continue in the owning surface", "تابع في الجزء المسؤول")}
                 <ArrowUpRight className="size-4" aria-hidden="true" />
               </Link>
@@ -645,8 +645,8 @@ function StaffSetupContent() {
   const attentionCheckCount = checklist.filter((item) => item.status === "needs_attention" || item.status === "missing").length;
 
   function actionHrefFor(item?: TenantOnboardingChecklistItem) {
-    if (!item) return "/staff/setup#final";
-    if (item.actionHref && item.actionHref !== "/staff/setup") return item.actionHref;
+    if (!item) return "/setup#final";
+    if (item.actionHref && item.actionHref !== "/setup") return item.actionHref;
 
     const setupPhaseByKey: Record<string, SetupPhaseId> = {
       company_profile: "business",
@@ -660,7 +660,7 @@ function StaffSetupContent() {
       waiter_staff_ready: "team"
     };
 
-    return `/staff/setup#${setupPhaseByKey[item.key] ?? "final"}`;
+    return `/setup#${setupPhaseByKey[item.key] ?? "final"}`;
   }
 
   function linkButton(href: string, label: string) {
@@ -725,7 +725,7 @@ function StaffSetupContent() {
                 : L(locale, "Move to final rehearsal and operational handoff.", "انتقل للتجربة النهائية وتسليم التشغيل.")
             }
             footer={linkButton(
-              nextItem ? actionHrefFor(nextItem) : "/staff/setup#final",
+              nextItem ? actionHrefFor(nextItem) : "/setup#final",
               nextItem
                 ? L(locale, "Continue recommended action", "كمّل الخطوة المقترحة")
                 : L(locale, "Open final readiness", "افتح الجاهزية النهائية")
@@ -911,7 +911,7 @@ function StaffSetupContent() {
                 "Setup owns readiness and handoff. Ongoing floor, table, and QR administration belongs to the Locations surface.",
                 "Setup مسؤول عن الجاهزية والتسليم. الإدارة المستمرة للأدوار والترابيزات وQR مكانها Locations."
               )}
-              footer={linkButton("/staff/branches", L(locale, "Open Locations in Office", "افتح Locations في Office"))}
+              footer={linkButton("/office/locations", L(locale, "Open Locations in Office", "افتح Locations في Office"))}
             >
               <ReadinessRows locale={locale} items={items} />
             </Panel>
@@ -919,7 +919,7 @@ function StaffSetupContent() {
             <Panel
               eyebrow={L(locale, "QR ENTRY PROOF", "إثبات دخول QR")}
               title={L(locale, "Recent customer entry links", "أحدث روابط دخول العملاء")}
-              footer={linkButton("/staff/branches", L(locale, "Manage Tables & QR in Office", "إدارة الترابيزات وQR في Office"))}
+              footer={linkButton("/office/locations", L(locale, "Manage Tables & QR in Office", "إدارة الترابيزات وQR في Office"))}
             >
               <div className="grid gap-2">
                 {setup.tables.recentTables.slice(0, 8).map((table) => (
@@ -967,7 +967,7 @@ function StaffSetupContent() {
           <Panel
             eyebrow={L(locale, "CATALOG READINESS", "جاهزية المنيو")}
             title={L(locale, "Menu readiness is computed from live catalog truth.", "جاهزية المنيو محسوبة من بيانات الكتالوج الحقيقية.")}
-            footer={linkButton("/staff/menu", L(locale, "Open Catalog in Office", "افتح الكتالوج في Office"))}
+            footer={linkButton("/office/catalog", L(locale, "Open Catalog in Office", "افتح الكتالوج في Office"))}
           >
             <ReadinessRows locale={locale} items={items} />
           </Panel>
@@ -1069,7 +1069,7 @@ function StaffSetupContent() {
             "Printer station records and software lifecycle are not presented as physical printer transport.",
             "محطات الطباعة ودورة السوفتوير لا يتم تقديمها كأنها ربط بطابعة فعلية."
           )}
-          footer={linkButton("/staff/kitchen", L(locale, "Open Kitchen", "افتح المطبخ"))}
+          footer={linkButton("/kitchen", L(locale, "Open Kitchen", "افتح المطبخ"))}
         >
           <div className="mb-4 grid gap-3 sm:grid-cols-2">
             <Metric label={L(locale, "Printer stations", "محطات الطباعة")} value={String(setup.operations.printerStationCount)} detail={L(locale, "Configured", "مجهزة")} />
@@ -1094,7 +1094,7 @@ function StaffSetupContent() {
             "Manual bill/payment flow is software truth. Merchant/provider activation remains an external gate when required.",
             "رحلة الفاتورة والدفع اليدوي حقيقة برمجية. تفعيل التاجر/المزود يظل بوابة خارجية عند الحاجة."
           )}
-          footer={linkButton("/staff/cashier", L(locale, "Open payment operations", "افتح تشغيل الدفع"))}
+          footer={linkButton("/service/cashier", L(locale, "Open payment operations", "افتح تشغيل الدفع"))}
         >
           <ReadinessRows locale={locale} items={items} />
         </Panel>
@@ -1123,7 +1123,7 @@ function StaffSetupContent() {
             <Panel
               eyebrow={L(locale, "EXPERIENCE HANDOFF", "تسليم التجربة")}
               title={L(locale, "Setup verifies experience readiness; Office owns ongoing tuning.", "Setup يتحقق من جاهزية التجربة؛ Office يدير التعديل المستمر.")}
-              footer={linkButton("/staff/owner#experience", L(locale, "Open Experience in Office", "افتح Experience في Office"))}
+              footer={linkButton("/office#experience", L(locale, "Open Experience in Office", "افتح Experience في Office"))}
             />
           </div>
         </div>
@@ -1140,7 +1140,7 @@ function StaffSetupContent() {
         <Panel
           eyebrow={L(locale, "OPERATING REHEARSAL", "تجربة التشغيل")}
           title={L(locale, "Operational foundations are checked before handoff.", "أساسات التشغيل يتم فحصها قبل التسليم.")}
-          footer={linkButton("/staff/owner#operations", L(locale, "Open Operations in Office", "افتح Operations في Office"))}
+          footer={linkButton("/office#operations", L(locale, "Open Operations in Office", "افتح Operations في Office"))}
         >
           <div className="mb-4 grid gap-3 sm:grid-cols-3">
             <Metric
@@ -1225,7 +1225,7 @@ function StaffSetupContent() {
                 : L(locale, "All current readiness signals are satisfied. Run the final service rehearsal.", "كل إشارات الجاهزية الحالية مكتملة. شغّل تجربة الخدمة النهائية.")
             }
             footer={linkButton(
-              nextItem ? actionHrefFor(nextItem) : "/staff/cashier",
+              nextItem ? actionHrefFor(nextItem) : "/service/cashier",
               nextItem
                 ? L(locale, "Resolve next readiness gate", "اقفل بوابة الجاهزية التالية")
                 : L(locale, "Open service rehearsal", "افتح تجربة الخدمة")
