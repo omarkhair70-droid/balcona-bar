@@ -7,6 +7,7 @@ export interface RequiredPermissionMetadata {
   permission: StaffPermission;
   companyIdParam?: string;
   branchIdParam?: string;
+  branchIdQuery?: string;
 }
 
 export function RequiredPermission(
