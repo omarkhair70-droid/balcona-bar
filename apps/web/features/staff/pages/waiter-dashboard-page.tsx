@@ -149,7 +149,9 @@ function WaiterDashboardContent() {
   const staffUser = useStaffAuthStore((state) => state.staffUser);
   const effectiveAccess = useStaffAuthStore((state) => state.effectiveAccess);
   const selectedBranchId = useStaffAuthStore((state) => state.selectedBranchId);
-  const [userSelectedSessionId, setUserSelectedSessionId] = useState<string>();
+  const [floorSelectedSessionId, setFloorSelectedSessionId] = useState<string>();
+  const [attentionSelectedSessionId, setAttentionSelectedSessionId] =
+    useState<string>();
   const [notice, setNotice] = useState<Notice>();
   const [pendingOrderIds, setPendingOrderIds] = useState<Set<string>>(
     () => new Set(),
@@ -230,38 +232,54 @@ function WaiterDashboardContent() {
   const selectedAttentionStillVisible = useMemo(
     () =>
       attentionQueue.some(
-        (attention) => getAttentionSessionId(attention) === userSelectedSessionId
+        (attention) =>
+          getAttentionSessionId(attention) === attentionSelectedSessionId
       ),
-    [attentionQueue, userSelectedSessionId]
+    [attentionQueue, attentionSelectedSessionId]
   );
-  const selectedSessionId =
-    selectedAttentionStillVisible && userSelectedSessionId
-      ? userSelectedSessionId
+  const selectedAttentionSessionId =
+    selectedAttentionStillVisible && attentionSelectedSessionId
+      ? attentionSelectedSessionId
       : getAttentionSessionId(attentionQueue[0]);
+
   const floorSessionOrdersQuery = useQuery({
-    queryKey: ["staff", "service", "floor", "session-orders", selectedSessionId],
+    queryKey: [
+      "staff",
+      "service",
+      "floor",
+      "session-orders",
+      floorSelectedSessionId
+    ],
     queryFn: () =>
-      getTableSessionOrders(selectedSessionId ?? "", accessToken),
+      getTableSessionOrders(floorSelectedSessionId ?? "", accessToken),
     enabled: Boolean(
-      serviceView === "floor" && selectedSessionId && accessToken
+      serviceView === "floor" && floorSelectedSessionId && accessToken
     ),
     staleTime: 5_000,
     placeholderData: keepPreviousData
   });
   const floorSessionBillQuery = useQuery({
-    queryKey: ["staff", "service", "floor", "session-bill", selectedSessionId],
-    queryFn: () => getBill(selectedSessionId ?? "", accessToken),
+    queryKey: [
+      "staff",
+      "service",
+      "floor",
+      "session-bill",
+      floorSelectedSessionId
+    ],
+    queryFn: () => getBill(floorSelectedSessionId ?? "", accessToken),
     enabled: Boolean(
-      serviceView === "floor" && selectedSessionId && accessToken
+      serviceView === "floor" && floorSelectedSessionId && accessToken
     ),
     staleTime: 5_000,
     placeholderData: keepPreviousData
   });
   const attentionDetailQuery = useQuery({
-    queryKey: staffQueryKeys.staffTableSessionAttention(selectedSessionId),
+    queryKey: staffQueryKeys.staffTableSessionAttention(
+      selectedAttentionSessionId
+    ),
     queryFn: () =>
-      getTableSessionAttention(selectedSessionId ?? "", accessToken),
-    enabled: Boolean(selectedSessionId && accessToken),
+      getTableSessionAttention(selectedAttentionSessionId ?? "", accessToken),
+    enabled: Boolean(selectedAttentionSessionId && accessToken),
     staleTime: 5_000,
     placeholderData: keepPreviousData,
   });
@@ -527,17 +545,17 @@ function WaiterDashboardContent() {
       waiterCalls.find(
         (waiterCall) =>
           getRecordString(getWaiterCallTableSession(waiterCall), "id") ===
-          selectedSessionId
+          selectedAttentionSessionId
       ),
-    [selectedSessionId, waiterCalls]
+    [selectedAttentionSessionId, waiterCalls]
   );
   const relatedWaiterCallId = getWaiterCallId(relatedWaiterCall);
   const relatedReadyOrder = useMemo(
     () =>
       readyOrders.find(
-        (order) => getOrderTableSessionId(order) === selectedSessionId
+        (order) => getOrderTableSessionId(order) === selectedAttentionSessionId
       ),
-    [readyOrders, selectedSessionId]
+    [readyOrders, selectedAttentionSessionId]
   );
   const relatedReadyOrderId = getOrderId(relatedReadyOrder);
   const relatedWaiterCallPending = relatedWaiterCallId
@@ -546,8 +564,8 @@ function WaiterDashboardContent() {
   const relatedReadyOrderPending = relatedReadyOrderId
     ? pendingOrderIds.has(relatedReadyOrderId)
     : false;
-  const selectedAttentionAction = selectedSessionId
-    ? pendingAttentionActions[selectedSessionId]
+  const selectedAttentionAction = selectedAttentionSessionId
+    ? pendingAttentionActions[selectedAttentionSessionId]
     : undefined;
 
   if (!selectedBranchId || !selectedBranch) {
@@ -569,16 +587,22 @@ function WaiterDashboardContent() {
           overview={floorOverviewQuery.data}
           isLoading={floorOverviewQuery.isPending}
           error={floorOverviewQuery.error ?? undefined}
-          selectedSessionId={selectedSessionId}
+          selectedAttentionSessionId={selectedAttentionSessionId}
           onSelectSession={setUserSelectedSessionId}
           sessionOrders={floorSessionOrdersQuery.data?.orders ?? emptyRecords}
           sessionBill={floorSessionBillQuery.data}
           contextLoading={
             floorSessionOrdersQuery.isPending || floorSessionBillQuery.isPending
           }
-          onOpenOrders={() => router.push("/service/cashier#orders")}
-          onOpenAttention={() => router.push("/service/waiter#attention")}
-          onOpenBills={() => router.push("/service/cashier#bills")}
+          onOpenOrders={() =>
+            router.push("/service/cashier?mode=waiter#orders")
+          }
+          onOpenAttention={() =>
+            router.push("/service/waiter?mode=waiter#attention")
+          }
+          onOpenBills={() =>
+            router.push("/service/cashier?mode=waiter#bills")
+          }
         />
       </div>
       ) : null}
@@ -588,16 +612,16 @@ function WaiterDashboardContent() {
       <section id="attention" className="grid min-h-[calc(100vh-8rem)] gap-0 lg:grid-cols-[minmax(0,1fr)_360px]">
         <AttentionQueue
           attentionQueue={attentionQueue}
-          selectedSessionId={selectedSessionId}
+          selectedAttentionSessionId={selectedAttentionSessionId}
           isLoading={attentionQueueQuery.isPending}
           error={attentionQueueQuery.error ?? undefined}
-          onSelectAttention={setUserSelectedSessionId}
+          onSelectAttention={setAttentionSelectedSessionId}
           onPrefetchAttention={prefetchAttention}
           onRefresh={refreshBranch}
         />
         <AttentionDetailPanel
           attention={attentionDetailQuery.data}
-          isLoading={attentionDetailQuery.isPending && Boolean(selectedSessionId)}
+          isLoading={attentionDetailQuery.isPending && Boolean(selectedAttentionSessionId)}
           isRefreshing={attentionDetailQuery.isPlaceholderData}
           error={attentionDetailQuery.error ?? undefined}
           resolvePending={selectedAttentionAction === "resolve"}
@@ -615,24 +639,26 @@ function WaiterDashboardContent() {
               ? () => serveOrderMutation.mutate(relatedReadyOrderId)
               : undefined
           }
-          onReviewBillRequest={() => router.push("/service/cashier#bills")}
+          onReviewBillRequest={() =>
+            router.push("/service/cashier?mode=waiter#bills")
+          }
           onResolve={(note) => {
-            if (selectedSessionId) {
-              resolveAttentionMutation.mutate({ sessionId: selectedSessionId, note });
+            if (selectedAttentionSessionId) {
+              resolveAttentionMutation.mutate({ sessionId: selectedAttentionSessionId, note });
             }
           }}
           onMute={(minutes, note) => {
-            if (selectedSessionId) {
+            if (selectedAttentionSessionId) {
               muteAttentionMutation.mutate({
-                sessionId: selectedSessionId,
+                sessionId: selectedAttentionSessionId,
                 minutes,
                 note
               });
             }
           }}
           onRecalculate={() => {
-            if (selectedSessionId) {
-              recalculateAttentionMutation.mutate(selectedSessionId);
+            if (selectedAttentionSessionId) {
+              recalculateAttentionMutation.mutate(selectedAttentionSessionId);
             }
           }}
         />
