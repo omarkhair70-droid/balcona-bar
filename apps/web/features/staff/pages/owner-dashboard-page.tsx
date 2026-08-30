@@ -1276,6 +1276,145 @@ function OwnerDashboardContent() {
 
       {officeView === "insights" ? (
         <section className="grid gap-5">
+          {scopeMode === "company" ? (
+            <>
+
+          {companyScopePending ? (
+            <LoadingState label={t("dashboard.loadingAnalytics")} />
+          ) : null}
+
+          {companyRows.length > 0 ? (
+            <>
+              <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+                <MetricCard
+                  label={t("analytics.revenue")}
+                  value={
+                    companyCurrency
+                      ? formatMoney(companyTotals.revenueMinor, companyCurrency)
+                      : t("empty.noData")
+                  }
+                  description={t("analytics.revenueDescription")}
+                  icon={<BarChart3 className="size-4" aria-hidden="true" />}
+                  tone="success"
+                />
+                <MetricCard
+                  label={t("analytics.collected")}
+                  value={
+                    companyCurrency
+                      ? formatMoney(companyTotals.collectedMinor, companyCurrency)
+                      : t("empty.noData")
+                  }
+                  description={t("analytics.collectedDescription")}
+                  icon={<WalletCards className="size-4" aria-hidden="true" />}
+                  tone="primary"
+                />
+                <MetricCard
+                  label={t("analytics.averageTicket")}
+                  value={
+                    companyCurrency && companyTotals.paidBillCount > 0
+                      ? formatMoney(
+                          Math.round(
+                            companyTotals.revenueMinor /
+                              companyTotals.paidBillCount
+                          ),
+                          companyCurrency
+                        )
+                      : t("empty.noData")
+                  }
+                  description={t("analytics.paidBillsCount", {
+                    count: companyTotals.paidBillCount.toLocaleString("en")
+                  })}
+                  icon={<Receipt className="size-4" aria-hidden="true" />}
+                  tone="accent"
+                />
+                <MetricCard
+                  label={t("analytics.orders")}
+                  value={companyTotals.orders.toLocaleString("en")}
+                  description={officeT("office.insightsDescription")}
+                  icon={<ShoppingBag className="size-4" aria-hidden="true" />}
+                  tone="muted"
+                />
+              </div>
+
+              <div className="grid gap-4 md:grid-cols-2">
+                <MetricCard
+                  label={t("analytics.cashOverShort")}
+                  value={
+                    companyCurrency
+                      ? formatMoney(
+                          companyTotals.cashOverShortMinor,
+                          companyCurrency
+                        )
+                      : t("empty.noData")
+                  }
+                  description={t("analytics.closedShiftsCount", {
+                    count: companyTotals.shiftCount.toLocaleString("en")
+                  })}
+                  icon={<WalletCards className="size-4" aria-hidden="true" />}
+                  tone={
+                    companyTotals.cashOverShortMinor === 0
+                      ? "success"
+                      : "warning"
+                  }
+                />
+                <MetricCard
+                  label={officeT("office.locations")}
+                  value={companyRows.length.toLocaleString("en")}
+                  description={officeT("office.locationsDescription")}
+                  icon={<BarChart3 className="size-4" aria-hidden="true" />}
+                  tone="muted"
+                />
+              </div>
+
+              <Card variant="quiet">
+                <CardHeader>
+                  <CardTitle>{officeT("office.locations")}</CardTitle>
+                  <CardDescription>
+                    {officeT("office.insightsDescription")}
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="grid gap-2">
+                  {companyRows.map((row) => (
+                    <div
+                      key={row.branch.id}
+                      className="grid gap-2 rounded-card border bg-surface/70 p-3 text-sm md:grid-cols-[minmax(0,1.5fr)_repeat(4,minmax(0,auto))] md:items-center"
+                    >
+                      <span className="font-semibold">{row.branch.name}</span>
+                      <span>
+                        {formatMoney(
+                          row.dashboard.summary.paidRevenueMinor,
+                          getDashboardCurrency(row.dashboard)
+                        )}
+                      </span>
+                      <span>
+                        {row.dashboard.orders.submittedOrderCount.toLocaleString("en")}{" "}
+                        {t("analytics.orders")}
+                      </span>
+                      <span>
+                        {row.dashboard.cashierShifts.shiftCount.toLocaleString("en")}{" "}
+                        {t("analytics.closedShiftsCount", {
+                          count: row.dashboard.cashierShifts.shiftCount.toLocaleString("en")
+                        })}
+                      </span>
+                      <span>
+                        {row.dashboard.cashierShifts.totalOverShortMinor === 0
+                          ? t("health.levels.calm")
+                          : formatMoney(
+                              row.dashboard.cashierShifts.totalOverShortMinor,
+                              getDashboardCurrency(row.dashboard)
+                            )}
+                      </span>
+                    </div>
+                  ))}
+                </CardContent>
+              </Card>
+            </>
+          ) : null}
+
+            </>
+          ) : (
+            <>
+
           <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
             <MetricCard
               label={t("analytics.revenue")}
@@ -1361,46 +1500,10 @@ function OwnerDashboardContent() {
             />
           </div>
 
-          {scopeMode === "company" && companyRows.length > 0 ? (
-            <Card variant="quiet">
-              <CardHeader>
-                <CardTitle>{officeT("office.locations")}</CardTitle>
-                <CardDescription>
-                  {officeT("office.insightsDescription")}
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="grid gap-2">
-                {companyRows.map((row) => (
-                  <div
-                    key={row.branch.id}
-                    className="grid gap-2 rounded-card border bg-surface/70 p-3 text-sm md:grid-cols-[minmax(0,1.5fr)_repeat(3,minmax(0,auto))] md:items-center"
-                  >
-                    <span className="font-semibold">{row.branch.name}</span>
-                    <span>
-                      {formatMoney(
-                        row.dashboard.summary.paidRevenueMinor,
-                        getDashboardCurrency(row.dashboard)
-                      )}
-                    </span>
-                    <span>
-                      {row.dashboard.orders.submittedOrderCount.toLocaleString("en")}{" "}
-                      {t("analytics.orders")}
-                    </span>
-                    <span>
-                      {row.dashboard.cashierShifts.totalOverShortMinor === 0
-                        ? t("health.levels.calm")
-                        : formatMoney(
-                            row.dashboard.cashierShifts.totalOverShortMinor,
-                            getDashboardCurrency(row.dashboard)
-                          )}
-                    </span>
-                  </div>
-                ))}
-              </CardContent>
-            </Card>
-          ) : null}
-
           <DailyReportPanel report={reportQuery.data} currency={currency} />
+
+            </>
+          )}
         </section>
       ) : null}
     </div>
