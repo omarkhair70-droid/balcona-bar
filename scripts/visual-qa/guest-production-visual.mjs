@@ -701,6 +701,11 @@ try {
     route: `/customer/session/${SESSION_ID}/service#bill`,
     expectedPath: `/customer/session/${SESSION_ID}/bill`
   }));
+  results.push(await capture(browser, {
+    label: "16-demo-launcher-compatibility-en-390",
+    route: "/demo/balkona",
+    expectedPath: "/demo"
+  }));
 } finally {
   await browser.close();
 }
