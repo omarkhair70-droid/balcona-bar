@@ -1225,9 +1225,9 @@ function StaffSetupContent() {
                         "Terminal readiness could not be loaded. Office Money remains the owning configuration surface.",
                         "تعذر تحميل جاهزية أجهزة الدفع. يظل Office Money هو سطح الإعداد المسؤول."
                       )
-                    : paymentTerminalsQuery.data?.execution.available
+                    : paymentTerminalsQuery.data?.execution?.available
                       ? L(locale, "Direct terminal execution is connected.", "تشغيل جهاز الدفع المباشر متصل.")
-                      : paymentTerminalsQuery.data?.execution.message ??
+                      : paymentTerminalsQuery.data?.execution?.message ??
                         L(
                           locale,
                           "Manual card POS recording is not direct terminal control. Provider execution requires a verified merchant terminal contract and test device.",
@@ -1242,13 +1242,13 @@ function StaffSetupContent() {
               <div className="grid gap-3 sm:grid-cols-3">
                 <Metric
                   label={L(locale, "Saved terminals", "الأجهزة المسجلة")}
-                  value={String(paymentTerminalsQuery.data?.terminals.length ?? 0)}
+                  value={String(paymentTerminalsQuery.data?.terminals?.length ?? 0)}
                   detail={L(locale, "Branch-scoped metadata", "بيانات مرتبطة بالفرع")}
                 />
                 <Metric
                   label={L(locale, "Direct execution", "التشغيل المباشر")}
                   value={
-                    paymentTerminalsQuery.data?.execution.available
+                    paymentTerminalsQuery.data?.execution?.available
                       ? L(locale, "Ready", "جاهز")
                       : L(locale, "Blocked", "متوقف")
                   }
