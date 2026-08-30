@@ -496,7 +496,7 @@ function SettingsContent() {
           </div>
           <a
             className="mt-3 inline-flex text-xs font-semibold underline underline-offset-4"
-            href="/staff/team"
+            href="/office/team"
           >
             Open Team sessions & access
           </a>

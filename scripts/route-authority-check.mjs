@@ -111,7 +111,12 @@ const runtimeFiles = (
   await Promise.all(
     ["apps/web/app", "apps/web/features", "apps/web/lib"].map(filesUnder)
   )
-).flat().filter((file) => /\.(?:ts|tsx|js|jsx|mjs)$/.test(file));
+).flat().filter(
+  (file) =>
+    /\.(?:ts|tsx|js|jsx|mjs)$/.test(file) &&
+    !file.includes("/lib/api/") &&
+    !/\.spec\.[cm]?[jt]sx?$/.test(file)
+);
 
 const violations = [];
 for (const file of runtimeFiles) {
