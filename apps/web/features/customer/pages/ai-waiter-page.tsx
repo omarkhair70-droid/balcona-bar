@@ -30,7 +30,7 @@ import {
 } from "@/lib/customer/customer-session-readiness";
 import { useCustomerSessionStore } from "@/lib/customer/customer-session-store";
 import { vibrateLight, vibrateSuccess, vibrateWarning } from "@/lib/haptics/haptics";
-import { useTranslations } from "@/lib/i18n/i18n-provider";
+import { useI18n, useTranslations } from "@/lib/i18n/i18n-provider";
 import { AiCartProposalCard } from "../ai-cart-proposal-card";
 import { AiChatShell } from "../ai-chat-shell";
 import { AiEscalationCard } from "../ai-escalation-card";
@@ -100,6 +100,7 @@ function getLatestProposal(
 
 export function AiWaiterPage({ sessionId }: AiWaiterPageProps) {
   const t = useTranslations("customer.ai");
+  const { locale } = useI18n();
   const queryClient = useQueryClient();
   const hasHydrated = useCustomerSessionStore((state) => state.hasHydrated);
   const storedSessionId = useCustomerSessionStore((state) => state.sessionId);
@@ -118,7 +119,9 @@ export function AiWaiterPage({ sessionId }: AiWaiterPageProps) {
     },
     sessionId
   );
-  const [language, setLanguage] = useState<AiWaiterLanguage>("en");
+  const [language, setLanguage] = useState<AiWaiterLanguage>(
+    locale === "ar" ? "ar-EG" : "en"
+  );
   const [message, setMessage] = useState("");
   const [localError, setLocalError] = useState("");
   const [proposalNotice, setProposalNotice] = useState("");

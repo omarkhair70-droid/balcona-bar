@@ -71,9 +71,6 @@ export function AiCartProposalCard({
       <CardHeader>
         <div className="flex flex-wrap items-center gap-2">
           <Badge>{t("proposal.badge")}</Badge>
-          <Badge variant={status === "proposed" ? "warning" : "muted"}>
-            {status}
-          </Badge>
         </div>
         <CardTitle>{getProposalTitle(proposal, t)}</CardTitle>
         <CardDescription>
