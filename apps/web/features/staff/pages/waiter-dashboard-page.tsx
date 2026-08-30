@@ -35,8 +35,10 @@ import {
   getBranchAttentionQueue,
   getBranchTableAdminOverview,
   getBranchWaiterCalls,
+  getBill,
   getReadyToServeOrders,
   getTableSessionAttention,
+  getTableSessionOrders,
   muteTableSessionAttention,
   rebuildBranchAttention,
   recalculateTableSessionAttention,
@@ -228,6 +230,25 @@ function WaiterDashboardContent() {
     queryFn: () => getReadyToServeOrders(selectedBranchId ?? "", accessToken),
     enabled: Boolean(selectedBranchId && accessToken),
     staleTime: 10_000
+  });
+  const floorSessionOrdersQuery = useQuery({
+    queryKey: ["staff", "service", "floor", "session-orders", selectedSessionId],
+    queryFn: () =>
+      getTableSessionOrders(selectedSessionId ?? "", accessToken),
+    enabled: Boolean(
+      serviceView === "floor" && selectedSessionId && accessToken
+    ),
+    staleTime: 5_000,
+    placeholderData: keepPreviousData
+  });
+  const floorSessionBillQuery = useQuery({
+    queryKey: ["staff", "service", "floor", "session-bill", selectedSessionId],
+    queryFn: () => getBill(selectedSessionId ?? "", accessToken),
+    enabled: Boolean(
+      serviceView === "floor" && selectedSessionId && accessToken
+    ),
+    staleTime: 5_000,
+    placeholderData: keepPreviousData
   });
   const waiterCalls = useMemo(
     () => waiterCallsQuery.data?.waiterCalls ?? emptyRecords,
@@ -619,6 +640,14 @@ function WaiterDashboardContent() {
           error={floorOverviewQuery.error ?? undefined}
           selectedSessionId={selectedSessionId}
           onSelectSession={setUserSelectedSessionId}
+          sessionOrders={floorSessionOrdersQuery.data?.orders ?? emptyRecords}
+          sessionBill={floorSessionBillQuery.data}
+          contextLoading={
+            floorSessionOrdersQuery.isPending || floorSessionBillQuery.isPending
+          }
+          onOpenOrders={() => router.push("/service/cashier#orders")}
+          onOpenAttention={() => router.push("/service/waiter#attention")}
+          onOpenBills={() => router.push("/service/cashier#bills")}
         />
       </div>
       ) : null}
