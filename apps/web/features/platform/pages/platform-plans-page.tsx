@@ -157,8 +157,8 @@ function PlatformPlansContent() {
           <p className="mt-2 text-xs leading-6 text-[#805C25]">
             {L(
               locale,
-              "A real recurring SaaS billing provider is not claimed here. Provider checkout, invoices and collections remain a separate billing program.",
-              "لا يتم ادعاء وجود مزود تحصيل SaaS دوري حقيقي هنا. الدفع والفواتير والتحصيل تظل برنامجًا منفصلًا."
+              "Plans define tenant access and subscription state. Billing collection is managed separately from these controls.",
+              "الخطط تحدد وصول الشركات وحالة الاشتراك. إدارة التحصيل منفصلة عن هذه الضوابط."
             )}
           </p>
         </div>
@@ -184,8 +184,8 @@ export function PlatformPlansPage() {
       title={L(locale, "Plans & Subscriptions", "الخطط والاشتراكات")}
       description={L(
         locale,
-        "Internal entitlement and subscription-state model — separate from restaurant customer money.",
-        "نموذج الصلاحيات وحالة الاشتراك الداخلية — منفصل عن أموال عملاء المطعم."
+        "Manage tenant plans, limits, enabled capabilities and subscription state.",
+        "إدارة خطط الشركات والحدود والإمكانات المفعلة وحالة الاشتراك."
       )}
     >
       <PlatformAuthGate>
