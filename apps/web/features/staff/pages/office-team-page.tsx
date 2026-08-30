@@ -66,6 +66,9 @@ function TeamContent() {
   const queryClient = useQueryClient();
   const accessToken = useStaffAuthStore((state) => state.accessToken);
   const selectedBranchId = useStaffAuthStore((state) => state.selectedBranchId);
+  const setSelectedBranchId = useStaffAuthStore(
+    (state) => state.setSelectedBranchId,
+  );
   const effectiveAccess = useStaffAuthStore((state) => state.effectiveAccess);
   const staffUser = useStaffAuthStore((state) => state.staffUser);
   const staffSession = useStaffAuthStore((state) => state.staffSession);
@@ -170,7 +173,11 @@ function TeamContent() {
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center gap-3">
-        <StaffBranchSelector />
+        <StaffBranchSelector
+          access={effectiveAccess}
+          selectedBranchId={selectedBranchId}
+          onChange={setSelectedBranchId}
+        />
         <span className="text-xs text-[#777770]">
           People are filtered by the selected location. Company-level membership
           remains visible because it inherits access to its allowed branches.
