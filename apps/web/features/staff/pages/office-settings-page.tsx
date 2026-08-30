@@ -59,6 +59,9 @@ function SettingsContent() {
   const queryClient = useQueryClient();
   const accessToken = useStaffAuthStore((state) => state.accessToken);
   const selectedBranchId = useStaffAuthStore((state) => state.selectedBranchId);
+  const setSelectedBranchId = useStaffAuthStore(
+    (state) => state.setSelectedBranchId,
+  );
   const effectiveAccess = useStaffAuthStore((state) => state.effectiveAccess);
   const staffSession = useStaffAuthStore((state) => state.staffSession);
 
@@ -199,7 +202,11 @@ function SettingsContent() {
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center gap-3">
-        <StaffBranchSelector />
+        <StaffBranchSelector
+          access={effectiveAccess}
+          selectedBranchId={selectedBranchId}
+          onChange={setSelectedBranchId}
+        />
         <OfficeInlineNotice title="Scope-aware settings">
           Company identity is company-scoped. Operating settings and feature
           flags are location-scoped. Mutations are permission checked again by
