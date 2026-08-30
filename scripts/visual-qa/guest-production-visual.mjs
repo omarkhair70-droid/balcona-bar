@@ -603,9 +603,8 @@ try {
     route: `/customer/session/${SESSION_ID}/menu`
   }));
   results.push(await capture(browser, {
-    label: "02-prototype-guest-redirect-en-390",
-    route: "/prototype/guest",
-    expectedPath: "/customer"
+    label: "02-prototype-guest-en-390",
+    route: "/prototype/guest"
   }));
   results.push(await capture(browser, {
     label: "03-production-menu-ar-rtl-390",
@@ -613,10 +612,9 @@ try {
     locale: "ar"
   }));
   results.push(await capture(browser, {
-    label: "04-prototype-guest-redirect-ar-rtl-390",
+    label: "04-prototype-guest-ar-rtl-390",
     route: "/prototype/guest",
-    locale: "ar",
-    expectedPath: "/customer"
+    locale: "ar"
   }));
   results.push(await capture(browser, {
     label: "05-production-order-en-390",
