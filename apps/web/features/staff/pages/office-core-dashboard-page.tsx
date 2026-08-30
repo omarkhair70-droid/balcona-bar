@@ -619,8 +619,13 @@ function OwnerDashboardContent() {
   );
   const selectedBranch = selectedBranchAccess?.branch;
   const accessibleBranches = useMemo(
-    () => effectiveAccess?.branches ?? [],
-    [effectiveAccess]
+    () =>
+      (effectiveAccess?.branches ?? []).filter(
+        (entry) =>
+          !selectedBranchAccess?.company.id ||
+          entry.company.id === selectedBranchAccess.company.id
+      ),
+    [effectiveAccess, selectedBranchAccess?.company.id]
   );
   const [preset, setPreset] = useState<OwnerAnalyticsPreset>("today");
   const [scopeMode, setScopeMode] = useState<"branch" | "company">("branch");
@@ -645,7 +650,9 @@ function OwnerDashboardContent() {
     queryKey: staffQueryKeys.ownerDailyReport(selectedBranchId, analyticsQuery),
     queryFn: () =>
       getOwnerDailyReport(selectedBranchId ?? "", analyticsQuery, accessToken),
-    enabled: Boolean(selectedBranchId && accessToken),
+    enabled: Boolean(
+      selectedBranchId && accessToken && scopeMode === "branch"
+    ),
     staleTime: 15_000
   });
   const companyDashboardQueries = useQueries({
@@ -678,6 +685,15 @@ function OwnerDashboardContent() {
     void queryClient.invalidateQueries({
       queryKey: staffQueryKeys.ownerDailyReport(selectedBranchId, analyticsQuery)
     });
+
+    for (const entry of accessibleBranches) {
+      void queryClient.invalidateQueries({
+        queryKey: staffQueryKeys.ownerAnalyticsDashboard(
+          entry.branch.id,
+          analyticsQuery
+        )
+      });
+    }
   };
 
   if (!selectedBranchId || !selectedBranch) {
@@ -775,6 +791,10 @@ function OwnerDashboardContent() {
   const companyScopePending =
     scopeMode === "company" &&
     companyDashboardQueries.some((query) => query.isPending);
+  const companyScopeError =
+    scopeMode === "company"
+      ? companyDashboardQueries.find((query) => query.isError)?.error
+      : null;
 
   return (
     <div className="grid gap-5">
@@ -843,10 +863,17 @@ function OwnerDashboardContent() {
         </CardHeader>
       </Card>
 
-      <OwnerDataWarning
-        label={t("analytics.dailyReport")}
-        error={reportQuery.error}
-      />
+      {scopeMode === "branch" ? (
+        <OwnerDataWarning
+          label={t("analytics.dailyReport")}
+          error={reportQuery.error}
+        />
+      ) : (
+        <OwnerDataWarning
+          label={officeT("office.locations")}
+          error={companyScopeError}
+        />
+      )}
 
       {officeView === "home" ? (
         <>
@@ -1150,7 +1177,7 @@ function OwnerDashboardContent() {
           ) : (
             <>
 
-          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
             <MetricCard
               label={t("pulse.urgent")}
               value={operations.urgentAttentionCount.toLocaleString("en")}
