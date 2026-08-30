@@ -6,5 +6,5 @@ type PageProps = {
 
 export default async function Page({ params }: PageProps) {
   const { sessionId } = await params;
-  redirect(`/customer/session/${sessionId}/menu`);
+  redirect(`/guest/session/${sessionId}/menu`);
 }
