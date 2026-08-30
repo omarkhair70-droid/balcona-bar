@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { CheckCircle2, CreditCard, HandCoins, ReceiptText } from "lucide-react";
+import { AlertTriangle, CheckCircle2, CreditCard, HandCoins, ReceiptText } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -161,12 +161,36 @@ export function BillRequestCard({
   const succeededOnlinePaymentCount = onlinePaymentIntents.filter(
     (payment) => getRecordString(payment, "status") === "succeeded",
   ).length;
+  const problemOnlinePaymentCount = onlinePaymentIntents.filter((payment) =>
+    ["failed", "cancelled", "expired"].includes(
+      getRecordString(payment, "status"),
+    ),
+  ).length;
+  const unknownOnlinePaymentCount = onlinePaymentIntents.filter((payment) => {
+    const status = getRecordString(payment, "status");
+
+    return (
+      !status ||
+      ![
+        "pending",
+        "requires_action",
+        "succeeded",
+        "failed",
+        "cancelled",
+        "expired",
+      ].includes(status)
+    );
+  }).length;
   const onlinePaymentBadge =
     succeededOnlinePaymentCount > 0
       ? t("billRequests.onlinePaid")
       : activeOnlinePaymentCount > 0
         ? t("billRequests.onlinePending")
-        : t("billRequests.manualOnly");
+        : problemOnlinePaymentCount > 0
+          ? t("billRequests.onlineProblem")
+          : unknownOnlinePaymentCount > 0
+            ? t("billRequests.onlineUnknown")
+            : t("billRequests.manualOnly");
   const acknowledgeDisabledReason = !billRequestId
     ? t("billRequests.acknowledgeMissingId")
     : requestStatus !== "open"
@@ -345,6 +369,24 @@ export function BillRequestCard({
         </div>
       ) : null}
 
+      {problemOnlinePaymentCount > 0 || unknownOnlinePaymentCount > 0 ? (
+        <div
+          role="alert"
+          className="mt-3 flex gap-2 rounded-md border border-[#7A3F3A] bg-[#3A211F] p-3 text-xs leading-5 text-[#F0A39B]"
+        >
+          <AlertTriangle className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
+          <span>
+            {problemOnlinePaymentCount > 0
+              ? t("billRequests.onlineProblemDetail", {
+                  count: problemOnlinePaymentCount,
+                })
+              : t("billRequests.onlineUnknownDetail", {
+                  count: unknownOnlinePaymentCount,
+                })}
+          </span>
+        </div>
+      ) : null}
+
       <div className="mt-4 flex flex-wrap gap-2 border-t border-[#342A23] pt-3">
         <Button
           size="sm"
@@ -408,7 +450,10 @@ export function BillRequestCard({
                   ? "success"
                   : activeOnlinePaymentCount > 0
                     ? "warning"
-                    : "muted"
+                    : problemOnlinePaymentCount > 0 ||
+                        unknownOnlinePaymentCount > 0
+                      ? "danger"
+                      : "muted"
               }
             >
               {onlinePaymentBadge}

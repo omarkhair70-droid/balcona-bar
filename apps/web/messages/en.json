@@ -663,7 +663,11 @@
       "subtotal": "Subtotal",
       "title": "Bill requests",
       "total": "Total",
-      "wallet": "Wallet"
+      "wallet": "Wallet",
+      "onlineProblem": "Online problem",
+      "onlineUnknown": "Online unknown",
+      "onlineProblemDetail": "{count} online payment attempt(s) failed, expired, or were cancelled. Verify the provider state before taking another payment.",
+      "onlineUnknownDetail": "{count} online payment attempt(s) returned an unknown state. Treat payment as unresolved until the provider state is verified."
     },
     "cashier": {
       "activityDescription": "Latest branch realtime events returned by the API.",
@@ -1036,7 +1040,7 @@
       "empty": "No configured tables are available for this branch.",
       "party": "Party {count}",
       "sessionActive": "Active session",
-      "geometryNote": "Balcona currently stores floor grouping, not physical x/y table coordinates. This board uses real table/session/attention data without inventing venue geometry.",
+      "geometryNote": "Placement follows the configured service area and real table order. Exact physical x/y coordinates are not stored, so Balcona does not pretend this is an architectural floor plan.",
       "state": {
         "urgent": "Urgent",
         "attention": "Needs attention",
@@ -1044,7 +1048,20 @@
         "free": "Free",
         "maintenance": "Maintenance",
         "inactive": "Inactive"
-      }
+      },
+      "areaNavigation": "Service areas",
+      "live": "Live floor",
+      "tableContext": "Selected table context",
+      "selectedTable": "Selected table",
+      "elapsed": "Elapsed",
+      "partyLabel": "Party",
+      "capacityLabel": "Capacity",
+      "sessionLabel": "Session",
+      "noSession": "No active session",
+      "attentionContext": "Needs service attention",
+      "score": "Score {score}",
+      "sessionContextHint": "Selecting an active table also opens its real session attention context when available.",
+      "capacity": "Capacity {count}"
     },
     "serviceShift": {
       "shiftOpen": "Shift open",
