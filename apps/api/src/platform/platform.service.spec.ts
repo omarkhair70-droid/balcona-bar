@@ -229,15 +229,6 @@ function buildService(overrides: Record<string, unknown> = {}) {
       blockers: [],
     }),
   };
-  const configService = {
-    get: jest.fn((key: string, fallback?: unknown) => {
-      if (key === "staffAuth.devBootstrapEnabled") {
-        return true;
-      }
-
-      return fallback;
-    }),
-  };
   const staffInvitesService = {
     createStaffInvite: jest.fn().mockResolvedValue({
       invite: {
@@ -263,7 +254,6 @@ function buildService(overrides: Record<string, unknown> = {}) {
   return {
     service: new PlatformService(
       prisma as never,
-      configService as never,
       saasService as never,
       staffInvitesService as never,
     ),
