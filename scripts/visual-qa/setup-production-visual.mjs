@@ -300,13 +300,18 @@ async function newContext(
   });
 
   await context.addCookies([{ name:"balcona_locale", value:locale, url:BASE_URL }]);
-  await context.addInitScript(({ localeValue, staffValue, resumeValue }) => {
+  await context.addInitScript(({ localeValue, staffValue, resumeValue, branchIdValue }) => {
     window.localStorage.setItem("balcona.locale", localeValue);
     window.localStorage.setItem("balcona_staff_session", staffValue);
     if (resumeValue) {
-      window.localStorage.setItem(`balcona_setup_resume:${BRANCH_ID}`, resumeValue);
+      window.localStorage.setItem(`balcona_setup_resume:${branchIdValue}`, resumeValue);
     }
-  }, { localeValue:locale, staffValue:sessionValue, resumeValue:resumePhase ?? null });
+  }, {
+    localeValue:locale,
+    staffValue:sessionValue,
+    resumeValue:resumePhase ?? null,
+    branchIdValue:BRANCH_ID
+  });
 
   return context;
 }
