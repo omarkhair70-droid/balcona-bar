@@ -131,14 +131,13 @@ export function CustomerBillPage({ sessionId }: CustomerBillPageProps) {
     retry: 1
   });
   const paymentCapabilities = paymentCapabilitiesQuery.data;
-  const hostedMethods = paymentCapabilities?.hostedMethods ?? [];
   const availableFawryMethods = useMemo(
     () =>
-      hostedMethods.filter(
+      (paymentCapabilities?.hostedMethods ?? []).filter(
         (method): method is "CARD" | "MWALLET" | "PayAtFawry" | "VALU" =>
           ["CARD", "MWALLET", "PayAtFawry", "VALU"].includes(method)
       ),
-    [hostedMethods]
+    [paymentCapabilities?.hostedMethods]
   );
 
   const paymentMutation = useMutation({
