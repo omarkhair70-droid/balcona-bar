@@ -154,7 +154,7 @@ export function AiCartProposalCard({
           {isRejecting ? t("proposal.rejecting") : t("proposal.reject")}
         </Button>
         <Link
-          href={`/customer/session/${sessionId}/cart`}
+          href={`/guest/session/${sessionId}/cart`}
           className={buttonVariants({ variant: "secondary" })}
         >
           {t("actions.reviewCart")}
