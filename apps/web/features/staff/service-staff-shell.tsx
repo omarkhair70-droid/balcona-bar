@@ -126,10 +126,10 @@ export function ServiceStaffShell({
   return (
     <main className="min-h-screen bg-[#17120F] text-[#FFF5E8]">
       <header className="sticky top-0 z-40 border-b border-[#352B24] bg-[#18130F]/96 backdrop-blur">
-        <div className="flex min-h-14 items-center gap-2 px-3">
+        <div className="grid min-h-14 grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-3 px-3">
           <Link
             href="/staff"
-            className="flex shrink-0 items-center gap-2"
+            className="flex min-w-0 items-center gap-2 justify-self-start"
             aria-label="Balcona staff home"
           >
             <span className="flex size-8 items-center justify-center rounded-md bg-[#C68A4A] text-xs font-black text-[#1B120C]">
@@ -146,7 +146,7 @@ export function ServiceStaffShell({
           </Link>
 
           <nav
-            className="mx-auto flex min-w-0 items-center rounded-md border border-[#3E332B] bg-[#211A15] p-1"
+            className="flex items-center justify-self-center rounded-md border border-[#3E332B] bg-[#211A15] p-1"
             aria-label="Service mode"
           >
             {modes.map((entry) => {
@@ -158,7 +158,7 @@ export function ServiceStaffShell({
                   href={entry.href}
                   aria-current={active ? "page" : undefined}
                   className={cn(
-                    "min-h-8 rounded px-3 text-center text-xs font-semibold transition",
+                    "flex min-h-8 min-w-[76px] items-center justify-center rounded px-3 text-center text-xs font-semibold transition sm:min-w-[92px]",
                     active
                       ? "bg-[#C68A4A] text-[#1B120C]"
                       : "text-[#BFB0A2] hover:bg-[#2B221C] hover:text-[#F6EBDD]"
@@ -170,9 +170,11 @@ export function ServiceStaffShell({
             })}
           </nav>
 
-          <div className="flex shrink-0 items-center gap-2">
+          <div className="flex min-w-0 items-center justify-end gap-2 justify-self-end">
             {actions ? (
-              <div className="hidden items-center gap-2 lg:flex">{actions}</div>
+              <div className="hidden min-w-0 items-center justify-end gap-2 lg:flex">
+                {actions}
+              </div>
             ) : null}
             <LanguageSwitcher className="shrink-0 border-[#41362E] bg-[#211A15]" />
           </div>
@@ -201,7 +203,7 @@ export function ServiceStaffShell({
                 scroll={false}
                 aria-current={active ? "page" : undefined}
                 className={cn(
-                  "flex min-h-10 min-w-[112px] shrink-0 items-center justify-center gap-2 rounded-md px-3 text-xs font-semibold transition",
+                  "flex min-h-11 min-w-[112px] shrink-0 items-center justify-center gap-2 rounded-md px-3 text-xs font-semibold transition",
                   active
                     ? "bg-[#33271F] text-[#FFF5E7]"
                     : "text-[#B3A496] hover:bg-[#292019] hover:text-[#FFF5E7]"
@@ -226,7 +228,7 @@ export function ServiceStaffShell({
         <p>{description}</p>
       </div>
 
-      <div className="mx-auto max-w-[1600px]">{children}</div>
+      <div className="w-full">{children}</div>
     </main>
   );
 }
