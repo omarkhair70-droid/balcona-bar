@@ -727,7 +727,9 @@
       "printConfigBoundary": "Printer setup and station configuration belong in Office → Locations → Devices & Stations. Kitchen only shows live print work and exceptions.",
       "printSuccessExternal": "Printed state is recorded only when the print system reports it. Kitchen never assumes a physical print succeeded.",
       "ticketsEyebrow": "Kitchen tickets",
-      "productionBoard": "Production board"
+      "productionBoard": "Production board",
+      "printRoutingMissing": "No print route",
+      "printerStationMissing": "No printer station assigned"
     },
     "navigation": {
       "billing": "Billing",
