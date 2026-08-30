@@ -524,6 +524,7 @@
     "actions": {
       "accept": "قبول",
       "accepting": "قبول...",
+      "back": "رجوع",
       "acknowledge": "تأكيد",
       "acknowledging": "جاري التأكيد...",
       "cancel": "إلغاء",
