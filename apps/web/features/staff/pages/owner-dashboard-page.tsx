@@ -562,14 +562,6 @@ function formatDuration(
   });
 }
 
-function formatAiCost(micros: number) {
-  if (micros <= 0) {
-    return "0";
-  }
-
-  return (micros / 1_000_000).toFixed(4);
-}
-
 function getDashboardCurrency(data: OwnerAnalyticsDashboardResult) {
   return (
     data.summary.activeCashierShift?.currency ??
@@ -611,7 +603,6 @@ function useOwnerOfficeView() {
 function OwnerDashboardContent() {
   const t = useTranslations("owner");
   const officeT = useTranslations("staff");
-  const { locale } = useI18n();
   const queryClient = useQueryClient();
   const accessToken = useStaffAuthStore((state) => state.accessToken);
   const staffUser = useStaffAuthStore((state) => state.staffUser);
