@@ -1,4 +1,7 @@
-import { env } from "@/lib/config/env";
+import {
+  configuredApiUpstreamBaseUrl,
+  env
+} from "@/lib/config/env";
 import { addDebugBreadcrumb } from "@/lib/observability/breadcrumbs";
 import { getWebDebugMetadata } from "@/lib/observability/metadata";
 import { formatErrorMessage } from "./error-message";
@@ -242,12 +245,28 @@ function appendQueryValue(
   }
 }
 
+function resolveApiBaseUrl(baseUrl: string) {
+  if (!baseUrl.startsWith("/")) {
+    return baseUrl;
+  }
+
+  if (typeof window !== "undefined") {
+    return `${window.location.origin}${baseUrl}`;
+  }
+
+  return configuredApiUpstreamBaseUrl;
+}
+
 export function buildApiUrl(
   path: string,
   query?: ApiQueryParams,
   baseUrl = env.NEXT_PUBLIC_API_BASE_URL
 ) {
-  const url = new URL(path.replace(/^\//, ""), `${baseUrl.replace(/\/$/, "")}/`);
+  const resolvedBaseUrl = resolveApiBaseUrl(baseUrl);
+  const url = new URL(
+    path.replace(/^\//, ""),
+    `${resolvedBaseUrl.replace(/\/$/, "")}/`
+  );
 
   if (query) {
     Object.entries(query).forEach(([key, value]) => {

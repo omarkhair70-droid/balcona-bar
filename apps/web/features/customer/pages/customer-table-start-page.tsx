@@ -21,8 +21,20 @@ import { useCustomerSessionStore } from "@/lib/customer/customer-session-store";
 import { useTranslations } from "@/lib/i18n/i18n-provider";
 import { CustomerShell } from "@/features/customer/customer-shell";
 
-const TABLE_SESSION_START_TIMEOUT_MS = 12_000;
-const TABLE_SESSION_START_MAX_FAILURES = 3;
+const TABLE_SESSION_START_TIMEOUT_MS = 25_000;
+const TABLE_SESSION_START_MAX_ATTEMPTS = 2;
+
+function shouldRetryTableSessionStart(error: unknown) {
+  if (!(error instanceof ApiError)) {
+    return false;
+  }
+
+  if ([502, 503, 504].includes(error.status)) {
+    return true;
+  }
+
+  return error.status === 0 && error.code === "network_error";
+}
 
 type CustomerTableStartPageProps = {
   qrToken: string;
@@ -71,7 +83,8 @@ export function CustomerTableStartPage({
           ),
         {
           flow: "table_session_start",
-          maxAttempts: TABLE_SESSION_START_MAX_FAILURES
+          maxAttempts: TABLE_SESSION_START_MAX_ATTEMPTS,
+          shouldRetry: shouldRetryTableSessionStart
         }
       );
 
@@ -103,7 +116,7 @@ export function CustomerTableStartPage({
   const loadingDescription = isRetrying
     ? t("tableStart.retrying", {
         attempt: startMutation.failureCount + 1,
-        max: TABLE_SESSION_START_MAX_FAILURES
+        max: TABLE_SESSION_START_MAX_ATTEMPTS
       })
     : t("tableStart.loading");
   const errorDescription = startMutation.isError

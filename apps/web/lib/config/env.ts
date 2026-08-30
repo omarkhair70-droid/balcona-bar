@@ -2,11 +2,17 @@ import { z } from "zod";
 
 const webAppEnvironments = ["development", "test", "staging", "production"] as const;
 
+const apiBaseUrlSchema = z.string().refine(
+  (value) =>
+    value.startsWith("/") ||
+    z.string().url().safeParse(value).success,
+  "API base URL must be an absolute URL or a same-origin path"
+);
+
 const envSchema = z.object({
-  NEXT_PUBLIC_API_BASE_URL: z
-    .string()
-    .url()
-    .default("http://localhost:3000/api/v1"),
+  NEXT_PUBLIC_API_BASE_URL: apiBaseUrlSchema.default(
+    "http://localhost:3000/api/v1"
+  ),
   NEXT_PUBLIC_APP_ENV: z.enum(webAppEnvironments).default("development"),
   NEXT_PUBLIC_APP_VERSION: z.string().default("0.1.0"),
   NEXT_PUBLIC_GIT_SHA: z.string().default("local"),
@@ -29,10 +35,22 @@ function webAppEnvironment() {
   return "development";
 }
 
+const configuredApiBaseUrl =
+  process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:3000/api/v1";
+const resolvedWebAppEnvironment = webAppEnvironment();
+const useHostedApiProxy =
+  resolvedWebAppEnvironment === "staging" ||
+  resolvedWebAppEnvironment === "production" ||
+  process.env.VERCEL_ENV === "preview" ||
+  process.env.VERCEL_ENV === "production";
+
+export const configuredApiUpstreamBaseUrl = configuredApiBaseUrl;
+
 export const env = envSchema.parse({
-  NEXT_PUBLIC_API_BASE_URL:
-    process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:3000/api/v1",
-  NEXT_PUBLIC_APP_ENV: webAppEnvironment(),
+  NEXT_PUBLIC_API_BASE_URL: useHostedApiProxy
+    ? "/api/backend"
+    : configuredApiBaseUrl,
+  NEXT_PUBLIC_APP_ENV: resolvedWebAppEnvironment,
   NEXT_PUBLIC_APP_VERSION: process.env.NEXT_PUBLIC_APP_VERSION ?? "0.1.0",
   NEXT_PUBLIC_GIT_SHA:
     process.env.NEXT_PUBLIC_GIT_SHA ??
@@ -62,6 +80,14 @@ function isLocalhost(hostname: string) {
 export function getApiBaseUrlSafety(
   value = env.NEXT_PUBLIC_API_BASE_URL
 ): ApiBaseUrlSafety {
+  if (value.startsWith("/")) {
+    return {
+      status: "permanent",
+      reason: "API traffic uses the same-origin Balcona proxy",
+      host: "same-origin"
+    };
+  }
+
   const url = new URL(value);
   const host = url.hostname.toLowerCase();
 

@@ -26,6 +26,27 @@ const withPWA = withPWAInit({
   }
 });
 
+const configuredApiUpstream =
+  process.env.BALCONA_API_ORIGIN ??
+  process.env.NEXT_PUBLIC_API_BASE_URL ??
+  "http://localhost:3000/api/v1";
+
+let apiUpstreamUrl;
+
+try {
+  apiUpstreamUrl = new URL(configuredApiUpstream);
+} catch {
+  throw new Error(
+    "BALCONA_API_ORIGIN / NEXT_PUBLIC_API_BASE_URL must be an absolute API URL."
+  );
+}
+
+if (!["http:", "https:"].includes(apiUpstreamUrl.protocol)) {
+  throw new Error("Balcona API upstream must use http or https.");
+}
+
+const apiUpstreamBase = apiUpstreamUrl.toString().replace(/\/$/, "");
+
 /** @type {import("next").NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
@@ -33,7 +54,13 @@ const nextConfig = {
     return legacyRouteRedirects;
   },
   async rewrites() {
-    return canonicalRouteRewrites;
+    return [
+      {
+        source: "/api/backend/:path*",
+        destination: `${apiUpstreamBase}/:path*`
+      },
+      ...canonicalRouteRewrites
+    ];
   }
 };
 
