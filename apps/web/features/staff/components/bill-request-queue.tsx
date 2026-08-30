@@ -5,11 +5,7 @@ import { RefreshCw, ReceiptText } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/ui/empty-state";
 import { LoadingState } from "@/components/ui/loading-state";
-import type {
-  BranchBillRequestStatusFilter,
-  RecordManualPaymentPayload
-} from "@/lib/api/types";
-import { cn } from "@/lib/utils/cn";
+import type { RecordManualPaymentPayload } from "@/lib/api/types";
 import {
   getBillId,
   getBillNumber,
@@ -33,14 +29,12 @@ import { BillRequestCard } from "./bill-request-card";
 
 type BillRequestQueueProps = {
   billRequests: Record<string, unknown>[];
-  status: BranchBillRequestStatusFilter;
   isLoading?: boolean;
   error?: Error;
   pendingActionId?: string;
   pendingPaymentId?: string;
   paymentBlockedReason?: string;
   paymentError?: Error;
-  onStatusChange: (status: BranchBillRequestStatusFilter) => void;
   onRefresh: () => void;
   onAcknowledge: (billRequestId: string) => void;
   onPresent: (billRequestId: string) => void;
@@ -49,14 +43,6 @@ type BillRequestQueueProps = {
     payload: RecordManualPaymentPayload
   ) => void;
 };
-
-const statusOptions: BranchBillRequestStatusFilter[] = [
-  "active",
-  "open",
-  "acknowledged",
-  "presented",
-  "all"
-];
 
 function statusVariant(status: string) {
   if (status === "paid" || status === "presented" || status === "acknowledged") {
@@ -76,14 +62,12 @@ function statusVariant(status: string) {
 
 export function BillRequestQueue({
   billRequests,
-  status,
   isLoading,
   error,
   pendingActionId,
   pendingPaymentId,
   paymentBlockedReason,
   paymentError,
-  onStatusChange,
   onRefresh,
   onAcknowledge,
   onPresent,
@@ -115,24 +99,6 @@ export function BillRequestQueue({
           >
             <RefreshCw className="size-4" aria-hidden="true" />
           </button>
-        </div>
-
-        <div className="mt-3 flex gap-2 overflow-x-auto pb-1">
-          {statusOptions.map((option) => (
-            <button
-              type="button"
-              key={option}
-              onClick={() => onStatusChange(option)}
-              className={cn(
-                "min-h-9 shrink-0 whitespace-nowrap rounded-md border px-3 text-xs font-semibold transition",
-                status === option
-                  ? "border-[#C68A4A] bg-[#C68A4A] text-[#1B120C]"
-                  : "border-[#3B3028] bg-[#211A15] text-[#BFB0A2] hover:border-[#554238] hover:bg-[#292019]"
-              )}
-            >
-              {humanizeStatus(option)}
-            </button>
-          ))}
         </div>
 
         <div className="mt-3">
