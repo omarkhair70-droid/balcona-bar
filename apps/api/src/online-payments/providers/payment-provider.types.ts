@@ -39,6 +39,7 @@ export type PaymentProviderCapabilities = {
   providerReconciliation: boolean;
   directTerminal: boolean;
   recurringBilling: boolean;
+  bankTransferOrIpn: boolean;
 };
 
 export type CreateProviderPaymentInput = {
@@ -53,12 +54,31 @@ export type CreateProviderPaymentInput = {
   runtimeContext?: ProviderRuntimeContext;
 };
 
+export type ProviderCustomerAction =
+  | {
+      type: "redirect";
+      url: string;
+    }
+  | {
+      type: "deep_link";
+      url: string;
+    }
+  | {
+      type: "qr";
+      value: string;
+    }
+  | {
+      type: "display_reference";
+      reference: string;
+    };
+
 export type CreateProviderPaymentResult = {
   provider: OnlinePaymentProvider;
   providerIntentId: string;
   providerOrderId?: string;
   status: OnlinePaymentIntentStatus;
-  checkoutUrl: string;
+  checkoutUrl?: string;
+  customerAction?: ProviderCustomerAction;
   checkoutExpiresAt?: Date;
   metadata?: Record<string, unknown>;
 };
@@ -94,7 +114,8 @@ export type ProviderTransactionState = {
   providerTransactionId: string;
   providerOrderId: string;
   merchantReference?: string;
-  integrationId: number;
+  integrationId?: number;
+  providerIntegrationReference?: string;
   status: OnlinePaymentIntentStatus;
   amountMinor: number;
   currency: string;
