@@ -2,9 +2,15 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import {
+  useMutation,
+  useQueries,
+  useQuery,
+  useQueryClient
+} from "@tanstack/react-query";
 import {
   BarChart3,
+  Bot,
   Boxes,
   LogIn,
   LogOut,
@@ -612,7 +618,12 @@ function OwnerDashboardContent() {
     (entry) => entry.branch.id === selectedBranchId
   );
   const selectedBranch = selectedBranchAccess?.branch;
+  const accessibleBranches = useMemo(
+    () => effectiveAccess?.branches ?? [],
+    [effectiveAccess]
+  );
   const [preset, setPreset] = useState<OwnerAnalyticsPreset>("today");
+  const [scopeMode, setScopeMode] = useState<"branch" | "company">("branch");
   const officeView = useOwnerOfficeView();
   const analyticsQuery = useMemo(() => ({ preset }), [preset]);
   const realtime = useStaffBranchRealtime(selectedBranchId, accessToken);
@@ -636,6 +647,22 @@ function OwnerDashboardContent() {
       getOwnerDailyReport(selectedBranchId ?? "", analyticsQuery, accessToken),
     enabled: Boolean(selectedBranchId && accessToken),
     staleTime: 15_000
+  });
+  const companyDashboardQueries = useQueries({
+    queries: accessibleBranches.map((entry) => ({
+      queryKey: staffQueryKeys.ownerAnalyticsDashboard(
+        entry.branch.id,
+        analyticsQuery
+      ),
+      queryFn: () =>
+        getOwnerAnalyticsDashboard(
+          entry.branch.id,
+          analyticsQuery,
+          accessToken
+        ),
+      enabled: Boolean(accessToken && scopeMode === "company"),
+      staleTime: 15_000
+    }))
   });
   const refreshAll = () => {
     if (!selectedBranchId) {
@@ -688,8 +715,50 @@ function OwnerDashboardContent() {
   const items = dashboard.items;
   const operations = dashboard.operations;
   const cashierShifts = dashboard.cashierShifts;
+  const aiWaiter = dashboard.aiWaiter;
   const currency = getDashboardCurrency(dashboard);
   const topItemName = items.topItemsByQuantity[0]?.name ?? t("empty.noData");
+  const companyRows = accessibleBranches.flatMap((entry, index) => {
+    const branchDashboard = companyDashboardQueries[index]?.data;
+
+    return branchDashboard
+      ? [{ branch: entry.branch, dashboard: branchDashboard }]
+      : [];
+  });
+  const companyCurrencies = new Set(
+    companyRows.map((row) => getDashboardCurrency(row.dashboard))
+  );
+  const companyCurrency =
+    companyCurrencies.size === 1
+      ? companyCurrencies.values().next().value ?? currency
+      : null;
+  const companyTotals = companyRows.reduce(
+    (totals, row) => {
+      totals.revenueMinor += row.dashboard.summary.paidRevenueMinor;
+      totals.orders += row.dashboard.orders.submittedOrderCount;
+      totals.urgentAttention += row.dashboard.operations.urgentAttentionCount;
+      totals.activeAttention += row.dashboard.operations.activeAttentionCount;
+      totals.waiterCalls += row.dashboard.summary.openWaiterCallCount;
+      totals.lowStock += row.dashboard.summary.lowStockCount ?? 0;
+      totals.outOfStock += row.dashboard.summary.outOfStockCount ?? 0;
+      totals.failedPrintJobs += row.dashboard.operations.failedPrintJobCount;
+
+      return totals;
+    },
+    {
+      revenueMinor: 0,
+      orders: 0,
+      urgentAttention: 0,
+      activeAttention: 0,
+      waiterCalls: 0,
+      lowStock: 0,
+      outOfStock: 0,
+      failedPrintJobs: 0
+    }
+  );
+  const companyScopePending =
+    scopeMode === "company" &&
+    companyDashboardQueries.some((query) => query.isPending);
 
   return (
     <div className="grid gap-5">
@@ -704,23 +773,48 @@ function OwnerDashboardContent() {
                     ? officeT("office.insights")
                     : officeT("office.home")}
               </Badge>
+              <div className="flex rounded-md border border-[#D6D6D1] bg-white p-0.5">
+                <Button
+                  type="button"
+                  size="sm"
+                  variant={scopeMode === "company" ? "primary" : "ghost"}
+                  onClick={() => setScopeMode("company")}
+                  disabled={accessibleBranches.length < 2}
+                >
+                  {officeT("office.sourceCompany")}
+                </Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant={scopeMode === "branch" ? "primary" : "ghost"}
+                  onClick={() => setScopeMode("branch")}
+                >
+                  {officeT("office.sourceBranch")}
+                </Button>
+              </div>
               <StaffRealtimeStatus
                 state={realtime.state}
                 lastEventType={realtime.lastEventType}
               />
             </div>
-            <CardTitle className="mt-3">{selectedBranch.name}</CardTitle>
+            <CardTitle className="mt-3">
+              {scopeMode === "company"
+                ? selectedBranchAccess?.company.name ?? selectedBranch.name
+                : selectedBranch.name}
+            </CardTitle>
             <CardDescription>
-              {officeView === "operations"
-                ? officeT("office.operationsDescription")
-                : officeView === "insights"
-                  ? officeT("office.insightsDescription")
-                  : t("dashboard.viewingDescription", {
-                      name:
-                        staffUser?.name ||
-                        staffUser?.email ||
-                        t("dashboard.staffUserFallback")
-                    })}
+              {scopeMode === "company"
+                ? `${accessibleBranches.length.toLocaleString("en")} ${officeT("office.locations")}`
+                : officeView === "operations"
+                  ? officeT("office.operationsDescription")
+                  : officeView === "insights"
+                    ? officeT("office.insightsDescription")
+                    : t("dashboard.viewingDescription", {
+                        name:
+                          staffUser?.name ||
+                          staffUser?.email ||
+                          t("dashboard.staffUserFallback")
+                      })}
             </CardDescription>
           </div>
           <div className="grid gap-3">
@@ -740,6 +834,103 @@ function OwnerDashboardContent() {
 
       {officeView === "home" ? (
         <>
+          {companyScopePending ? (
+            <LoadingState label={t("dashboard.loadingAnalytics")} />
+          ) : null}
+
+          {scopeMode === "company" && companyRows.length > 0 ? (
+            <>
+              <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+                <MetricCard
+                  label={t("pulse.urgent")}
+                  value={companyTotals.urgentAttention.toLocaleString("en")}
+                  description={t("pulse.urgentDescription")}
+                  icon={<UserRoundCheck className="size-4" aria-hidden="true" />}
+                  tone={companyTotals.urgentAttention > 0 ? "warning" : "success"}
+                />
+                <MetricCard
+                  label={t("analytics.openWaiterCalls")}
+                  value={companyTotals.waiterCalls.toLocaleString("en")}
+                  description={t("pulse.waiterCallsDescription")}
+                  icon={<UserRoundCheck className="size-4" aria-hidden="true" />}
+                  tone={companyTotals.waiterCalls > 0 ? "warning" : "success"}
+                />
+                <MetricCard
+                  label={t("analytics.stockRisk")}
+                  value={`${companyTotals.lowStock}/${companyTotals.outOfStock}`}
+                  description={t("analytics.stockRiskDescription", {
+                    count: companyRows.reduce(
+                      (count, row) =>
+                        count + (row.dashboard.summary.stockBlockedMenuItemCount ?? 0),
+                      0
+                    )
+                  })}
+                  icon={<Boxes className="size-4" aria-hidden="true" />}
+                  tone={companyTotals.outOfStock > 0 ? "warning" : "success"}
+                />
+                <MetricCard
+                  label={t("orders.printJobs")}
+                  value={companyTotals.failedPrintJobs.toLocaleString("en")}
+                  description={t("orders.printJobsDescription", {
+                    count: companyTotals.failedPrintJobs.toLocaleString("en")
+                  })}
+                  icon={<Receipt className="size-4" aria-hidden="true" />}
+                  tone={companyTotals.failedPrintJobs > 0 ? "warning" : "success"}
+                />
+              </section>
+
+              <Card variant="quiet">
+                <CardHeader>
+                  <CardTitle>{officeT("office.locations")}</CardTitle>
+                  <CardDescription>{officeT("office.insightsDescription")}</CardDescription>
+                </CardHeader>
+                <CardContent className="grid gap-2">
+                  {companyRows.map((row) => (
+                    <div
+                      key={row.branch.id}
+                      className="grid gap-2 rounded-card border bg-surface/70 p-3 text-sm md:grid-cols-[minmax(0,1.5fr)_repeat(4,minmax(0,auto))] md:items-center"
+                    >
+                      <span className="font-semibold">{row.branch.name}</span>
+                      <span>{formatMoney(
+                        row.dashboard.summary.paidRevenueMinor,
+                        getDashboardCurrency(row.dashboard)
+                      )}</span>
+                      <span>{row.dashboard.orders.submittedOrderCount.toLocaleString("en")} {t("analytics.orders")}</span>
+                      <span>{row.dashboard.operations.urgentAttentionCount.toLocaleString("en")} {t("pulse.urgent")}</span>
+                      <span>{(row.dashboard.summary.outOfStockCount ?? 0).toLocaleString("en")} {t("analytics.stockRisk")}</span>
+                    </div>
+                  ))}
+                </CardContent>
+              </Card>
+
+              <Card variant="quiet">
+                <CardContent className="grid gap-3 pt-5 md:grid-cols-2 xl:grid-cols-4">
+                  <ReportValue
+                    label={t("analytics.revenue")}
+                    value={
+                      companyCurrency
+                        ? formatMoney(companyTotals.revenueMinor, companyCurrency)
+                        : t("empty.noData")
+                    }
+                  />
+                  <ReportValue
+                    label={t("analytics.orders")}
+                    value={companyTotals.orders.toLocaleString("en")}
+                  />
+                  <ReportValue
+                    label={t("pulse.urgent")}
+                    value={companyTotals.activeAttention.toLocaleString("en")}
+                  />
+                  <ReportValue
+                    label={officeT("office.locations")}
+                    value={companyRows.length.toLocaleString("en")}
+                  />
+                </CardContent>
+              </Card>
+            </>
+          ) : null}
+
+          {scopeMode === "branch" ? (
           <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
             <MetricCard
               label={t("pulse.urgent")}
@@ -828,6 +1019,290 @@ function OwnerDashboardContent() {
               rows={operations.preparationTaskCountsByStatus}
             />
           </div>
+          ) : null}
+        </>
+      ) : null}
+
+      {officeView === "operations" ? (
+        <section className="grid gap-5">
+          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+            <MetricCard
+              label={t("pulse.urgent")}
+              value={operations.urgentAttentionCount.toLocaleString("en")}
+              description={t("pulse.urgentDescription")}
+              icon={<UserRoundCheck className="size-4" aria-hidden="true" />}
+              tone={operations.urgentAttentionCount > 0 ? "warning" : "success"}
+            />
+            <MetricCard
+              label={t("analytics.orders")}
+              value={orders.submittedOrderCount.toLocaleString("en")}
+              description={t("analytics.ordersDescription", {
+                served: summary.servedOrderCount.toLocaleString("en"),
+                completed: summary.completedOrderCount.toLocaleString("en")
+              })}
+              icon={<ShoppingBag className="size-4" aria-hidden="true" />}
+              tone="muted"
+            />
+            <MetricCard
+              label={t("analytics.openWaiterCalls")}
+              value={summary.openWaiterCallCount.toLocaleString("en")}
+              description={t("pulse.waiterCallsDescription")}
+              icon={<UserRoundCheck className="size-4" aria-hidden="true" />}
+              tone={summary.openWaiterCallCount > 0 ? "warning" : "success"}
+            />
+{officeView === "operations"
+                  ? officeT("office.operations")
+                  : officeView === "insights"
+                    ? officeT("office.insights")
+                    : officeT("office.home")}
+              </Badge>
+              <div className="flex rounded-md border border-[#D6D6D1] bg-white p-0.5">
+                <Button
+                  type="button"
+                  size="sm"
+                  variant={scopeMode === "company" ? "primary" : "ghost"}
+                  onClick={() => setScopeMode("company")}
+                  disabled={accessibleBranches.length < 2}
+                >
+                  {officeT("office.sourceCompany")}
+                </Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant={scopeMode === "branch" ? "primary" : "ghost"}
+                  onClick={() => setScopeMode("branch")}
+                >
+                  {officeT("office.sourceBranch")}
+                </Button>
+              </div>
+              <StaffRealtimeStatus
+                state={realtime.state}
+                lastEventType={realtime.lastEventType}
+              />
+            </div>
+            <CardTitle className="mt-3">
+              {scopeMode === "company"
+                ? selectedBranchAccess?.company.name ?? selectedBranch.name
+                : selectedBranch.name}
+            </CardTitle>
+            <CardDescription>
+              {scopeMode === "company"
+                ? `${accessibleBranches.length.toLocaleString("en")} ${officeT("office.locations")}`
+                : officeView === "operations"
+                  ? officeT("office.operationsDescription")
+                  : officeView === "insights"
+                    ? officeT("office.insightsDescription")
+                    : t("dashboard.viewingDescription", {
+                        name:
+                          staffUser?.name ||
+                          staffUser?.email ||
+                          t("dashboard.staffUserFallback")
+                      })}
+            </CardDescription>
+          </div>
+          <div className="grid gap-3">
+            <RangeSelector preset={preset} onChange={setPreset} />
+            <Button variant="secondary" onClick={refreshAll}>
+              <RefreshCw className="size-4" aria-hidden="true" />
+              {t("actions.refresh")}
+            </Button>
+          </div>
+        </CardHeader>
+      </Card>
+
+      <OwnerDataWarning
+        label={t("analytics.dailyReport")}
+        error={reportQuery.error}
+      />
+
+      {officeView === "home" ? (
+        <>
+          {companyScopePending ? (
+            <LoadingState label={t("dashboard.loadingAnalytics")} />
+          ) : null}
+
+          {scopeMode === "company" && companyRows.length > 0 ? (
+            <>
+              <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+                <MetricCard
+                  label={t("pulse.urgent")}
+                  value={companyTotals.urgentAttention.toLocaleString("en")}
+                  description={t("pulse.urgentDescription")}
+                  icon={<UserRoundCheck className="size-4" aria-hidden="true" />}
+                  tone={companyTotals.urgentAttention > 0 ? "warning" : "success"}
+                />
+                <MetricCard
+                  label={t("analytics.openWaiterCalls")}
+                  value={companyTotals.waiterCalls.toLocaleString("en")}
+                  description={t("pulse.waiterCallsDescription")}
+                  icon={<UserRoundCheck className="size-4" aria-hidden="true" />}
+                  tone={companyTotals.waiterCalls > 0 ? "warning" : "success"}
+                />
+                <MetricCard
+                  label={t("analytics.stockRisk")}
+                  value={`${companyTotals.lowStock}/${companyTotals.outOfStock}`}
+                  description={t("analytics.stockRiskDescription", {
+                    count: companyRows.reduce(
+                      (count, row) =>
+                        count + (row.dashboard.summary.stockBlockedMenuItemCount ?? 0),
+                      0
+                    )
+                  })}
+                  icon={<Boxes className="size-4" aria-hidden="true" />}
+                  tone={companyTotals.outOfStock > 0 ? "warning" : "success"}
+                />
+                <MetricCard
+                  label={t("orders.printJobs")}
+                  value={companyTotals.failedPrintJobs.toLocaleString("en")}
+                  description={t("orders.printJobsDescription", {
+                    count: companyTotals.failedPrintJobs.toLocaleString("en")
+                  })}
+                  icon={<Receipt className="size-4" aria-hidden="true" />}
+                  tone={companyTotals.failedPrintJobs > 0 ? "warning" : "success"}
+                />
+              </section>
+
+              <Card variant="quiet">
+                <CardHeader>
+                  <CardTitle>{officeT("office.locations")}</CardTitle>
+                  <CardDescription>{officeT("office.insightsDescription")}</CardDescription>
+                </CardHeader>
+                <CardContent className="grid gap-2">
+                  {companyRows.map((row) => (
+                    <div
+                      key={row.branch.id}
+                      className="grid gap-2 rounded-card border bg-surface/70 p-3 text-sm md:grid-cols-[minmax(0,1.5fr)_repeat(4,minmax(0,auto))] md:items-center"
+                    >
+                      <span className="font-semibold">{row.branch.name}</span>
+                      <span>{formatMoney(
+                        row.dashboard.summary.paidRevenueMinor,
+                        getDashboardCurrency(row.dashboard)
+                      )}</span>
+                      <span>{row.dashboard.orders.submittedOrderCount.toLocaleString("en")} {t("analytics.orders")}</span>
+                      <span>{row.dashboard.operations.urgentAttentionCount.toLocaleString("en")} {t("pulse.urgent")}</span>
+                      <span>{(row.dashboard.summary.outOfStockCount ?? 0).toLocaleString("en")} {t("analytics.stockRisk")}</span>
+                    </div>
+                  ))}
+                </CardContent>
+              </Card>
+
+              <Card variant="quiet">
+                <CardContent className="grid gap-3 pt-5 md:grid-cols-2 xl:grid-cols-4">
+                  <ReportValue
+                    label={t("analytics.revenue")}
+                    value={
+                      companyCurrency
+                        ? formatMoney(companyTotals.revenueMinor, companyCurrency)
+                        : t("empty.noData")
+                    }
+                  />
+                  <ReportValue
+                    label={t("analytics.orders")}
+                    value={companyTotals.orders.toLocaleString("en")}
+                  />
+                  <ReportValue
+                    label={t("pulse.urgent")}
+                    value={companyTotals.activeAttention.toLocaleString("en")}
+                  />
+                  <ReportValue
+                    label={officeT("office.locations")}
+                    value={companyRows.length.toLocaleString("en")}
+                  />
+                </CardContent>
+              </Card>
+            </>
+          ) : null}
+
+          {scopeMode === "branch" ? (
+          <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+            <MetricCard
+              label={t("pulse.urgent")}
+              value={operations.urgentAttentionCount.toLocaleString("en")}
+              description={t("pulse.urgentDescription")}
+              icon={<UserRoundCheck className="size-4" aria-hidden="true" />}
+              tone={operations.urgentAttentionCount > 0 ? "warning" : "success"}
+            />
+            <MetricCard
+              label={t("analytics.openWaiterCalls")}
+              value={summary.openWaiterCallCount.toLocaleString("en")}
+              description={t("pulse.waiterCallsDescription")}
+              icon={<UserRoundCheck className="size-4" aria-hidden="true" />}
+              tone={summary.openWaiterCallCount > 0 ? "warning" : "success"}
+            />
+            <MetricCard
+              label={t("analytics.stockRisk")}
+              value={`${summary.lowStockCount ?? 0}/${summary.outOfStockCount ?? 0}`}
+              description={t("analytics.stockRiskDescription", {
+                count: summary.stockBlockedMenuItemCount ?? 0
+              })}
+              icon={<Boxes className="size-4" aria-hidden="true" />}
+              tone={
+                (summary.outOfStockCount ?? 0) > 0 ||
+                (summary.stockBlockedMenuItemCount ?? 0) > 0
+                  ? "warning"
+                  : "success"
+              }
+            />
+            <MetricCard
+              label={t("orders.printJobs")}
+              value={operations.failedPrintJobCount.toLocaleString("en")}
+              description={t("orders.printJobsDescription", {
+                count: operations.failedPrintJobCount.toLocaleString("en")
+              })}
+              icon={<Receipt className="size-4" aria-hidden="true" />}
+              tone={operations.failedPrintJobCount > 0 ? "warning" : "success"}
+            />
+          </section>
+
+          <Card variant="quiet">
+            <CardHeader>
+              <Badge variant="muted" className="w-fit">
+                {t("operations.snapshotBadge")}
+              </Badge>
+              <CardTitle>
+                {t("health.branchHealthTitle", {
+                  branchName: selectedBranch.name
+                })}
+              </CardTitle>
+              <CardDescription>
+                {operations.activeAttentionCount > 0
+                  ? t("health.descriptions.needsManagerAttention")
+                  : t("health.descriptions.calm")}
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+              <ReportValue
+                label={t("analytics.revenue")}
+                value={formatMoney(summary.paidRevenueMinor, currency)}
+              />
+              <ReportValue
+                label={t("analytics.orders")}
+                value={orders.submittedOrderCount.toLocaleString("en")}
+              />
+              <ReportValue
+                label={t("pulse.billRequests")}
+                value={summary.activeBillRequestCount.toLocaleString("en")}
+              />
+              <ReportValue
+                label={t("analytics.topItem")}
+                value={topItemName}
+              />
+            </CardContent>
+          </Card>
+
+          <div className="grid gap-5 xl:grid-cols-2">
+            <CountRowsCard
+              title={t("orders.waiterCallsTitle")}
+              description={t("orders.waiterCallsDescription")}
+              rows={operations.waiterCallCountsByStatus}
+            />
+            <CountRowsCard
+              title={t("orders.preparationTasks")}
+              description={t("orders.preparationTasksDescription")}
+              rows={operations.preparationTaskCountsByStatus}
+            />
+          </div>
+          ) : null}
         </>
       ) : null}
 
@@ -866,6 +1341,16 @@ function OwnerDashboardContent() {
               })}
               icon={<Receipt className="size-4" aria-hidden="true" />}
               tone={operations.failedPrintJobCount > 0 ? "warning" : "success"}
+            />
+            <MetricCard
+              label={t("analytics.aiSessions")}
+              value={aiWaiter.aiSessionCount.toLocaleString("en")}
+              description={t("analytics.aiSessionsDescription", {
+                messages: aiWaiter.aiMessageCount.toLocaleString("en"),
+                escalations: aiWaiter.escalatedCount.toLocaleString("en")
+              })}
+              icon={<Bot className="size-4" aria-hidden="true" />}
+              tone="primary"
             />
           </div>
 
@@ -981,6 +1466,25 @@ function OwnerDashboardContent() {
             />
           </div>
 
+          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+            <MetricCard
+              label={t("analytics.cashOverShort")}
+              value={formatMoney(cashierShifts.totalOverShortMinor, currency)}
+              description={t("analytics.closedShiftsCount", {
+                count: cashierShifts.shiftCount.toLocaleString("en")
+              })}
+              icon={<WalletCards className="size-4" aria-hidden="true" />}
+              tone={cashierShifts.totalOverShortMinor === 0 ? "success" : "warning"}
+            />
+            <MetricCard
+              label={t("analytics.topItem")}
+              value={topItemName}
+              description={t("analytics.topItemDescription")}
+              icon={<ShoppingBag className="size-4" aria-hidden="true" />}
+              tone="muted"
+            />
+          </div>
+
           <div className="grid gap-5 xl:grid-cols-2">
             <MoneyRowsCard
               title={t("analytics.tenderBreakdown")}
@@ -1008,6 +1512,37 @@ function OwnerDashboardContent() {
               currency={currency}
             />
           </div>
+
+
+          {scopeMode === "company" && companyRows.length > 0 ? (
+            <Card variant="quiet">
+              <CardHeader>
+                <CardTitle>{officeT("office.locations")}</CardTitle>
+                <CardDescription>{officeT("office.insightsDescription")}</CardDescription>
+              </CardHeader>
+              <CardContent className="grid gap-2">
+                {companyRows.map((row) => (
+                  <div
+                    key={row.branch.id}
+                    className="grid gap-2 rounded-card border bg-surface/70 p-3 text-sm md:grid-cols-[minmax(0,1.5fr)_repeat(3,minmax(0,auto))] md:items-center"
+                  >
+                    <span className="font-semibold">{row.branch.name}</span>
+                    <span>{formatMoney(
+                      row.dashboard.summary.paidRevenueMinor,
+                      getDashboardCurrency(row.dashboard)
+                    )}</span>
+                    <span>{row.dashboard.orders.submittedOrderCount.toLocaleString("en")} {t("analytics.orders")}</span>
+                    <span>{row.dashboard.cashierShifts.totalOverShortMinor === 0
+                      ? t("health.levels.calm")
+                      : formatMoney(
+                          row.dashboard.cashierShifts.totalOverShortMinor,
+                          getDashboardCurrency(row.dashboard)
+                        )}</span>
+                  </div>
+                ))}
+              </CardContent>
+            </Card>
+          ) : null}
 
           <DailyReportPanel report={reportQuery.data} currency={currency} />
         </section>
