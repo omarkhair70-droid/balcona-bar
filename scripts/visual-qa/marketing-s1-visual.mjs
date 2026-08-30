@@ -95,6 +95,9 @@ async function openMobileNavigation(page) {
 }
 
 async function fillDemoRequest(page, suffix) {
+  await page.waitForFunction(
+    () => window.localStorage.getItem("balcona.locale") !== null
+  );
   await page.getByLabel("Your name").fill(`Marketing QA ${suffix}`);
   await page.getByLabel("Business name").fill(`Balcona QA ${suffix}`);
   await page.getByLabel("Work email").fill(
