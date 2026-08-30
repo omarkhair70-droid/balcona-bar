@@ -93,6 +93,11 @@ export default () => ({
       appEnvironment() !== "production",
     checkoutBaseUrl:
       process.env.ONLINE_PAYMENT_CHECKOUT_BASE_URL ?? "http://localhost:3001",
+    maestr: {
+      apiUrl: process.env.MAESTR_API_URL || undefined,
+      apiKey: process.env.MAESTR_API_KEY || undefined,
+      timeoutMs: Number.parseInt(process.env.MAESTR_TIMEOUT_MS ?? "10000", 10),
+    },
     fawry: {
       checkoutUrl:
         process.env.FAWRY_CHECKOUT_URL ??
