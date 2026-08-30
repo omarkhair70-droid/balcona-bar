@@ -73,7 +73,7 @@
       "confirming": "تأكيد...",
       "currentBillFallback": "الحساب الحالي",
       "currentBillState": "حالة الحساب الحالي",
-      "description": "اطلب الحساب عندما تكون ترابيزتك جاهزة. تظهر حالة الحساب الحالية عندما يرجعها النظام.",
+      "description": "اطلب الحساب، تابع حالته، وكمّل الدفع من نفس جلسة الترابيزة.",
       "latestOnlinePayment": "آخر دفعة إلكترونية: {status}{provider}.",
       "latestOnlinePaymentProvider": " عبر {provider}",
       "mockCheckoutUrl": "رابط دفع تجريبي: {url}",
@@ -93,7 +93,25 @@
       "stateWithBalance": "{billNumber} حالته {status} والمتبقي {price}.",
       "stateWithFallback": "{billNumber} قيد التجهيز والمتبقي {price}.",
       "title": "طلب الحساب",
-      "yourRequestActive": "طلب الحساب الخاص بك نشط بالفعل. الحالة: {status}."
+      "yourRequestActive": "طلب الحساب الخاص بك نشط بالفعل. الحالة: {status}.",
+      "eyebrow": "ترابيزتك",
+      "pageTitle": "الحساب والدفع",
+      "readyWhenYouAre": "لما تكون جاهز",
+      "readyDescription": "اطلب الحساب والفريق هيجهزه للترابيزة دي.",
+      "requestedDescription": "الفريق بيجهز حسابك. الإجمالي هيظهر هنا أول ما يبقى جاهز.",
+      "checkAgain": "تحقق تاني",
+      "tableTitle": "ترابيزة {table}",
+      "yourTable": "ترابيزتك",
+      "paymentPending": "الدفع قيد التأكيد",
+      "paymentPendingDescription": "خلي الصفحة متاحة لحد ما حالة الدفع تتأكد.",
+      "continuePayment": "كمّل الدفع",
+      "checkPayment": "تحقق من الدفع",
+      "unknownTitle": "بنتأكد من حالة الدفع",
+      "unknownDescription": "ما تدفعش مرة تانية دلوقتي. الحالة دي مش معناها إن الدفع فشل.",
+      "paymentComplete": "تم الدفع",
+      "paymentCompleteDescription": "حساب الترابيزة اتسدد.",
+      "paymentUnavailable": "الدفع أونلاين مش متاح دلوقتي. تقدر تطلب مساعدة الفريق في الحساب.",
+      "requestErrorSimple": "مقدرناش نطلب الحساب دلوقتي. حاول تاني."
     },
     "cart": {
       "clear": "مسح",
@@ -163,7 +181,9 @@
       "tableServiceUnavailable": "خدمة الترابيزة غير متاحة مؤقتا. حاول مرة أخرى بعد لحظة.",
       "timelineLoad": "تعذر تحميل الخط الزمني",
       "tableConnectionSlow": "الاتصال بالترابيزة واخد وقت أطول من المعتاد. جرّب تاني بعد لحظة.",
-      "tableTemporarilyUnavailable": "الترابيزة مش متاحة مؤقتًا. جرّب تاني بعد لحظة."
+      "tableTemporarilyUnavailable": "الترابيزة مش متاحة مؤقتًا. جرّب تاني بعد لحظة.",
+      "serviceRequestSimple": "مقدرناش نبعت الطلب. حاول تاني.",
+      "tryAgain": "حاول تاني."
     },
     "home": {
       "actionAiWaiterDescription": "اسأل عن اقتراحات مبنية على المنيو قبل اتخاذ القرار.",
@@ -234,26 +254,30 @@
       "reconnecting": "إعادة الاتصال"
     },
     "service": {
-      "aiHelpDescription": "احصل على مساعدة مبنية على المنيو، ثم نادِ ويتر بشري في أي وقت.",
-      "aiHelpTitle": "اسأل النادل الذكي أولاً",
+      "aiHelpDescription": "خد مساعدة في المنيو أو اقتراح، وبعدها إنت اللي تأكد اختيارك.",
+      "aiHelpTitle": "اسأل نادل بلكونة الذكي",
       "callAction": "نادِ الويتر",
       "callDescription": "أبلغ الفريق أنك تحتاج إلى خدمة على الترابيزة.",
       "callTitle": "نادِ الويتر",
-      "description": "نادِ الويتر، اطلب المساعدة أو الماء أو الحساب. الواجهة تبقي الطلبات النشطة ظاهرة لتجنب التكرار.",
+      "description": "اطلب من الفريق مباشرة من غير ما تقوم من ترابيزتك.",
       "eyebrow": "الخدمة",
       "helpAction": "طلب المساعدة",
       "helpDescription": "للأسئلة، أو الطلبات الخاصة، أو مساعدة الطلب.",
       "helpTitle": "تحتاج إلى مساعدة؟",
       "loadingBill": "تحميل الحساب",
       "loadingCalls": "تحميل المكالمات",
-      "recentCallsDescription": "آخر طلبات الترابيزة كما رجعها النظام.",
-      "recentCallsTitle": "مكالمات الخدمة الأخيرة",
+      "recentCallsDescription": "الطلبات النشطة والأخيرة من الترابيزة دي.",
+      "recentCallsTitle": "طلباتك",
       "requestFallback": "طلب الخدمة",
       "sending": "إرسال...",
-      "title": "اطلب الفريق دون مغادرة ترابيزتك",
+      "title": "محتاج حاجة؟",
       "waterAction": "طلب المياه",
       "waterDescription": "اطلب ماء من غير ما تسيب تجربة الترابيزة.",
-      "waterTitle": "الماء"
+      "waterTitle": "الماء",
+      "requestAlreadyActive": "الفريق عنده الطلب ده بالفعل.",
+      "teamNotified": "الفريق اتبلغ",
+      "teamOnWay": "في الطريق",
+      "requestDone": "تم"
     },
     "shell": {
       "ambientMood": "مزاج",
@@ -266,7 +290,10 @@
       "servicePaceDescription": "تباين دافئ، مساحات هادئة، وتصميم يبدأ بالترابيزة",
       "servicePaceTitle": "سرعة خدمة المساء",
       "tonight": "الليلة",
-      "guestOrdering": "اطلب من ترابيزتك"
+      "guestOrdering": "اطلب من ترابيزتك",
+      "currentVenue": "المكان",
+      "dineIn": "داخل المكان",
+      "table": "ترابيزة"
     },
     "smartTable": "الترابيزة الذكية",
     "status": {

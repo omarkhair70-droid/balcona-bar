@@ -1,15 +1,17 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
 import { Bell, ClipboardList, ReceiptText, Utensils } from "lucide-react";
 import { useTranslations } from "@/lib/i18n/i18n-provider";
 import { cn } from "@/lib/utils/cn";
+import type { CustomerSessionSection } from "./customer-session-screen";
 
 type CustomerBottomNavProps = {
   sessionId: string;
-  active: "home" | "menu" | "cart" | "status" | "service";
+  active: CustomerSessionSection;
   cartCount?: number;
+  orderSignal?: boolean;
+  billSignal?: boolean;
 };
 
 type GuestNavKey = "menu" | "order" | "service" | "bill";
@@ -18,47 +20,35 @@ const navItems = [
   { key: "menu", labelKey: "menu", icon: Utensils, href: "/menu" },
   { key: "order", labelKey: "order", icon: ClipboardList, href: "/status" },
   { key: "service", labelKey: "service", icon: Bell, href: "/service" },
-  { key: "bill", labelKey: "bill", icon: ReceiptText, href: "/service#bill" }
+  { key: "bill", labelKey: "bill", icon: ReceiptText, href: "/bill" }
 ] as const;
 
-function getActiveKey(
-  active: CustomerBottomNavProps["active"],
-  hash: string
-): GuestNavKey | null {
-  if (active === "menu") {
+function getActiveKey(active: CustomerSessionSection): GuestNavKey | null {
+  if (active === "menu" || active === "cart") {
     return "menu";
   }
-
   if (active === "status") {
     return "order";
   }
-
   if (active === "service") {
-    return hash === "#bill" ? "bill" : "service";
+    return "service";
   }
-
+  if (active === "bill") {
+    return "bill";
+  }
   return null;
 }
 
 export function CustomerBottomNav({
   sessionId,
   active,
-  cartCount = 0
+  cartCount = 0,
+  orderSignal = false,
+  billSignal = false
 }: CustomerBottomNavProps) {
   const t = useTranslations("navigation");
   const tCustomer = useTranslations("customer");
-  const [hash, setHash] = useState("");
-
-  useEffect(() => {
-    const syncHash = () => setHash(window.location.hash);
-
-    syncHash();
-    window.addEventListener("hashchange", syncHash);
-
-    return () => window.removeEventListener("hashchange", syncHash);
-  }, []);
-
-  const activeKey = getActiveKey(active, hash);
+  const activeKey = getActiveKey(active);
 
   return (
     <nav
@@ -69,6 +59,9 @@ export function CustomerBottomNav({
         {navItems.map((item) => {
           const Icon = item.icon;
           const isActive = activeKey === item.key;
+          const hasSignal =
+            (item.key === "order" && orderSignal) ||
+            (item.key === "bill" && billSignal);
 
           return (
             <Link
@@ -86,6 +79,8 @@ export function CustomerBottomNav({
                 <span className="absolute end-2 top-1 flex min-w-4 items-center justify-center rounded-full bg-accent px-1 text-[9px] font-black text-accent-foreground">
                   {cartCount}
                 </span>
+              ) : hasSignal && !isActive ? (
+                <span className="absolute end-3 top-2 size-1.5 rounded-full bg-accent" />
               ) : null}
             </Link>
           );

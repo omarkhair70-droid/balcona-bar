@@ -73,7 +73,7 @@
       "confirming": "Confirming...",
       "currentBillFallback": "current bill",
       "currentBillState": "Current bill state",
-      "description": "Ask for the bill when your table is ready. Existing bill state is shown when the backend returns it.",
+      "description": "Request the bill, follow its status and finish payment from the same table session.",
       "latestOnlinePayment": "Latest online payment: {status}{provider}.",
       "latestOnlinePaymentProvider": " via {provider}",
       "mockCheckoutUrl": "Mock checkout URL: {url}",
@@ -93,7 +93,25 @@
       "stateWithBalance": "{billNumber} is {status} with {price} remaining.",
       "stateWithFallback": "{billNumber} is being prepared with {price} remaining.",
       "title": "Bill request",
-      "yourRequestActive": "Your bill request is already active. Status: {status}."
+      "yourRequestActive": "Your bill request is already active. Status: {status}.",
+      "eyebrow": "Your table",
+      "pageTitle": "Bill & payment",
+      "readyWhenYouAre": "Ready when you are",
+      "readyDescription": "Request the bill and the team will prepare it for this table.",
+      "requestedDescription": "The team is preparing your bill. The total will appear here when it is ready.",
+      "checkAgain": "Check again",
+      "tableTitle": "Table {table}",
+      "yourTable": "Your table",
+      "paymentPending": "Payment pending",
+      "paymentPendingDescription": "Keep this page available while payment is confirmed.",
+      "continuePayment": "Continue payment",
+      "checkPayment": "Check payment",
+      "unknownTitle": "We're checking your payment",
+      "unknownDescription": "Don't pay again yet. This does not mean the payment failed.",
+      "paymentComplete": "Payment complete",
+      "paymentCompleteDescription": "Your table bill is settled.",
+      "paymentUnavailable": "Online payment is not available right now. You can still ask the team to help with the bill.",
+      "requestErrorSimple": "We could not request the bill yet. Please try again."
     },
     "cart": {
       "clear": "Clear",
@@ -163,7 +181,9 @@
       "tableServiceUnavailable": "The table service is temporarily unavailable. Please try again in a moment.",
       "timelineLoad": "Timeline could not load",
       "tableConnectionSlow": "The table connection is taking longer than expected. Try again in a moment.",
-      "tableTemporarilyUnavailable": "This table is temporarily unavailable. Try again in a moment."
+      "tableTemporarilyUnavailable": "This table is temporarily unavailable. Try again in a moment.",
+      "serviceRequestSimple": "We could not send that request. Please try again.",
+      "tryAgain": "Please try again."
     },
     "home": {
       "actionAiWaiterDescription": "Ask for menu-grounded suggestions before deciding.",
@@ -234,26 +254,30 @@
       "reconnecting": "Reconnecting"
     },
     "service": {
-      "aiHelpDescription": "Get menu-grounded help, then ask a human waiter here whenever you prefer.",
-      "aiHelpTitle": "Ask AI waiter first",
+      "aiHelpDescription": "Get menu help or a recommendation, then confirm what you want.",
+      "aiHelpTitle": "Ask Balcona AI Waiter",
       "callAction": "Call",
       "callDescription": "Let the team know you need service at the table.",
       "callTitle": "Call waiter",
-      "description": "Call a waiter, ask for help, request water, or ask for the bill. The UI keeps active requests visible to prevent noisy repeats.",
+      "description": "Ask the team directly without leaving your table.",
       "eyebrow": "Service",
       "helpAction": "Ask for help",
       "helpDescription": "For questions, special requests, or order help.",
       "helpTitle": "Need help",
       "loadingBill": "Loading bill",
       "loadingCalls": "Loading calls",
-      "recentCallsDescription": "Latest table requests returned by the backend.",
-      "recentCallsTitle": "Recent service calls",
+      "recentCallsDescription": "Active and recent requests from this table.",
+      "recentCallsTitle": "Your requests",
       "requestFallback": "Service request",
       "sending": "Sending...",
-      "title": "Ask the team without leaving your table",
+      "title": "Need anything?",
       "waterAction": "Request water",
       "waterDescription": "Ask for water without leaving the table experience.",
-      "waterTitle": "Water"
+      "waterTitle": "Water",
+      "requestAlreadyActive": "The team already has this request.",
+      "teamNotified": "Team notified",
+      "teamOnWay": "On the way",
+      "requestDone": "Done"
     },
     "shell": {
       "ambientMood": "Mood",
@@ -266,7 +290,10 @@
       "servicePaceDescription": "Warm contrast, calm spacing, table-first layout",
       "servicePaceTitle": "Evening service pace",
       "tonight": "Tonight",
-      "guestOrdering": "Order at your table"
+      "guestOrdering": "Order at your table",
+      "currentVenue": "Your venue",
+      "dineIn": "Dine-in",
+      "table": "Table"
     },
     "smartTable": "Smart table",
     "status": {
