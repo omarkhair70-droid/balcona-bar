@@ -11,23 +11,29 @@ export function StaffOverviewPage() {
   const accessToken = useStaffAuthStore((state) => state.accessToken);
   const effectiveAccess = useStaffAuthStore((state) => state.effectiveAccess);
   const defaultBranch = useStaffAuthStore((state) => state.defaultBranch);
-  const [hydrated, setHydrated] = useState(
-    useStaffAuthStore.persist.hasHydrated()
-  );
+  const [hydrated, setHydrated] = useState(false);
 
   useEffect(() => {
-    if (hydrated) {
+    const persist = useStaffAuthStore.persist;
+
+    if (!persist) {
+      setHydrated(true);
       return;
     }
 
-    const unsubscribe = useStaffAuthStore.persist.onFinishHydration(() => {
+    if (persist.hasHydrated()) {
+      setHydrated(true);
+      return;
+    }
+
+    const unsubscribe = persist.onFinishHydration(() => {
       setHydrated(true);
     });
 
-    void useStaffAuthStore.persist.rehydrate();
+    void persist.rehydrate();
 
     return unsubscribe;
-  }, [hydrated]);
+  }, []);
 
   useEffect(() => {
     if (!hydrated) {
