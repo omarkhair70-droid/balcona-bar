@@ -183,7 +183,7 @@ export function CustomerBillPage({ sessionId }: CustomerBillPageProps) {
           ? customerAction.url
           : checkoutUrl;
 
-      if (actionUrl && provider !== "mock") {
+      if (actionUrl) {
         window.location.assign(actionUrl);
       }
     },
@@ -229,7 +229,7 @@ export function CustomerBillPage({ sessionId }: CustomerBillPageProps) {
     customerAction?.type === "deep_link"
       ? customerAction.url
       : checkoutUrl;
-  const isHostedCheckout = Boolean(actionUrl) && provider !== "mock";
+  const isHostedCheckout = Boolean(actionUrl);
   const qrPaymentValue =
     customerAction?.type === "qr" ? customerAction.value : undefined;
   const paymentReference =
