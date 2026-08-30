@@ -10,14 +10,12 @@ import {
 } from "@tanstack/react-query";
 import {
   Banknote,
-  BellRing,
   CheckCircle2,
   FileText,
   LogIn,
   LogOut,
   MinusCircle,
   PlusCircle,
-  Receipt,
   RefreshCw,
 } from "lucide-react";
 import { useMemo, useState } from "react";
@@ -35,9 +33,7 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { Input } from "@/components/ui/input";
 import { ServiceStaffShell, useServiceView } from "@/features/staff/service-staff-shell";
 import {
-  getBillRequestStatus,
   getOrderId,
-  getOrderStatus,
   getOrderTableSessionId,
 } from "@/features/staff/cashier-data";
 import {
@@ -119,8 +115,6 @@ type CloseShiftAction = {
   payload: CloseCashierShiftPayload;
 };
 
-const activeOrderStatuses = new Set(["cashier_accepted", "preparing", "ready"]);
-const activeBillStatuses = new Set(["open", "acknowledged", "presented"]);
 const emptyRecords: Record<string, unknown>[] = [];
 
 function amountInputToMinor(value: string, fallbackMinor = 0) {
@@ -164,22 +158,6 @@ function getSnapshotNumber(
 
 function minorToInput(amountMinor: number) {
   return (amountMinor / 100).toFixed(2);
-}
-
-function countOrdersByStatus(
-  orders: Record<string, unknown>[],
-  predicate: (status: string) => boolean,
-) {
-  return orders.filter((order) => predicate(getOrderStatus(order))).length;
-}
-
-function countBillsByStatus(
-  billRequests: Record<string, unknown>[],
-  predicate: (status: string) => boolean,
-) {
-  return billRequests.filter((billRequest) =>
-    predicate(getBillRequestStatus(billRequest)),
-  ).length;
 }
 
 function NoticeBanner({ notice }: { notice?: Notice }) {
