@@ -116,7 +116,7 @@ export function OfficeControlSection({
   children: ReactNode;
 }) {
   return (
-    <Card className="border-[#DADAD5] bg-white shadow-none">
+    <Card className="min-w-0 border-[#DADAD5] bg-white shadow-none">
       <CardHeader className="gap-3 border-b border-[#E6E6E1] sm:flex-row sm:items-start sm:justify-between">
         <div>
           <CardTitle className="text-base">{title}</CardTitle>
@@ -128,7 +128,7 @@ export function OfficeControlSection({
         </div>
         {action ? <div className="shrink-0">{action}</div> : null}
       </CardHeader>
-      <CardContent className="pt-4">{children}</CardContent>
+      <CardContent className="min-w-0 pt-4">{children}</CardContent>
     </Card>
   );
 }
