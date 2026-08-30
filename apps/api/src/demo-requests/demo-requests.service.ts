@@ -89,7 +89,7 @@ export class DemoRequestsService {
           targetId: updated.id,
           metadata: {
             status: updated.status,
-            lastContactedAt: updated.lastContactedAt,
+            lastContactedAt: updated.lastContactedAt?.toISOString() ?? null,
             notesUpdated: body.internalNotes !== undefined,
           },
         },
