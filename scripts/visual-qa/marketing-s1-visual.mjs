@@ -76,6 +76,24 @@ async function screenshot(page, name) {
   evidence.screenshots.push(name);
 }
 
+async function openMobileNavigation(page) {
+  const toggle = page.getByRole("button", { name: "Toggle navigation" });
+  await toggle.waitFor({ state: "visible" });
+
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    if ((await toggle.getAttribute("aria-expanded")) === "true") {
+      return;
+    }
+
+    await toggle.click();
+    await page.waitForTimeout(350);
+  }
+
+  await page
+    .locator("#marketing-mobile-navigation")
+    .waitFor({ state: "visible", timeout: 5_000 });
+}
+
 async function fillDemoRequest(page, suffix) {
   await page.getByLabel("Your name").fill(`Marketing QA ${suffix}`);
   await page.getByLabel("Business name").fill(`Balcona QA ${suffix}`);
@@ -172,7 +190,7 @@ try {
 
   await openRoute(mobilePage, "/");
   const mobileMenu = mobilePage.getByRole("button", { name: "Toggle navigation" });
-  await mobileMenu.click();
+  await openMobileNavigation(mobilePage);
   record(
     "mobile navigation exposes key CTAs",
     (await mobilePage.getByRole("link", { name: "Request a demo" }).count()) > 0 &&
@@ -191,8 +209,8 @@ try {
   const rtlPage = await rtl.newPage();
   await rtlPage.emulateMedia({ reducedMotion: "reduce" });
   await openRoute(rtlPage, "/");
-  await rtlPage.getByRole("button", { name: "Toggle navigation" }).click();
-  await rtlPage.getByRole("button", { name: "العربية" }).click();
+  await openMobileNavigation(rtlPage);
+  await rtlPage.getByRole("button", { name: "العربية", exact: true }).last().click();
   await rtlPage.waitForFunction(() => document.documentElement.dir === "rtl");
   const rtlState = await rtlPage.evaluate(() => ({
     dir: document.documentElement.dir,
