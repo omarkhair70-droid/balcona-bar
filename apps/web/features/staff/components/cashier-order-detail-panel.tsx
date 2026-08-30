@@ -23,6 +23,7 @@ import {
   getOrderNextExpectedRole,
   getOrderNumber,
   getOrderProgressStep,
+  getOrderSource,
   getOrderStatus,
   getOrderSubmittedAt,
   getOrderTable,
@@ -68,6 +69,22 @@ type CashierOrderDetailPanelProps = {
   onCancel: (reason: string) => void;
   onComplete: () => void;
 };
+
+function formatOrderAge(value: string) {
+  const parsed = Date.parse(value);
+
+  if (!Number.isFinite(parsed)) {
+    return "—";
+  }
+
+  const minutes = Math.max(0, Math.floor((Date.now() - parsed) / 60_000));
+
+  if (minutes < 60) {
+    return `${minutes}m`;
+  }
+
+  return `${Math.floor(minutes / 60)}h`;
+}
 
 type BadgeVariant = "default" | "muted" | "success" | "warning" | "danger";
 
@@ -163,6 +180,10 @@ export function CashierOrderDetailPanel({
   const canComplete = order ? orderAllowsAction(order, "complete") : false;
   const progressStep = order ? getOrderProgressStep(order) : "";
   const nextExpectedRole = order ? getOrderNextExpectedRole(order) : "";
+  const orderSource = order ? getOrderSource(order) : "";
+  const submittedAge = order
+    ? formatOrderAge(getOrderSubmittedAt(order))
+    : "—";
   const disabledReason = getCashierDisabledReason(
     status,
     progressStep,
@@ -213,7 +234,8 @@ export function CashierOrderDetailPanel({
                     {getOrderNumber(order)}
                   </p>
                   <p className="mt-1 text-sm text-[#A99B8E]">
-                    {getTableLabel(getOrderTable(order), getOrderFloor(order))}
+                    {getTableLabel(getOrderTable(order), getOrderFloor(order))} ·{" "}
+                    {submittedAge}
                   </p>
                 </div>
                 <div className="text-end">
@@ -228,12 +250,6 @@ export function CashierOrderDetailPanel({
                   </p>
                 </div>
               </div>
-              <p className="mt-4 inline-flex items-center gap-2 text-xs text-[#91857A]">
-                <Clock3 className="size-3.5" aria-hidden="true" />
-                {t("orders.submittedAt", {
-                  date: formatDateTime(getOrderSubmittedAt(order))
-                })}
-              </p>
               {getOrderCustomerNote(order) ? (
                 <div className="mt-4 rounded-md border border-[#3A3028] bg-[#211A15] p-3">
                   <p className="text-[10px] font-semibold uppercase tracking-[0.1em] text-[#8F8176]">
@@ -242,22 +258,6 @@ export function CashierOrderDetailPanel({
                   <p className="mt-1.5 text-sm text-[#D9CCC0]">
                     {getOrderCustomerNote(order)}
                   </p>
-                </div>
-              ) : null}
-              {progressStep || nextExpectedRole ? (
-                <div className="mt-4 flex flex-wrap gap-2">
-                  {progressStep ? (
-                    <Badge variant="default">
-                      {humanizeStatus(progressStep)}
-                    </Badge>
-                  ) : null}
-                  {nextExpectedRole ? (
-                    <Badge variant="muted">
-                      {t("orders.nextRole", {
-                        role: humanizeStatus(nextExpectedRole)
-                      })}
-                    </Badge>
-                  ) : null}
                 </div>
               ) : null}
             </div>
@@ -349,6 +349,37 @@ export function CashierOrderDetailPanel({
                 </div>
               )}
             </section>
+
+            <div className="grid gap-3 sm:grid-cols-3">
+              <div className="rounded-md border border-[#3A3028] bg-[#211A15] p-3">
+                <p className="text-[11px] text-[#91857A]">
+                  {t("orders.sourceLabel")}
+                </p>
+                <p className="mt-1 text-sm font-semibold text-[#F6EBDD]">
+                  {orderSource || "QR Session"}
+                </p>
+              </div>
+              <div className="rounded-md border border-[#3A3028] bg-[#211A15] p-3">
+                <p className="text-[11px] text-[#91857A]">
+                  {t("orders.preparationLabel")}
+                </p>
+                <p className="mt-1 text-sm font-semibold text-[#F6EBDD]">
+                  {progressStep
+                    ? humanizeStatus(progressStep)
+                    : t("orders.preparationUnknown")}
+                </p>
+              </div>
+              <div className="rounded-md border border-[#3A3028] bg-[#211A15] p-3">
+                <p className="text-[11px] text-[#91857A]">
+                  {t("orders.nextRoleLabel")}
+                </p>
+                <p className="mt-1 text-sm font-semibold text-[#F6EBDD]">
+                  {nextExpectedRole
+                    ? humanizeStatus(nextExpectedRole)
+                    : t("orders.nextRoleUnknown")}
+                </p>
+              </div>
+            </div>
 
             <CashierActionBar
               canAccept={canAccept}
