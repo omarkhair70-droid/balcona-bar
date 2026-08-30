@@ -395,8 +395,20 @@ async function capture(browser, {
     throw new Error(`${label}: document horizontal overflow ${JSON.stringify(metrics)}`);
   }
 
-  if (consoleErrors.length > 0) {
-    throw new Error(`${label}: console errors: ${consoleErrors.join(" | ")}`);
+  const unexpectedConsoleErrors =
+    scenario === "error"
+      ? consoleErrors.filter(
+          (message) =>
+            !message.includes(
+              "Failed to load resource: the server responded with a status of 500"
+            )
+        )
+      : consoleErrors;
+
+  if (unexpectedConsoleErrors.length > 0) {
+    throw new Error(
+      `${label}: console errors: ${unexpectedConsoleErrors.join(" | ")}`
+    );
   }
 
   const screenshot = path.join(OUTPUT_DIR, `${label}.png`);
