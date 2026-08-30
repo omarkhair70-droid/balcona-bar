@@ -11,7 +11,6 @@ import {
   CreditCard,
   Languages,
   MapPinned,
-  QrCode,
   Rocket,
   Settings2,
   Sparkles,
@@ -129,11 +128,16 @@ export function SetupReadinessFrame({
         id: "home" as const,
         label: L(locale, "Setup Home", "الرئيسية"),
         icon: ClipboardCheck,
-        state: launchSummary?.readyForPilot
-          ? ("ready" as const)
-          : launchSummary?.status === "blocked"
+        state: launchSummary?.status === "blocked"
+          ? ("blocked" as const)
+          : phaseStatusFromKeys(onboarding, [
+                "online_payment_provider_ready",
+                "physical_printer_hardware_ready"
+              ]) === "blocked"
             ? ("blocked" as const)
-            : ("needs_attention" as const)
+            : launchSummary?.readyForPilot
+              ? ("ready" as const)
+              : ("needs_attention" as const)
       },
       {
         id: "business" as const,
@@ -179,7 +183,8 @@ export function SetupReadinessFrame({
         icon: ChefHat,
         state: phaseStatusFromKeys(onboarding, [
           "kds_ready",
-          "printer_foundation_ready"
+          "printer_foundation_ready",
+          "physical_printer_hardware_ready"
         ])
       },
       {
@@ -215,11 +220,20 @@ export function SetupReadinessFrame({
         id: "final" as const,
         label: L(locale, "Final readiness", "الجاهزية النهائية"),
         icon: Rocket,
-        state: launchSummary?.readyForPilot
-          ? ("ready" as const)
-          : launchSummary?.status === "blocked"
+        state: launchSummary?.status === "blocked"
+          ? ("blocked" as const)
+          : phaseStatusFromKeys(onboarding, [
+                "online_payment_provider_ready",
+                "physical_printer_hardware_ready"
+              ]) === "blocked"
             ? ("blocked" as const)
-            : ("needs_attention" as const)
+            : launchSummary?.readyForPilot &&
+                phaseStatusFromKeys(onboarding, [
+                  "online_payment_provider_ready",
+                  "physical_printer_hardware_ready"
+                ]) === "ready"
+              ? ("ready" as const)
+              : ("needs_attention" as const)
       }
     ],
     [locale, onboarding, launchSummary]
