@@ -12,7 +12,6 @@ import {
   Layers3,
   LinkIcon,
   Loader2,
-  MonitorPlay,
   Printer,
   QrCode,
   RefreshCw,
@@ -45,7 +44,6 @@ import {
   branchTableAdminTabs,
   buildQrTokenFromParts,
   copyText,
-  formatBranchAdminDate,
   getBranchAdminErrorMessage,
   humanizeBranchAdminValue,
   slugifyBranchAdminValue,
@@ -1161,148 +1159,6 @@ function QrLinksSection({
         ) : null}
       </CardContent>
     </Card>
-  );
-}
-
-function ActiveSessionsSection({
-  overview
-}: {
-  overview: BranchAdminOverviewResult;
-}) {
-  return (
-    <Card variant="glass">
-      <CardHeader>
-        <Badge variant="muted">Live table sessions</Badge>
-        <CardTitle>Active Sessions</CardTitle>
-        <CardDescription>
-          Current open QR sessions for the selected branch. No destructive bulk
-          close actions are included in this phase.
-        </CardDescription>
-      </CardHeader>
-      <CardContent className="grid gap-3">
-        {overview.activeSessions.map((session) => (
-          <div key={session.id} className="rounded-card border bg-surface/70 p-4">
-            <div className="flex flex-wrap items-start justify-between gap-3">
-              <div>
-                <div className="flex flex-wrap items-center gap-2">
-                  <p className="font-semibold">
-                    {session.table?.displayName ?? session.tableId}
-                  </p>
-                  <Badge variant="success">{session.status}</Badge>
-                  {session.tableAttentionSnapshot ? (
-                    <Badge
-                      variant={statusVariant(
-                        session.tableAttentionSnapshot.status,
-                        session.tableAttentionSnapshot.status === "normal"
-                      )}
-                    >
-                      {humanizeBranchAdminValue(
-                        session.tableAttentionSnapshot.status
-                      )}
-                    </Badge>
-                  ) : null}
-                </div>
-                <p className="mt-1 text-sm text-muted-foreground">
-                  {session.guestLabel ?? "Guest"} / party{" "}
-                  {session.partySize ?? "not set"}
-                </p>
-                <p className="mt-1 text-xs text-muted-foreground">
-                  Started {formatBranchAdminDate(session.startedAt)} / last seen{" "}
-                  {formatBranchAdminDate(session.lastSeenAt)}
-                </p>
-              </div>
-              <Link
-                href={`/customer/session/${session.id}/status`}
-                className={buttonVariants({ variant: "secondary", size: "sm" })}
-              >
-                <MonitorPlay className="size-3.5" aria-hidden="true" />
-                Status
-              </Link>
-            </div>
-          </div>
-        ))}
-        {overview.activeSessions.length === 0 ? (
-          <EmptyState
-            title="No active sessions"
-            description="Open customer table sessions will appear here."
-          />
-        ) : null}
-      </CardContent>
-    </Card>
-  );
-}
-
-function SetupIssuesSection({
-  overview
-}: {
-  overview: BranchAdminOverviewResult;
-}) {
-  const readyForQrDemo =
-    overview.selectedBranch?.status === "active" &&
-    overview.stats.activeTables > 0 &&
-    overview.stats.tablesMissingQrToken === 0 &&
-    overview.setupIssues.every((issue) => issue.severity !== "error");
-
-  return (
-    <section className="grid gap-4 xl:grid-cols-[0.8fr_1.2fr]">
-      <Card variant={readyForQrDemo ? "accent" : "quiet"}>
-        <CardHeader>
-          <Badge variant={readyForQrDemo ? "success" : "warning"}>
-            {readyForQrDemo ? "Ready for QR demo" : "Needs setup"}
-          </Badge>
-          <CardTitle>Readiness</CardTitle>
-          <CardDescription>
-            A branch is demo-ready when it is active, has active tables, QR
-            tokens exist, and no blocking setup issue remains.
-          </CardDescription>
-        </CardHeader>
-      </Card>
-      <Card variant="glass">
-        <CardHeader>
-          <Badge variant="muted">Backend warnings</Badge>
-          <CardTitle>Setup Issues</CardTitle>
-          <CardDescription>
-            These warnings come from the Branch/Table Admin API, not frontend
-            guesses.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="grid gap-3">
-          {overview.setupIssues.map((issue) => (
-            <div
-              key={`${issue.code}-${issue.tableId ?? issue.branchId ?? issue.scope}`}
-              className="rounded-card border bg-surface/70 p-4"
-            >
-              <div className="flex flex-wrap items-center gap-2">
-                <Badge
-                  variant={issue.severity === "error" ? "danger" : "warning"}
-                >
-                  {issue.severity}
-                </Badge>
-                <Badge variant="muted">
-                  {humanizeBranchAdminValue(issue.scope)}
-                </Badge>
-              </div>
-              <p className="mt-2 text-sm">{issue.message}</p>
-              <p className="mt-1 text-xs text-muted-foreground">{issue.code}</p>
-            </div>
-          ))}
-          {overview.setupIssues.length === 0 ? (
-            <div className="flex items-start gap-3 rounded-card border border-success/40 bg-success/10 p-4">
-              <CheckCircle2
-                className="mt-0.5 size-4 text-success"
-                aria-hidden="true"
-              />
-              <div>
-                <p className="font-semibold">No setup issues</p>
-                <p className="text-sm text-muted-foreground">
-                  This branch is ready for customer QR previews.
-                </p>
-              </div>
-            </div>
-          ) : null}
-        </CardContent>
-      </Card>
-    </section>
   );
 }
 
