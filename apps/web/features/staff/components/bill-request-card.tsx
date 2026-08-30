@@ -194,20 +194,6 @@ export function BillRequestCard({
           : unknownOnlinePaymentCount > 0
             ? t("billRequests.onlineUnknown")
             : t("billRequests.manualOnly");
-  const acknowledgeDisabledReason = !billRequestId
-    ? t("billRequests.acknowledgeMissingId")
-    : requestStatus !== "open"
-      ? t("billRequests.acknowledgeStatus", {
-          status: humanizeStatus(requestStatus),
-        })
-      : "";
-  const presentDisabledReason = !billRequestId
-    ? t("billRequests.presentMissingId")
-    : requestStatus !== "open" && requestStatus !== "acknowledged"
-      ? t("billRequests.presentStatus", {
-          status: humanizeStatus(requestStatus),
-        })
-      : "";
   const paymentDisabledReason = !billId
     ? t("billRequests.paymentCreatedRequired")
     : paymentBlockedReason
@@ -435,14 +421,6 @@ export function BillRequestCard({
           ) : null}
         </div>
       ) : null}
-      {acknowledgeDisabledReason || presentDisabledReason ? (
-        <div className="mt-3 grid gap-1 text-xs text-[#91857A]">
-          {acknowledgeDisabledReason ? (
-            <p>{acknowledgeDisabledReason}</p>
-          ) : null}
-          {presentDisabledReason ? <p>{presentDisabledReason}</p> : null}
-        </div>
-      ) : null}
       {paymentDisabledReason &&
       (!billId || balanceDueMinor <= 0 || !canRecordPayment) ? (
         <div className="mt-3 rounded-md border border-[#3A3028] bg-[#18130F] p-3 text-xs text-[#91857A]">
@@ -450,7 +428,9 @@ export function BillRequestCard({
         </div>
       ) : null}
 
-      {billId && balanceDueMinor > 0 ? (
+      {billId &&
+      balanceDueMinor > 0 &&
+      (billStatus === "presented" || billStatus === "payment_pending") ? (
         <form
           className="mt-4 grid gap-3 rounded-md border border-[#47392E] bg-[#18130F] p-3"
           onSubmit={(event) => {
