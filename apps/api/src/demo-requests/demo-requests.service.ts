@@ -63,9 +63,13 @@ export class DemoRequestsService {
     return request;
   }
 
-  async update(id: string, body: UpdateDemoRequestDto) {
+  async update(
+    id: string,
+    body: UpdateDemoRequestDto,
+    platformAdminUserId?: string,
+  ) {
     await this.get(id);
-    return this.prisma.demoRequest.update({
+    const updated = await this.prisma.demoRequest.update({
       where: { id },
       data: {
         status: body.status,
@@ -75,5 +79,23 @@ export class DemoRequestsService {
           : undefined,
       },
     });
+
+    if (platformAdminUserId) {
+      await this.prisma.platformAuditEvent.create({
+        data: {
+          platformAdminUserId,
+          action: "demo_request_updated",
+          targetType: "demo_request",
+          targetId: updated.id,
+          metadata: {
+            status: updated.status,
+            lastContactedAt: updated.lastContactedAt?.toISOString() ?? null,
+            notesUpdated: body.internalNotes !== undefined,
+          },
+        },
+      });
+    }
+
+    return updated;
   }
 }

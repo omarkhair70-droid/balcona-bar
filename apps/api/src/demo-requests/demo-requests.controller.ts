@@ -10,7 +10,9 @@ import {
   UseGuards,
 } from "@nestjs/common";
 import { Request } from "express";
+import { CurrentPlatformAdmin } from "../platform-auth/decorators/current-platform-admin.decorator";
 import { PlatformSessionGuard } from "../platform-auth/guards/platform-session.guard";
+import { PlatformAuthContext } from "../platform-auth/platform-auth.types";
 import { DemoRequestRateLimitService } from "./demo-request-rate-limit.service";
 import { DemoRequestsService } from "./demo-requests.service";
 import { CreateDemoRequestDto } from "./dto/create-demo-request.dto";
@@ -47,7 +49,15 @@ export class PlatformDemoRequestsController {
   }
 
   @Patch(":id")
-  update(@Param("id") id: string, @Body() body: UpdateDemoRequestDto) {
-    return this.demoRequests.update(id, body);
+  update(
+    @CurrentPlatformAdmin() currentPlatformAdmin: PlatformAuthContext,
+    @Param("id") id: string,
+    @Body() body: UpdateDemoRequestDto,
+  ) {
+    return this.demoRequests.update(
+      id,
+      body,
+      currentPlatformAdmin.platformAdminUser.id,
+    );
   }
 }

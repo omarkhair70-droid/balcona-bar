@@ -7,7 +7,8 @@ import {
   Building2,
   Copy,
   CreditCard,
-  ExternalLink,
+  History,
+  ShieldCheck,
   KeyRound,
   Loader2,
   RefreshCw,
@@ -48,7 +49,7 @@ import type {
   TenantOnboardingStaffRole,
   UpdatePlatformSubscriptionPayload
 } from "@/lib/api/types";
-import { useTranslations } from "@/lib/i18n/i18n-provider";
+import { useI18n, useTranslations } from "@/lib/i18n/i18n-provider";
 import { usePlatformAuthStore } from "@/lib/platform/platform-auth-store";
 import { formatMoney, humanizeStatus } from "@/features/staff/staff-format";
 
@@ -175,6 +176,76 @@ function UsageGrid({ company }: { company: PlatformCompanyDetail }) {
         </Card>
       ))}
     </section>
+  );
+}
+
+function AuditActivity({ company }: { company: PlatformCompanyDetail }) {
+  const { locale } = useI18n();
+  const events = company.auditEvents ?? [];
+
+  return (
+    <Card variant="quiet" padding="lg">
+      <CardHeader>
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <CardTitle>{locale === "ar" ? "نشاط Platform" : "Platform activity"}</CardTitle>
+            <CardDescription>
+              {locale === "ar"
+                ? "أحدث تغييرات الإدارة المسجلة على هذه الشركة."
+                : "Recent recorded administration changes for this company."}
+            </CardDescription>
+          </div>
+          <History className="size-4 text-muted-foreground" aria-hidden="true" />
+        </div>
+      </CardHeader>
+      <CardContent className="grid gap-2">
+        {events.length === 0 ? (
+          <p className="text-sm text-muted-foreground">
+            {locale === "ar" ? "لا يوجد نشاط مسجل بعد." : "No recorded activity yet."}
+          </p>
+        ) : (
+          events.map((event) => {
+            const metadata = event.metadata ?? {};
+            const details = [
+              typeof metadata.planCode === "string" ? `plan ${metadata.planCode}` : null,
+              typeof metadata.status === "string" ? humanizeStatus(metadata.status) : null,
+              typeof metadata.branchSlug === "string" ? `branch ${metadata.branchSlug}` : null,
+              typeof metadata.starterTableCount === "number"
+                ? `${metadata.starterTableCount} starter tables`
+                : null
+            ].filter(Boolean);
+
+            return (
+              <div
+                key={event.id}
+                className="grid gap-1 rounded-button border bg-surface/70 p-3"
+              >
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <p className="text-sm font-semibold text-foreground">
+                    {humanizeStatus(event.action)}
+                  </p>
+                  <time className="text-xs text-muted-foreground">
+                    {new Date(event.createdAt).toLocaleString(
+                      locale === "ar" ? "ar-EG" : "en-US"
+                    )}
+                  </time>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  {event.platformAdminUser
+                    ? `${event.platformAdminUser.name} · ${event.platformAdminUser.email}`
+                    : locale === "ar"
+                      ? "Platform system"
+                      : "Platform system"}
+                </p>
+                {details.length > 0 ? (
+                  <p className="text-xs text-muted-foreground">{details.join(" · ")}</p>
+                ) : null}
+              </div>
+            );
+          })
+        )}
+      </CardContent>
+    </Card>
   );
 }
 
@@ -565,23 +636,13 @@ function CompanyDetailContent({ companyId }: { companyId: string }) {
                 {t("company.workspaceId", { companyId: data.company.id })}
               </CardDescription>
             </CardHeader>
-            <CardContent className="grid gap-3 md:grid-cols-3">
-              <Link href="/staff/setup" className={buttonVariants()}>
-                <ExternalLink className="size-4" aria-hidden="true" />
-                {t("actions.staffSetup")}
-              </Link>
-              <Link
-                href="/staff/billing"
-                className={buttonVariants({ variant: "secondary" })}
-              >
-                {t("actions.staffBilling")}
-              </Link>
-              <Link
-                href="/staff/owner"
-                className={buttonVariants({ variant: "secondary" })}
-              >
-                {t("actions.ownerDashboard")}
-              </Link>
+            <CardContent>
+              <div className="flex items-start gap-3 rounded-button border bg-surface/70 p-4">
+                <ShieldCheck className="mt-0.5 size-4 shrink-0 text-success" aria-hidden="true" />
+                <p className="text-sm leading-6 text-muted-foreground">
+                  {t("company.identityBoundary")}
+                </p>
+              </div>
             </CardContent>
           </Card>
 
@@ -666,6 +727,7 @@ function CompanyDetailContent({ companyId }: { companyId: string }) {
           </Card>
 
           <UsageGrid company={data} />
+          <AuditActivity company={data} />
         </div>
 
         <div className="grid gap-5">

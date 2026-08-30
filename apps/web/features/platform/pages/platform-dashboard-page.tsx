@@ -6,6 +6,7 @@ import {
   Activity,
   ChevronRight,
   CircleDollarSign,
+  Mail,
   Plus,
   RefreshCw,
   ShieldCheck,
@@ -18,7 +19,7 @@ import { LoadingState } from "@/components/ui/loading-state";
 import { PlatformAuthGate } from "@/features/platform/components/platform-auth-gate";
 import { PlatformShell } from "@/features/platform/platform-shell";
 import { formatErrorMessage } from "@/lib/api/error-message";
-import { getPlatformCompanies } from "@/lib/api/endpoints";
+import { getPlatformCompanies, getPlatformDemoRequests } from "@/lib/api/endpoints";
 import { platformQueryKeys } from "@/lib/api/query-keys";
 import type { PlatformCompanySummary } from "@/lib/api/types";
 import { useI18n, useTranslations } from "@/lib/i18n/i18n-provider";
@@ -179,8 +180,8 @@ function CompanyDrawer({
             <p className="mt-2 text-[11px] leading-5 text-[#85857F]">
               {L(
                 locale,
-                "This is internal Balcona plan/access state. It is not restaurant customer money and it does not claim a recurring billing provider exists.",
-                "هذه حالة خطة ووصول داخلية لبلكونة. ليست أموال عملاء المطعم ولا تدّعي وجود مزود تحصيل دوري."
+                "Plans control tenant access and entitlements. Restaurant customer payments remain outside Platform administration.",
+                "الخطط تتحكم في وصول الشركة وصلاحياتها. مدفوعات عملاء المطعم خارج إدارة Platform."
               )}
             </p>
           </section>
@@ -206,6 +207,16 @@ function PlatformDashboardContent() {
     queryKey: platformQueryKeys.companies(),
     queryFn: () => getPlatformCompanies(accessToken ?? ""),
     enabled: Boolean(accessToken)
+  });
+  const newLeadsQuery = useQuery({
+    queryKey: platformQueryKeys.demoRequests("new", ""),
+    queryFn: () =>
+      getPlatformDemoRequests(accessToken ?? "", {
+        status: "new",
+        limit: 5
+      }),
+    enabled: Boolean(accessToken),
+    staleTime: 30_000
   });
 
   if (companiesQuery.isPending) {
@@ -380,6 +391,44 @@ function PlatformDashboardContent() {
               <div className="flex items-start justify-between gap-4">
                 <div>
                   <h3 className="text-sm font-semibold">
+                    {L(locale, "Demo requests", "طلبات العرض")}
+                  </h3>
+                  <p className="mt-1 text-xs leading-5 text-[#777771]">
+                    {newLeadsQuery.isError
+                      ? L(locale, "The request queue could not load.", "تعذر تحميل قائمة الطلبات.")
+                      : L(
+                          locale,
+                          `${newLeadsQuery.data?.total ?? 0} new request(s) awaiting review.`,
+                          `${newLeadsQuery.data?.total ?? 0} طلب جديد بانتظار المراجعة.`
+                        )}
+                  </p>
+                </div>
+                <Mail className="size-4 text-[#76634A]" />
+              </div>
+              <div className="mt-3 flex flex-wrap gap-2">
+                <Link
+                  href="/platform/leads"
+                  className="inline-flex min-h-9 items-center rounded-md border border-[#D6D6D1] px-3 text-xs font-semibold"
+                >
+                  {L(locale, "Open requests", "افتح الطلبات")}
+                </Link>
+                {newLeadsQuery.isError ? (
+                  <button
+                    type="button"
+                    onClick={() => void newLeadsQuery.refetch()}
+                    className="inline-flex min-h-9 items-center gap-1.5 rounded-md border border-[#D6D6D1] px-3 text-xs font-semibold"
+                  >
+                    <RefreshCw className="size-3.5" />
+                    {L(locale, "Retry", "إعادة المحاولة")}
+                  </button>
+                ) : null}
+              </div>
+            </article>
+
+            <article className="rounded-lg border border-[#D9D9D4] bg-white p-4">
+              <div className="flex items-start justify-between gap-4">
+                <div>
+                  <h3 className="text-sm font-semibold">
                     {L(locale, "System status", "حالة النظام")}
                   </h3>
                   <p className="mt-1 text-xs leading-5 text-[#777771]">
@@ -404,13 +453,13 @@ function PlatformDashboardContent() {
               <div className="flex items-start justify-between gap-4">
                 <div>
                   <h3 className="text-sm font-semibold">
-                    {L(locale, "SaaS boundary", "حدود SaaS")}
+                    {L(locale, "Tenant plans", "خطط الشركات")}
                   </h3>
                   <p className="mt-1 text-xs leading-5 text-[#777771]">
                     {L(
                       locale,
-                      "Plan and access state are internal truth. Recurring billing provider work remains separate.",
-                      "حالة الخطة والوصول حقيقة داخلية. مزود التحصيل الدوري يظل برنامجًا منفصلًا."
+                      "Plans define tenant access, limits and enabled capabilities.",
+                      "الخطط تحدد وصول الشركة والحدود والإمكانات المفعلة."
                     )}
                   </p>
                 </div>
