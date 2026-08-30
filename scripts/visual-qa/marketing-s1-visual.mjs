@@ -191,6 +191,7 @@ try {
   const rtlPage = await rtl.newPage();
   await rtlPage.emulateMedia({ reducedMotion: "reduce" });
   await openRoute(rtlPage, "/");
+  await rtlPage.getByRole("button", { name: "Toggle navigation" }).click();
   await rtlPage.getByRole("button", { name: "العربية" }).click();
   await rtlPage.waitForFunction(() => document.documentElement.dir === "rtl");
   const rtlState = await rtlPage.evaluate(() => ({
