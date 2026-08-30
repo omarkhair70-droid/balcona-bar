@@ -1077,7 +1077,7 @@ async function newContext(browser, locale, viewport) {
 
 async function capture(browser, {
   label,
-  pathname = "/staff/owner",
+  pathname = "/office",
   hash = "",
   target,
   activeLabel,
@@ -1217,8 +1217,7 @@ try {
   results.push(
     await capture(browser, {
       label: "02-office-money-desktop",
-      hash: "#money",
-      target: "#money",
+      pathname: "/office/money",
       activeLabel: "Money"
     })
   );
@@ -1241,24 +1240,21 @@ try {
   results.push(
     await capture(browser, {
       label: "05-office-team-desktop",
-      hash: "#team",
-      target: "#team",
+      pathname: "/office/team",
       activeLabel: "Team"
     })
   );
   results.push(
     await capture(browser, {
       label: "06-office-experience-desktop",
-      hash: "#experience",
-      target: "#experience",
+      pathname: "/office/experience",
       activeLabel: "Experience"
     })
   );
   results.push(
     await capture(browser, {
       label: "07-office-settings-desktop",
-      hash: "#settings",
-      target: "#settings",
+      pathname: "/office/settings",
       activeLabel: "Settings"
     })
   );
@@ -1272,8 +1268,7 @@ try {
   results.push(
     await capture(browser, {
       label: "09-office-money-mobile-390",
-      hash: "#money",
-      target: "#money",
+      pathname: "/office/money",
       activeLabel: "Money",
       viewport: { width: 390, height: 844 }
     })
@@ -1281,8 +1276,7 @@ try {
   results.push(
     await capture(browser, {
       label: "10-office-team-ar-rtl-390",
-      hash: "#team",
-      target: "#team",
+      pathname: "/office/team",
       activeLabel: "الفريق",
       locale: "ar",
       viewport: { width: 390, height: 844 }
@@ -1291,8 +1285,7 @@ try {
   results.push(
     await capture(browser, {
       label: "11-office-settings-ar-rtl-390",
-      hash: "#settings",
-      target: "#settings",
+      pathname: "/office/settings",
       activeLabel: "الإعدادات",
       locale: "ar",
       viewport: { width: 390, height: 844 }

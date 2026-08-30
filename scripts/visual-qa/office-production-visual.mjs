@@ -1188,18 +1188,14 @@ try {
   results.push(
     await capture(browser, {
       label: "10-office-control-money-isolation",
-      routePath: "/staff/owner",
-      hash: "#money",
-      target: "#money",
+      routePath: "/office/money",
       activeLabel: "Money"
     })
   );
   results.push(
     await capture(browser, {
       label: "11-office-control-team-rtl-isolation",
-      routePath: "/staff/owner",
-      hash: "#team",
-      target: "#team",
+      routePath: "/office/team",
       activeLabel: "الفريق",
       locale: "ar",
       viewport: { width: 390, height: 844 }

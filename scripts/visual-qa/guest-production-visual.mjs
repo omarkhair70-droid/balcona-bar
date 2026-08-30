@@ -498,7 +498,7 @@ async function capture(browser, {
     });
 
     try {
-      await page.waitForURL(`**/customer/session/${SESSION_ID}/menu`, {
+      await page.waitForURL(`**/guest/session/${SESSION_ID}/menu`, {
         timeout: 15000
       });
     } catch (error) {
