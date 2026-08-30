@@ -385,4 +385,70 @@ describe('StaffAccessService', () => {
       });
     }
   });
+  it('allows branch managers to manage Office control domains in their branch', async () => {
+    const { service } = buildService(
+      buildStaffUser({
+        memberships: [
+          buildMembership({ branch: branchOne, role: StaffRole.branch_manager }),
+        ],
+      }),
+    );
+
+    for (const permission of [
+      'staff.manage',
+      'online_payments.manage',
+      'experience.manage',
+      'content.manage',
+      'settings.manage',
+      'feature_flags.manage',
+      'audit.read',
+      'saas.read',
+    ] as const) {
+      await expect(
+        service.can('staff-1', permission, { branchId: branchOne.id }),
+      ).resolves.toMatchObject({
+        allowed: true,
+        reason: 'permission_granted_by_branch_membership',
+      });
+    }
+  });
+
+  it('keeps cashier Office control access read-only and denies team/financial/settings mutations', async () => {
+    const { service } = buildService(
+      buildStaffUser({
+        memberships: [
+          buildMembership({ branch: branchOne, role: StaffRole.cashier }),
+        ],
+      }),
+    );
+
+    for (const permission of [
+      'online_payments.read',
+      'experience.read',
+      'content.read',
+      'settings.read',
+    ] as const) {
+      await expect(
+        service.can('staff-1', permission, { branchId: branchOne.id }),
+      ).resolves.toMatchObject({ allowed: true });
+    }
+
+    for (const permission of [
+      'staff.read',
+      'staff.manage',
+      'online_payments.manage',
+      'experience.manage',
+      'settings.manage',
+      'feature_flags.manage',
+      'saas.read',
+    ] as const) {
+      await expect(
+        service.can('staff-1', permission, { branchId: branchOne.id }),
+      ).resolves.toMatchObject({
+        allowed: false,
+        reason: 'permission_not_granted',
+      });
+    }
+  });
+
 });
