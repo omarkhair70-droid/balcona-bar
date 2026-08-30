@@ -7,8 +7,8 @@ import {
   Building2,
   Copy,
   CreditCard,
-  ExternalLink,
   History,
+  ShieldCheck,
   KeyRound,
   Loader2,
   RefreshCw,
@@ -636,23 +636,13 @@ function CompanyDetailContent({ companyId }: { companyId: string }) {
                 {t("company.workspaceId", { companyId: data.company.id })}
               </CardDescription>
             </CardHeader>
-            <CardContent className="grid gap-3 md:grid-cols-3">
-              <Link href="/staff/setup" className={buttonVariants()}>
-                <ExternalLink className="size-4" aria-hidden="true" />
-                {t("actions.staffSetup")}
-              </Link>
-              <Link
-                href="/staff/billing"
-                className={buttonVariants({ variant: "secondary" })}
-              >
-                {t("actions.staffBilling")}
-              </Link>
-              <Link
-                href="/staff/owner"
-                className={buttonVariants({ variant: "secondary" })}
-              >
-                {t("actions.ownerDashboard")}
-              </Link>
+            <CardContent>
+              <div className="flex items-start gap-3 rounded-button border bg-surface/70 p-4">
+                <ShieldCheck className="mt-0.5 size-4 shrink-0 text-success" aria-hidden="true" />
+                <p className="text-sm leading-6 text-muted-foreground">
+                  {t("company.identityBoundary")}
+                </p>
+              </div>
             </CardContent>
           </Card>
 
