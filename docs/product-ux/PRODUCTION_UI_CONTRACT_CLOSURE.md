@@ -1,85 +1,85 @@
-# Production UI Contract Closure
+# Balcona Service UI Contract Closure
 
 Status: ACTIVE IMPLEMENTATION
 Base: main @ 30410d45a568fe4dc6362b773c90f490f82eeca9
 Branch: fix/production-ui-contract-closure
 
-## Rule
+## Current scope
 
-The approved prototype components are the visual and interaction contract.
+Only **Service** receives a full UI-contract correction in this closure.
 
-Production integration may reuse:
+Office is frozen visually for now. Only reproducible 404 / broken-navigation defects may be changed there.
+
+Guest, Kitchen, Setup, and Platform are regression-only unless a Service change breaks them.
+
+## Service source of truth
+
+Approved contract:
+
+`apps/web/features/prototype/service-prototype.tsx`
+
+Production may reuse:
 - API endpoints;
 - query/mutation hooks;
 - auth and permission gates;
+- branch scoping;
 - realtime behavior;
 - domain policies;
+- payment truth;
 - error/loading/empty states.
 
-Production integration must not preserve a legacy page composition when it conflicts with the approved prototype.
+Production must not preserve legacy Cashier/Waiter page composition where that composition conflicts with the approved Service prototype.
 
-## Approved contracts
+## Service closure requirements
 
-- Guest: apps/web/features/prototype/guest-prototype.tsx
-- Service: apps/web/features/prototype/service-prototype.tsx
-- Kitchen: apps/web/features/prototype/kitchen-prototype.tsx
-- Office: apps/web/features/prototype/office-home-prototype.tsx
-- Setup: apps/web/features/prototype/setup-prototype.tsx
-- Platform: apps/web/features/prototype/platform-prototype.tsx
+Production Service must retain the approved mental model:
 
-## Closure order
+- Floor
+- Orders
+- Attention
+- Bills
+- Shift
 
-1. Service
-   - remove dashboard-style shell drift;
-   - keep Floor / Orders / Attention / Bills / Shift;
-   - make Cashier Orders task-first;
-   - keep real server authority and realtime.
+Cashier and Waiter/Floor remain operating modes inside one Service product.
 
-2. Office
-   - preserve the approved quiet Back Office shell;
-   - remove legacy admin-card composition;
-   - restore approved domain/sub-navigation hierarchy;
-   - start with Catalog, then Home/Operations/Insights, then Inventory/Locations/Control pages;
-   - keep all real backend capabilities.
+The production surface must be task-first rather than dashboard-first.
 
-3. Kitchen
-   - verify production board against the approved KDS contract and only fix measurable drift.
+Order, bill, shift, waiter, attention, and payment actions remain server-authoritative unless the domain already supports a safe optimistic interaction.
 
-4. Setup
-   - verify finite readiness journey against approved ten-stage contract.
+## Office boundary
 
-5. Platform
-   - verify internal SaaS control-plane composition against approved contract.
+No broad Office redesign in this closure.
 
-6. Guest
-   - regression-only unless a real contract drift is found.
+Allowed Office changes:
+- exact broken links;
+- exact canonical-route mistakes;
+- exact controls that lead to 404;
+- regression fixes caused by Service changes.
 
-## Route/source-of-truth policy
+Not allowed:
+- Home redesign;
+- Catalog visual redesign;
+- Inventory redesign;
+- Locations redesign;
+- Control-plane redesign.
 
-Canonical routes are the only user-facing product routes:
-- /guest/*
-- /service/*
-- /kitchen
-- /office/*
-- /setup
-- /platform/*
+## Canonical routes
 
-Legacy /staff/* implementation routes may remain only as internal rewrite targets while migration is in progress. They are not a second product design.
+User-facing Service routes:
+- /service/cashier
+- /service/waiter
 
-Prototype components remain implementation references until parity is closed. Public prototype routes must not become a second live product.
+Legacy /staff/cashier and /staff/waiter remain internal rewrite targets only.
 
 ## Definition of done
 
-A surface is not closed merely because it:
-- loads;
-- has no console errors;
-- passes RTL/mobile;
-- calls real APIs.
+Service is closed only when:
+- production composition matches the approved Service prototype;
+- real API/mutation/realtime behavior is preserved;
+- Cashier and Waiter/Floor work with authenticated live data;
+- desktop, handheld, and RTL pass;
+- no Service navigation produces 404;
+- Accept / reject / serve / bill / shift actions provide immediate local feedback and reconcile with server truth;
+- Guest, Kitchen, Office, Setup, and Platform regressions remain green.
 
-It closes only when:
-- canonical production composition matches the approved prototype contract;
-- real data/mutations/realtime are preserved;
-- no legacy composition is visible as a competing design;
-- route interactions do not 404;
-- desktop, handheld and RTL pass;
-- authenticated live-data timing is exercised for operational actions.
+Office 404 work closes only when the exact broken navigation is reproduced and fixed without reopening Office design.
