@@ -1153,7 +1153,18 @@
       "clear": "Clear",
       "overShort": "Over / short",
       "zCloseOnly": "Z close only",
-      "countedCashSummary": "Counted cash {amount}."
+      "countedCashSummary": "Counted cash {amount}.",
+      "drawerAdjustment": "Drawer adjustment",
+      "closeReadiness": "Close readiness",
+      "checkingCloseReadiness": "Checking...",
+      "openOrders": "Open orders",
+      "unpaidBills": "Unpaid bills",
+      "unknownPayments": "Unknown payments",
+      "closeBlockers": "Close blockers",
+      "closeReady": "Ready to close",
+      "closeBlockersDescription": "Resolve or review the remaining operational work before final close.",
+      "beginClose": "Begin close",
+      "cancelClose": "Cancel close"
     },
     "office": {
       "productLabel": "Balcona",
