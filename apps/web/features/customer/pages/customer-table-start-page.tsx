@@ -15,14 +15,12 @@ import {
 import { ApiError } from "@/lib/api/client";
 import { formatErrorMessage } from "@/lib/api/error-message";
 import { startTableSession } from "@/lib/api/endpoints";
-import { withCustomerTransientRetry } from "@/lib/customer/customer-api-reliability";
 import { assertCustomerSessionReady } from "@/lib/customer/customer-session-readiness";
 import { useCustomerSessionStore } from "@/lib/customer/customer-session-store";
 import { useTranslations } from "@/lib/i18n/i18n-provider";
 import { CustomerShell } from "@/features/customer/customer-shell";
 
 const TABLE_SESSION_START_TIMEOUT_MS = 12_000;
-const TABLE_SESSION_START_MAX_FAILURES = 3;
 
 type CustomerTableStartPageProps = {
   qrToken: string;
@@ -63,16 +61,11 @@ export function CustomerTableStartPage({
   );
   const startMutation = useMutation({
     mutationFn: async () => {
-      const result = await withCustomerTransientRetry(
-        () =>
-          startTableSession(
-            { qrToken },
-            { timeoutMs: TABLE_SESSION_START_TIMEOUT_MS },
-          ),
-        {
-          flow: "table_session_start",
-          maxAttempts: TABLE_SESSION_START_MAX_FAILURES
-        }
+      // A table-session start can commit and rotate the customer token before a
+      // client-side timeout is observed. Do not replay this POST automatically.
+      const result = await startTableSession(
+        { qrToken },
+        { timeoutMs: TABLE_SESSION_START_TIMEOUT_MS },
       );
 
       setFromStartResult(qrToken, result);
@@ -98,14 +91,7 @@ export function CustomerTableStartPage({
     mutate();
   }, [isIdle, mutate]);
 
-  const isRetrying =
-    startMutation.isPending && startMutation.failureCount > 0;
-  const loadingDescription = isRetrying
-    ? t("tableStart.retrying", {
-        attempt: startMutation.failureCount + 1,
-        max: TABLE_SESSION_START_MAX_FAILURES
-      })
-    : t("tableStart.loading");
+  const loadingDescription = t("tableStart.loading");
   const errorDescription = startMutation.isError
     ? tableStartErrorMessage(startMutation.error, qrToken, t)
     : "";
@@ -149,9 +135,7 @@ export function CustomerTableStartPage({
           {startMutation.isPending ? (
             <span className="inline-flex items-center gap-2 text-sm text-muted-foreground">
               <LoaderCircle className="size-4 animate-spin" aria-hidden="true" />
-              {isRetrying
-                ? t("tableStart.retryingConnection")
-                : t("tableStart.startingSession")}
+              {t("tableStart.startingSession")}
             </span>
           ) : null}
           {startMutation.isError ? (
