@@ -88,3 +88,6 @@ ALTER TABLE "TerminalPaymentRequest"
 ALTER TABLE "TerminalPaymentRequest"
   ADD CONSTRAINT "TerminalPaymentRequest_paymentTerminalId_fkey"
   FOREIGN KEY ("paymentTerminalId") REFERENCES "PaymentTerminal"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+ALTER TABLE "TerminalPaymentRequest"
+  ADD CONSTRAINT "TerminalPaymentRequest_requestedByStaffUserId_fkey"
+  FOREIGN KEY ("requestedByStaffUserId") REFERENCES "StaffUser"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
