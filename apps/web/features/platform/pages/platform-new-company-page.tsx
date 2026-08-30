@@ -75,12 +75,22 @@ function SuccessPanel({ result }: { result: BootstrapCompanyResult }) {
         ))}
       </div>
 
+      <div className="mt-4 rounded-md border border-[#C8D7C8] bg-white p-3">
+        <p className="text-[10px] font-semibold uppercase tracking-[0.1em] text-[#6B7F6E]">
+          {L(locale, "OWNER ACCESS", "وصول المالك")}
+        </p>
+        <p className="mt-1 text-xs leading-5 text-[#55705A]">
+          {locale === "ar"
+            ? result.passwordSetup.passwordAlreadySet
+              ? "وصول المالك مفعّل بالفعل."
+              : "أنشئ دعوة للمالك من تفاصيل الشركة لإكمال الوصول الأول."
+            : result.passwordSetup.nextStep}
+        </p>
+      </div>
+
       <div className="mt-4 flex flex-wrap gap-2">
-        <Link href={result.setupUrl} className="inline-flex min-h-10 items-center rounded-md bg-[#292925] px-3 text-xs font-semibold !text-white">
-          {L(locale, "Open Setup", "افتح Setup")}
-        </Link>
-        <Link href={`/platform/companies/${result.companyId}`} className="inline-flex min-h-10 items-center rounded-md border border-[#B7B7B1] bg-white px-3 text-xs font-semibold">
-          {L(locale, "Company detail", "تفاصيل الشركة")}
+        <Link href={`/platform/companies/${result.companyId}`} className="inline-flex min-h-10 items-center rounded-md bg-[#292925] px-3 text-xs font-semibold !text-white">
+          {L(locale, "Open company detail", "افتح تفاصيل الشركة")}
         </Link>
       </div>
 
