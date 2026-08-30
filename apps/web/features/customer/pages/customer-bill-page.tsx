@@ -171,9 +171,6 @@ export function CustomerBillPage({ sessionId }: CustomerBillPageProps) {
         queryKey: customerQueryKeys.bill(sessionId)
       });
       const created = record(result.onlinePaymentIntent);
-      const provider = (
-        stringValue(created, "provider") || result.checkout?.provider || ""
-      ).toLowerCase();
       const checkoutUrl =
         result.checkout?.url ?? stringValue(created, "providerCheckoutUrl");
       const customerAction = result.checkout?.customerAction;
@@ -212,11 +209,6 @@ export function CustomerBillPage({ sessionId }: CustomerBillPageProps) {
   const refreshedIntent = record(intentQuery.data?.onlinePaymentIntent);
   const currentIntent = refreshedIntent ?? latestIntent;
   const intentStatus = stringValue(currentIntent, "status").toLowerCase();
-  const provider = (
-    stringValue(currentIntent, "provider") ||
-    paymentMutation.data?.checkout?.provider ||
-    ""
-  ).toLowerCase();
   const checkoutUrl =
     intentQuery.data?.checkout?.url ??
     paymentMutation.data?.checkout?.url ??
