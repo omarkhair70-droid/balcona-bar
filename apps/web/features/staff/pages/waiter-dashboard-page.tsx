@@ -587,8 +587,8 @@ function WaiterDashboardContent() {
           overview={floorOverviewQuery.data}
           isLoading={floorOverviewQuery.isPending}
           error={floorOverviewQuery.error ?? undefined}
-          selectedAttentionSessionId={selectedAttentionSessionId}
-          onSelectSession={setUserSelectedSessionId}
+          selectedSessionId={floorSelectedSessionId}
+          onSelectSession={setFloorSelectedSessionId}
           sessionOrders={floorSessionOrdersQuery.data?.orders ?? emptyRecords}
           sessionBill={floorSessionBillQuery.data}
           contextLoading={
@@ -612,7 +612,7 @@ function WaiterDashboardContent() {
       <section id="attention" className="grid min-h-[calc(100vh-8rem)] gap-0 lg:grid-cols-[minmax(0,1fr)_360px]">
         <AttentionQueue
           attentionQueue={attentionQueue}
-          selectedAttentionSessionId={selectedAttentionSessionId}
+          selectedSessionId={selectedAttentionSessionId}
           isLoading={attentionQueueQuery.isPending}
           error={attentionQueueQuery.error ?? undefined}
           onSelectAttention={setAttentionSelectedSessionId}
