@@ -5,7 +5,7 @@ import type { LucideIcon } from "lucide-react";
 import { ArrowRight, CheckCircle2 } from "lucide-react";
 import { useI18n } from "@/lib/i18n/i18n-provider";
 import { MarketingShell, ML } from "./marketing-shell";
-import { ProductVisual } from "./product-visual";
+import { ProductVisual, type ProductSurface } from "./product-visual";
 
 export type MarketingStory = {
   eyebrow: [string, string];
@@ -14,6 +14,7 @@ export type MarketingStory = {
   outcomes: Array<[string, string]>;
   icon?: LucideIcon;
   cta?: [string, string, string];
+  visualSurface?: ProductSurface;
 };
 
 export function MarketingStoryPage({ story }: { story: MarketingStory }) {
@@ -42,7 +43,7 @@ export function MarketingStoryPage({ story }: { story: MarketingStory }) {
                 <ArrowRight className="size-4 rtl:rotate-180" />
               </Link>
             </div>
-            <ProductVisual />
+            <ProductVisual initialSurface={story.visualSurface} />
           </div>
         </section>
 
