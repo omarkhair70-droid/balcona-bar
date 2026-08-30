@@ -237,6 +237,20 @@ class EnvironmentVariables {
 
   @IsString()
   @IsOptional()
+  MAESTR_API_URL?: string;
+
+  @IsString()
+  @IsOptional()
+  MAESTR_API_KEY?: string;
+
+  @IsInt()
+  @Min(1000)
+  @Max(60000)
+  @IsOptional()
+  MAESTR_TIMEOUT_MS?: number;
+
+  @IsString()
+  @IsOptional()
   FAWRY_CHECKOUT_URL?: string;
 
   @IsString()
@@ -527,6 +541,16 @@ export function validateEnvironment(config: Record<string, unknown>) {
   ) {
     throw new Error(
       "MOCK_ONLINE_PAYMENTS_ENABLED=true is forbidden when APP_ENV=production",
+    );
+  }
+
+  if (
+    effectiveAppEnvironment === "production" &&
+    onlinePaymentsEnabled &&
+    effectivePaymentProvider === OnlinePaymentProvider.Maestr
+  ) {
+    throw new Error(
+      "Maestr production payments are disabled until the PAY-8 merchant API contract is complete",
     );
   }
 
