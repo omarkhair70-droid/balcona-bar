@@ -747,25 +747,6 @@ function CashierDashboardContent() {
     enabled: Boolean(selectedBranchId && accessToken),
     staleTime: 10_000,
   });
-  const paymentTerminalsQuery = useQuery({
-    queryKey: ["service", "payment-terminals", selectedBranchId],
-    queryFn: () =>
-      getBranchPaymentTerminals(selectedBranchId ?? "", accessToken),
-    enabled: Boolean(selectedBranchId && accessToken),
-    staleTime: 30_000,
-    retry: false,
-  });
-  const realtimeEventsQuery = useQuery({
-    queryKey: staffQueryKeys.branchRealtime(selectedBranchId),
-    queryFn: () =>
-      getBranchRealtimeEvents(
-        selectedBranchId ?? "",
-        { channel: "all", limit: 8 },
-        accessToken,
-      ),
-    enabled: Boolean(selectedBranchId && accessToken),
-    staleTime: 15_000,
-  });
   const orders = useMemo(
     () => ordersQuery.data?.orders ?? emptyRecords,
     [ordersQuery.data?.orders],
@@ -1303,7 +1284,7 @@ function CashierDashboardContent() {
       ) : null}
 
       {serviceView === "bills" ? (
-      <section id="bills" className="grid min-h-[calc(100vh-8rem)] gap-0 lg:grid-cols-[350px_minmax(0,1fr)]">
+      <section id="bills" className="min-h-[calc(100vh-8rem)]">
         <BillRequestQueue
           billRequests={billRequests}
           status={billStatus}
@@ -1338,67 +1319,6 @@ function CashierDashboardContent() {
           }
         />
 
-        <Card variant="quiet">
-          <CardHeader>
-            <CardTitle>{t("cashier.activityTitle")}</CardTitle>
-            <CardDescription>{t("cashier.activityDescription")}</CardDescription>
-          </CardHeader>
-          <CardContent className="grid gap-3">
-            <div
-              className={
-                paymentTerminalsQuery.data?.execution?.available
-                  ? "rounded-md border border-success bg-success/10 p-3 text-xs leading-5 text-success"
-                  : "rounded-md border border-[#3A3028] bg-[#18130F] p-3 text-xs leading-5 text-[#B8AA9E]"
-              }
-            >
-              <p className="font-semibold">
-                {t("cashier.directTerminalTitle")}
-              </p>
-              <p className="mt-1">
-                {paymentTerminalsQuery.isPending
-                  ? t("cashier.directTerminalChecking")
-                  : paymentTerminalsQuery.isError
-                    ? t("cashier.directTerminalUnavailable")
-                    : paymentTerminalsQuery.data?.execution?.available
-                      ? t("cashier.directTerminalReady")
-                      : t("cashier.directTerminalBlocked")}
-              </p>
-            </div>
-            {realtimeEventsQuery.isError ? (
-              <div className="rounded-md border border-warning bg-warning/10 p-3 text-sm text-warning">
-                <AlertTriangle
-                  className="me-2 inline size-4"
-                  aria-hidden="true"
-                />
-                {formatErrorMessage(realtimeEventsQuery.error)}
-              </div>
-            ) : null}
-            {(realtimeEventsQuery.data?.events ?? []).length === 0 ? (
-              <p className="rounded-md border border-dashed bg-surface/70 p-4 text-sm text-[#91857A]">
-                {t("cashier.activityEmpty")}
-              </p>
-            ) : null}
-            {(realtimeEventsQuery.data?.events ?? []).map((event, index) => (
-              <div
-                key={getRecordString(event, "id") || String(index)}
-                className="rounded-md border bg-surface/75 p-3"
-              >
-                <p className="text-sm font-semibold text-[#F8EDDF]">
-                  {humanizeStatus(getRecordString(event, "type", "event"))}
-                </p>
-                <p className="mt-1 text-xs text-[#91857A]">
-                  {getRecordString(event, "channel", "system")} /{" "}
-                  {formatDateTime(getRecordString(event, "createdAt"))}
-                </p>
-                {getRecordString(event, "orderId") ? (
-                  <p className="mt-2 text-xs text-[#91857A]">
-                    Order {shortId(getRecordString(event, "orderId"))}
-                  </p>
-                ) : null}
-              </div>
-            ))}
-          </CardContent>
-        </Card>
       </section>
       ) : null}
 
