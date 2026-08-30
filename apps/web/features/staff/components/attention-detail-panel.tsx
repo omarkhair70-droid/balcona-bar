@@ -14,7 +14,6 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { LoadingState } from "@/components/ui/loading-state";
 import {
   getAttentionActionKey,
-  getAttentionActionLabel,
   getAttentionLastEvaluatedAt,
   getAttentionPriority,
   getAttentionReasonMessage,
