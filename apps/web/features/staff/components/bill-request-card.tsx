@@ -523,6 +523,11 @@ export function BillRequestCard({
               placeholder={t("billRequests.optionalCashierNote")}
             />
           </label>
+          {paymentMethod === "card_pos" ? (
+            <div className="rounded-md border border-[#3A3028] bg-[#18130F] p-3 text-xs leading-5 text-[#B8AA9E]">
+              {t("billRequests.cardPosManualNotice")}
+            </div>
+          ) : null}
           {!paymentAmountMatchesBalance ? (
             <div className="rounded-md border border-[#7D5D2C] bg-[#392B18] p-3 text-xs text-warning">
               {t("billRequests.exactBalanceWarning")}
