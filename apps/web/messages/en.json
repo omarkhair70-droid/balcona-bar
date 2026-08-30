@@ -1498,7 +1498,7 @@
       "companySlug": "Company slug",
       "companyTitle": "Company",
       "count": "Count",
-      "createStarterTables": "Create starter floor, tables, and QR tokens",
+      "createStarterTables": "Create starter floor, tables, and QR codes",
       "createWorkspace": "Create Cafe Workspace",
       "createWorkspaceDescription": "Plan limits and tenant configuration are validated before creation.",
       "createWorkspaceTitle": "Create Cafe Workspace",
