@@ -54,7 +54,7 @@ function sourceForAttention(attention: Record<string, unknown>) {
     return "ready";
   }
 
-  if (reason.includes("ai")) {
+  if (/\bai\b/.test(reason)) {
     return "ai";
   }
 
