@@ -2,24 +2,62 @@
 
 import Link from "next/link";
 import type { LucideIcon } from "lucide-react";
-import { ArrowRight, CheckCircle2 } from "lucide-react";
+import {
+  ArrowRight,
+  Building2,
+  ChefHat,
+  CheckCircle2,
+  CircleDollarSign,
+  ClipboardCheck,
+  Layers3,
+  LifeBuoy,
+  Radio,
+  Smartphone,
+  Sparkles,
+  Store,
+} from "lucide-react";
 import { useI18n } from "@/lib/i18n/i18n-provider";
 import { MarketingShell, ML } from "./marketing-shell";
 import { ProductVisual, type ProductSurface } from "./product-visual";
+
+export type MarketingStoryIcon =
+  | "building"
+  | "chef"
+  | "clipboard"
+  | "layers"
+  | "pricing"
+  | "radio"
+  | "smartphone"
+  | "sparkles"
+  | "store"
+  | "support";
+
+const storyIcons: Record<MarketingStoryIcon, LucideIcon> = {
+  building: Building2,
+  chef: ChefHat,
+  clipboard: ClipboardCheck,
+  layers: Layers3,
+  pricing: CircleDollarSign,
+  radio: Radio,
+  smartphone: Smartphone,
+  sparkles: Sparkles,
+  store: Store,
+  support: LifeBuoy,
+};
 
 export type MarketingStory = {
   eyebrow: [string, string];
   title: [string, string];
   description: [string, string];
   outcomes: Array<[string, string]>;
-  icon?: LucideIcon;
+  icon?: MarketingStoryIcon;
   cta?: [string, string, string];
   visualSurface?: ProductSurface;
 };
 
 export function MarketingStoryPage({ story }: { story: MarketingStory }) {
   const { locale } = useI18n();
-  const Icon = story.icon;
+  const Icon = story.icon ? storyIcons[story.icon] : undefined;
   const cta = story.cta ?? ["/request-demo", "Request a demo", "اطلب عرضًا"];
 
   return (
