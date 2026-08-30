@@ -1430,6 +1430,7 @@
       "customPrice": "Custom",
       "customPricing": "Custom pricing",
       "description": "Review plan status, entitlements, branches, owners, access, and recent Platform activity for this tenant.",
+      "identityBoundary": "Tenant staff authentication remains separate. Platform admins manage access and invitations here without opening a tenant staff session.",
       "email": "Email",
       "inviteLink": "Invite link",
       "inviteNeeded": "Invite needed",
