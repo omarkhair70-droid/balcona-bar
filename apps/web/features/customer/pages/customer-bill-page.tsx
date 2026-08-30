@@ -1,5 +1,6 @@
 "use client";
 
+import { FormEvent, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   AlertTriangle,
@@ -12,10 +13,12 @@ import {
 import { Button, buttonVariants } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { LoadingState } from "@/components/ui/loading-state";
+import { Input } from "@/components/ui/input";
 import {
   createOnlinePaymentIntent,
   getBill,
   getCustomerOnlinePaymentIntent,
+  getCustomerPaymentCapabilities,
   requestBill
 } from "@/lib/api/endpoints";
 import { customerQueryKeys } from "@/lib/api/query-keys";
@@ -60,6 +63,17 @@ export function CustomerBillPage({ sessionId }: CustomerBillPageProps) {
   const queryClient = useQueryClient();
   const token = useCustomerSessionStore((state) => state.customerAccessToken);
   const tableCode = useCustomerSessionStore((state) => state.tableCode);
+  const [checkoutOpen, setCheckoutOpen] = useState(false);
+  const [billingData, setBillingData] = useState({
+    firstName: "",
+    lastName: "",
+    email: "",
+    phoneNumber: ""
+  });
+  const [fawryPaymentMethod, setFawryPaymentMethod] = useState<
+    "CARD" | "MWALLET" | "PayAtFawry" | "VALU"
+  >("CARD");
+  const paymentAttemptKey = useRef<string | null>(null);
 
   const billQuery = useQuery({
     queryKey: customerQueryKeys.bill(sessionId),
@@ -108,10 +122,51 @@ export function CustomerBillPage({ sessionId }: CustomerBillPageProps) {
     onError: () => vibrateWarning()
   });
 
+  const paymentCapabilitiesQuery = useQuery({
+    queryKey: customerQueryKeys.paymentCapabilities(sessionId, billId),
+    queryFn: () => getCustomerPaymentCapabilities(sessionId, billId, token),
+    enabled: Boolean(token) && Boolean(billId),
+    staleTime: 30_000,
+    retry: 1
+  });
+  const paymentCapabilities = paymentCapabilitiesQuery.data;
+  const hostedMethods = paymentCapabilities?.hostedMethods ?? [];
+  const availableFawryMethods = useMemo(
+    () =>
+      hostedMethods.filter(
+        (method): method is "CARD" | "MWALLET" | "PayAtFawry" | "VALU" =>
+          ["CARD", "MWALLET", "PayAtFawry", "VALU"].includes(method)
+      ),
+    [hostedMethods]
+  );
+
   const paymentMutation = useMutation({
-    mutationFn: () => createOnlinePaymentIntent(sessionId, billId, {}, token),
+    mutationFn: () => {
+      paymentAttemptKey.current ??=
+        typeof crypto !== "undefined" && "randomUUID" in crypto
+          ? crypto.randomUUID()
+          : `guest_${Date.now()}_${Math.random().toString(36).slice(2)}`;
+      const needsBillingData = paymentCapabilities?.requiresBillingData ?? false;
+      return createOnlinePaymentIntent(
+        sessionId,
+        billId,
+        {
+          idempotencyKey: paymentAttemptKey.current,
+          customerReturnUrl:
+            typeof window === "undefined"
+              ? undefined
+              : `${window.location.origin}${window.location.pathname}`,
+          ...(needsBillingData ? { billingData } : {}),
+          ...(paymentCapabilities?.provider === "fawry"
+            ? { fawryPaymentMethod }
+            : {})
+        },
+        token
+      );
+    },
     onSuccess: (result) => {
       vibrateSuccess();
+      setCheckoutOpen(false);
       void queryClient.invalidateQueries({
         queryKey: customerQueryKeys.bill(sessionId)
       });
@@ -198,6 +253,26 @@ export function CustomerBillPage({ sessionId }: CustomerBillPageProps) {
     !bill &&
     !receipt &&
     !requestMutation.isSuccess;
+
+  function startPayment() {
+    if (paymentCapabilities?.requiresBillingData) {
+      if (
+        paymentCapabilities.provider === "fawry" &&
+        availableFawryMethods.length > 0 &&
+        !availableFawryMethods.includes(fawryPaymentMethod)
+      ) {
+        setFawryPaymentMethod(availableFawryMethods[0]);
+      }
+      setCheckoutOpen(true);
+      return;
+    }
+    paymentMutation.mutate();
+  }
+
+  function submitPayment(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    paymentMutation.mutate();
+  }
 
   return (
     <CustomerSessionScreen
@@ -380,15 +455,175 @@ export function CustomerBillPage({ sessionId }: CustomerBillPageProps) {
 
               {canStartPayment ? (
                 <Button
-                  onClick={() => paymentMutation.mutate()}
-                  disabled={paymentMutation.isPending || !billId}
+                  onClick={startPayment}
+                  disabled={
+                    paymentMutation.isPending ||
+                    paymentCapabilitiesQuery.isPending ||
+                    paymentCapabilitiesQuery.isError ||
+                    !billId
+                  }
                   className="mt-5 min-h-14 w-full rounded-2xl"
                 >
                   <CreditCard className="size-4" aria-hidden="true" />
-                  {paymentMutation.isPending
+                  {paymentMutation.isPending || paymentCapabilitiesQuery.isPending
                     ? t("bill.preparingCheckout")
                     : t("bill.payOnline")}
                 </Button>
+              ) : null}
+
+              {canStartPayment && paymentCapabilitiesQuery.isError ? (
+                <div
+                  role="alert"
+                  className="mt-4 rounded-xl border border-warning/35 bg-warning/10 p-3 text-sm text-foreground"
+                >
+                  <p>{t("bill.merchantNotReady")}</p>
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    size="sm"
+                    onClick={() => void paymentCapabilitiesQuery.refetch()}
+                    className="mt-3 w-full"
+                  >
+                    <RefreshCw className="size-4" aria-hidden="true" />
+                    {t("bill.checkAgain")}
+                  </Button>
+                </div>
+              ) : null}
+
+              {checkoutOpen && paymentCapabilities?.requiresBillingData ? (
+                <form
+                  onSubmit={submitPayment}
+                  className="mt-5 space-y-4 rounded-2xl border border-border bg-muted/45 p-4"
+                  aria-label={t("bill.checkoutDetails")}
+                >
+                  <div>
+                    <p className="text-sm font-black text-foreground">
+                      {t("bill.checkoutDetails")}
+                    </p>
+                    <p className="mt-1 text-xs leading-5 text-muted-foreground">
+                      {t("bill.checkoutDetailsDescription")}
+                    </p>
+                  </div>
+
+                  {paymentCapabilities.provider === "fawry" &&
+                  availableFawryMethods.length > 0 ? (
+                    <fieldset>
+                      <legend className="text-xs font-bold text-foreground">
+                        {t("bill.paymentMethod")}
+                      </legend>
+                      <div className="mt-2 grid grid-cols-2 gap-2">
+                        {availableFawryMethods.map((method) => (
+                          <label
+                            key={method}
+                            className="flex min-h-11 cursor-pointer items-center gap-2 rounded-xl border border-border bg-card px-3 text-xs font-bold text-foreground has-[:checked]:border-primary has-[:checked]:bg-primary/10"
+                          >
+                            <input
+                              type="radio"
+                              name="fawryPaymentMethod"
+                              value={method}
+                              checked={fawryPaymentMethod === method}
+                              onChange={() => setFawryPaymentMethod(method)}
+                              className="accent-primary"
+                            />
+                            {t(`bill.method.${method}`)}
+                          </label>
+                        ))}
+                      </div>
+                    </fieldset>
+                  ) : null}
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <label className="text-xs font-bold text-foreground">
+                      {t("bill.firstName")}
+                      <Input
+                        autoComplete="given-name"
+                        required
+                        maxLength={80}
+                        value={billingData.firstName}
+                        onChange={(event) =>
+                          setBillingData((current) => ({
+                            ...current,
+                            firstName: event.target.value
+                          }))
+                        }
+                        className="mt-1"
+                      />
+                    </label>
+                    <label className="text-xs font-bold text-foreground">
+                      {t("bill.lastName")}
+                      <Input
+                        autoComplete="family-name"
+                        required
+                        maxLength={80}
+                        value={billingData.lastName}
+                        onChange={(event) =>
+                          setBillingData((current) => ({
+                            ...current,
+                            lastName: event.target.value
+                          }))
+                        }
+                        className="mt-1"
+                      />
+                    </label>
+                  </div>
+                  <label className="block text-xs font-bold text-foreground">
+                    {t("bill.email")}
+                    <Input
+                      type="email"
+                      inputMode="email"
+                      autoComplete="email"
+                      required
+                      maxLength={160}
+                      value={billingData.email}
+                      onChange={(event) =>
+                        setBillingData((current) => ({
+                          ...current,
+                          email: event.target.value
+                        }))
+                      }
+                      className="mt-1"
+                    />
+                  </label>
+                  <label className="block text-xs font-bold text-foreground">
+                    {t("bill.phoneNumber")}
+                    <Input
+                      type="tel"
+                      inputMode="tel"
+                      autoComplete="tel"
+                      required
+                      minLength={3}
+                      maxLength={32}
+                      value={billingData.phoneNumber}
+                      onChange={(event) =>
+                        setBillingData((current) => ({
+                          ...current,
+                          phoneNumber: event.target.value
+                        }))
+                      }
+                      className="mt-1"
+                    />
+                  </label>
+                  <div className="flex gap-2">
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      onClick={() => setCheckoutOpen(false)}
+                      disabled={paymentMutation.isPending}
+                      className="flex-1"
+                    >
+                      {t("bill.cancelCheckout")}
+                    </Button>
+                    <Button
+                      type="submit"
+                      disabled={paymentMutation.isPending}
+                      className="flex-1"
+                    >
+                      {paymentMutation.isPending
+                        ? t("bill.preparingCheckout")
+                        : t("bill.continueSecurely")}
+                    </Button>
+                  </div>
+                </form>
               ) : null}
 
               {isPaymentPending && !isUnknown && !isPaid ? (

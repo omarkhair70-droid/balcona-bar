@@ -111,7 +111,23 @@
       "paymentUnavailable": "Online payment is not available right now. You can still ask the team to help with the bill.",
       "requestErrorSimple": "We could not request the bill yet. Please try again.",
       "preparingBillTitle": "Preparing your bill",
-      "preparingBillDescription": "The team is checking the final bill before payment becomes available."
+      "preparingBillDescription": "The team is checking the final bill before payment becomes available.",
+      "merchantNotReady": "Secure online payment is not configured for this venue yet.",
+      "checkoutDetails": "Secure checkout details",
+      "checkoutDetailsDescription": "These details are sent only to the active payment provider to prepare checkout.",
+      "paymentMethod": "Payment method",
+      "firstName": "First name",
+      "lastName": "Last name",
+      "email": "Email",
+      "phoneNumber": "Mobile number",
+      "cancelCheckout": "Cancel",
+      "continueSecurely": "Continue securely",
+      "method": {
+        "CARD": "Card",
+        "MWALLET": "Mobile wallet",
+        "PayAtFawry": "Fawry reference",
+        "VALU": "ValU"
+      }
     },
     "cart": {
       "clear": "Clear",

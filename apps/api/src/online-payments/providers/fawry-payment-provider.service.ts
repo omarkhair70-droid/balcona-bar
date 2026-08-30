@@ -10,6 +10,7 @@ import {
   CreateProviderPaymentResult,
   PaymentProviderError,
   ProviderTransactionInquiryResult,
+  ProviderRuntimeContext,
   ProviderTransactionState,
 } from "./payment-provider.types";
 import { FawryHostedPaymentMethod } from "../dto/create-online-payment-intent.dto";
@@ -49,7 +50,7 @@ export class FawryPaymentProviderService {
     input: CreateProviderPaymentInput,
     paymentMethod?: FawryHostedPaymentMethod,
   ): Promise<CreateProviderPaymentResult> {
-    const config = this.readConfig();
+    const config = this.readConfig(input.runtimeContext);
 
     if (input.currency.toUpperCase() !== "EGP") {
       throw new PaymentProviderError(
@@ -59,10 +60,7 @@ export class FawryPaymentProviderService {
     }
 
     const amount = this.formatMinor(input.amountMinor);
-    const returnUrl = this.resolveReturnUrl(
-      input.customerReturnUrl,
-      config,
-    );
+    const returnUrl = this.resolveReturnUrl(input.customerReturnUrl, config);
     const checkoutExpiresAt = new Date(
       Date.now() + config.expirationSeconds * 1000,
     );
@@ -86,10 +84,7 @@ export class FawryPaymentProviderService {
       merchantRefNum: input.localIntentId,
       customerMobile: input.billingData.phoneNumber,
       customerEmail: input.billingData.email,
-      customerName: [
-        input.billingData.firstName,
-        input.billingData.lastName,
-      ]
+      customerName: [input.billingData.firstName, input.billingData.lastName]
         .filter(Boolean)
         .join(" "),
       paymentExpiry: String(checkoutExpiresAt.getTime()),
@@ -128,10 +123,7 @@ export class FawryPaymentProviderService {
     );
 
     if (!response.ok) {
-      throw this.errorForHttpStatus(
-        response.status,
-        "Fawry hosted checkout",
-      );
+      throw this.errorForHttpStatus(response.status, "Fawry hosted checkout");
     }
 
     let value: unknown;
@@ -170,12 +162,15 @@ export class FawryPaymentProviderService {
     };
   }
 
-  async refundPayment(input: {
-    referenceNumber: string;
-    amountMinor: number;
-    reason?: string;
-  }) {
-    const config = this.readConfig();
+  async refundPayment(
+    input: {
+      referenceNumber: string;
+      amountMinor: number;
+      reason?: string;
+    },
+    runtimeContext?: ProviderRuntimeContext,
+  ) {
+    const config = this.readConfig(runtimeContext);
     const referenceNumber = this.identifierString(input.referenceNumber);
     const refundAmount = this.formatMinor(input.amountMinor);
     const reason = input.reason?.trim() ?? "";
@@ -270,8 +265,11 @@ export class FawryPaymentProviderService {
     };
   }
 
-  verifyNotification(value: unknown): ProviderTransactionState {
-    const config = this.readWebhookConfig();
+  verifyNotification(
+    value: unknown,
+    runtimeContext?: ProviderRuntimeContext,
+  ): ProviderTransactionState {
+    const config = this.readWebhookConfig(runtimeContext);
     const obj = this.requireRecord(value, "Fawry notification");
     const requestId = this.nonEmptyString(obj.requestId);
     const fawryRefNumber =
@@ -346,10 +344,10 @@ export class FawryPaymentProviderService {
 
   async inquireByMerchantReference(
     merchantRefNumberValue: string,
+    runtimeContext?: ProviderRuntimeContext,
   ): Promise<ProviderTransactionInquiryResult> {
-    const config = this.readConfig();
-    const merchantRefNumber =
-      this.identifierString(merchantRefNumberValue);
+    const config = this.readConfig(runtimeContext);
+    const merchantRefNumber = this.identifierString(merchantRefNumberValue);
 
     if (!merchantRefNumber) {
       throw new PaymentProviderError(
@@ -435,16 +433,14 @@ export class FawryPaymentProviderService {
     const orderStatus = this.nonEmptyString(
       obj.orderStatus ?? obj.paymentStatus,
     )?.toUpperCase();
-    const paymentMethod =
-      this.nonEmptyString(obj.paymentMethod) ?? "UNKNOWN";
+    const paymentMethod = this.nonEmptyString(obj.paymentMethod) ?? "UNKNOWN";
     const paymentReferenceNumber =
       this.identifierString(obj.paymentRefrenceNumber) ??
       this.identifierString(obj.paymentReferenceNumber) ??
       "";
     const paymentAmount = this.decimalValue(obj.paymentAmount);
     const orderAmount =
-      this.decimalValue(obj.orderAmount) ??
-      this.deriveOrderAmount(obj);
+      this.decimalValue(obj.orderAmount) ?? this.deriveOrderAmount(obj);
 
     if (
       !returnedMerchantRef ||
@@ -535,11 +531,11 @@ export class FawryPaymentProviderService {
       values.paymentReferenceNumber,
       messageSignature ?? "",
     ].join("|");
-    const providerEventId =
-      `fawry_${this.sha256(eventSeed).slice(0, 40)}`;
+    const providerEventId = `fawry_${this.sha256(eventSeed).slice(0, 40)}`;
     const feeMinor = this.decimalToMinor(obj.fawryFees);
-    const paymentTime =
-      this.identifierString(obj.paymentTime ?? obj.paymentDate);
+    const paymentTime = this.identifierString(
+      obj.paymentTime ?? obj.paymentDate,
+    );
     const batchNumber = this.extractBatchNumber(obj);
 
     return {
@@ -560,10 +556,8 @@ export class FawryPaymentProviderService {
         merchantRefNumber: values.merchantRefNumber,
         orderStatus: values.orderStatus,
         paymentMethod: values.paymentMethod,
-        paymentReferenceNumber:
-          values.paymentReferenceNumber || undefined,
-        paymentAmountMinor:
-          this.decimalNumberToMinor(values.paymentAmount),
+        paymentReferenceNumber: values.paymentReferenceNumber || undefined,
+        paymentAmountMinor: this.decimalNumberToMinor(values.paymentAmount),
         fawryFeesMinor: feeMinor,
         paymentTime,
         failureErrorCode: this.integerValue(obj.failureErrorCode),
@@ -610,10 +604,7 @@ export class FawryPaymentProviderService {
       );
     }
 
-    if (
-      config.appEnvironment === "production" &&
-      url.protocol !== "https:"
-    ) {
+    if (config.appEnvironment === "production" && url.protocol !== "https:") {
       throw new PaymentProviderError(
         "Fawry production return URL must use HTTPS",
         "environment_mismatch",
@@ -638,10 +629,7 @@ export class FawryPaymentProviderService {
       return this.validHttpUrl(value);
     }
 
-    const obj = this.requireRecord(
-      value,
-      "Fawry hosted checkout response",
-    );
+    const obj = this.requireRecord(value, "Fawry hosted checkout response");
     const nextAction =
       obj.nextAction &&
       typeof obj.nextAction === "object" &&
@@ -657,8 +645,8 @@ export class FawryPaymentProviderService {
     return candidate ? this.validHttpUrl(candidate) : undefined;
   }
 
-  private readWebhookConfig() {
-    const config = this.readConfig();
+  private readWebhookConfig(runtimeContext?: ProviderRuntimeContext) {
+    const config = this.readConfig(runtimeContext);
 
     if (!config.secureKey) {
       throw new PaymentProviderError(
@@ -670,52 +658,62 @@ export class FawryPaymentProviderService {
     return config;
   }
 
-  private readConfig(): FawryConfig {
+  private readConfig(runtimeContext?: ProviderRuntimeContext): FawryConfig {
+    const metadata = runtimeContext?.configurationMetadata ?? {};
     const appEnvironment =
       this.configService.get<string>("app.environment") ?? "development";
     const checkoutUrl =
+      this.stringValue(metadata.checkoutUrl) ??
       this.configService.get<string>("onlinePayments.fawry.checkoutUrl") ??
       DEFAULT_STAGING_CHECKOUT_URL;
     const statusUrl =
+      this.stringValue(metadata.statusUrl) ??
       this.configService.get<string>("onlinePayments.fawry.statusUrl") ??
       DEFAULT_STAGING_STATUS_URL;
     const refundUrl =
+      this.stringValue(metadata.refundUrl) ??
       this.configService.get<string>("onlinePayments.fawry.refundUrl") ??
       DEFAULT_STAGING_REFUND_URL;
     const cancelUrl =
+      this.stringValue(metadata.cancelUrl) ??
       this.configService.get<string>("onlinePayments.fawry.cancelUrl") ??
       DEFAULT_STAGING_CANCEL_URL;
     const merchantCode = this.nonEmptyString(
-      this.configService.get<string>(
-        "onlinePayments.fawry.merchantCode",
-      ),
+      runtimeContext?.merchantAccountReference ??
+        this.configService.get<string>("onlinePayments.fawry.merchantCode"),
     );
     const secureKey = this.nonEmptyString(
-      this.configService.get<string>("onlinePayments.fawry.secureKey"),
+      this.runtimeSecret(runtimeContext, "secureKey") ??
+        this.configService.get<string>("onlinePayments.fawry.secureKey"),
     );
     const notificationUrl = this.nonEmptyString(
-      this.configService.get<string>(
-        "onlinePayments.fawry.notificationUrl",
-      ),
+      this.stringValue(metadata.notificationUrl) ??
+        this.configService.get<string>("onlinePayments.fawry.notificationUrl"),
     );
     const returnUrl = this.nonEmptyString(
-      this.configService.get<string>("onlinePayments.fawry.returnUrl"),
+      this.stringValue(metadata.returnUrl) ??
+        this.configService.get<string>("onlinePayments.fawry.returnUrl"),
     );
     const allowedReturnOrigins =
+      this.stringArray(metadata.allowedReturnOrigins) ??
       this.configService.get<string[]>(
         "onlinePayments.fawry.allowedReturnOrigins",
-      ) ?? [];
+      ) ??
+      [];
     const timeoutMs =
+      this.integerValue(metadata.timeoutMs) ??
       this.configService.get<number>("onlinePayments.fawry.timeoutMs") ??
       10000;
     const expirationSeconds =
+      this.integerValue(metadata.expirationSeconds) ??
       this.configService.get<number>(
         "onlinePayments.fawry.expirationSeconds",
-      ) ?? 900;
-    const expectedLive =
-      this.configService.get<boolean>(
-        "onlinePayments.fawry.expectedLive",
-      ) ?? false;
+      ) ??
+      900;
+    const expectedLive = runtimeContext
+      ? runtimeContext.environment === "live"
+      : (this.configService.get<boolean>("onlinePayments.fawry.expectedLive") ??
+        false);
 
     if (!merchantCode || !secureKey || !notificationUrl || !returnUrl) {
       throw new PaymentProviderError(
@@ -768,6 +766,25 @@ export class FawryPaymentProviderService {
     };
   }
 
+  private runtimeSecret(
+    runtimeContext: ProviderRuntimeContext | undefined,
+    key: string,
+  ) {
+    const reference = runtimeContext?.secretReferences[key];
+    return reference ? this.configService.get<string>(reference) : undefined;
+  }
+
+  private stringValue(value: unknown) {
+    return typeof value === "string" && value.trim() ? value.trim() : undefined;
+  }
+
+  private stringArray(value: unknown) {
+    return Array.isArray(value) &&
+      value.every((entry) => typeof entry === "string")
+      ? value
+      : undefined;
+  }
+
   private validatedServerUrl(
     value: string,
     appEnvironment: string,
@@ -778,10 +795,7 @@ export class FawryPaymentProviderService {
     try {
       url = new URL(value);
     } catch {
-      throw new PaymentProviderError(
-        `${label} is invalid`,
-        "missing_config",
-      );
+      throw new PaymentProviderError(`${label} is invalid`, "missing_config");
     }
 
     if (appEnvironment === "production" && url.protocol !== "https:") {
@@ -814,10 +828,7 @@ export class FawryPaymentProviderService {
         throw new PaymentProviderError(timeoutMessage, "timeout");
       }
 
-      throw new PaymentProviderError(
-        failureMessage,
-        "provider_unavailable",
-      );
+      throw new PaymentProviderError(failureMessage, "provider_unavailable");
     } finally {
       clearTimeout(timeout);
     }
@@ -919,10 +930,7 @@ export class FawryPaymentProviderService {
       return value;
     }
 
-    if (
-      typeof value === "string" &&
-      /^-?\d+(?:\.\d+)?$/.test(value.trim())
-    ) {
+    if (typeof value === "string" && /^-?\d+(?:\.\d+)?$/.test(value.trim())) {
       const parsed = Number(value);
       return Number.isFinite(parsed) ? parsed : undefined;
     }
@@ -955,9 +963,7 @@ export class FawryPaymentProviderService {
   }
 
   private nonEmptyString(value: unknown) {
-    return typeof value === "string" && value.trim()
-      ? value.trim()
-      : undefined;
+    return typeof value === "string" && value.trim() ? value.trim() : undefined;
   }
 
   private requireRecord(value: unknown, label: string) {

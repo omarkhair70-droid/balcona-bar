@@ -26,11 +26,8 @@ function config(overrides: Record<string, unknown> = {}) {
     "onlinePayments.fawry.secureKey": "secure-test-key",
     "onlinePayments.fawry.notificationUrl":
       "https://api.example.com/api/v1/online-payments/webhooks/fawry",
-    "onlinePayments.fawry.returnUrl":
-      "https://app.example.com/payment/return",
-    "onlinePayments.fawry.allowedReturnOrigins": [
-      "https://app.example.com",
-    ],
+    "onlinePayments.fawry.returnUrl": "https://app.example.com/payment/return",
+    "onlinePayments.fawry.allowedReturnOrigins": ["https://app.example.com"],
     "onlinePayments.fawry.timeoutMs": 10000,
     "onlinePayments.fawry.expirationSeconds": 900,
     "onlinePayments.fawry.expectedLive": false,
@@ -66,14 +63,13 @@ describe("FawryPaymentProviderService", () => {
   });
 
   it("creates Fawry hosted checkout with the documented checkout signature", async () => {
-    jest.spyOn(Date, "now").mockReturnValue(
-      new Date("2026-08-28T00:00:00.000Z").getTime(),
-    );
+    jest
+      .spyOn(Date, "now")
+      .mockReturnValue(new Date("2026-08-28T00:00:00.000Z").getTime());
     const fetchSpy = jest.spyOn(global, "fetch").mockResolvedValueOnce(
       new Response(
         JSON.stringify({
-          redirectUrl:
-            "https://atfawry.fawrystaging.com/checkout/session-1",
+          redirectUrl: "https://atfawry.fawrystaging.com/checkout/session-1",
         }),
         {
           status: 200,
@@ -128,8 +124,7 @@ describe("FawryPaymentProviderService", () => {
       providerIntentId: "fawry:intent-1",
       providerOrderId: "intent-1",
       status: OnlinePaymentIntentStatus.pending,
-      checkoutUrl:
-        "https://atfawry.fawrystaging.com/checkout/session-1",
+      checkoutUrl: "https://atfawry.fawrystaging.com/checkout/session-1",
     });
   });
 
@@ -220,14 +215,11 @@ describe("FawryPaymentProviderService", () => {
     );
     const service = new FawryPaymentProviderService(config() as never);
 
-    const result =
-      await service.inquireByMerchantReference("intent-1");
+    const result = await service.inquireByMerchantReference("intent-1");
 
     const calledUrl = new URL(String(fetchSpy.mock.calls[0][0]));
     expect(calledUrl.searchParams.get("merchantCode")).toBe("MERCHANT-1");
-    expect(calledUrl.searchParams.get("merchantRefNumber")).toBe(
-      "intent-1",
-    );
+    expect(calledUrl.searchParams.get("merchantRefNumber")).toBe("intent-1");
     expect(calledUrl.searchParams.get("signature")).toBe(
       sha256("MERCHANT-1" + "intent-1" + "secure-test-key"),
     );

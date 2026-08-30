@@ -53,12 +53,14 @@ function providerState(overrides: Record<string, unknown> = {}) {
   };
 }
 
-function createHarness(options: {
-  payments?: any[];
-  operations?: any[];
-  providerState?: Record<string, unknown>;
-  settlementBatch?: any;
-} = {}) {
+function createHarness(
+  options: {
+    payments?: any[];
+    operations?: any[];
+    providerState?: Record<string, unknown>;
+    settlementBatch?: any;
+  } = {},
+) {
   const entries: any[] = [];
   const issues: any[] = [];
   let currentRun: any = null;
@@ -185,17 +187,11 @@ function createHarness(options: {
 
   const configService = {
     get: jest.fn((key: string, fallback?: unknown) => {
-      if (
-        key ===
-        "onlinePayments.settlementReconciliation.maxEntriesPerRun"
-      ) {
+      if (key === "onlinePayments.settlementReconciliation.maxEntriesPerRun") {
         return 500;
       }
 
-      if (
-        key ===
-        "onlinePayments.settlementReconciliation.maxScopesPerTick"
-      ) {
+      if (key === "onlinePayments.settlementReconciliation.maxScopesPerTick") {
         return 50;
       }
 
@@ -274,16 +270,12 @@ describe("PaymentReconciliationService", () => {
       providerState: { providerSettled: false },
     });
 
-    await service.runPaymobProviderReconciliation(
-      "branch-1",
-      undefined,
-      {
-        periodStart,
-        periodEnd,
-        currency: "EGP",
-        idempotencyKey: "reconcile-pending",
-      },
-    );
+    await service.runPaymobProviderReconciliation("branch-1", undefined, {
+      periodStart,
+      periodEnd,
+      currency: "EGP",
+      idempotencyKey: "reconcile-pending",
+    });
 
     expect(getRun()).toMatchObject({
       status: OnlinePaymentReconciliationRunStatus.pending,
@@ -295,37 +287,22 @@ describe("PaymentReconciliationService", () => {
   });
 
   it("re-runs the same pending daily reconciliation until provider settlement becomes matched", async () => {
-    const {
-      service,
-      getRun,
-      entries,
-      paymobPaymentProviderService,
-      prisma,
-    } = createHarness();
+    const { service, getRun, entries, paymobPaymentProviderService, prisma } =
+      createHarness();
 
     paymobPaymentProviderService.inquireTransactionById
       .mockReset()
-      .mockResolvedValueOnce(
-        providerState({ providerSettled: false }),
-      )
-      .mockResolvedValueOnce(
-        providerState({ providerSettled: true }),
-      );
+      .mockResolvedValueOnce(providerState({ providerSettled: false }))
+      .mockResolvedValueOnce(providerState({ providerSettled: true }));
 
-    await service.runPaymobProviderReconciliation(
-      "branch-1",
-      undefined,
-      {
-        periodStart,
-        periodEnd,
-        currency: "EGP",
-        idempotencyKey: "daily-paymob-settlement:2026-08-27:branch-1:EGP",
-      },
-    );
+    await service.runPaymobProviderReconciliation("branch-1", undefined, {
+      periodStart,
+      periodEnd,
+      currency: "EGP",
+      idempotencyKey: "daily-paymob-settlement:2026-08-27:branch-1:EGP",
+    });
 
-    expect(getRun().status).toBe(
-      OnlinePaymentReconciliationRunStatus.pending,
-    );
+    expect(getRun().status).toBe(OnlinePaymentReconciliationRunStatus.pending);
 
     const second = await service.runPaymobProviderReconciliation(
       "branch-1",
@@ -350,9 +327,7 @@ describe("PaymentReconciliationService", () => {
       pendingCount: 0,
       mismatchCount: 0,
     });
-    expect(second.status).toBe(
-      OnlinePaymentReconciliationRunStatus.matched,
-    );
+    expect(second.status).toBe(OnlinePaymentReconciliationRunStatus.matched);
   });
 
   it("opens a mismatch issue when provider amount differs from Balcona", async () => {
@@ -360,16 +335,12 @@ describe("PaymentReconciliationService", () => {
       providerState: { amountMinor: 9900 },
     });
 
-    await service.runPaymobProviderReconciliation(
-      "branch-1",
-      "staff-1",
-      {
-        periodStart,
-        periodEnd,
-        currency: "EGP",
-        idempotencyKey: "reconcile-mismatch",
-      },
-    );
+    await service.runPaymobProviderReconciliation("branch-1", "staff-1", {
+      periodStart,
+      periodEnd,
+      currency: "EGP",
+      idempotencyKey: "reconcile-mismatch",
+    });
 
     expect(getRun()).toMatchObject({
       status: OnlinePaymentReconciliationRunStatus.mismatch,
@@ -589,16 +560,12 @@ describe("PaymentReconciliationService", () => {
       resolutionNote: null,
     });
 
-    const acknowledged = await service.acknowledgeIssue(
-      "issue-1",
-      "staff-1",
-      { note: "checking statement" },
-    );
-    const resolved = await service.resolveIssue(
-      "issue-1",
-      "staff-1",
-      { note: "provider statement corrected" },
-    );
+    const acknowledged = await service.acknowledgeIssue("issue-1", "staff-1", {
+      note: "checking statement",
+    });
+    const resolved = await service.resolveIssue("issue-1", "staff-1", {
+      note: "provider statement corrected",
+    });
 
     expect(acknowledged.status).toBe(
       OnlinePaymentReconciliationIssueStatus.acknowledged,

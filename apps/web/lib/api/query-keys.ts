@@ -13,6 +13,12 @@ export const customerQueryKeys = {
   timeline: (sessionId?: string) => ["customer", "timeline", sessionId],
   waiterCalls: (sessionId?: string) => ["customer", "waiter-calls", sessionId],
   bill: (sessionId?: string) => ["customer", "bill", sessionId],
+  paymentCapabilities: (sessionId?: string, billId?: string) => [
+    "customer",
+    "payment-capabilities",
+    sessionId,
+    billId,
+  ],
   onlinePaymentIntent: (sessionId?: string, intentId?: string) => [
     "customer",
     "online-payment-intent",

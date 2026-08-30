@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { Dispatch, SetStateAction, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   AlertTriangle,
@@ -42,6 +42,8 @@ import {
 import {
   getBranchBills,
   getBranchOnlinePayments,
+  getMerchantPaymentIntegrations,
+  upsertMerchantPaymentIntegration,
 } from "@/lib/api/endpoints";
 import { formatErrorMessage } from "@/lib/api/error-message";
 import { canAccessStaffRoute } from "@/lib/staff/staff-access";
@@ -56,6 +58,249 @@ function randomKey(prefix: string) {
       : `${Date.now()}-${Math.random().toString(36).slice(2)}`;
 
   return `office:${prefix}:${suffix}`;
+}
+
+type SettlementLineDraft = {
+  providerTransactionId: string;
+  movementType: "sale" | "refund" | "void";
+  amount: string;
+  fee: string;
+  net: string;
+  settlementReference: string;
+  settledAt: string;
+};
+
+type SettlementDraft = {
+  provider: "paymob" | "fawry";
+  externalReference: string;
+  payoutReference: string;
+  periodStart: string;
+  periodEnd: string;
+  settledAt: string;
+  currency: string;
+  lines: SettlementLineDraft[];
+};
+
+function blankSettlementLine(): SettlementLineDraft {
+  return {
+    providerTransactionId: "",
+    movementType: "sale",
+    amount: "",
+    fee: "0",
+    net: "",
+    settlementReference: "",
+    settledAt: "",
+  };
+}
+
+function toMinor(value: string, label: string, allowNegative = false) {
+  const amount = Number(value);
+  if (!Number.isFinite(amount) || (!allowNegative && amount < 0)) {
+    throw new Error(`${label} must be a valid amount`);
+  }
+  return Math.round(amount * 100);
+}
+
+function StructuredSettlementEditor({
+  draft,
+  setDraft,
+  preview,
+}: {
+  draft: SettlementDraft;
+  setDraft: Dispatch<SetStateAction<SettlementDraft>>;
+  preview: {
+    grossMinor: number;
+    adjustmentMinor: number;
+    feeMinor: number;
+    netMinor: number;
+  };
+}) {
+  const updateLine = (
+    index: number,
+    patch: Partial<SettlementLineDraft>,
+  ) =>
+    setDraft((current) => ({
+      ...current,
+      lines: current.lines.map((line, lineIndex) =>
+        lineIndex === index ? { ...line, ...patch } : line,
+      ),
+    }));
+
+  return (
+    <div className="mt-3 space-y-4">
+      <div className="grid gap-3 sm:grid-cols-2">
+        <label className="text-xs font-medium">
+          Provider
+          <select
+            className="mt-1.5 min-h-11 w-full rounded-md border border-input bg-background px-3"
+            value={draft.provider}
+            onChange={(event) =>
+              setDraft((current) => ({
+                ...current,
+                provider: event.target.value as "paymob" | "fawry",
+              }))
+            }
+          >
+            <option value="paymob">Paymob</option>
+            <option value="fawry">Fawry</option>
+          </select>
+        </label>
+        {(["externalReference", "payoutReference", "currency"] as const).map(
+          (field) => (
+            <label key={field} className="text-xs font-medium">
+              {field === "externalReference"
+                ? "External reference"
+                : field === "payoutReference"
+                  ? "Payout reference"
+                  : "Currency"}
+              <Input
+                className="mt-1.5"
+                value={draft[field]}
+                onChange={(event) =>
+                  setDraft((current) => ({
+                    ...current,
+                    [field]: event.target.value,
+                  }))
+                }
+              />
+            </label>
+          ),
+        )}
+        {(["periodStart", "periodEnd", "settledAt"] as const).map((field) => (
+          <label key={field} className="text-xs font-medium">
+            {field === "periodStart"
+              ? "Period start"
+              : field === "periodEnd"
+                ? "Period end"
+                : "Settled date (optional)"}
+            <Input
+              className="mt-1.5"
+              type="date"
+              value={draft[field]}
+              onChange={(event) =>
+                setDraft((current) => ({
+                  ...current,
+                  [field]: event.target.value,
+                }))
+              }
+            />
+          </label>
+        ))}
+      </div>
+
+      {draft.lines.map((line, index) => (
+        <div key={index} className="rounded-md border border-[#E4E4DF] p-3">
+          <div className="flex items-center justify-between gap-2">
+            <strong className="text-xs">Line {index + 1}</strong>
+            {draft.lines.length > 1 ? (
+              <Button
+                type="button"
+                size="sm"
+                variant="ghost"
+                onClick={() =>
+                  setDraft((current) => ({
+                    ...current,
+                    lines: current.lines.filter(
+                      (_, lineIndex) => lineIndex !== index,
+                    ),
+                  }))
+                }
+              >
+                Remove
+              </Button>
+            ) : null}
+          </div>
+          <div className="mt-2 grid gap-2 sm:grid-cols-2">
+            <label className="text-[11px] font-medium sm:col-span-2">
+              Provider transaction reference
+              <Input
+                className="mt-1"
+                value={line.providerTransactionId}
+                onChange={(event) =>
+                  updateLine(index, {
+                    providerTransactionId: event.target.value,
+                  })
+                }
+              />
+            </label>
+            <label className="text-[11px] font-medium">
+              Movement
+              <select
+                className="mt-1 min-h-11 w-full rounded-md border border-input bg-background px-3"
+                value={line.movementType}
+                onChange={(event) =>
+                  updateLine(index, {
+                    movementType: event.target.value as
+                      | "sale"
+                      | "refund"
+                      | "void",
+                  })
+                }
+              >
+                <option value="sale">Sale</option>
+                <option value="refund">Refund</option>
+                <option value="void">Void</option>
+              </select>
+            </label>
+            {(["amount", "fee", "net"] as const).map((field) => (
+              <label key={field} className="text-[11px] font-medium capitalize">
+                {field}
+                <Input
+                  className="mt-1"
+                  type="number"
+                  inputMode="decimal"
+                  step="0.01"
+                  value={line[field]}
+                  onChange={(event) =>
+                    updateLine(index, { [field]: event.target.value })
+                  }
+                />
+              </label>
+            ))}
+            <label className="text-[11px] font-medium">
+              Line settlement reference
+              <Input
+                className="mt-1"
+                value={line.settlementReference}
+                onChange={(event) =>
+                  updateLine(index, {
+                    settlementReference: event.target.value,
+                  })
+                }
+              />
+            </label>
+          </div>
+        </div>
+      ))}
+
+      <Button
+        type="button"
+        size="sm"
+        variant="secondary"
+        onClick={() =>
+          setDraft((current) => ({
+            ...current,
+            lines: [...current.lines, blankSettlementLine()],
+          }))
+        }
+      >
+        Add settlement line
+      </Button>
+
+      <div className="grid gap-2 sm:grid-cols-2">
+        <OfficeFact
+          label="Lines"
+          value={draft.lines.length}
+          hint={`${draft.periodStart || "Start"} → ${draft.periodEnd || "End"}`}
+        />
+        <OfficeFact
+          label="Gross / adjustments"
+          value={`${formatMinor(preview.grossMinor, draft.currency)} / ${formatMinor(preview.adjustmentMinor, draft.currency)}`}
+          hint={`Fees ${formatMinor(preview.feeMinor, draft.currency)} · Net ${formatMinor(preview.netMinor, draft.currency)}`}
+        />
+      </div>
+    </div>
+  );
 }
 
 function providerTruth(intent: OfficeRecord) {
@@ -110,7 +355,33 @@ function MoneyContent() {
   const [periodStart, setPeriodStart] = useState("");
   const [periodEnd, setPeriodEnd] = useState("");
   const [currency, setCurrency] = useState("EGP");
-  const [settlementJson, setSettlementJson] = useState("");
+  const [settlementDraft, setSettlementDraft] = useState({
+    provider: "paymob" as "paymob" | "fawry",
+    externalReference: "",
+    payoutReference: "",
+    periodStart: "",
+    periodEnd: "",
+    settledAt: "",
+    currency: "EGP",
+    lines: [blankSettlementLine()],
+  });
+  const [integrationDraft, setIntegrationDraft] = useState({
+    scope: "company" as "company" | "branch",
+    provider: "paymob" as "paymob" | "fawry" | "maestr",
+    environment: "sandbox" as "sandbox" | "test" | "live",
+    merchantAccountReference: "",
+    enabledChannels: ["card"],
+    secretKeyReference: "",
+    apiKeyReference: "",
+    hmacSecretReference: "",
+    publicKey: "",
+    integrationIds: "",
+    notificationUrl: "",
+    returnUrl: "",
+    webhookConfigured: false,
+    recoveryReady: false,
+    settlementConfigured: false,
+  });
   const [issueNote, setIssueNote] = useState("");
 
   const canManage = canAccessStaffRoute({
@@ -136,6 +407,14 @@ function MoneyContent() {
         { status: "all", provider: "all", limit: 100 },
         accessToken,
       ),
+    enabled: Boolean(selectedBranchId && accessToken),
+    retry: false,
+  });
+
+  const integrationsQuery = useQuery({
+    queryKey: ["office-control", "money", "merchant-integrations", selectedBranchId],
+    queryFn: () =>
+      getMerchantPaymentIntegrations(selectedBranchId ?? "", accessToken),
     enabled: Boolean(selectedBranchId && accessToken),
     retry: false,
   });
@@ -240,12 +519,53 @@ function MoneyContent() {
 
   const settlementMutation = useMutation({
     mutationFn: () => {
-      const parsed: unknown = JSON.parse(settlementJson);
-      const payload = asRecord(parsed);
-
-      if (Object.keys(payload).length === 0) {
-        throw new Error("Settlement payload must be a JSON object");
+      if (
+        !settlementDraft.externalReference.trim() ||
+        !settlementDraft.periodStart ||
+        !settlementDraft.periodEnd ||
+        settlementDraft.lines.length === 0
+      ) {
+        throw new Error("Complete the settlement header and add at least one line");
       }
+      const statementCurrency = settlementDraft.currency.trim().toUpperCase();
+      const lines = settlementDraft.lines.map((line, index) => ({
+        providerTransactionId: line.providerTransactionId.trim() || (() => {
+          throw new Error(`Line ${index + 1} needs a provider transaction reference`);
+        })(),
+        movementType: line.movementType,
+        amountMinor: toMinor(line.amount, `Line ${index + 1} amount`),
+        feeMinor: toMinor(line.fee, `Line ${index + 1} fee`),
+        netMinor: toMinor(line.net, `Line ${index + 1} net`, true),
+        currency: statementCurrency,
+        ...(line.settlementReference.trim()
+          ? { settlementReference: line.settlementReference.trim() }
+          : {}),
+        ...(line.settledAt
+          ? { settledAt: new Date(`${line.settledAt}T12:00:00.000Z`).toISOString() }
+          : {}),
+      }));
+      const payload = {
+        provider: settlementDraft.provider,
+        externalReference: settlementDraft.externalReference.trim(),
+        ...(settlementDraft.payoutReference.trim()
+          ? { payoutReference: settlementDraft.payoutReference.trim() }
+          : {}),
+        periodStart: new Date(`${settlementDraft.periodStart}T00:00:00.000Z`).toISOString(),
+        periodEnd: new Date(`${settlementDraft.periodEnd}T23:59:59.999Z`).toISOString(),
+        ...(settlementDraft.settledAt
+          ? { settledAt: new Date(`${settlementDraft.settledAt}T12:00:00.000Z`).toISOString() }
+          : {}),
+        currency: statementCurrency,
+        grossMinor: lines
+          .filter((line) => line.movementType === "sale")
+          .reduce((sum, line) => sum + line.amountMinor, 0),
+        adjustmentMinor: lines
+          .filter((line) => line.movementType !== "sale")
+          .reduce((sum, line) => sum + line.amountMinor, 0),
+        feeMinor: lines.reduce((sum, line) => sum + line.feeMinor, 0),
+        netMinor: lines.reduce((sum, line) => sum + line.netMinor, 0),
+        lines,
+      };
 
       return importOfficeSettlement(
         selectedBranchId ?? "",
@@ -255,8 +575,63 @@ function MoneyContent() {
     },
     onSuccess: () => {
       void invalidateMoney();
-      setSettlementJson("");
+      setSettlementDraft((current) => ({
+        ...current,
+        externalReference: "",
+        payoutReference: "",
+        lines: [blankSettlementLine()],
+      }));
     },
+  });
+
+  const integrationMutation = useMutation({
+    mutationFn: (status: "needs_setup" | "ready") => {
+      const isPaymob = integrationDraft.provider === "paymob";
+      const secretReferences = isPaymob
+        ? {
+            secretKey: integrationDraft.secretKeyReference.trim(),
+            apiKey: integrationDraft.apiKeyReference.trim(),
+            hmacSecret: integrationDraft.hmacSecretReference.trim(),
+          }
+        : integrationDraft.provider === "fawry"
+          ? { secureKey: integrationDraft.secretKeyReference.trim() }
+          : {};
+      const configurationMetadata = isPaymob
+        ? {
+            publicKey: integrationDraft.publicKey.trim(),
+            integrationIds: integrationDraft.integrationIds
+              .split(",")
+              .map((value) => Number(value.trim()))
+              .filter(Number.isInteger),
+            notificationUrl: integrationDraft.notificationUrl.trim(),
+          }
+        : integrationDraft.provider === "fawry"
+          ? {
+              notificationUrl: integrationDraft.notificationUrl.trim(),
+              returnUrl: integrationDraft.returnUrl.trim(),
+            }
+          : {};
+
+      return upsertMerchantPaymentIntegration(
+        selectedBranchId ?? "",
+        {
+          scope: integrationDraft.scope,
+          provider: integrationDraft.provider,
+          environment: integrationDraft.environment,
+          status,
+          merchantAccountReference:
+            integrationDraft.merchantAccountReference.trim(),
+          enabledChannels: integrationDraft.enabledChannels,
+          configurationMetadata,
+          secretReferences,
+          webhookConfigured: integrationDraft.webhookConfigured,
+          recoveryReady: integrationDraft.recoveryReady,
+          settlementConfigured: integrationDraft.settlementConfigured,
+        },
+        accessToken,
+      );
+    },
+    onSuccess: () => void invalidateMoney(),
   });
 
   const issueMutation = useMutation({
@@ -288,13 +663,18 @@ function MoneyContent() {
     billsQuery.isPending ||
     paymentsQuery.isPending ||
     runsQuery.isPending ||
-    issuesQuery.isPending
+    issuesQuery.isPending ||
+    integrationsQuery.isPending
   ) {
     return <LoadingState label="Loading money operations…" />;
   }
 
   const firstError =
-    billsQuery.error ?? paymentsQuery.error ?? runsQuery.error ?? issuesQuery.error;
+    billsQuery.error ??
+    paymentsQuery.error ??
+    runsQuery.error ??
+    issuesQuery.error ??
+    integrationsQuery.error;
 
   if (firstError) {
     return (
@@ -309,6 +689,7 @@ function MoneyContent() {
               void paymentsQuery.refetch();
               void runsQuery.refetch();
               void issuesQuery.refetch();
+              void integrationsQuery.refetch();
             }}
           >
             <RefreshCw className="size-4" aria-hidden="true" />
@@ -323,6 +704,8 @@ function MoneyContent() {
   const intents = (paymentsQuery.data?.onlinePaymentIntents ?? []).map(asRecord);
   const runs = runsQuery.data ?? [];
   const issues = issuesQuery.data ?? [];
+  const integrations = integrationsQuery.data?.integrations ?? [];
+  const effectiveIntegration = asRecord(integrationsQuery.data?.effective);
   const succeeded = intents.filter(
     (intent) => textValue(intent.status, "").toLowerCase() === "succeeded",
   );
@@ -338,6 +721,22 @@ function MoneyContent() {
   const canVoidOrCapture = selectedProvider === "paymob";
   const canRefund =
     selectedProvider === "paymob" || selectedProvider === "fawry";
+  const settlementPreview = settlementDraft.lines.reduce(
+    (totals, line) => {
+      const amountMinor = Math.round((Number(line.amount) || 0) * 100);
+      const feeMinor = Math.round((Number(line.fee) || 0) * 100);
+      const netMinor = Math.round((Number(line.net) || 0) * 100);
+      if (line.movementType === "sale") {
+        totals.grossMinor += amountMinor;
+      } else {
+        totals.adjustmentMinor += amountMinor;
+      }
+      totals.feeMinor += feeMinor;
+      totals.netMinor += netMinor;
+      return totals;
+    },
+    { grossMinor: 0, adjustmentMinor: 0, feeMinor: 0, netMinor: 0 },
+  );
 
   return (
     <div className="space-y-4">
@@ -597,6 +996,284 @@ function MoneyContent() {
         )}
       </OfficeControlSection>
 
+      <OfficeControlSection
+        title="Payment methods & merchant readiness"
+        description="The selected branch resolves a branch override first, then the company default. Secret values stay in runtime configuration; this surface stores references only."
+        action={<ShieldCheck className="size-4 text-[#777770]" aria-hidden="true" />}
+      >
+        <div className="grid gap-4 xl:grid-cols-[0.8fr_1.2fr]">
+          <div className="space-y-2">
+            <OfficeFact
+              label="Effective provider"
+              value={textValue(effectiveIntegration.provider, "Not configured")}
+              hint={
+                textValue(effectiveIntegration.environment, "") ||
+                "Payments fail closed until a merchant integration is ready."
+              }
+            />
+            {integrations.length === 0 ? (
+              <OfficeInlineNotice title="Merchant setup required">
+                No company or branch merchant integration is recorded. Real
+                online checkout remains unavailable for this venue.
+              </OfficeInlineNotice>
+            ) : (
+              integrations.map((integration) => (
+                <div
+                  key={integration.id}
+                  className="rounded-md border border-[#E4E4DF] p-3 text-xs"
+                >
+                  <div className="flex items-center justify-between gap-2">
+                    <strong className="capitalize">{integration.provider}</strong>
+                    <OfficeStatusBadge value={integration.status} />
+                  </div>
+                  <p className="mt-1 text-[#707069]">
+                    {integration.branchId ? "Branch override" : "Company default"}
+                    {" · "}
+                    {integration.environment}
+                  </p>
+                  <p className="mt-1 text-[#707069]">
+                    Methods: {integration.enabledChannels.join(", ") || "none"}
+                  </p>
+                  <p className="mt-1 text-[#707069]">
+                    Webhook {integration.webhookConfigured ? "configured" : "not configured"}
+                    {" · "}Recovery {integration.recoveryReady ? "ready" : "blocked"}
+                    {" · "}Settlement {integration.settlementConfigured ? "configured" : "not configured"}
+                  </p>
+                  {integration.readinessMessage ? (
+                    <p className="mt-2 text-[#8A6A2C]">
+                      {integration.readinessMessage}
+                    </p>
+                  ) : null}
+                </div>
+              ))
+            )}
+          </div>
+
+          {canManage ? (
+            <details className="rounded-md border border-[#E4E4DF] p-3">
+              <summary className="cursor-pointer text-xs font-semibold">
+                Configure merchant connection
+              </summary>
+              <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                <label className="text-xs font-medium">
+                  Scope
+                  <select
+                    className="mt-1.5 min-h-11 w-full rounded-md border border-input bg-background px-3"
+                    value={integrationDraft.scope}
+                    onChange={(event) =>
+                      setIntegrationDraft((current) => ({
+                        ...current,
+                        scope: event.target.value as "company" | "branch",
+                      }))
+                    }
+                  >
+                    <option value="company">Company default</option>
+                    <option value="branch">Selected branch override</option>
+                  </select>
+                </label>
+                <label className="text-xs font-medium">
+                  Provider
+                  <select
+                    className="mt-1.5 min-h-11 w-full rounded-md border border-input bg-background px-3"
+                    value={integrationDraft.provider}
+                    onChange={(event) => {
+                      const provider = event.target.value as "paymob" | "fawry" | "maestr";
+                      setIntegrationDraft((current) => ({
+                        ...current,
+                        provider,
+                        enabledChannels:
+                          provider === "paymob"
+                            ? ["card"]
+                            : provider === "fawry"
+                              ? ["card", "wallet", "reference_code"]
+                              : [],
+                      }));
+                    }}
+                  >
+                    <option value="paymob">Paymob</option>
+                    <option value="fawry">Fawry</option>
+                    <option value="maestr">Commercial IPN / Maestr (blocked)</option>
+                  </select>
+                </label>
+                <label className="text-xs font-medium">
+                  Environment
+                  <select
+                    className="mt-1.5 min-h-11 w-full rounded-md border border-input bg-background px-3"
+                    value={integrationDraft.environment}
+                    onChange={(event) =>
+                      setIntegrationDraft((current) => ({
+                        ...current,
+                        environment: event.target.value as "sandbox" | "test" | "live",
+                      }))
+                    }
+                  >
+                    <option value="sandbox">Sandbox</option>
+                    <option value="test">Test</option>
+                    <option value="live">Live</option>
+                  </select>
+                </label>
+                <label className="text-xs font-medium">
+                  Merchant account reference
+                  <Input
+                    className="mt-1.5"
+                    value={integrationDraft.merchantAccountReference}
+                    onChange={(event) =>
+                      setIntegrationDraft((current) => ({
+                        ...current,
+                        merchantAccountReference: event.target.value,
+                      }))
+                    }
+                  />
+                </label>
+              </div>
+
+              {integrationDraft.provider !== "maestr" ? (
+                <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                  <label className="text-xs font-medium">
+                    {integrationDraft.provider === "paymob"
+                      ? "Secret key environment variable"
+                      : "Secure key environment variable"}
+                    <Input
+                      className="mt-1.5 font-mono"
+                      placeholder="BALCONA_PROVIDER_SECRET"
+                      value={integrationDraft.secretKeyReference}
+                      onChange={(event) =>
+                        setIntegrationDraft((current) => ({
+                          ...current,
+                          secretKeyReference: event.target.value,
+                        }))
+                      }
+                    />
+                  </label>
+                  {integrationDraft.provider === "paymob" ? (
+                    <>
+                      <label className="text-xs font-medium">
+                        API key environment variable
+                        <Input
+                          className="mt-1.5 font-mono"
+                          value={integrationDraft.apiKeyReference}
+                          onChange={(event) =>
+                            setIntegrationDraft((current) => ({ ...current, apiKeyReference: event.target.value }))
+                          }
+                        />
+                      </label>
+                      <label className="text-xs font-medium">
+                        HMAC environment variable
+                        <Input
+                          className="mt-1.5 font-mono"
+                          value={integrationDraft.hmacSecretReference}
+                          onChange={(event) =>
+                            setIntegrationDraft((current) => ({ ...current, hmacSecretReference: event.target.value }))
+                          }
+                        />
+                      </label>
+                      <label className="text-xs font-medium">
+                        Public key
+                        <Input
+                          className="mt-1.5 font-mono"
+                          value={integrationDraft.publicKey}
+                          onChange={(event) =>
+                            setIntegrationDraft((current) => ({ ...current, publicKey: event.target.value }))
+                          }
+                        />
+                      </label>
+                      <label className="text-xs font-medium sm:col-span-2">
+                        Integration IDs (comma separated)
+                        <Input
+                          className="mt-1.5 font-mono"
+                          value={integrationDraft.integrationIds}
+                          onChange={(event) =>
+                            setIntegrationDraft((current) => ({ ...current, integrationIds: event.target.value }))
+                          }
+                        />
+                      </label>
+                    </>
+                  ) : (
+                    <label className="text-xs font-medium">
+                      Return URL
+                      <Input
+                        className="mt-1.5"
+                        value={integrationDraft.returnUrl}
+                        onChange={(event) =>
+                          setIntegrationDraft((current) => ({ ...current, returnUrl: event.target.value }))
+                        }
+                      />
+                    </label>
+                  )}
+                  <label className="text-xs font-medium sm:col-span-2">
+                    Provider webhook URL
+                    <Input
+                      className="mt-1.5"
+                      value={integrationDraft.notificationUrl}
+                      onChange={(event) =>
+                        setIntegrationDraft((current) => ({ ...current, notificationUrl: event.target.value }))
+                      }
+                    />
+                  </label>
+                </div>
+              ) : (
+                <OfficeInlineNotice title="External contract blocker">
+                  Maestr/IPN execution stays disabled until the exact merchant
+                  API, signature, amount-unit, inquiry, and settlement contract
+                  is available for Balcona&apos;s account.
+                </OfficeInlineNotice>
+              )}
+
+              <div className="mt-3 flex flex-wrap gap-3 text-xs">
+                {[
+                  ["webhookConfigured", "Webhook configured"],
+                  ["recoveryReady", "Inquiry/recovery ready"],
+                  ["settlementConfigured", "Settlement configured"],
+                ].map(([key, label]) => (
+                  <label key={key} className="flex items-center gap-2">
+                    <input
+                      type="checkbox"
+                      checked={Boolean(integrationDraft[key as "webhookConfigured" | "recoveryReady" | "settlementConfigured"])}
+                      onChange={(event) =>
+                        setIntegrationDraft((current) => ({
+                          ...current,
+                          [key]: event.target.checked,
+                        }))
+                      }
+                    />
+                    {label}
+                  </label>
+                ))}
+              </div>
+              <div className="mt-4 flex flex-wrap gap-2">
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  disabled={integrationMutation.isPending}
+                  onClick={() => integrationMutation.mutate("needs_setup")}
+                >
+                  Save setup state
+                </Button>
+                <Button
+                  size="sm"
+                  disabled={integrationMutation.isPending || integrationDraft.provider === "maestr"}
+                  onClick={() => integrationMutation.mutate("ready")}
+                >
+                  Validate & activate
+                </Button>
+              </div>
+              {integrationMutation.isError ? (
+                <div className="mt-3">
+                  <OfficeInlineNotice title="Merchant connection not ready">
+                    {formatErrorMessage(integrationMutation.error)}
+                  </OfficeInlineNotice>
+                </div>
+              ) : null}
+            </details>
+          ) : (
+            <OfficeInlineNotice title="Read-only access">
+              online_payments.manage is required to configure merchant payment
+              readiness.
+            </OfficeInlineNotice>
+          )}
+        </div>
+      </OfficeControlSection>
+
       <div className="grid gap-4 xl:grid-cols-2">
         <OfficeControlSection
           title="Settlements & payouts"
@@ -657,15 +1334,25 @@ function MoneyContent() {
                   validation rejects totals that do not match the supplied lines.
                 </p>
                 <textarea
-                  className="mt-3 min-h-36 w-full rounded-md border border-input bg-background p-3 font-mono text-[11px]"
-                  value={settlementJson}
-                  onChange={(event) => setSettlementJson(event.target.value)}
+                  className="hidden"
+                  value=""
+                  readOnly
                   placeholder={'{"provider":"paymob","externalReference":"...","periodStart":"...","periodEnd":"...","currency":"EGP","grossMinor":0,"adjustmentMinor":0,"feeMinor":0,"netMinor":0,"lines":[]}'}
+                />
+                <StructuredSettlementEditor
+                  draft={settlementDraft}
+                  setDraft={setSettlementDraft}
+                  preview={settlementPreview}
                 />
                 <Button
                   className="mt-2"
                   size="sm"
-                  disabled={!settlementJson.trim() || settlementMutation.isPending}
+                  disabled={
+                    !settlementDraft.externalReference.trim() ||
+                    !settlementDraft.periodStart ||
+                    !settlementDraft.periodEnd ||
+                    settlementMutation.isPending
+                  }
                   onClick={() => {
                     if (
                       window.confirm(

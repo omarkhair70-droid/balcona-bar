@@ -89,6 +89,7 @@ import type {
   CreateTableResult,
   CreateModifierOptionResult,
   CustomerStatusResult,
+  CustomerPaymentCapabilities,
   CurrentCashierShiftResult,
   CustomerTimelineResult,
   DemoRequest,
@@ -100,6 +101,8 @@ import type {
   MenuCategoryMutationResult,
   MenuAdminOverviewResult,
   MenuItemMutationResult,
+  MerchantPaymentIntegration,
+  MerchantPaymentIntegrationsResult,
   MenuItemDetailResult,
   ModifierGroupMutationResult,
   ModifierOptionMutationResult,
@@ -124,6 +127,7 @@ import type {
   PlatformCompaniesResult,
   PlatformCompanyDetail,
   PlatformLoginPayload,
+  UpsertMerchantPaymentIntegrationPayload,
   OrderPreparationTasksResult,
   OpenCashierShiftPayload,
   BootstrapCompanyInput,
@@ -1609,6 +1613,17 @@ export function createOnlinePaymentIntent(
   });
 }
 
+export function getCustomerPaymentCapabilities(
+  sessionId: string,
+  billId: string,
+  token?: string,
+) {
+  return apiRequest<CustomerPaymentCapabilities>(
+    `/customer/sessions/${sessionId}/bills/${billId}/payment-capabilities`,
+    { token },
+  );
+}
+
 export function getCustomerOnlinePaymentIntent(
   sessionId: string,
   intentId: string,
@@ -2066,6 +2081,31 @@ export function getBranchOnlinePayments(
       token,
     },
   );
+}
+
+export function getMerchantPaymentIntegrations(
+  branchId: string,
+  token?: string,
+) {
+  return apiRequest<MerchantPaymentIntegrationsResult>(
+    `/branches/${branchId}/merchant-payment-integrations`,
+    { token },
+  );
+}
+
+export function upsertMerchantPaymentIntegration(
+  branchId: string,
+  payload: UpsertMerchantPaymentIntegrationPayload,
+  token?: string,
+) {
+  return apiRequest<
+    MerchantPaymentIntegration,
+    UpsertMerchantPaymentIntegrationPayload
+  >(`/branches/${branchId}/merchant-payment-integrations`, {
+    method: "POST",
+    body: payload,
+    token,
+  });
 }
 
 export function getSaasPlans(token?: string) {

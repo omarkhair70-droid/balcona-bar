@@ -10,6 +10,7 @@ import { OnlinePaymentReconciliationScheduler } from "./online-payment-reconcili
 import { OnlinePaymentSettlementReconciliationScheduler } from "./online-payment-settlement-reconciliation.scheduler";
 import { OnlinePaymentsController } from "./online-payments.controller";
 import { OnlinePaymentsService } from "./online-payments.service";
+import { MerchantPaymentIntegrationsService } from "./merchant-payment-integrations.service";
 import { FawryPaymentProviderService } from "./providers/fawry-payment-provider.service";
 import { PaymobPaymentProviderService } from "./providers/paymob-payment-provider.service";
 import { PaymentRateLimitGuard } from "./payment-rate-limit.guard";
@@ -31,6 +32,7 @@ import { StaffPaymentRecoveryRateLimitGuard } from "./staff-payment-recovery-rat
   controllers: [OnlinePaymentsController],
   providers: [
     OnlinePaymentsService,
+    MerchantPaymentIntegrationsService,
     PaymobPaymentProviderService,
     FawryPaymentProviderService,
     PaymentRateLimitService,
@@ -41,6 +43,10 @@ import { StaffPaymentRecoveryRateLimitGuard } from "./staff-payment-recovery-rat
     StaffPaymentRecoveryRateLimitGuard,
     StaffPaymentOperationRateLimitGuard,
   ],
-  exports: [OnlinePaymentsService, PaymentReconciliationService],
+  exports: [
+    OnlinePaymentsService,
+    PaymentReconciliationService,
+    MerchantPaymentIntegrationsService,
+  ],
 })
 export class OnlinePaymentsModule {}

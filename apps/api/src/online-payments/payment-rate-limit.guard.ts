@@ -24,10 +24,7 @@ export class PaymentRateLimitGuard implements CanActivate {
   async canActivate(context: ExecutionContext): Promise<boolean> {
     const policy = this.reflector.getAllAndOverride<
       PaymentRateLimitPolicy | undefined
-    >(PAYMENT_RATE_LIMIT_POLICY, [
-      context.getHandler(),
-      context.getClass(),
-    ]);
+    >(PAYMENT_RATE_LIMIT_POLICY, [context.getHandler(), context.getClass()]);
 
     if (!policy) {
       return true;

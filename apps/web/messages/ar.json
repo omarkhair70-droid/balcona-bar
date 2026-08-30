@@ -111,7 +111,23 @@
       "paymentUnavailable": "الدفع أونلاين مش متاح دلوقتي. تقدر تطلب مساعدة الفريق في الحساب.",
       "requestErrorSimple": "مقدرناش نطلب الحساب دلوقتي. حاول تاني.",
       "preparingBillTitle": "الحساب بيتجهز",
-      "preparingBillDescription": "الفريق بيراجع الحساب النهائي قبل ما الدفع يبقى متاح."
+      "preparingBillDescription": "الفريق بيراجع الحساب النهائي قبل ما الدفع يبقى متاح.",
+      "merchantNotReady": "الدفع الآمن أونلاين لسه مش متجهز للمكان ده.",
+      "checkoutDetails": "بيانات الدفع الآمن",
+      "checkoutDetailsDescription": "البيانات دي بتتبعت لمزود الدفع المفعّل فقط علشان يجهز صفحة الدفع.",
+      "paymentMethod": "طريقة الدفع",
+      "firstName": "الاسم الأول",
+      "lastName": "اسم العائلة",
+      "email": "البريد الإلكتروني",
+      "phoneNumber": "رقم الموبايل",
+      "cancelCheckout": "إلغاء",
+      "continueSecurely": "كمّل بأمان",
+      "method": {
+        "CARD": "بطاقة",
+        "MWALLET": "محفظة موبايل",
+        "PayAtFawry": "كود فوري",
+        "VALU": "ValU"
+      }
     },
     "cart": {
       "clear": "مسح",

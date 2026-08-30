@@ -425,7 +425,22 @@ enum OnlinePaymentProvider {
   mock
   paymob
   fawry
+  maestr
   external
+}
+
+enum MerchantPaymentIntegrationEnvironment {
+  sandbox
+  test
+  live
+}
+
+enum MerchantPaymentIntegrationStatus {
+  draft
+  needs_setup
+  ready
+  blocked
+  disabled
 }
 
 enum OnlinePaymentIntentStatus {
@@ -928,67 +943,68 @@ model Company {
   createdAt DateTime      @default(now())
   updatedAt DateTime      @updatedAt
 
-  aiWaiterSessions              AiWaiterSession[]
-  aiWaiterMessages              AiWaiterMessage[]
-  aiWaiterCartProposals         AiWaiterCartProposal[]
-  aiWaiterToolCalls             AiWaiterToolCall[]
-  aiWaiterUsageEvents           AiWaiterUsageEvent[]
-  auditLogs                     AuditLog[]
-  branches                      Branch[]
-  branchOperatingSettings       BranchOperatingSettings[]
-  branchFeatureFlags            BranchFeatureFlag[]
-  bills                         Bill[]
-  billRequests                  BillRequest[]
-  carts                         Cart[]
-  menuCategories                MenuCategory[]
-  menuItems                     MenuItem[]
-  mediaAssets                   MediaAsset[]
-  mediaAssetUsages              MediaAssetUsage[]
-  modifierGroups                ModifierGroup[]
-  notificationTemplates         NotificationTemplate[]
-  notifications                 Notification[]
-  experienceProfiles            ExperienceProfile[]
-  contentBlocks                 ContentBlock[]
-  inventoryItems                InventoryItem[]
-  inventoryLevels               BranchInventoryLevel[]
-  inventoryMovements            InventoryMovement[]
-  suppliers                     Supplier[]
-  purchaseOrders                PurchaseOrder[]
-  inventoryReceipts             InventoryReceipt[]
-  menuItemInventoryRequirements MenuItemInventoryRequirement[]
-  orders                        Order[]
-  presenceEvents                PresenceEvent[]
-  preparationTasks              PreparationTask[]
-  kitchenTickets                KitchenTicket[]
-  manualPayments                ManualPayment[]
-  onlinePaymentIntents          OnlinePaymentIntent[]
-  onlinePaymentEvents           OnlinePaymentEvent[]
-  onlinePaymentOperations       OnlinePaymentOperation[]
-  onlinePaymentReconciliationRuns OnlinePaymentReconciliationRun[]
+  aiWaiterSessions                   AiWaiterSession[]
+  aiWaiterMessages                   AiWaiterMessage[]
+  aiWaiterCartProposals              AiWaiterCartProposal[]
+  aiWaiterToolCalls                  AiWaiterToolCall[]
+  aiWaiterUsageEvents                AiWaiterUsageEvent[]
+  auditLogs                          AuditLog[]
+  branches                           Branch[]
+  branchOperatingSettings            BranchOperatingSettings[]
+  branchFeatureFlags                 BranchFeatureFlag[]
+  bills                              Bill[]
+  billRequests                       BillRequest[]
+  carts                              Cart[]
+  menuCategories                     MenuCategory[]
+  menuItems                          MenuItem[]
+  mediaAssets                        MediaAsset[]
+  mediaAssetUsages                   MediaAssetUsage[]
+  modifierGroups                     ModifierGroup[]
+  notificationTemplates              NotificationTemplate[]
+  notifications                      Notification[]
+  experienceProfiles                 ExperienceProfile[]
+  contentBlocks                      ContentBlock[]
+  inventoryItems                     InventoryItem[]
+  inventoryLevels                    BranchInventoryLevel[]
+  inventoryMovements                 InventoryMovement[]
+  suppliers                          Supplier[]
+  purchaseOrders                     PurchaseOrder[]
+  inventoryReceipts                  InventoryReceipt[]
+  menuItemInventoryRequirements      MenuItemInventoryRequirement[]
+  orders                             Order[]
+  presenceEvents                     PresenceEvent[]
+  preparationTasks                   PreparationTask[]
+  kitchenTickets                     KitchenTicket[]
+  manualPayments                     ManualPayment[]
+  onlinePaymentIntents               OnlinePaymentIntent[]
+  merchantPaymentIntegrations        MerchantPaymentIntegration[]
+  onlinePaymentEvents                OnlinePaymentEvent[]
+  onlinePaymentOperations            OnlinePaymentOperation[]
+  onlinePaymentReconciliationRuns    OnlinePaymentReconciliationRun[]
   onlinePaymentReconciliationEntries OnlinePaymentReconciliationEntry[]
-  onlinePaymentReconciliationIssues OnlinePaymentReconciliationIssue[]
-  onlinePaymentSettlementBatches OnlinePaymentSettlementBatch[]
-  cashierShifts                 CashierShift[]
-  cashDrawerTransactions        CashDrawerTransaction[]
-  cashierShiftReports           CashierShiftReport[]
-  printerStations               PrinterStation[]
-  printJobs                     PrintJob[]
-  billReceipts                  BillReceipt[]
-  realtimeEvents                RealtimeEvent[]
-  smartCashierSettings          BranchSmartCashierSettings[]
-  smartCashierReviewRules       SmartCashierReviewRule[]
-  staffMemberships              StaffMembership[]
-  staffInvites                  StaffInvite[]
-  staffSessions                 StaffSession[]
-  tableAttentionSnapshots       TableAttentionSnapshot[]
-  tableAttentionEvents          TableAttentionEvent[]
-  tableSessions                 TableSession[]
-  customerSessionIdentities     CustomerSessionIdentity[]
-  deviceSubscriptions           DeviceSubscription[]
-  saasSubscription              CompanySubscription?
-  saasLimitOverrides            CompanyPlanLimitOverride[]
-  waiterCalls                   WaiterCall[]
-  venueZones                    VenueZone[]
+  onlinePaymentReconciliationIssues  OnlinePaymentReconciliationIssue[]
+  onlinePaymentSettlementBatches     OnlinePaymentSettlementBatch[]
+  cashierShifts                      CashierShift[]
+  cashDrawerTransactions             CashDrawerTransaction[]
+  cashierShiftReports                CashierShiftReport[]
+  printerStations                    PrinterStation[]
+  printJobs                          PrintJob[]
+  billReceipts                       BillReceipt[]
+  realtimeEvents                     RealtimeEvent[]
+  smartCashierSettings               BranchSmartCashierSettings[]
+  smartCashierReviewRules            SmartCashierReviewRule[]
+  staffMemberships                   StaffMembership[]
+  staffInvites                       StaffInvite[]
+  staffSessions                      StaffSession[]
+  tableAttentionSnapshots            TableAttentionSnapshot[]
+  tableAttentionEvents               TableAttentionEvent[]
+  tableSessions                      TableSession[]
+  customerSessionIdentities          CustomerSessionIdentity[]
+  deviceSubscriptions                DeviceSubscription[]
+  saasSubscription                   CompanySubscription?
+  saasLimitOverrides                 CompanyPlanLimitOverride[]
+  waiterCalls                        WaiterCall[]
+  venueZones                         VenueZone[]
 }
 
 model SaasPlan {
@@ -1073,62 +1089,63 @@ model Branch {
   createdAt DateTime     @default(now())
   updatedAt DateTime     @updatedAt
 
-  aiWaiterSessions          AiWaiterSession[]
-  aiWaiterMessages          AiWaiterMessage[]
-  aiWaiterCartProposals     AiWaiterCartProposal[]
-  aiWaiterToolCalls         AiWaiterToolCall[]
-  aiWaiterUsageEvents       AiWaiterUsageEvent[]
-  auditLogs                 AuditLog[]
-  company                   Company                     @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  operatingSettings         BranchOperatingSettings?
-  featureFlags              BranchFeatureFlag[]
-  bills                     Bill[]
-  billRequests              BillRequest[]
-  carts                     Cart[]
-  floors                    Floor[]
-  mediaAssets               MediaAsset[]
-  mediaAssetUsages          MediaAssetUsage[]
-  menuItemOverrides         BranchMenuItemOverride[]
-  notificationTemplates     NotificationTemplate[]
-  notifications             Notification[]
-  experienceProfiles        ExperienceProfile[]
-  contentBlocks             ContentBlock[]
-  inventoryLevels           BranchInventoryLevel[]
-  inventoryMovements        InventoryMovement[]
-  purchaseOrders            PurchaseOrder[]
-  inventoryReceipts         InventoryReceipt[]
-  orders                    Order[]
-  presenceEvents            PresenceEvent[]
-  preparationTasks          PreparationTask[]
-  kitchenTickets            KitchenTicket[]
-  manualPayments            ManualPayment[]
-  onlinePaymentIntents      OnlinePaymentIntent[]
-  onlinePaymentEvents       OnlinePaymentEvent[]
-  onlinePaymentOperations   OnlinePaymentOperation[]
-  onlinePaymentReconciliationRuns OnlinePaymentReconciliationRun[]
+  aiWaiterSessions                   AiWaiterSession[]
+  aiWaiterMessages                   AiWaiterMessage[]
+  aiWaiterCartProposals              AiWaiterCartProposal[]
+  aiWaiterToolCalls                  AiWaiterToolCall[]
+  aiWaiterUsageEvents                AiWaiterUsageEvent[]
+  auditLogs                          AuditLog[]
+  company                            Company                            @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  operatingSettings                  BranchOperatingSettings?
+  featureFlags                       BranchFeatureFlag[]
+  bills                              Bill[]
+  billRequests                       BillRequest[]
+  carts                              Cart[]
+  floors                             Floor[]
+  mediaAssets                        MediaAsset[]
+  mediaAssetUsages                   MediaAssetUsage[]
+  menuItemOverrides                  BranchMenuItemOverride[]
+  notificationTemplates              NotificationTemplate[]
+  notifications                      Notification[]
+  experienceProfiles                 ExperienceProfile[]
+  contentBlocks                      ContentBlock[]
+  inventoryLevels                    BranchInventoryLevel[]
+  inventoryMovements                 InventoryMovement[]
+  purchaseOrders                     PurchaseOrder[]
+  inventoryReceipts                  InventoryReceipt[]
+  orders                             Order[]
+  presenceEvents                     PresenceEvent[]
+  preparationTasks                   PreparationTask[]
+  kitchenTickets                     KitchenTicket[]
+  manualPayments                     ManualPayment[]
+  onlinePaymentIntents               OnlinePaymentIntent[]
+  merchantPaymentIntegrations        MerchantPaymentIntegration[]
+  onlinePaymentEvents                OnlinePaymentEvent[]
+  onlinePaymentOperations            OnlinePaymentOperation[]
+  onlinePaymentReconciliationRuns    OnlinePaymentReconciliationRun[]
   onlinePaymentReconciliationEntries OnlinePaymentReconciliationEntry[]
-  onlinePaymentReconciliationIssues OnlinePaymentReconciliationIssue[]
-  onlinePaymentSettlementBatches OnlinePaymentSettlementBatch[]
-  cashierShifts             CashierShift[]
-  cashDrawerTransactions    CashDrawerTransaction[]
-  cashierShiftReports       CashierShiftReport[]
-  printerStations           PrinterStation[]
-  printJobs                 PrintJob[]
-  billReceipts              BillReceipt[]
-  realtimeEvents            RealtimeEvent[]
-  smartCashierSettings      BranchSmartCashierSettings?
-  smartCashierReviewRules   SmartCashierReviewRule[]
-  tableAttentionSnapshots   TableAttentionSnapshot[]
-  tableAttentionEvents      TableAttentionEvent[]
-  tables                    CafeTable[]
-  staffMemberships          StaffMembership[]
-  staffInvites              StaffInvite[]
-  staffSessions             StaffSession[]
-  tableSessions             TableSession[]
-  customerSessionIdentities CustomerSessionIdentity[]
-  deviceSubscriptions       DeviceSubscription[]
-  waiterCalls               WaiterCall[]
-  venueZones                VenueZone[]
+  onlinePaymentReconciliationIssues  OnlinePaymentReconciliationIssue[]
+  onlinePaymentSettlementBatches     OnlinePaymentSettlementBatch[]
+  cashierShifts                      CashierShift[]
+  cashDrawerTransactions             CashDrawerTransaction[]
+  cashierShiftReports                CashierShiftReport[]
+  printerStations                    PrinterStation[]
+  printJobs                          PrintJob[]
+  billReceipts                       BillReceipt[]
+  realtimeEvents                     RealtimeEvent[]
+  smartCashierSettings               BranchSmartCashierSettings?
+  smartCashierReviewRules            SmartCashierReviewRule[]
+  tableAttentionSnapshots            TableAttentionSnapshot[]
+  tableAttentionEvents               TableAttentionEvent[]
+  tables                             CafeTable[]
+  staffMemberships                   StaffMembership[]
+  staffInvites                       StaffInvite[]
+  staffSessions                      StaffSession[]
+  tableSessions                      TableSession[]
+  customerSessionIdentities          CustomerSessionIdentity[]
+  deviceSubscriptions                DeviceSubscription[]
+  waiterCalls                        WaiterCall[]
+  venueZones                         VenueZone[]
 
   @@unique([companyId, slug])
   @@index([companyId])
@@ -1182,41 +1199,41 @@ model StaffUser {
   createdAt     DateTime    @default(now())
   updatedAt     DateTime    @updatedAt
 
-  memberships              StaffMembership[]
-  sessions                 StaffSession[]
-  staffInvites             StaffInvite[]
-  servedOrders             Order[]                 @relation("OrderServedByStaff")
-  completedOrders          Order[]                 @relation("OrderCompletedByStaff")
-  orderEvents              OrderEvent[]
-  acknowledgedBillRequests BillRequest[]           @relation("BillRequestAcknowledgedByStaff")
-  presentedBillRequests    BillRequest[]           @relation("BillRequestPresentedByStaff")
-  closedBillRequests       BillRequest[]           @relation("BillRequestClosedByStaff")
-  cancelledBillRequests    BillRequest[]           @relation("BillRequestCancelledByStaff")
-  billRequestEvents        BillRequestEvent[]
-  presentedBills           Bill[]                  @relation("BillPresentedByStaff")
-  paidBills                Bill[]                  @relation("BillPaidByStaff")
-  closedBills              Bill[]                  @relation("BillClosedByStaff")
-  cancelledBills           Bill[]                  @relation("BillCancelledByStaff")
-  recordedManualPayments   ManualPayment[]         @relation("ManualPaymentRecordedByStaff")
-  voidedManualPayments     ManualPayment[]         @relation("ManualPaymentVoidedByStaff")
-  openedCashierShifts      CashierShift[]          @relation("CashierShiftOpenedByStaff")
-  closedCashierShifts      CashierShift[]          @relation("CashierShiftClosedByStaff")
-  cashDrawerTransactions   CashDrawerTransaction[]
-  generatedCashierReports  CashierShiftReport[]
-  inventoryMovements       InventoryMovement[]
-  createdPurchaseOrders     PurchaseOrder[]      @relation("PurchaseOrderCreatedByStaff")
-  createdInventoryReceipts  InventoryReceipt[]   @relation("InventoryReceiptCreatedByStaff")
-  billEvents               BillEvent[]
-  preparationTaskEvents    PreparationTaskEvent[]
-  requestedPrintJobs       PrintJob[]              @relation("PrintJobRequestedByStaff")
-  onlinePaymentOperations  OnlinePaymentOperation[] @relation("OnlinePaymentOperationRequestedByStaff")
-  requestedPaymentReconciliationRuns OnlinePaymentReconciliationRun[] @relation("OnlinePaymentReconciliationRunRequestedByStaff")
-  importedPaymentSettlementBatches OnlinePaymentSettlementBatch[] @relation("OnlinePaymentSettlementBatchImportedByStaff")
+  memberships                             StaffMembership[]
+  sessions                                StaffSession[]
+  staffInvites                            StaffInvite[]
+  servedOrders                            Order[]                            @relation("OrderServedByStaff")
+  completedOrders                         Order[]                            @relation("OrderCompletedByStaff")
+  orderEvents                             OrderEvent[]
+  acknowledgedBillRequests                BillRequest[]                      @relation("BillRequestAcknowledgedByStaff")
+  presentedBillRequests                   BillRequest[]                      @relation("BillRequestPresentedByStaff")
+  closedBillRequests                      BillRequest[]                      @relation("BillRequestClosedByStaff")
+  cancelledBillRequests                   BillRequest[]                      @relation("BillRequestCancelledByStaff")
+  billRequestEvents                       BillRequestEvent[]
+  presentedBills                          Bill[]                             @relation("BillPresentedByStaff")
+  paidBills                               Bill[]                             @relation("BillPaidByStaff")
+  closedBills                             Bill[]                             @relation("BillClosedByStaff")
+  cancelledBills                          Bill[]                             @relation("BillCancelledByStaff")
+  recordedManualPayments                  ManualPayment[]                    @relation("ManualPaymentRecordedByStaff")
+  voidedManualPayments                    ManualPayment[]                    @relation("ManualPaymentVoidedByStaff")
+  openedCashierShifts                     CashierShift[]                     @relation("CashierShiftOpenedByStaff")
+  closedCashierShifts                     CashierShift[]                     @relation("CashierShiftClosedByStaff")
+  cashDrawerTransactions                  CashDrawerTransaction[]
+  generatedCashierReports                 CashierShiftReport[]
+  inventoryMovements                      InventoryMovement[]
+  createdPurchaseOrders                   PurchaseOrder[]                    @relation("PurchaseOrderCreatedByStaff")
+  createdInventoryReceipts                InventoryReceipt[]                 @relation("InventoryReceiptCreatedByStaff")
+  billEvents                              BillEvent[]
+  preparationTaskEvents                   PreparationTaskEvent[]
+  requestedPrintJobs                      PrintJob[]                         @relation("PrintJobRequestedByStaff")
+  onlinePaymentOperations                 OnlinePaymentOperation[]           @relation("OnlinePaymentOperationRequestedByStaff")
+  requestedPaymentReconciliationRuns      OnlinePaymentReconciliationRun[]   @relation("OnlinePaymentReconciliationRunRequestedByStaff")
+  importedPaymentSettlementBatches        OnlinePaymentSettlementBatch[]     @relation("OnlinePaymentSettlementBatchImportedByStaff")
   acknowledgedPaymentReconciliationIssues OnlinePaymentReconciliationIssue[] @relation("OnlinePaymentReconciliationIssueAcknowledgedByStaff")
-  resolvedPaymentReconciliationIssues OnlinePaymentReconciliationIssue[] @relation("OnlinePaymentReconciliationIssueResolvedByStaff")
-  printJobEvents           PrintJobEvent[]
-  waiterCallEvents         WaiterCallEvent[]
-  auditLogs                AuditLog[]
+  resolvedPaymentReconciliationIssues     OnlinePaymentReconciliationIssue[] @relation("OnlinePaymentReconciliationIssueResolvedByStaff")
+  printJobEvents                          PrintJobEvent[]
+  waiterCallEvents                        WaiterCallEvent[]
+  auditLogs                               AuditLog[]
 
   @@index([email])
 }
@@ -1320,6 +1337,38 @@ model PlatformAdminUser {
   @@index([email])
   @@index([role])
   @@index([status])
+}
+
+model MerchantPaymentIntegration {
+  id                       String                                @id @default(uuid())
+  scopeKey                 String                                @unique
+  companyId                String
+  branchId                 String?
+  provider                 OnlinePaymentProvider
+  environment              MerchantPaymentIntegrationEnvironment @default(sandbox)
+  status                   MerchantPaymentIntegrationStatus      @default(needs_setup)
+  priority                 Int                                   @default(100)
+  merchantAccountReference String?
+  enabledChannels          String[]                              @default([])
+  configurationMetadata    Json?
+  secretReferences         Json?
+  readinessMessage         String?
+  webhookConfigured        Boolean                               @default(false)
+  webhookVerifiedAt        DateTime?
+  recoveryReady            Boolean                               @default(false)
+  settlementConfigured     Boolean                               @default(false)
+  liveVerifiedAt           DateTime?
+  lastValidatedAt          DateTime?
+  createdAt                DateTime                              @default(now())
+  updatedAt                DateTime                              @updatedAt
+
+  company              Company               @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  branch               Branch?               @relation(fields: [branchId], references: [id], onDelete: Cascade)
+  onlinePaymentIntents OnlinePaymentIntent[]
+
+  @@index([companyId, status, priority])
+  @@index([branchId, status, priority])
+  @@index([provider, environment, status])
 }
 
 model PlatformAdminSession {
@@ -1428,12 +1477,12 @@ model InventoryItem {
   createdAt                 DateTime            @default(now())
   updatedAt                 DateTime            @updatedAt
 
-  company          Company                        @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  branchLevels     BranchInventoryLevel[]
-  movements        InventoryMovement[]
+  company            Company                        @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  branchLevels       BranchInventoryLevel[]
+  movements          InventoryMovement[]
   purchaseOrderLines PurchaseOrderLine[]
   receiptLines       InventoryReceiptLine[]
-  menuRequirements MenuItemInventoryRequirement[]
+  menuRequirements   MenuItemInventoryRequirement[]
 
   @@unique([companyId, sku])
   @@index([companyId])
@@ -1531,10 +1580,10 @@ model PurchaseOrder {
   createdAt            DateTime            @default(now())
   updatedAt            DateTime            @updatedAt
 
-  company            Company                @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  branch             Branch                 @relation(fields: [branchId], references: [id], onDelete: Cascade)
-  supplier           Supplier               @relation(fields: [supplierId], references: [id], onDelete: Restrict)
-  createdByStaffUser StaffUser?             @relation("PurchaseOrderCreatedByStaff", fields: [createdByStaffUserId], references: [id], onDelete: SetNull)
+  company            Company             @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  branch             Branch              @relation(fields: [branchId], references: [id], onDelete: Cascade)
+  supplier           Supplier            @relation(fields: [supplierId], references: [id], onDelete: Restrict)
+  createdByStaffUser StaffUser?          @relation("PurchaseOrderCreatedByStaff", fields: [createdByStaffUserId], references: [id], onDelete: SetNull)
   lines              PurchaseOrderLine[]
   receipts           InventoryReceipt[]
 
@@ -1549,15 +1598,15 @@ model PurchaseOrder {
 }
 
 model PurchaseOrderLine {
-  id                String   @id @default(uuid())
-  purchaseOrderId   String
-  inventoryItemId   String
-  quantityOrdered   Int
-  quantityReceived  Int      @default(0)
-  unitCostMinor     Int
-  notes             String?
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
+  id               String   @id @default(uuid())
+  purchaseOrderId  String
+  inventoryItemId  String
+  quantityOrdered  Int
+  quantityReceived Int      @default(0)
+  unitCostMinor    Int
+  notes            String?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
 
   purchaseOrder PurchaseOrder          @relation(fields: [purchaseOrderId], references: [id], onDelete: Cascade)
   inventoryItem InventoryItem          @relation(fields: [inventoryItemId], references: [id], onDelete: Restrict)
@@ -1607,9 +1656,9 @@ model InventoryReceiptLine {
   unitCostMinor       Int?
   createdAt           DateTime @default(now())
 
-  receipt           InventoryReceipt  @relation(fields: [receiptId], references: [id], onDelete: Cascade)
+  receipt           InventoryReceipt   @relation(fields: [receiptId], references: [id], onDelete: Cascade)
   purchaseOrderLine PurchaseOrderLine? @relation(fields: [purchaseOrderLineId], references: [id], onDelete: SetNull)
-  inventoryItem     InventoryItem     @relation(fields: [inventoryItemId], references: [id], onDelete: Restrict)
+  inventoryItem     InventoryItem      @relation(fields: [inventoryItemId], references: [id], onDelete: Restrict)
 
   @@index([receiptId])
   @@index([purchaseOrderLineId])
@@ -1926,9 +1975,9 @@ model CartItem {
   menuItem        MenuItem                 @relation(fields: [menuItemId], references: [id], onDelete: Restrict)
   modifierOptions CartItemModifierOption[]
 
+  @@unique([cartId, idempotencyKey])
   @@index([cartId])
   @@index([menuItemId])
-  @@unique([cartId, idempotencyKey])
 }
 
 model CartItemModifierOption {
@@ -2640,21 +2689,21 @@ model Bill {
   createdAt              DateTime   @default(now())
   updatedAt              DateTime   @updatedAt
 
-  company              Company               @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  branch               Branch                @relation(fields: [branchId], references: [id], onDelete: Cascade)
-  tableSession         TableSession          @relation(fields: [tableSessionId], references: [id], onDelete: Cascade)
-  billRequest          BillRequest?          @relation(fields: [billRequestId], references: [id], onDelete: SetNull)
-  presentedByStaffUser StaffUser?            @relation("BillPresentedByStaff", fields: [presentedByStaffUserId], references: [id], onDelete: SetNull)
-  paidByStaffUser      StaffUser?            @relation("BillPaidByStaff", fields: [paidByStaffUserId], references: [id], onDelete: SetNull)
-  closedByStaffUser    StaffUser?            @relation("BillClosedByStaff", fields: [closedByStaffUserId], references: [id], onDelete: SetNull)
-  cancelledByStaffUser StaffUser?            @relation("BillCancelledByStaff", fields: [cancelledByStaffUserId], references: [id], onDelete: SetNull)
-  lines                BillLine[]
-  manualPayments       ManualPayment[]
+  company                 Company                  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  branch                  Branch                   @relation(fields: [branchId], references: [id], onDelete: Cascade)
+  tableSession            TableSession             @relation(fields: [tableSessionId], references: [id], onDelete: Cascade)
+  billRequest             BillRequest?             @relation(fields: [billRequestId], references: [id], onDelete: SetNull)
+  presentedByStaffUser    StaffUser?               @relation("BillPresentedByStaff", fields: [presentedByStaffUserId], references: [id], onDelete: SetNull)
+  paidByStaffUser         StaffUser?               @relation("BillPaidByStaff", fields: [paidByStaffUserId], references: [id], onDelete: SetNull)
+  closedByStaffUser       StaffUser?               @relation("BillClosedByStaff", fields: [closedByStaffUserId], references: [id], onDelete: SetNull)
+  cancelledByStaffUser    StaffUser?               @relation("BillCancelledByStaff", fields: [cancelledByStaffUserId], references: [id], onDelete: SetNull)
+  lines                   BillLine[]
+  manualPayments          ManualPayment[]
   onlinePaymentIntents    OnlinePaymentIntent[]
   onlinePaymentEvents     OnlinePaymentEvent[]
   onlinePaymentOperations OnlinePaymentOperation[]
   receipt                 BillReceipt?
-  events               BillEvent[]
+  events                  BillEvent[]
 
   @@unique([branchId, billNumber])
   @@index([companyId])
@@ -2732,45 +2781,48 @@ model ManualPayment {
 }
 
 model OnlinePaymentIntent {
-  id                  String                    @id @default(uuid())
-  companyId           String
-  branchId            String
-  tableSessionId      String
-  billId              String
-  provider            OnlinePaymentProvider     @default(mock)
-  providerIntentId    String?                   @unique
-  providerOrderId     String?
-  providerCheckoutUrl String?
-  idempotencyKey      String                    @unique
-  status              OnlinePaymentIntentStatus @default(pending)
-  amountMinor         Int
-  currency            String
-  customerReturnUrl   String?
-  checkoutExpiresAt   DateTime?
-  succeededAt         DateTime?
-  failedAt            DateTime?
-  cancelledAt         DateTime?
-  expiredAt           DateTime?
-  failureCode         String?
-  failureMessage      String?
-  metadata            Json?
-  createdAt           DateTime                  @default(now())
-  updatedAt           DateTime                  @updatedAt
+  id                           String                    @id @default(uuid())
+  companyId                    String
+  branchId                     String
+  tableSessionId               String
+  billId                       String
+  provider                     OnlinePaymentProvider     @default(mock)
+  merchantPaymentIntegrationId String?
+  providerIntentId             String?                   @unique
+  providerOrderId              String?
+  providerCheckoutUrl          String?
+  idempotencyKey               String                    @unique
+  status                       OnlinePaymentIntentStatus @default(pending)
+  amountMinor                  Int
+  currency                     String
+  customerReturnUrl            String?
+  checkoutExpiresAt            DateTime?
+  succeededAt                  DateTime?
+  failedAt                     DateTime?
+  cancelledAt                  DateTime?
+  expiredAt                    DateTime?
+  failureCode                  String?
+  failureMessage               String?
+  metadata                     Json?
+  createdAt                    DateTime                  @default(now())
+  updatedAt                    DateTime                  @updatedAt
 
-  company      Company              @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  branch       Branch               @relation(fields: [branchId], references: [id], onDelete: Cascade)
-  tableSession TableSession         @relation(fields: [tableSessionId], references: [id], onDelete: Cascade)
-  bill         Bill                 @relation(fields: [billId], references: [id], onDelete: Cascade)
-  events       OnlinePaymentEvent[]
-  operations   OnlinePaymentOperation[]
-  reconciliationEntries OnlinePaymentReconciliationEntry[]
+  company                    Company                            @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  branch                     Branch                             @relation(fields: [branchId], references: [id], onDelete: Cascade)
+  tableSession               TableSession                       @relation(fields: [tableSessionId], references: [id], onDelete: Cascade)
+  bill                       Bill                               @relation(fields: [billId], references: [id], onDelete: Cascade)
+  events                     OnlinePaymentEvent[]
+  operations                 OnlinePaymentOperation[]
+  reconciliationEntries      OnlinePaymentReconciliationEntry[]
+  merchantPaymentIntegration MerchantPaymentIntegration?        @relation(fields: [merchantPaymentIntegrationId], references: [id], onDelete: Restrict)
 
+  @@unique([provider, providerOrderId])
   @@index([companyId])
   @@index([branchId])
   @@index([tableSessionId])
   @@index([billId])
   @@index([provider])
-  @@unique([provider, providerOrderId])
+  @@index([merchantPaymentIntegrationId])
   @@index([status])
   @@index([createdAt])
   @@index([updatedAt])
@@ -2803,11 +2855,11 @@ model OnlinePaymentOperation {
   createdAt                   DateTime                     @default(now())
   updatedAt                   DateTime                     @updatedAt
 
-  onlinePaymentIntent  OnlinePaymentIntent @relation(fields: [onlinePaymentIntentId], references: [id], onDelete: Cascade)
-  company              Company             @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  branch               Branch              @relation(fields: [branchId], references: [id], onDelete: Cascade)
-  bill                 Bill                @relation(fields: [billId], references: [id], onDelete: Cascade)
-  requestedByStaffUser StaffUser           @relation("OnlinePaymentOperationRequestedByStaff", fields: [requestedByStaffUserId], references: [id], onDelete: Restrict)
+  onlinePaymentIntent   OnlinePaymentIntent                @relation(fields: [onlinePaymentIntentId], references: [id], onDelete: Cascade)
+  company               Company                            @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  branch                Branch                             @relation(fields: [branchId], references: [id], onDelete: Cascade)
+  bill                  Bill                               @relation(fields: [billId], references: [id], onDelete: Cascade)
+  requestedByStaffUser  StaffUser                          @relation("OnlinePaymentOperationRequestedByStaff", fields: [requestedByStaffUserId], references: [id], onDelete: Restrict)
   reconciliationEntries OnlinePaymentReconciliationEntry[]
 
   @@unique([provider, providerTransactionId])
@@ -2825,31 +2877,31 @@ model OnlinePaymentOperation {
 }
 
 model OnlinePaymentSettlementBatch {
-  id                     String                @id @default(uuid())
-  companyId              String
-  branchId               String
-  provider               OnlinePaymentProvider
-  externalReference      String
-  payoutReference        String?
-  currency               String
-  periodStart            DateTime
-  periodEnd              DateTime
-  settledAt              DateTime?
-  grossMinor             Int
-  adjustmentMinor        Int
-  feeMinor               Int
-  netMinor               Int
-  sourceHash             String
-  importedByStaffUserId  String
-  metadata               Json?
-  createdAt              DateTime              @default(now())
-  updatedAt              DateTime              @updatedAt
+  id                    String                @id @default(uuid())
+  companyId             String
+  branchId              String
+  provider              OnlinePaymentProvider
+  externalReference     String
+  payoutReference       String?
+  currency              String
+  periodStart           DateTime
+  periodEnd             DateTime
+  settledAt             DateTime?
+  grossMinor            Int
+  adjustmentMinor       Int
+  feeMinor              Int
+  netMinor              Int
+  sourceHash            String
+  importedByStaffUserId String
+  metadata              Json?
+  createdAt             DateTime              @default(now())
+  updatedAt             DateTime              @updatedAt
 
-  company         Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  branch          Branch    @relation(fields: [branchId], references: [id], onDelete: Cascade)
-  importedByStaffUser StaffUser @relation("OnlinePaymentSettlementBatchImportedByStaff", fields: [importedByStaffUserId], references: [id], onDelete: Restrict)
-  lines           OnlinePaymentSettlementLine[]
-  reconciliationRuns OnlinePaymentReconciliationRun[]
+  company             Company                          @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  branch              Branch                           @relation(fields: [branchId], references: [id], onDelete: Cascade)
+  importedByStaffUser StaffUser                        @relation("OnlinePaymentSettlementBatchImportedByStaff", fields: [importedByStaffUserId], references: [id], onDelete: Restrict)
+  lines               OnlinePaymentSettlementLine[]
+  reconciliationRuns  OnlinePaymentReconciliationRun[]
 
   @@unique([provider, branchId, externalReference])
   @@unique([provider, branchId, sourceHash])
@@ -2862,20 +2914,20 @@ model OnlinePaymentSettlementBatch {
 }
 
 model OnlinePaymentSettlementLine {
-  id                     String                              @id @default(uuid())
-  settlementBatchId      String
-  providerTransactionId  String
-  movementType           OnlinePaymentReconciliationMovementType
-  amountMinor            Int
-  feeMinor               Int                                 @default(0)
-  netMinor               Int
-  currency               String
-  settlementReference    String?
-  settledAt              DateTime?
-  metadata               Json?
-  createdAt              DateTime                            @default(now())
+  id                    String                                  @id @default(uuid())
+  settlementBatchId     String
+  providerTransactionId String
+  movementType          OnlinePaymentReconciliationMovementType
+  amountMinor           Int
+  feeMinor              Int                                     @default(0)
+  netMinor              Int
+  currency              String
+  settlementReference   String?
+  settledAt             DateTime?
+  metadata              Json?
+  createdAt             DateTime                                @default(now())
 
-  settlementBatch OnlinePaymentSettlementBatch @relation(fields: [settlementBatchId], references: [id], onDelete: Cascade)
+  settlementBatch       OnlinePaymentSettlementBatch       @relation(fields: [settlementBatchId], references: [id], onDelete: Cascade)
   reconciliationEntries OnlinePaymentReconciliationEntry[]
 
   @@unique([settlementBatchId, providerTransactionId, movementType])
@@ -2885,42 +2937,42 @@ model OnlinePaymentSettlementLine {
 }
 
 model OnlinePaymentReconciliationRun {
-  id                       String                                  @id @default(uuid())
-  companyId                String
-  branchId                 String
-  provider                 OnlinePaymentProvider
-  source                   OnlinePaymentReconciliationSource
-  status                   OnlinePaymentReconciliationRunStatus    @default(running)
-  idempotencyKey           String                                  @unique
-  periodStart              DateTime
-  periodEnd                DateTime
-  currency                 String
-  settlementBatchId        String?
-  requestedByStaffUserId   String?
-  localGrossMinor          Int                                     @default(0)
-  localAdjustmentMinor     Int                                     @default(0)
-  localNetBeforeFeesMinor  Int                                     @default(0)
-  providerGrossMinor       Int?
-  providerAdjustmentMinor  Int?
-  providerFeeMinor         Int?
-  providerNetMinor         Int?
-  matchedCount             Int                                     @default(0)
-  pendingCount             Int                                     @default(0)
-  mismatchCount            Int                                     @default(0)
-  startedAt                DateTime                                @default(now())
-  completedAt              DateTime?
-  failureCode              String?
-  failureMessage           String?
-  metadata                 Json?
-  createdAt                DateTime                                @default(now())
-  updatedAt                DateTime                                @updatedAt
+  id                      String                               @id @default(uuid())
+  companyId               String
+  branchId                String
+  provider                OnlinePaymentProvider
+  source                  OnlinePaymentReconciliationSource
+  status                  OnlinePaymentReconciliationRunStatus @default(running)
+  idempotencyKey          String                               @unique
+  periodStart             DateTime
+  periodEnd               DateTime
+  currency                String
+  settlementBatchId       String?
+  requestedByStaffUserId  String?
+  localGrossMinor         Int                                  @default(0)
+  localAdjustmentMinor    Int                                  @default(0)
+  localNetBeforeFeesMinor Int                                  @default(0)
+  providerGrossMinor      Int?
+  providerAdjustmentMinor Int?
+  providerFeeMinor        Int?
+  providerNetMinor        Int?
+  matchedCount            Int                                  @default(0)
+  pendingCount            Int                                  @default(0)
+  mismatchCount           Int                                  @default(0)
+  startedAt               DateTime                             @default(now())
+  completedAt             DateTime?
+  failureCode             String?
+  failureMessage          String?
+  metadata                Json?
+  createdAt               DateTime                             @default(now())
+  updatedAt               DateTime                             @updatedAt
 
-  company      Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  branch       Branch   @relation(fields: [branchId], references: [id], onDelete: Cascade)
-  settlementBatch OnlinePaymentSettlementBatch? @relation(fields: [settlementBatchId], references: [id], onDelete: SetNull)
-  requestedByStaffUser StaffUser? @relation("OnlinePaymentReconciliationRunRequestedByStaff", fields: [requestedByStaffUserId], references: [id], onDelete: SetNull)
-  entries      OnlinePaymentReconciliationEntry[]
-  issues       OnlinePaymentReconciliationIssue[]
+  company              Company                            @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  branch               Branch                             @relation(fields: [branchId], references: [id], onDelete: Cascade)
+  settlementBatch      OnlinePaymentSettlementBatch?      @relation(fields: [settlementBatchId], references: [id], onDelete: SetNull)
+  requestedByStaffUser StaffUser?                         @relation("OnlinePaymentReconciliationRunRequestedByStaff", fields: [requestedByStaffUserId], references: [id], onDelete: SetNull)
+  entries              OnlinePaymentReconciliationEntry[]
+  issues               OnlinePaymentReconciliationIssue[]
 
   @@index([companyId])
   @@index([branchId])
@@ -2933,37 +2985,37 @@ model OnlinePaymentReconciliationRun {
 }
 
 model OnlinePaymentReconciliationEntry {
-  id                         String                                      @id @default(uuid())
-  reconciliationRunId        String
-  companyId                  String
-  branchId                   String
-  provider                   OnlinePaymentProvider
-  movementType               OnlinePaymentReconciliationMovementType
-  onlinePaymentIntentId      String?
-  onlinePaymentOperationId   String?
-  providerTransactionId      String
+  id                          String                                  @id @default(uuid())
+  reconciliationRunId         String
+  companyId                   String
+  branchId                    String
+  provider                    OnlinePaymentProvider
+  movementType                OnlinePaymentReconciliationMovementType
+  onlinePaymentIntentId       String?
+  onlinePaymentOperationId    String?
+  providerTransactionId       String
   parentProviderTransactionId String?
-  localAmountMinor           Int
-  currency                   String
-  providerAmountMinor        Int?
-  providerSettled            Boolean?
-  providerFeeMinor           Int?
-  providerSettlementDate     DateTime?
+  localAmountMinor            Int
+  currency                    String
+  providerAmountMinor         Int?
+  providerSettled             Boolean?
+  providerFeeMinor            Int?
+  providerSettlementDate      DateTime?
   providerSettlementReference String?
-  settlementLineId           String?
-  matchStatus                OnlinePaymentReconciliationMatchStatus
-  mismatchCode               String?
-  metadata                   Json?
-  createdAt                  DateTime                                    @default(now())
-  updatedAt                  DateTime                                    @updatedAt
+  settlementLineId            String?
+  matchStatus                 OnlinePaymentReconciliationMatchStatus
+  mismatchCode                String?
+  metadata                    Json?
+  createdAt                   DateTime                                @default(now())
+  updatedAt                   DateTime                                @updatedAt
 
-  reconciliationRun OnlinePaymentReconciliationRun @relation(fields: [reconciliationRunId], references: [id], onDelete: Cascade)
-  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  branch Branch @relation(fields: [branchId], references: [id], onDelete: Cascade)
-  onlinePaymentIntent OnlinePaymentIntent? @relation(fields: [onlinePaymentIntentId], references: [id], onDelete: SetNull)
-  onlinePaymentOperation OnlinePaymentOperation? @relation(fields: [onlinePaymentOperationId], references: [id], onDelete: SetNull)
-  settlementLine OnlinePaymentSettlementLine? @relation(fields: [settlementLineId], references: [id], onDelete: SetNull)
-  issues OnlinePaymentReconciliationIssue[]
+  reconciliationRun      OnlinePaymentReconciliationRun     @relation(fields: [reconciliationRunId], references: [id], onDelete: Cascade)
+  company                Company                            @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  branch                 Branch                             @relation(fields: [branchId], references: [id], onDelete: Cascade)
+  onlinePaymentIntent    OnlinePaymentIntent?               @relation(fields: [onlinePaymentIntentId], references: [id], onDelete: SetNull)
+  onlinePaymentOperation OnlinePaymentOperation?            @relation(fields: [onlinePaymentOperationId], references: [id], onDelete: SetNull)
+  settlementLine         OnlinePaymentSettlementLine?       @relation(fields: [settlementLineId], references: [id], onDelete: SetNull)
+  issues                 OnlinePaymentReconciliationIssue[]
 
   @@index([reconciliationRunId, providerTransactionId])
   @@index([companyId])
@@ -2978,31 +3030,31 @@ model OnlinePaymentReconciliationEntry {
 }
 
 model OnlinePaymentReconciliationIssue {
-  id                    String                                    @id @default(uuid())
-  reconciliationRunId   String
-  reconciliationEntryId String?
-  companyId             String
-  branchId              String
-  provider              OnlinePaymentProvider
-  type                  OnlinePaymentReconciliationIssueType
-  status                OnlinePaymentReconciliationIssueStatus    @default(open)
-  message               String
-  details               Json?
-  detectedAt            DateTime                                  @default(now())
-  acknowledgedAt        DateTime?
+  id                        String                                 @id @default(uuid())
+  reconciliationRunId       String
+  reconciliationEntryId     String?
+  companyId                 String
+  branchId                  String
+  provider                  OnlinePaymentProvider
+  type                      OnlinePaymentReconciliationIssueType
+  status                    OnlinePaymentReconciliationIssueStatus @default(open)
+  message                   String
+  details                   Json?
+  detectedAt                DateTime                               @default(now())
+  acknowledgedAt            DateTime?
   acknowledgedByStaffUserId String?
-  resolvedAt            DateTime?
-  resolvedByStaffUserId String?
-  resolutionNote        String?
-  createdAt             DateTime                                  @default(now())
-  updatedAt             DateTime                                  @updatedAt
+  resolvedAt                DateTime?
+  resolvedByStaffUserId     String?
+  resolutionNote            String?
+  createdAt                 DateTime                               @default(now())
+  updatedAt                 DateTime                               @updatedAt
 
-  reconciliationRun OnlinePaymentReconciliationRun @relation(fields: [reconciliationRunId], references: [id], onDelete: Cascade)
-  reconciliationEntry OnlinePaymentReconciliationEntry? @relation(fields: [reconciliationEntryId], references: [id], onDelete: Cascade)
-  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  branch Branch @relation(fields: [branchId], references: [id], onDelete: Cascade)
-  acknowledgedByStaffUser StaffUser? @relation("OnlinePaymentReconciliationIssueAcknowledgedByStaff", fields: [acknowledgedByStaffUserId], references: [id], onDelete: SetNull)
-  resolvedByStaffUser StaffUser? @relation("OnlinePaymentReconciliationIssueResolvedByStaff", fields: [resolvedByStaffUserId], references: [id], onDelete: SetNull)
+  reconciliationRun       OnlinePaymentReconciliationRun    @relation(fields: [reconciliationRunId], references: [id], onDelete: Cascade)
+  reconciliationEntry     OnlinePaymentReconciliationEntry? @relation(fields: [reconciliationEntryId], references: [id], onDelete: Cascade)
+  company                 Company                           @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  branch                  Branch                            @relation(fields: [branchId], references: [id], onDelete: Cascade)
+  acknowledgedByStaffUser StaffUser?                        @relation("OnlinePaymentReconciliationIssueAcknowledgedByStaff", fields: [acknowledgedByStaffUserId], references: [id], onDelete: SetNull)
+  resolvedByStaffUser     StaffUser?                        @relation("OnlinePaymentReconciliationIssueResolvedByStaff", fields: [resolvedByStaffUserId], references: [id], onDelete: SetNull)
 
   @@index([reconciliationRunId])
   @@index([reconciliationEntryId])

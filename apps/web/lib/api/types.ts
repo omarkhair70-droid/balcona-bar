@@ -2094,7 +2094,12 @@ export type RecordManualPaymentPayload = {
   note?: string | null;
 };
 
-export type OnlinePaymentProvider = "mock" | "paymob" | "external";
+export type OnlinePaymentProvider =
+  | "mock"
+  | "paymob"
+  | "fawry"
+  | "maestr"
+  | "external";
 
 export type OnlinePaymentIntentStatus =
   | "pending"
@@ -2113,6 +2118,81 @@ export type CreateOnlinePaymentIntentPayload = {
     email: string;
     phoneNumber: string;
   };
+  fawryPaymentMethod?: "CARD" | "MWALLET" | "PayAtFawry" | "VALU";
+};
+
+export type PaymentProviderCapabilities = {
+  hostedCheckout: boolean;
+  embeddedCheckout: boolean;
+  card: boolean;
+  wallet: boolean;
+  referenceCode: boolean;
+  qr: boolean;
+  deepLink: boolean;
+  inquiry: boolean;
+  refund: boolean;
+  partialRefund: boolean;
+  void: boolean;
+  capture: boolean;
+  settlementImport: boolean;
+  providerReconciliation: boolean;
+  directTerminal: boolean;
+  recurringBilling: boolean;
+};
+
+export type CustomerPaymentCapabilities = {
+  provider: OnlinePaymentProvider;
+  environment: "sandbox" | "test" | "live";
+  status: "ready";
+  enabledChannels: string[];
+  requiresBillingData: boolean;
+  capabilities: PaymentProviderCapabilities;
+  hostedMethods: string[];
+  liveVerified: boolean;
+};
+
+export type MerchantPaymentIntegration = {
+  id: string;
+  companyId: string;
+  branchId?: string | null;
+  provider: OnlinePaymentProvider;
+  environment: "sandbox" | "test" | "live";
+  status: "draft" | "needs_setup" | "ready" | "blocked" | "disabled";
+  priority: number;
+  merchantAccountReference?: string | null;
+  enabledChannels: string[];
+  configurationMetadata?: Record<string, unknown>;
+  secretReferenceKeys: string[];
+  readinessMessage?: string | null;
+  webhookConfigured: boolean;
+  webhookVerifiedAt?: string | null;
+  recoveryReady: boolean;
+  settlementConfigured: boolean;
+  liveVerifiedAt?: string | null;
+  lastValidatedAt?: string | null;
+  capabilities: PaymentProviderCapabilities;
+};
+
+export type MerchantPaymentIntegrationsResult = {
+  branch: BranchSummary;
+  integrations: MerchantPaymentIntegration[];
+  effective?: Record<string, unknown> | null;
+};
+
+export type UpsertMerchantPaymentIntegrationPayload = {
+  scope: "company" | "branch";
+  provider: "paymob" | "fawry" | "maestr" | "external";
+  environment: "sandbox" | "test" | "live";
+  status: "draft" | "needs_setup" | "ready" | "blocked" | "disabled";
+  priority?: number;
+  merchantAccountReference?: string;
+  enabledChannels: string[];
+  configurationMetadata?: Record<string, unknown>;
+  secretReferences?: Record<string, string>;
+  readinessMessage?: string;
+  webhookConfigured: boolean;
+  recoveryReady: boolean;
+  settlementConfigured: boolean;
 };
 
 export type OnlinePaymentIntentResult = Record<string, unknown> & {
