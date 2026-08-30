@@ -425,7 +425,11 @@ function StaffSetupContent() {
   const companyQuery = useQuery({
     queryKey: staffQueryKeys.companyOnboarding(selectedCompanyId),
     queryFn: () => getCompanyOnboarding(selectedCompanyId ?? "", accessToken),
-    enabled: Boolean(accessToken && selectedCompanyId),
+    enabled: Boolean(
+      accessToken &&
+      selectedCompanyId &&
+      effectiveAccess?.branches.length === 0
+    ),
     staleTime: 30_000
   });
   const branchQuery = useQuery({
@@ -1291,6 +1295,8 @@ export function StaffSetupPage() {
   return (
     <StaffAuthGate
       requiredPermissions={["tenant_onboarding.read"]}
+      branchScoped
+      allowUnscopedWhenNoBranch
       deniedTitle="Tenant setup access required"
       deniedDescription="This staff account can open its operational surfaces, but tenant launch setup requires owner or branch manager access."
     >
