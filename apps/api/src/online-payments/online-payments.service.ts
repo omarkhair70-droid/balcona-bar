@@ -43,6 +43,7 @@ import { MerchantPaymentIntegrationsService } from "./merchant-payment-integrati
 import { PaymobPaymentProviderService } from "./providers/paymob-payment-provider.service";
 import {
   PaymentProviderError,
+  ProviderCustomerAction,
   ProviderRuntimeContext,
   ProviderTransactionState,
   VerifiedProviderTransactionWebhook,
@@ -521,6 +522,9 @@ export class OnlinePaymentsService {
             metadata: this.toJsonValue({
               ...this.jsonRecord(localIntent.metadata),
               ...providerPayment.metadata,
+              ...(providerPayment.customerAction
+                ? { providerCustomerAction: providerPayment.customerAction }
+                : {}),
               providerInitialization: "ready",
             }),
           },
@@ -1526,6 +1530,9 @@ export class OnlinePaymentsService {
             metadata: this.toJsonValue({
               ...this.jsonRecord(localIntent.metadata),
               ...providerPayment.metadata,
+              ...(providerPayment.customerAction
+                ? { providerCustomerAction: providerPayment.customerAction }
+                : {}),
               providerInitialization: "ready",
             }),
           },
@@ -5006,7 +5013,14 @@ export class OnlinePaymentsService {
       checkout: {
         provider: intent.provider,
         url: intent.providerCheckoutUrl,
+        customerAction: this.providerCustomerAction(
+          intent.metadata,
+          intent.providerCheckoutUrl,
+        ),
         expiresAt: intent.checkoutExpiresAt,
+        requiresCustomerAction:
+          intent.status === OnlinePaymentIntentStatus.pending ||
+          intent.status === OnlinePaymentIntentStatus.requires_action,
         requiresHostedCheckout:
           intent.status === OnlinePaymentIntentStatus.pending ||
           intent.status === OnlinePaymentIntentStatus.requires_action,
@@ -5077,6 +5091,52 @@ export class OnlinePaymentsService {
     const normalizedValue = value.trim();
 
     return normalizedValue.length > 0 ? normalizedValue : null;
+  }
+
+  private providerCustomerAction(
+    metadata: Prisma.JsonValue | null,
+    fallbackCheckoutUrl?: string | null,
+  ): ProviderCustomerAction | undefined {
+    const rawAction = this.jsonRecord(metadata).providerCustomerAction;
+
+    if (
+      rawAction &&
+      typeof rawAction === "object" &&
+      !Array.isArray(rawAction)
+    ) {
+      const action = rawAction as Record<string, unknown>;
+      const type = action.type;
+
+      if (type === "redirect" || type === "deep_link") {
+        const url = typeof action.url === "string" ? action.url.trim() : "";
+
+        if (url) {
+          return { type, url };
+        }
+      }
+
+      if (type === "qr") {
+        const value =
+          typeof action.value === "string" ? action.value.trim() : "";
+
+        if (value) {
+          return { type, value };
+        }
+      }
+
+      if (type === "display_reference") {
+        const reference =
+          typeof action.reference === "string" ? action.reference.trim() : "";
+
+        if (reference) {
+          return { type, reference };
+        }
+      }
+    }
+
+    const fallback = fallbackCheckoutUrl?.trim();
+
+    return fallback ? { type: "redirect", url: fallback } : undefined;
   }
 
   private jsonRecord(value: Prisma.JsonValue | null): Record<string, unknown> {
