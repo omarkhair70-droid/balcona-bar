@@ -168,7 +168,7 @@ export function CustomerMenuPage({ sessionId }: CustomerMenuPageProps) {
       description={t("menu.description")}
     >
       <Link
-        href={`/customer/session/${sessionId}/ai-waiter`}
+        href={`/guest/session/${sessionId}/ai-waiter`}
         className="mb-4 flex w-full items-center gap-3 rounded-[18px] border border-border bg-muted px-3 py-2.5 text-start"
       >
         <span className="flex size-9 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground">

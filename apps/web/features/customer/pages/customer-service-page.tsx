@@ -74,7 +74,7 @@ export function CustomerServicePage({ sessionId }: CustomerServicePageProps) {
 
   useEffect(() => {
     if (window.location.hash === "#bill") {
-      router.replace(`/customer/session/${sessionId}/bill`);
+      router.replace(`/guest/session/${sessionId}/bill`);
     }
   }, [router, sessionId]);
 
@@ -159,7 +159,7 @@ export function CustomerServicePage({ sessionId }: CustomerServicePageProps) {
         })}
 
         <Link
-          href={`/customer/session/${sessionId}/ai-waiter`}
+          href={`/guest/session/${sessionId}/ai-waiter`}
           className="flex min-h-20 items-center gap-4 rounded-[22px] border border-border bg-muted p-4 text-start"
         >
           <span className="flex size-11 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground">
