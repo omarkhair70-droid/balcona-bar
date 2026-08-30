@@ -22,13 +22,6 @@ import { useMemo, useState } from "react";
 import { CopyDebugReportButton } from "@/components/debug/copy-debug-report-button";
 import { Badge } from "@/components/ui/badge";
 import { Button, buttonVariants } from "@/components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Input } from "@/components/ui/input";
 import { ServiceStaffShell, useServiceView } from "@/features/staff/service-staff-shell";
