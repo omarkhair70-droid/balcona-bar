@@ -1153,7 +1153,18 @@
       "clear": "مسح",
       "overShort": "الفرق",
       "zCloseOnly": "يظهر عند الإغلاق النهائي فقط",
-      "countedCashSummary": "النقد المعدود {amount}."
+      "countedCashSummary": "النقد المعدود {amount}.",
+      "drawerAdjustment": "تعديل الصندوق",
+      "closeReadiness": "جاهزية الإغلاق",
+      "checkingCloseReadiness": "جاري التحقق...",
+      "openOrders": "طلبات مفتوحة",
+      "unpaidBills": "فواتير غير مدفوعة",
+      "unknownPayments": "مدفوعات غير محسومة",
+      "closeBlockers": "عوائق الإغلاق",
+      "closeReady": "جاهز للإغلاق",
+      "closeBlockersDescription": "راجع أو أنهِ الأعمال التشغيلية المتبقية قبل الإغلاق النهائي.",
+      "beginClose": "بدء الإغلاق",
+      "cancelClose": "إلغاء الإغلاق"
     },
     "office": {
       "productLabel": "بلكونة",
