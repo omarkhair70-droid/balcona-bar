@@ -29,12 +29,14 @@ type WaiterCallCardProps = {
   waiterCall: Record<string, unknown>;
   selected?: boolean;
   onSelect: (waiterCallId: string) => void;
+  onPrefetch?: (waiterCallId: string) => void;
 };
 
 export function WaiterCallCard({
   waiterCall,
   selected,
-  onSelect
+  onSelect,
+  onPrefetch,
 }: WaiterCallCardProps) {
   const t = useTranslations("staff");
   const waiterCallId = getWaiterCallId(waiterCall);
@@ -49,6 +51,8 @@ export function WaiterCallCard({
       type="button"
       aria-pressed={selected}
       onClick={() => waiterCallId && onSelect(waiterCallId)}
+      onPointerEnter={() => waiterCallId && onPrefetch?.(waiterCallId)}
+      onFocus={() => waiterCallId && onPrefetch?.(waiterCallId)}
       className={cn(
         "w-full rounded-md border p-3 text-start transition",
         selected ? "border-[#8A6239] bg-[#34271E]" : "border-[#3B3028] bg-[#211A15] hover:border-[#554238] hover:bg-[#292019]",

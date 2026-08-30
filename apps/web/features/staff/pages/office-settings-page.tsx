@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   BookOpenCheck,
@@ -58,6 +59,9 @@ const flagConsequences: Record<string, string> = {
 function SettingsContent() {
   const queryClient = useQueryClient();
   const accessToken = useStaffAuthStore((state) => state.accessToken);
+  const [pendingFlagKeys, setPendingFlagKeys] = useState<Set<string>>(
+    () => new Set(),
+  );
   const selectedBranchId = useStaffAuthStore((state) => state.selectedBranchId);
   const setSelectedBranchId = useStaffAuthStore(
     (state) => state.setSelectedBranchId,
@@ -154,7 +158,17 @@ function SettingsContent() {
         enabled,
         accessToken ?? "",
       ),
+    onMutate: ({ key }) => {
+      setPendingFlagKeys((current) => new Set(current).add(key));
+    },
     onSuccess: () => void invalidate(),
+    onSettled: (_result, _error, variables) => {
+      setPendingFlagKeys((current) => {
+        const next = new Set(current);
+        next.delete(variables.key);
+        return next;
+      });
+    },
   });
 
   const businessMutation = useMutation({
@@ -406,7 +420,7 @@ function SettingsContent() {
                       className="mt-3"
                       size="sm"
                       variant="secondary"
-                      disabled={flagMutation.isPending}
+                      disabled={pendingFlagKeys.has(key)}
                       onClick={() => {
                         if (
                           window.confirm(

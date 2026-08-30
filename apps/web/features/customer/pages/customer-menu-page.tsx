@@ -10,7 +10,17 @@ import { LoadingState } from "@/components/ui/loading-state";
 import { formatErrorMessage } from "@/lib/api/error-message";
 import { addCartItem, getBranchMenu, getCart } from "@/lib/api/endpoints";
 import { customerQueryKeys } from "@/lib/api/query-keys";
-import type { AddCartItemPayload, MenuItemSummary } from "@/lib/api/types";
+import type {
+  AddCartItemPayload,
+  CartResponse,
+  MenuItemSummary,
+} from "@/lib/api/types";
+import {
+  findMatchingCartItem,
+  optimisticAddCartItem,
+  optimisticRemoveCartItem,
+  restoreCartItem,
+} from "@/lib/customer/cart-optimistic";
 import { withCustomerTransientRetry } from "@/lib/customer/customer-api-reliability";
 import {
   assertCustomerSessionReady,
@@ -115,8 +125,25 @@ export function CustomerMenuPage({ sessionId }: CustomerMenuPageProps) {
     [categories]
   );
 
+  const cartSyncMutationKey = ["customer-cart-sync", sessionId] as const;
+  const reconcileCartWhenIdle = () => {
+    window.setTimeout(() => {
+      if (
+        queryClient.isMutating({ mutationKey: cartSyncMutationKey }) === 0
+      ) {
+        void queryClient.invalidateQueries({
+          queryKey: customerQueryKeys.cart(sessionId),
+        });
+        void queryClient.invalidateQueries({
+          queryKey: customerQueryKeys.status(sessionId),
+        });
+      }
+    }, 0);
+  };
+
   const addMutation = useMutation({
-    mutationFn: (payload: AddCartItemPayload) => {
+    mutationKey: cartSyncMutationKey,
+    mutationFn: ({ payload }: { payload: AddCartItemPayload; item: MenuItemSummary }) => {
       const ready = assertCustomerSessionReady(
         useCustomerSessionStore.getState(),
         sessionId
@@ -143,14 +170,48 @@ export function CustomerMenuPage({ sessionId }: CustomerMenuPageProps) {
         }
       );
     },
-    onSuccess: () => {
-      setSelectedItem(null);
-      void queryClient.invalidateQueries({
-        queryKey: customerQueryKeys.cart(sessionId)
-      });
-      void queryClient.invalidateQueries({
-        queryKey: customerQueryKeys.status(sessionId)
-      });
+    onMutate: async ({ payload, item }) => {
+      const cartKey = customerQueryKeys.cart(sessionId);
+      await queryClient.cancelQueries({ queryKey: cartKey });
+      const previousCart = queryClient.getQueryData<CartResponse>(cartKey);
+      const previousItem = findMatchingCartItem(previousCart, item, payload);
+      const originalIndex = previousItem
+        ? (previousCart?.items.findIndex(
+            (candidate) => candidate.id === previousItem.id,
+          ) ?? -1)
+        : -1;
+      const optimisticId = `optimistic-cart-item:${createAddCartIdempotencyKey(
+        sessionId,
+        item.id,
+      )}`;
+      queryClient.setQueryData<CartResponse>(
+        cartKey,
+        optimisticAddCartItem(
+          previousCart,
+          sessionId,
+          item,
+          payload,
+          optimisticId,
+        ),
+      );
+
+      return { optimisticId, originalIndex, previousItem };
+    },
+    onError: (_error, _variables, context) => {
+      queryClient.setQueryData<CartResponse | undefined>(
+        customerQueryKeys.cart(sessionId),
+        (current) =>
+          context?.previousItem
+            ? restoreCartItem(
+                current,
+                context.previousItem,
+                context.originalIndex,
+              )
+            : optimisticRemoveCartItem(current, context?.optimisticId ?? ""),
+      );
+    },
+    onSettled: () => {
+      reconcileCartWhenIdle();
     }
   });
 
@@ -267,6 +328,25 @@ export function CustomerMenuPage({ sessionId }: CustomerMenuPageProps) {
           ) : null}
 
           <CartSummary sessionId={sessionId} cart={cartQuery.data} />
+
+          {addMutation.isError && !selectedItem ? (
+            <div
+              role="alert"
+              className="fixed bottom-24 start-1/2 z-[60] w-[calc(100%-2rem)] max-w-[416px] -translate-x-1/2 rounded-xl border border-danger bg-background p-3 text-sm text-danger shadow-lg rtl:translate-x-1/2"
+            >
+              {t("errors.addCartItem", {
+                message: formatErrorMessage(addMutation.error),
+              })}
+              <div className="mt-2">
+                <CopyDebugReportButton
+                  action="cart_add_item"
+                  flow="customer_order_cycle"
+                  sessionId={sessionId}
+                  error={addMutation.error}
+                />
+              </div>
+            </div>
+          ) : null}
         </>
       ) : null}
 
@@ -286,20 +366,12 @@ export function CustomerMenuPage({ sessionId }: CustomerMenuPageProps) {
                 : undefined
             }
             onClose={() => setSelectedItem(null)}
-            onAdd={async (payload) => {
-              await addMutation.mutateAsync(payload);
+            onAdd={(payload) => {
+              const item = selectedItem;
+              setSelectedItem(null);
+              addMutation.mutate({ payload, item });
             }}
           />
-          {addMutation.isError ? (
-            <div className="fixed bottom-24 start-1/2 z-[60] w-[calc(100%-2rem)] max-w-[416px] -translate-x-1/2 rtl:translate-x-1/2">
-              <CopyDebugReportButton
-                action="cart_add_item"
-                flow="customer_order_cycle"
-                sessionId={sessionId}
-                error={addMutation.error}
-              />
-            </div>
-          ) : null}
         </>
       ) : null}
     </CustomerSessionScreen>

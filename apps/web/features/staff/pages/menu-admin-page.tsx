@@ -748,6 +748,7 @@ function CategorySection({
   categories,
   form,
   isSaving,
+  pendingCategoryIds,
   onFormChange,
   onSubmit,
   onEdit,
@@ -757,6 +758,7 @@ function CategorySection({
   categories: MenuAdminCategory[];
   form: CategoryFormState;
   isSaving: boolean;
+  pendingCategoryIds: ReadonlySet<string>;
   onFormChange: (form: CategoryFormState) => void;
   onSubmit: (event: FormEvent<HTMLFormElement>) => void;
   onEdit: (category: MenuAdminCategory) => void;
@@ -890,6 +892,7 @@ function CategorySection({
                     size="sm"
                     variant="secondary"
                     onClick={() => onEdit(category)}
+                    disabled={pendingCategoryIds.has(category.id)}
                   >
                     Edit
                   </Button>
@@ -899,7 +902,11 @@ function CategorySection({
                       category.status === "active" ? "secondary" : "primary"
                     }
                     onClick={() => onToggleStatus(category)}
+                    disabled={pendingCategoryIds.has(category.id)}
                   >
+                    {pendingCategoryIds.has(category.id) ? (
+                      <Loader2 className="size-4 animate-spin" aria-hidden="true" />
+                    ) : null}
                     {category.status === "active" ? "Deactivate" : "Activate"}
                   </Button>
                 </div>
@@ -923,6 +930,7 @@ function ItemSection({
   items,
   form,
   isSaving,
+  pendingItemIds,
   onFormChange,
   onSubmit,
   onEdit,
@@ -935,6 +943,7 @@ function ItemSection({
   items: MenuAdminItem[];
   form: ItemFormState;
   isSaving: boolean;
+  pendingItemIds: ReadonlySet<string>;
   onFormChange: (form: ItemFormState) => void;
   onSubmit: (event: FormEvent<HTMLFormElement>) => void;
   onEdit: (item: MenuAdminItem) => void;
@@ -1228,6 +1237,7 @@ function ItemSection({
                       size="sm"
                       variant="secondary"
                       onClick={() => onEdit(item)}
+                      disabled={pendingItemIds.has(item.id)}
                     >
                       Edit
                     </Button>
@@ -1236,11 +1246,18 @@ function ItemSection({
                         size="sm"
                         variant="secondary"
                         onClick={() => onDeactivate(item)}
+                        disabled={pendingItemIds.has(item.id)}
                       >
+                        {pendingItemIds.has(item.id) ? (
+                          <Loader2 className="size-4 animate-spin" aria-hidden="true" />
+                        ) : null}
                         Deactivate
                       </Button>
                     ) : (
-                      <Button size="sm" onClick={() => onActivate(item)}>
+                      <Button size="sm" onClick={() => onActivate(item)} disabled={pendingItemIds.has(item.id)}>
+                        {pendingItemIds.has(item.id) ? (
+                          <Loader2 className="size-4 animate-spin" aria-hidden="true" />
+                        ) : null}
                         Activate
                       </Button>
                     )}
@@ -1248,6 +1265,7 @@ function ItemSection({
                       size="sm"
                       variant="danger"
                       onClick={() => onArchive(item)}
+                      disabled={pendingItemIds.has(item.id)}
                     >
                       <Archive className="size-3.5" aria-hidden="true" />
                       Archive
@@ -1337,7 +1355,7 @@ function EffectiveAvailabilitySection({
 function BranchOverridesSection({
   items,
   drafts,
-  isSaving,
+  pendingItemIds,
   canManageOverrides,
   onDraftChange,
   onSave,
@@ -1345,7 +1363,7 @@ function BranchOverridesSection({
 }: {
   items: MenuAdminItem[];
   drafts: Record<string, AvailabilityDraft>;
-  isSaving: boolean;
+  pendingItemIds: ReadonlySet<string>;
   canManageOverrides: boolean;
   onDraftChange: (itemId: string, draft: AvailabilityDraft) => void;
   onSave: (item: MenuAdminItem) => void;
@@ -1468,9 +1486,13 @@ function BranchOverridesSection({
                     <Button
                       size="sm"
                       onClick={() => onSave(item)}
-                      disabled={isSaving || !canManageOverrides}
+                      disabled={pendingItemIds.has(item.id) || !canManageOverrides}
                     >
+                      {pendingItemIds.has(item.id) ? (
+                        <Loader2 className="size-3.5 animate-spin" aria-hidden="true" />
+                      ) : (
                       <Save className="size-3.5" aria-hidden="true" />
+                      )}
                       Save
                     </Button>
                     {hasOverride ? (
@@ -1478,7 +1500,7 @@ function BranchOverridesSection({
                         size="sm"
                         variant="secondary"
                         onClick={() => onClear(item)}
-                        disabled={isSaving || !canManageOverrides}
+                        disabled={pendingItemIds.has(item.id) || !canManageOverrides}
                       >
                         <Trash2 className="size-3.5" aria-hidden="true" />
                         Clear
@@ -1508,7 +1530,12 @@ function ModifierSection({
   groupForm,
   optionForm,
   linkForm,
-  isSaving,
+  groupFormSaving,
+  optionFormSaving,
+  linkFormSaving,
+  pendingGroupIds,
+  pendingOptionIds,
+  pendingLinkIds,
   onSelectGroup,
   onGroupFormChange,
   onOptionFormChange,
@@ -1530,7 +1557,12 @@ function ModifierSection({
   groupForm: ModifierGroupFormState;
   optionForm: ModifierOptionFormState;
   linkForm: LinkFormState;
-  isSaving: boolean;
+  groupFormSaving: boolean;
+  optionFormSaving: boolean;
+  linkFormSaving: boolean;
+  pendingGroupIds: ReadonlySet<string>;
+  pendingOptionIds: ReadonlySet<string>;
+  pendingLinkIds: ReadonlySet<string>;
   onSelectGroup: (groupId: string) => void;
   onGroupFormChange: (form: ModifierGroupFormState) => void;
   onOptionFormChange: (form: ModifierOptionFormState) => void;
@@ -1702,7 +1734,7 @@ function ModifierSection({
               Required group
             </label>
             <div className="flex flex-wrap gap-3">
-              <Button type="submit" disabled={isSaving}>
+              <Button type="submit" disabled={groupFormSaving}>
                 <Save className="size-4" aria-hidden="true" />
                 {groupForm.id ? "Save group" : "Create group"}
               </Button>
@@ -1760,6 +1792,7 @@ function ModifierSection({
                       size="sm"
                       variant="secondary"
                       onClick={() => onEditGroup(group)}
+                      disabled={pendingGroupIds.has(group.id)}
                     >
                       Edit
                     </Button>
@@ -1767,7 +1800,11 @@ function ModifierSection({
                       size="sm"
                       variant={group.status === "active" ? "secondary" : "primary"}
                       onClick={() => onToggleGroup(group)}
+                      disabled={pendingGroupIds.has(group.id)}
                     >
+                      {pendingGroupIds.has(group.id) ? (
+                        <Loader2 className="size-4 animate-spin" aria-hidden="true" />
+                      ) : null}
                       {group.status === "active" ? "Deactivate" : "Activate"}
                     </Button>
                   </div>
@@ -1874,7 +1911,7 @@ function ModifierSection({
                     </FieldLabel>
                   </div>
                   <div className="flex flex-wrap gap-3">
-                    <Button type="submit" disabled={isSaving}>
+                    <Button type="submit" disabled={optionFormSaving}>
                       <Save className="size-4" aria-hidden="true" />
                       {optionForm.id ? "Save option" : "Create option"}
                     </Button>
@@ -1912,6 +1949,7 @@ function ModifierSection({
                           size="sm"
                           variant="secondary"
                           onClick={() => onEditOption(option)}
+                          disabled={pendingOptionIds.has(option.id)}
                         >
                           Edit
                         </Button>
@@ -1923,7 +1961,11 @@ function ModifierSection({
                               : "primary"
                           }
                           onClick={() => onToggleOption(option)}
+                          disabled={pendingOptionIds.has(option.id)}
                         >
+                          {pendingOptionIds.has(option.id) ? (
+                            <Loader2 className="size-4 animate-spin" aria-hidden="true" />
+                          ) : null}
                           {option.status === "active"
                             ? "Deactivate"
                             : "Activate"}
@@ -2007,7 +2049,7 @@ function ModifierSection({
                   }
                 />
               </FieldLabel>
-              <Button type="submit" className="self-end" disabled={isSaving}>
+              <Button type="submit" className="self-end" disabled={linkFormSaving}>
                 <LinkIcon className="size-4" aria-hidden="true" />
                 Attach
               </Button>
@@ -2029,9 +2071,13 @@ function ModifierSection({
                   size="sm"
                   variant="secondary"
                   onClick={() => onDetachLink(item.id, link.id)}
-                  disabled={isSaving}
+                  disabled={pendingLinkIds.has(link.id)}
                 >
+                  {pendingLinkIds.has(link.id) ? (
+                    <Loader2 className="size-3.5 animate-spin" aria-hidden="true" />
+                  ) : (
                   <Trash2 className="size-3.5" aria-hidden="true" />
+                  )}
                   Detach
                 </Button>
               </div>
@@ -2183,6 +2229,24 @@ function MenuAdminContent() {
   >({});
   const [linkForm, setLinkForm] = useState<LinkFormState>(emptyLinkForm);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  const [pendingCategoryIds, setPendingCategoryIds] = useState<Set<string>>(
+    () => new Set(),
+  );
+  const [pendingItemIds, setPendingItemIds] = useState<Set<string>>(
+    () => new Set(),
+  );
+  const [pendingOverrideItemIds, setPendingOverrideItemIds] = useState<
+    Set<string>
+  >(() => new Set());
+  const [pendingModifierGroupIds, setPendingModifierGroupIds] = useState<
+    Set<string>
+  >(() => new Set());
+  const [pendingModifierOptionIds, setPendingModifierOptionIds] = useState<
+    Set<string>
+  >(() => new Set());
+  const [pendingModifierLinkIds, setPendingModifierLinkIds] = useState<
+    Set<string>
+  >(() => new Set());
   const selectedBranch = effectiveAccess?.branches.find(
     (entry) => entry.branch.id === selectedBranchId
   )?.branch;
@@ -2284,12 +2348,22 @@ function MenuAdminContent() {
       category.status === "active"
         ? deactivateMenuCategory(category.id, accessToken)
         : activateMenuCategory(category.id, accessToken),
+    onMutate: (category) => {
+      setPendingCategoryIds((current) => new Set(current).add(category.id));
+    },
     onSuccess: (_result, category) =>
       refreshMenuAdmin(
         category.status === "active"
           ? "Category deactivated."
           : "Category activated."
-      )
+      ),
+    onSettled: (_result, _error, category) => {
+      setPendingCategoryIds((current) => {
+        const next = new Set(current);
+        next.delete(category.id);
+        return next;
+      });
+    },
   });
   const createItemMutation = useMutation({
     mutationFn: (payload: CreateMenuItemPayload) => {
@@ -2323,15 +2397,45 @@ function MenuAdminContent() {
   });
   const activateItemMutation = useMutation({
     mutationFn: (item: MenuAdminItem) => activateMenuItem(item.id, accessToken),
-    onSuccess: () => refreshMenuAdmin("Item activated.")
+    onMutate: (item) => {
+      setPendingItemIds((current) => new Set(current).add(item.id));
+    },
+    onSuccess: () => refreshMenuAdmin("Item activated."),
+    onSettled: (_result, _error, item) => {
+      setPendingItemIds((current) => {
+        const next = new Set(current);
+        next.delete(item.id);
+        return next;
+      });
+    },
   });
   const deactivateItemMutation = useMutation({
     mutationFn: (item: MenuAdminItem) => deactivateMenuItem(item.id, accessToken),
-    onSuccess: () => refreshMenuAdmin("Item deactivated.")
+    onMutate: (item) => {
+      setPendingItemIds((current) => new Set(current).add(item.id));
+    },
+    onSuccess: () => refreshMenuAdmin("Item deactivated."),
+    onSettled: (_result, _error, item) => {
+      setPendingItemIds((current) => {
+        const next = new Set(current);
+        next.delete(item.id);
+        return next;
+      });
+    },
   });
   const archiveItemMutation = useMutation({
     mutationFn: (item: MenuAdminItem) => archiveMenuItem(item.id, accessToken),
-    onSuccess: () => refreshMenuAdmin("Item archived.")
+    onMutate: (item) => {
+      setPendingItemIds((current) => new Set(current).add(item.id));
+    },
+    onSuccess: () => refreshMenuAdmin("Item archived."),
+    onSettled: (_result, _error, item) => {
+      setPendingItemIds((current) => {
+        const next = new Set(current);
+        next.delete(item.id);
+        return next;
+      });
+    },
   });
   const upsertOverrideMutation = useMutation({
     mutationFn: ({
@@ -2352,7 +2456,17 @@ function MenuAdminContent() {
         accessToken
       );
     },
-    onSuccess: () => refreshMenuAdmin("Branch override saved.")
+    onMutate: ({ itemId }) => {
+      setPendingOverrideItemIds((current) => new Set(current).add(itemId));
+    },
+    onSuccess: () => refreshMenuAdmin("Branch override saved."),
+    onSettled: (_result, _error, variables) => {
+      setPendingOverrideItemIds((current) => {
+        const next = new Set(current);
+        next.delete(variables.itemId);
+        return next;
+      });
+    },
   });
   const deleteOverrideMutation = useMutation({
     mutationFn: (itemId: string) => {
@@ -2362,7 +2476,17 @@ function MenuAdminContent() {
 
       return deleteBranchMenuItemOverride(selectedBranchId, itemId, accessToken);
     },
-    onSuccess: () => refreshMenuAdmin("Branch override cleared.")
+    onMutate: (itemId) => {
+      setPendingOverrideItemIds((current) => new Set(current).add(itemId));
+    },
+    onSuccess: () => refreshMenuAdmin("Branch override cleared."),
+    onSettled: (_result, _error, itemId) => {
+      setPendingOverrideItemIds((current) => {
+        const next = new Set(current);
+        next.delete(itemId);
+        return next;
+      });
+    },
   });
   const createModifierGroupMutation = useMutation({
     mutationFn: (payload: CreateModifierGroupPayload) => {
@@ -2398,12 +2522,22 @@ function MenuAdminContent() {
       group.status === "active"
         ? deactivateModifierGroup(group.id, accessToken)
         : activateModifierGroup(group.id, accessToken),
+    onMutate: (group) => {
+      setPendingModifierGroupIds((current) => new Set(current).add(group.id));
+    },
     onSuccess: (_result, group) =>
       refreshMenuAdmin(
         group.status === "active"
           ? "Modifier group deactivated."
           : "Modifier group activated."
-      )
+      ),
+    onSettled: (_result, _error, group) => {
+      setPendingModifierGroupIds((current) => {
+        const next = new Set(current);
+        next.delete(group.id);
+        return next;
+      });
+    },
   });
   const createModifierOptionMutation = useMutation({
     mutationFn: ({
@@ -2436,12 +2570,22 @@ function MenuAdminContent() {
       option.status === "active"
         ? deactivateModifierOption(option.id, accessToken)
         : activateModifierOption(option.id, accessToken),
+    onMutate: (option) => {
+      setPendingModifierOptionIds((current) => new Set(current).add(option.id));
+    },
     onSuccess: (_result, option) =>
       refreshMenuAdmin(
         option.status === "active"
           ? "Modifier option deactivated."
           : "Modifier option activated."
-      )
+      ),
+    onSettled: (_result, _error, option) => {
+      setPendingModifierOptionIds((current) => {
+        const next = new Set(current);
+        next.delete(option.id);
+        return next;
+      });
+    },
   });
   const createItemModifierGroupMutation = useMutation({
     mutationFn: ({
@@ -2462,28 +2606,30 @@ function MenuAdminContent() {
   const deleteItemModifierGroupMutation = useMutation({
     mutationFn: ({ itemId, linkId }: { itemId: string; linkId: string }) =>
       deleteMenuItemModifierGroup(itemId, linkId, accessToken),
-    onSuccess: () => refreshMenuAdmin("Modifier group detached from item.")
+    onMutate: ({ linkId }) => {
+      setPendingModifierLinkIds((current) => new Set(current).add(linkId));
+    },
+    onSuccess: () => refreshMenuAdmin("Modifier group detached from item."),
+    onSettled: (_result, _error, variables) => {
+      setPendingModifierLinkIds((current) => {
+        const next = new Set(current);
+        next.delete(variables.linkId);
+        return next;
+      });
+    },
   });
 
-  const isMutating =
-    createCategoryMutation.isPending ||
-    updateCategoryMutation.isPending ||
-    toggleCategoryMutation.isPending ||
-    createItemMutation.isPending ||
-    updateItemMutation.isPending ||
-    activateItemMutation.isPending ||
-    deactivateItemMutation.isPending ||
-    archiveItemMutation.isPending ||
-    upsertOverrideMutation.isPending ||
-    deleteOverrideMutation.isPending ||
+  const categoryFormSaving =
+    createCategoryMutation.isPending || updateCategoryMutation.isPending;
+  const itemFormSaving =
+    createItemMutation.isPending || updateItemMutation.isPending;
+  const modifierGroupFormSaving =
     createModifierGroupMutation.isPending ||
-    updateModifierGroupMutation.isPending ||
-    toggleModifierGroupMutation.isPending ||
+    updateModifierGroupMutation.isPending;
+  const modifierOptionFormSaving =
     createModifierOptionMutation.isPending ||
-    updateModifierOptionMutation.isPending ||
-    toggleModifierOptionMutation.isPending ||
-    createItemModifierGroupMutation.isPending ||
-    deleteItemModifierGroupMutation.isPending;
+    updateModifierOptionMutation.isPending;
+  const modifierLinkFormSaving = createItemModifierGroupMutation.isPending;
   const mutationError =
     createCategoryMutation.error ??
     updateCategoryMutation.error ??
@@ -2749,7 +2895,8 @@ function MenuAdminContent() {
         <CategorySection
           categories={overview.categories}
           form={categoryForm}
-          isSaving={isMutating}
+          isSaving={categoryFormSaving}
+          pendingCategoryIds={pendingCategoryIds}
           onFormChange={setCategoryForm}
           onSubmit={handleCategorySubmit}
           onEdit={setCategoryFormFromCategory}
@@ -2763,7 +2910,8 @@ function MenuAdminContent() {
           categories={overview.categories}
           items={allItems}
           form={itemForm}
-          isSaving={isMutating}
+          isSaving={itemFormSaving}
+          pendingItemIds={pendingItemIds}
           onFormChange={setItemForm}
           onSubmit={handleItemSubmit}
           onEdit={setItemFormFromItem}
@@ -2787,7 +2935,7 @@ function MenuAdminContent() {
         <BranchOverridesSection
           items={allItems}
           drafts={availabilityDrafts}
-          isSaving={isMutating}
+          pendingItemIds={pendingOverrideItemIds}
           canManageOverrides={menuAccess.canManageBranchOverrides}
           onDraftChange={(itemId, draft) =>
             setAvailabilityDrafts((current) => ({
@@ -2812,7 +2960,12 @@ function MenuAdminContent() {
           groupForm={modifierGroupForm}
           optionForm={modifierOptionForm}
           linkForm={linkForm}
-          isSaving={isMutating}
+          groupFormSaving={modifierGroupFormSaving}
+          optionFormSaving={modifierOptionFormSaving}
+          linkFormSaving={modifierLinkFormSaving}
+          pendingGroupIds={pendingModifierGroupIds}
+          pendingOptionIds={pendingModifierOptionIds}
+          pendingLinkIds={pendingModifierLinkIds}
           onSelectGroup={(groupId) => {
             setSelectedModifierGroupId(groupId);
             setLinkForm((current) => ({

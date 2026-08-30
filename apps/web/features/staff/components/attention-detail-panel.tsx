@@ -56,6 +56,7 @@ import { AttentionStatusPill } from "./attention-status-pill";
 type AttentionDetailPanelProps = {
   attention?: TableSessionAttentionResult;
   isLoading?: boolean;
+  isRefreshing?: boolean;
   error?: Error;
   resolvePending?: boolean;
   mutePending?: boolean;
@@ -70,6 +71,7 @@ const muteOptions = [15, 30, 60];
 export function AttentionDetailPanel({
   attention,
   isLoading,
+  isRefreshing,
   error,
   resolvePending,
   mutePending,
@@ -116,6 +118,11 @@ export function AttentionDetailPanel({
           />
         ) : null}
         {isLoading ? <LoadingState label={t("attention.loading")} /> : null}
+        {isRefreshing ? (
+          <p role="status" className="rounded-md border border-[#5A483A] bg-[#292019] p-3 text-xs text-[#CDBEAF]">
+            {t("attention.loading")}
+          </p>
+        ) : null}
         {error ? (
           <EmptyState
             title={t("attention.detailLoadError")}
@@ -247,7 +254,7 @@ export function AttentionDetailPanel({
               <div className="flex flex-wrap items-center gap-3">
                 <Button
                   onClick={() => onResolve(note.trim() || null)}
-                  disabled={!canResolve || resolvePending}
+                  disabled={!canResolve || resolvePending || isRefreshing}
                 >
                   <Check className="size-4" aria-hidden="true" />
                   {resolvePending ? t("actions.resolving") : t("actions.resolve")}
@@ -255,7 +262,7 @@ export function AttentionDetailPanel({
                 <Button
                   variant="secondary"
                   onClick={() => onMute(muteMinutes, note.trim() || null)}
-                  disabled={!canMute || mutePending}
+                  disabled={!canMute || mutePending || isRefreshing}
                 >
                   <VolumeX className="size-4" aria-hidden="true" />
                   {mutePending ? t("actions.muting") : t("actions.mute")}
@@ -263,7 +270,7 @@ export function AttentionDetailPanel({
                 <Button
                   variant="secondary"
                   onClick={onRecalculate}
-                  disabled={recalculatePending}
+                  disabled={recalculatePending || isRefreshing}
                 >
                   <RefreshCw
                     className={cn(
@@ -302,7 +309,7 @@ export function AttentionDetailPanel({
                   rows={3}
                   placeholder={t("attention.notePlaceholder")}
                   className="w-full resize-none rounded-md border border-[#3B3028] bg-[#211A15] px-3 py-2 text-sm text-[#F6EBDD] outline-none transition placeholder:text-[#756A61] focus:border-[#C68A4A] focus:ring-2 focus:ring-[#C68A4A]/20 disabled:cursor-not-allowed disabled:opacity-60"
-                  disabled={resolvePending || mutePending}
+                  disabled={resolvePending || mutePending || isRefreshing}
                 />
               </label>
             </div>

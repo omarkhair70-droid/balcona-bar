@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   BellRing,
@@ -64,6 +65,18 @@ function ExperienceContent() {
     (state) => state.setSelectedBranchId,
   );
   const effectiveAccess = useStaffAuthStore((state) => state.effectiveAccess);
+  const [pendingProfileIds, setPendingProfileIds] = useState<Set<string>>(
+    () => new Set(),
+  );
+  const [pendingContentIds, setPendingContentIds] = useState<Set<string>>(
+    () => new Set(),
+  );
+  const [pendingTemplateIds, setPendingTemplateIds] = useState<Set<string>>(
+    () => new Set(),
+  );
+  const [pendingMediaIds, setPendingMediaIds] = useState<Set<string>>(
+    () => new Set(),
+  );
 
   const branchAccess = effectiveAccess?.branches.find(
     (entry) => entry.branch.id === selectedBranchId,
@@ -218,7 +231,17 @@ function ExperienceContent() {
         : action === "archive"
           ? archiveOfficeExperienceProfile(id, accessToken ?? "")
           : setDefaultOfficeExperienceProfile(id, accessToken ?? ""),
+    onMutate: ({ id }) => {
+      setPendingProfileIds((current) => new Set(current).add(id));
+    },
     onSuccess: () => void invalidate(),
+    onSettled: (_result, _error, variables) => {
+      setPendingProfileIds((current) => {
+        const next = new Set(current);
+        next.delete(variables.id);
+        return next;
+      });
+    },
   });
 
   const contentMutation = useMutation({
@@ -232,7 +255,17 @@ function ExperienceContent() {
       active
         ? activateOfficeContentBlock(id, accessToken ?? "")
         : deactivateOfficeContentBlock(id, accessToken ?? ""),
+    onMutate: ({ id }) => {
+      setPendingContentIds((current) => new Set(current).add(id));
+    },
     onSuccess: () => void invalidate(),
+    onSettled: (_result, _error, variables) => {
+      setPendingContentIds((current) => {
+        const next = new Set(current);
+        next.delete(variables.id);
+        return next;
+      });
+    },
   });
 
   const templateMutation = useMutation({
@@ -246,7 +279,17 @@ function ExperienceContent() {
       active
         ? activateOfficeNotificationTemplate(id, accessToken ?? "")
         : deactivateOfficeNotificationTemplate(id, accessToken ?? ""),
+    onMutate: ({ id }) => {
+      setPendingTemplateIds((current) => new Set(current).add(id));
+    },
     onSuccess: () => void invalidate(),
+    onSettled: (_result, _error, variables) => {
+      setPendingTemplateIds((current) => {
+        const next = new Set(current);
+        next.delete(variables.id);
+        return next;
+      });
+    },
   });
 
   const mediaMutation = useMutation({
@@ -260,7 +303,17 @@ function ExperienceContent() {
       restore
         ? restoreOfficeMediaAsset(id, accessToken ?? "")
         : archiveOfficeMediaAsset(id, accessToken ?? ""),
+    onMutate: ({ id }) => {
+      setPendingMediaIds((current) => new Set(current).add(id));
+    },
     onSuccess: () => void invalidate(),
+    onSettled: (_result, _error, variables) => {
+      setPendingMediaIds((current) => {
+        const next = new Set(current);
+        next.delete(variables.id);
+        return next;
+      });
+    },
   });
 
   const packMutation = useMutation({
@@ -432,7 +485,7 @@ function ExperienceContent() {
                         <Button
                           size="sm"
                           variant="secondary"
-                          disabled={profileMutation.isPending}
+                          disabled={pendingProfileIds.has(id)}
                           onClick={() =>
                             profileMutation.mutate({ id, action: "activate" })
                           }
@@ -444,7 +497,7 @@ function ExperienceContent() {
                         <Button
                           size="sm"
                           variant="secondary"
-                          disabled={profileMutation.isPending}
+                          disabled={pendingProfileIds.has(id)}
                           onClick={() =>
                             profileMutation.mutate({ id, action: "default" })
                           }
@@ -456,7 +509,7 @@ function ExperienceContent() {
                         <Button
                           size="sm"
                           variant="secondary"
-                          disabled={profileMutation.isPending}
+                          disabled={pendingProfileIds.has(id)}
                           onClick={() => {
                             if (
                               window.confirm(
@@ -631,7 +684,7 @@ function ExperienceContent() {
                         <Button
                           size="sm"
                           variant="secondary"
-                          disabled={contentMutation.isPending}
+                          disabled={pendingContentIds.has(id)}
                           onClick={() =>
                             contentMutation.mutate({ id, active: !active })
                           }
@@ -683,7 +736,7 @@ function ExperienceContent() {
                         <Button
                           size="sm"
                           variant="secondary"
-                          disabled={templateMutation.isPending}
+                          disabled={pendingTemplateIds.has(id)}
                           onClick={() =>
                             templateMutation.mutate({ id, active: !active })
                           }
@@ -746,7 +799,7 @@ function ExperienceContent() {
                       className="mt-3"
                       size="sm"
                       variant="secondary"
-                      disabled={mediaMutation.isPending}
+                      disabled={pendingMediaIds.has(id)}
                       onClick={() => {
                         if (status === "archived") {
                           mediaMutation.mutate({ id, restore: true });

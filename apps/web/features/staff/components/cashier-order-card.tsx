@@ -29,12 +29,14 @@ type CashierOrderCardProps = {
   order: Record<string, unknown>;
   selected?: boolean;
   onSelect: (orderId: string) => void;
+  onPrefetch?: (orderId: string) => void;
 };
 
 export function CashierOrderCard({
   order,
   selected,
-  onSelect
+  onSelect,
+  onPrefetch,
 }: CashierOrderCardProps) {
   const t = useTranslations("staff");
   const orderId = getOrderId(order);
@@ -51,6 +53,8 @@ export function CashierOrderCard({
       type="button"
       aria-pressed={selected}
       onClick={() => orderId && onSelect(orderId)}
+      onPointerEnter={() => orderId && onPrefetch?.(orderId)}
+      onFocus={() => orderId && onPrefetch?.(orderId)}
       className={cn(
         "w-full rounded-md border p-3 text-start transition",
         selected

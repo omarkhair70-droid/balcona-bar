@@ -424,6 +424,7 @@ function BranchesSection({
   overview,
   form,
   isSaving,
+  pendingBranchIds,
   selectedBranchId,
   onSelectBranch,
   onFormChange,
@@ -435,6 +436,7 @@ function BranchesSection({
   overview: BranchAdminOverviewResult;
   form: BranchFormState;
   isSaving: boolean;
+  pendingBranchIds: ReadonlySet<string>;
   selectedBranchId?: string;
   onSelectBranch: (branchId: string) => void;
   onFormChange: (form: BranchFormState) => void;
@@ -579,7 +581,11 @@ function BranchesSection({
                     size="sm"
                     variant={branch.status === "active" ? "secondary" : "primary"}
                     onClick={() => onToggle(branch)}
+                    disabled={pendingBranchIds.has(branch.id)}
                   >
+                    {pendingBranchIds.has(branch.id) ? (
+                      <Loader2 className="size-4 animate-spin" aria-hidden="true" />
+                    ) : null}
                     {branch.status === "active" ? "Deactivate" : "Activate"}
                   </Button>
                 </div>
@@ -707,6 +713,7 @@ function TablesSection({
   overview,
   form,
   isSaving,
+  pendingTableIds,
   onFormChange,
   onSubmit,
   onEdit,
@@ -717,6 +724,7 @@ function TablesSection({
   overview: BranchAdminOverviewResult;
   form: TableFormState;
   isSaving: boolean;
+  pendingTableIds: ReadonlySet<string>;
   onFormChange: (form: TableFormState) => void;
   onSubmit: (event: FormEvent<HTMLFormElement>) => void;
   onEdit: (table: BranchAdminTable) => void;
@@ -871,6 +879,7 @@ function TablesSection({
                     onEdit={onEdit}
                     onActivate={onActivate}
                     onDeactivate={onDeactivate}
+                    isPending={pendingTableIds.has(table.id)}
                   />
                 ))}
               </div>
@@ -891,6 +900,7 @@ function TablesSection({
                   onEdit={onEdit}
                   onActivate={onActivate}
                   onDeactivate={onDeactivate}
+                  isPending={pendingTableIds.has(table.id)}
                 />
               ))}
             </div>
@@ -909,11 +919,13 @@ function TablesSection({
 
 function TableRow({
   table,
+  isPending,
   onEdit,
   onActivate,
   onDeactivate
 }: {
   table: BranchAdminTable;
+  isPending: boolean;
   onEdit: (table: BranchAdminTable) => void;
   onActivate: (table: BranchAdminTable) => void;
   onDeactivate: (table: BranchAdminTable) => void;
@@ -938,7 +950,7 @@ function TableRow({
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
-          <Button size="sm" variant="secondary" onClick={() => onEdit(table)}>
+          <Button size="sm" variant="secondary" onClick={() => onEdit(table)} disabled={isPending}>
             Edit
           </Button>
           {table.status === "active" ? (
@@ -946,11 +958,18 @@ function TableRow({
               size="sm"
               variant="secondary"
               onClick={() => onDeactivate(table)}
+              disabled={isPending}
             >
+              {isPending ? (
+                <Loader2 className="size-4 animate-spin" aria-hidden="true" />
+              ) : null}
               Deactivate
             </Button>
           ) : (
-            <Button size="sm" onClick={() => onActivate(table)}>
+            <Button size="sm" onClick={() => onActivate(table)} disabled={isPending}>
+              {isPending ? (
+                <Loader2 className="size-4 animate-spin" aria-hidden="true" />
+              ) : null}
               Activate
             </Button>
           )}
@@ -963,13 +982,13 @@ function TableRow({
 function QrLinksSection({
   tables,
   webOrigin,
-  isSaving,
+  pendingTableIds,
   onGenerate,
   onRegenerate
 }: {
   tables: BranchAdminTable[];
   webOrigin: string | null;
-  isSaving: boolean;
+  pendingTableIds: ReadonlySet<string>;
   onGenerate: (table: BranchAdminTable) => void;
   onRegenerate: (table: BranchAdminTable) => void;
 }) {
@@ -1064,7 +1083,7 @@ function QrLinksSection({
                           size="sm"
                           variant="secondary"
                           onClick={() => onRegenerate(table)}
-                          disabled={isSaving}
+                          disabled={pendingTableIds.has(table.id)}
                         >
                           <RefreshCw className="size-3.5" aria-hidden="true" />
                           Regenerate
@@ -1075,7 +1094,7 @@ function QrLinksSection({
                         <Button
                           size="sm"
                           onClick={() => onGenerate(table)}
-                          disabled={isSaving}
+                          disabled={pendingTableIds.has(table.id)}
                         >
                           <QrCode className="size-3.5" aria-hidden="true" />
                           Generate
@@ -1263,6 +1282,15 @@ function BranchTableAdminContent() {
   const [floorForm, setFloorForm] = useState<FloorFormState>(emptyFloorForm);
   const [tableForm, setTableForm] = useState<TableFormState>(emptyTableForm);
   const [lastQrAction, setLastQrAction] = useState<QrActionResult | null>(null);
+  const [pendingBranchIds, setPendingBranchIds] = useState<Set<string>>(
+    () => new Set(),
+  );
+  const [pendingTableIds, setPendingTableIds] = useState<Set<string>>(
+    () => new Set(),
+  );
+  const [pendingQrTableIds, setPendingQrTableIds] = useState<Set<string>>(
+    () => new Set(),
+  );
   const webOrigin = useSyncExternalStore(
     subscribeToOrigin,
     getBrowserOrigin,
@@ -1377,7 +1405,17 @@ function BranchTableAdminContent() {
       branch.status === "active"
         ? deactivateBranch(branch.id, accessToken)
         : activateBranch(branch.id, accessToken),
-    onSuccess: refreshBranchAdmin
+    onMutate: (branch) => {
+      setPendingBranchIds((current) => new Set(current).add(branch.id));
+    },
+    onSuccess: refreshBranchAdmin,
+    onSettled: (_result, _error, branch) => {
+      setPendingBranchIds((current) => {
+        const next = new Set(current);
+        next.delete(branch.id);
+        return next;
+      });
+    },
   });
   const createFloorMutation = useMutation({
     mutationFn: (payload: CreateFloorPayload) => {
@@ -1441,7 +1479,17 @@ function BranchTableAdminContent() {
 
       return activateTable(branchId, table.id, token);
     },
-    onSuccess: refreshBranchAdmin
+    onMutate: (table) => {
+      setPendingTableIds((current) => new Set(current).add(table.id));
+    },
+    onSuccess: refreshBranchAdmin,
+    onSettled: (_result, _error, table) => {
+      setPendingTableIds((current) => {
+        const next = new Set(current);
+        next.delete(table.id);
+        return next;
+      });
+    },
   });
   const deactivateTableMutation = useMutation({
     mutationFn: (table: BranchAdminTable) => {
@@ -1449,7 +1497,17 @@ function BranchTableAdminContent() {
 
       return deactivateTable(branchId, table.id, token);
     },
-    onSuccess: refreshBranchAdmin
+    onMutate: (table) => {
+      setPendingTableIds((current) => new Set(current).add(table.id));
+    },
+    onSuccess: refreshBranchAdmin,
+    onSettled: (_result, _error, table) => {
+      setPendingTableIds((current) => {
+        const next = new Set(current);
+        next.delete(table.id);
+        return next;
+      });
+    },
   });
   const generateQrMutation = useMutation({
     mutationFn: (table: BranchAdminTable) => {
@@ -1457,11 +1515,21 @@ function BranchTableAdminContent() {
 
       return generateTableQrToken(branchId, table.id, token);
     },
-    onMutate: () => setLastQrAction(null),
+    onMutate: (table) => {
+      setLastQrAction(null);
+      setPendingQrTableIds((current) => new Set(current).add(table.id));
+    },
     onSuccess: (result) => {
       setLastQrAction(toQrActionResult("generated", result));
       refreshBranchAdmin();
-    }
+    },
+    onSettled: (_result, _error, table) => {
+      setPendingQrTableIds((current) => {
+        const next = new Set(current);
+        next.delete(table.id);
+        return next;
+      });
+    },
   });
   const regenerateQrMutation = useMutation({
     mutationFn: (table: BranchAdminTable) => {
@@ -1469,24 +1537,28 @@ function BranchTableAdminContent() {
 
       return regenerateTableQrToken(branchId, table.id, token);
     },
-    onMutate: () => setLastQrAction(null),
+    onMutate: (table) => {
+      setLastQrAction(null);
+      setPendingQrTableIds((current) => new Set(current).add(table.id));
+    },
     onSuccess: (result) => {
       setLastQrAction(toQrActionResult("regenerated", result));
       refreshBranchAdmin();
-    }
+    },
+    onSettled: (_result, _error, table) => {
+      setPendingQrTableIds((current) => {
+        const next = new Set(current);
+        next.delete(table.id);
+        return next;
+      });
+    },
   });
-  const isMutating =
-    createBranchMutation.isPending ||
-    updateBranchMutation.isPending ||
-    toggleBranchMutation.isPending ||
-    createFloorMutation.isPending ||
-    updateFloorMutation.isPending ||
-    createTableMutation.isPending ||
-    updateTableMutation.isPending ||
-    activateTableMutation.isPending ||
-    deactivateTableMutation.isPending ||
-    generateQrMutation.isPending ||
-    regenerateQrMutation.isPending;
+  const branchFormSaving =
+    createBranchMutation.isPending || updateBranchMutation.isPending;
+  const floorFormSaving =
+    createFloorMutation.isPending || updateFloorMutation.isPending;
+  const tableFormSaving =
+    createTableMutation.isPending || updateTableMutation.isPending;
   const mutationError =
     createBranchMutation.error ??
     updateBranchMutation.error ??
@@ -1645,7 +1717,8 @@ function BranchTableAdminContent() {
         <BranchesSection
           overview={overview}
           form={branchForm}
-          isSaving={isMutating}
+          isSaving={branchFormSaving}
+          pendingBranchIds={pendingBranchIds}
           selectedBranchId={overview.selectedBranch?.id ?? selectedBranchId}
           onSelectBranch={(branchId) => {
             setSelectedBranchId(branchId);
@@ -1666,7 +1739,7 @@ function BranchTableAdminContent() {
         <FloorsSection
           floors={overview.floors}
           form={floorForm}
-          isSaving={isMutating}
+          isSaving={floorFormSaving}
           onFormChange={setFloorForm}
           onSubmit={handleFloorSubmit}
           onEdit={(floor) => setFloorForm(toFloorForm(floor))}
@@ -1678,7 +1751,8 @@ function BranchTableAdminContent() {
         <TablesSection
           overview={overview}
           form={tableForm}
-          isSaving={isMutating}
+          isSaving={tableFormSaving}
+          pendingTableIds={pendingTableIds}
           onFormChange={setTableForm}
           onSubmit={handleTableSubmit}
           onEdit={(table) => setTableForm(toTableForm(table))}
@@ -1692,7 +1766,7 @@ function BranchTableAdminContent() {
         <QrLinksSection
           tables={allTables}
           webOrigin={webOrigin}
-          isSaving={isMutating}
+          pendingTableIds={pendingQrTableIds}
           onGenerate={(table) => generateQrMutation.mutate(table)}
           onRegenerate={(table) => {
             if (

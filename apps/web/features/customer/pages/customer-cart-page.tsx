@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { LoaderCircle, Send, Trash2 } from "lucide-react";
@@ -20,7 +20,14 @@ import {
 } from "@/lib/api/endpoints";
 import { formatErrorMessage } from "@/lib/api/error-message";
 import { customerQueryKeys } from "@/lib/api/query-keys";
-import type { SubmitCartPayload } from "@/lib/api/types";
+import type { CartResponse, SubmitCartPayload } from "@/lib/api/types";
+import {
+  optimisticClearCart,
+  optimisticRemoveCartItem,
+  optimisticUpdateCartItem,
+  restoreCartItem,
+  restoreCartItems,
+} from "@/lib/customer/cart-optimistic";
 import { withCustomerTransientRetry } from "@/lib/customer/customer-api-reliability";
 import {
   assertCustomerSessionReady,
@@ -69,6 +76,9 @@ export function CustomerCartPage({ sessionId }: CustomerCartPageProps) {
     sessionId
   );
   const [customerNote, setCustomerNote] = useState("");
+  const [pendingItemIds, setPendingItemIds] = useState<Set<string>>(
+    () => new Set(),
+  );
 
   const cartQuery = useQuery({
     queryKey: customerQueryKeys.cart(sessionId),
@@ -100,12 +110,24 @@ export function CustomerCartPage({ sessionId }: CustomerCartPageProps) {
     staleTime: 10_000
   });
 
-  const refreshCart = () =>
-    queryClient.invalidateQueries({
-      queryKey: customerQueryKeys.cart(sessionId)
-    });
+  const cartSyncMutationKey = ["customer-cart-sync", sessionId] as const;
+  const reconcileCartWhenIdle = () => {
+    window.setTimeout(() => {
+      if (
+        queryClient.isMutating({ mutationKey: cartSyncMutationKey }) === 0
+      ) {
+        void queryClient.invalidateQueries({
+          queryKey: customerQueryKeys.cart(sessionId),
+        });
+        void queryClient.invalidateQueries({
+          queryKey: customerQueryKeys.cartValidation(sessionId),
+        });
+      }
+    }, 0);
+  };
 
   const updateMutation = useMutation({
+    mutationKey: cartSyncMutationKey,
     mutationFn: ({ id, quantity }: { id: string; quantity: number }) => {
       const ready = assertCustomerSessionReady(
         useCustomerSessionStore.getState(),
@@ -114,12 +136,58 @@ export function CustomerCartPage({ sessionId }: CustomerCartPageProps) {
 
       return updateCartItem(id, { quantity }, ready.customerAccessToken);
     },
-    onSuccess: () => {
-      void refreshCart();
-    }
+    onMutate: async ({ id, quantity }) => {
+      const cartKey = customerQueryKeys.cart(sessionId);
+      await Promise.all([
+        queryClient.cancelQueries({ queryKey: cartKey }),
+        queryClient.cancelQueries({
+          queryKey: customerQueryKeys.cartValidation(sessionId),
+        }),
+      ]);
+      const current = queryClient.getQueryData<CartResponse>(cartKey);
+      const previousItem = current?.items.find((item) => item.id === id);
+      const originalIndex =
+        current?.items.findIndex((item) => item.id === id) ?? -1;
+      queryClient.setQueryData<CartResponse | undefined>(
+        cartKey,
+        optimisticUpdateCartItem(current, id, quantity),
+      );
+      setPendingItemIds((pending) => new Set(pending).add(id));
+
+      return { previousItem, originalIndex };
+    },
+    onError: (_error, variables, context) => {
+      if (context?.previousItem) {
+        const previousItem = context.previousItem;
+        queryClient.setQueryData<CartResponse | undefined>(
+          customerQueryKeys.cart(sessionId),
+          (current) =>
+            restoreCartItem(
+              current,
+              previousItem,
+              context.originalIndex,
+            ),
+        );
+      }
+      setPendingItemIds((pending) => {
+        const next = new Set(pending);
+        next.delete(variables.id);
+        return next;
+      });
+      vibrateWarning();
+    },
+    onSettled: (_data, _error, variables) => {
+      setPendingItemIds((pending) => {
+        const next = new Set(pending);
+        next.delete(variables.id);
+        return next;
+      });
+      reconcileCartWhenIdle();
+    },
   });
 
   const removeMutation = useMutation({
+    mutationKey: cartSyncMutationKey,
     mutationFn: (cartItemId: string) => {
       const ready = assertCustomerSessionReady(
         useCustomerSessionStore.getState(),
@@ -128,12 +196,60 @@ export function CustomerCartPage({ sessionId }: CustomerCartPageProps) {
 
       return removeCartItem(cartItemId, ready.customerAccessToken);
     },
-    onSuccess: () => {
-      void refreshCart();
-    }
+    onMutate: async (cartItemId) => {
+      const cartKey = customerQueryKeys.cart(sessionId);
+      await Promise.all([
+        queryClient.cancelQueries({ queryKey: cartKey }),
+        queryClient.cancelQueries({
+          queryKey: customerQueryKeys.cartValidation(sessionId),
+        }),
+      ]);
+      const current = queryClient.getQueryData<CartResponse>(cartKey);
+      const previousItem = current?.items.find(
+        (item) => item.id === cartItemId,
+      );
+      const originalIndex =
+        current?.items.findIndex((item) => item.id === cartItemId) ?? -1;
+      queryClient.setQueryData<CartResponse | undefined>(
+        cartKey,
+        optimisticRemoveCartItem(current, cartItemId),
+      );
+      setPendingItemIds((pending) => new Set(pending).add(cartItemId));
+
+      return { previousItem, originalIndex };
+    },
+    onError: (_error, cartItemId, context) => {
+      if (context?.previousItem) {
+        const previousItem = context.previousItem;
+        queryClient.setQueryData<CartResponse | undefined>(
+          customerQueryKeys.cart(sessionId),
+          (current) =>
+            restoreCartItem(
+              current,
+              previousItem,
+              context.originalIndex,
+            ),
+        );
+      }
+      setPendingItemIds((pending) => {
+        const next = new Set(pending);
+        next.delete(cartItemId);
+        return next;
+      });
+      vibrateWarning();
+    },
+    onSettled: (_data, _error, cartItemId) => {
+      setPendingItemIds((pending) => {
+        const next = new Set(pending);
+        next.delete(cartItemId);
+        return next;
+      });
+      reconcileCartWhenIdle();
+    },
   });
 
   const clearMutation = useMutation({
+    mutationKey: cartSyncMutationKey,
     mutationFn: () => {
       const ready = assertCustomerSessionReady(
         useCustomerSessionStore.getState(),
@@ -142,9 +258,32 @@ export function CustomerCartPage({ sessionId }: CustomerCartPageProps) {
 
       return clearCart(ready.sessionId, ready.customerAccessToken);
     },
-    onSuccess: () => {
-      void refreshCart();
-    }
+    onMutate: async () => {
+      const cartKey = customerQueryKeys.cart(sessionId);
+      await Promise.all([
+        queryClient.cancelQueries({ queryKey: cartKey }),
+        queryClient.cancelQueries({
+          queryKey: customerQueryKeys.cartValidation(sessionId),
+        }),
+      ]);
+      const previousCart = queryClient.getQueryData<CartResponse>(cartKey);
+      queryClient.setQueryData<CartResponse | undefined>(
+        cartKey,
+        optimisticClearCart(previousCart),
+      );
+
+      return { previousCart };
+    },
+    onError: (_error, _variables, context) => {
+      queryClient.setQueryData<CartResponse | undefined>(
+        customerQueryKeys.cart(sessionId),
+        (current) => restoreCartItems(current, context?.previousCart),
+      );
+      vibrateWarning();
+    },
+    onSettled: () => {
+      reconcileCartWhenIdle();
+    },
   });
 
   const submitMutation = useMutation({
@@ -203,6 +342,8 @@ export function CustomerCartPage({ sessionId }: CustomerCartPageProps) {
     readiness.isReady &&
     cartQuery.isSuccess &&
     !isCartEmpty &&
+    pendingItemIds.size === 0 &&
+    !clearMutation.isPending &&
     !validationQuery.isPending &&
     isValid &&
     !submitMutation.isPending;
@@ -211,22 +352,8 @@ export function CustomerCartPage({ sessionId }: CustomerCartPageProps) {
     ? formatErrorMessage(submitMutation.error, t("cart.submitFallback"))
     : null;
 
-  const pendingItemId = useMemo(() => {
-    if (updateMutation.isPending && updateMutation.variables) {
-      return updateMutation.variables.id;
-    }
-
-    if (removeMutation.isPending && removeMutation.variables) {
-      return removeMutation.variables;
-    }
-
-    return undefined;
-  }, [
-    removeMutation.isPending,
-    removeMutation.variables,
-    updateMutation.isPending,
-    updateMutation.variables
-  ]);
+  const cartMutationError =
+    updateMutation.error ?? removeMutation.error ?? clearMutation.error;
 
   return (
     <CustomerSessionScreen
@@ -257,6 +384,23 @@ export function CustomerCartPage({ sessionId }: CustomerCartPageProps) {
         />
       ) : null}
 
+      {cartMutationError ? (
+        <div
+          role="alert"
+          className="mb-4 rounded-xl border border-danger bg-danger/10 p-3 text-sm text-danger"
+        >
+          {formatErrorMessage(cartMutationError)}
+          <div className="mt-3">
+            <CopyDebugReportButton
+              action="cart_mutation"
+              flow="customer_order_cycle"
+              sessionId={sessionId}
+              error={cartMutationError}
+            />
+          </div>
+        </div>
+      ) : null}
+
       {cartQuery.isSuccess && isCartEmpty ? (
         <EmptyState
           title={t("cart.emptyTitle")}
@@ -279,7 +423,9 @@ export function CustomerCartPage({ sessionId }: CustomerCartPageProps) {
               <CartItemRow
                 key={item.id}
                 item={item}
-                isPending={pendingItemId === item.id}
+                isPending={
+                  pendingItemIds.has(item.id) || clearMutation.isPending
+                }
                 onQuantityChange={(quantity) =>
                   updateMutation.mutate({ id: item.id, quantity })
                 }
@@ -366,7 +512,7 @@ export function CustomerCartPage({ sessionId }: CustomerCartPageProps) {
           <Button
             variant="ghost"
             onClick={() => clearMutation.mutate()}
-            disabled={clearMutation.isPending}
+            disabled={clearMutation.isPending || pendingItemIds.size > 0}
             className="mt-2 w-full text-muted-foreground"
           >
             <Trash2 className="size-4" aria-hidden="true" />

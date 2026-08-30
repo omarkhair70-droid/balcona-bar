@@ -19,6 +19,7 @@ type WaiterCallQueueProps = {
   onStatusChange: (status: WaiterCallStatus) => void;
   onTypeChange: (type: WaiterCallType) => void;
   onSelectWaiterCall: (waiterCallId: string) => void;
+  onPrefetchWaiterCall?: (waiterCallId: string) => void;
   onRefresh: () => void;
 };
 
@@ -32,6 +33,7 @@ export function WaiterCallQueue({
   onStatusChange,
   onTypeChange,
   onSelectWaiterCall,
+  onPrefetchWaiterCall,
   onRefresh
 }: WaiterCallQueueProps) {
   const t = useTranslations("staff");
@@ -93,6 +95,7 @@ export function WaiterCallQueue({
                   waiterCall={waiterCall}
                   selected={selectedWaiterCallId === waiterCallId}
                   onSelect={onSelectWaiterCall}
+                  onPrefetch={onPrefetchWaiterCall}
                 />
               );
             })}
