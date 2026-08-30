@@ -9,11 +9,13 @@ import { TableSessionsModule } from "../table-sessions/table-sessions.module";
 import { OnlinePaymentReconciliationScheduler } from "./online-payment-reconciliation.scheduler";
 import { OnlinePaymentSettlementReconciliationScheduler } from "./online-payment-settlement-reconciliation.scheduler";
 import { OnlinePaymentsController } from "./online-payments.controller";
+import { PaymentTerminalsController } from "./payment-terminals.controller";
 import { OnlinePaymentsService } from "./online-payments.service";
 import { MerchantPaymentIntegrationsService } from "./merchant-payment-integrations.service";
 import { FawryPaymentProviderService } from "./providers/fawry-payment-provider.service";
 import { PaymobPaymentProviderService } from "./providers/paymob-payment-provider.service";
 import { PaymentRateLimitGuard } from "./payment-rate-limit.guard";
+import { PaymentTerminalsService } from "./payment-terminals.service";
 import { PaymentReconciliationService } from "./payment-reconciliation.service";
 import { PaymentRateLimitService } from "./payment-rate-limit.service";
 import { StaffPaymentOperationRateLimitGuard } from "./staff-payment-operation-rate-limit.guard";
@@ -29,7 +31,7 @@ import { StaffPaymentRecoveryRateLimitGuard } from "./staff-payment-recovery-rat
     StaffModule,
     TableSessionsModule,
   ],
-  controllers: [OnlinePaymentsController],
+  controllers: [OnlinePaymentsController, PaymentTerminalsController],
   providers: [
     OnlinePaymentsService,
     MerchantPaymentIntegrationsService,
@@ -37,6 +39,7 @@ import { StaffPaymentRecoveryRateLimitGuard } from "./staff-payment-recovery-rat
     FawryPaymentProviderService,
     PaymentRateLimitService,
     PaymentRateLimitGuard,
+    PaymentTerminalsService,
     PaymentReconciliationService,
     OnlinePaymentReconciliationScheduler,
     OnlinePaymentSettlementReconciliationScheduler,
@@ -47,6 +50,7 @@ import { StaffPaymentRecoveryRateLimitGuard } from "./staff-payment-recovery-rat
     OnlinePaymentsService,
     PaymentReconciliationService,
     MerchantPaymentIntegrationsService,
+    PaymentTerminalsService,
   ],
 })
 export class OnlinePaymentsModule {}
