@@ -914,6 +914,7 @@
       "ticketItemsOne": "{count} عنصر التذكرة",
       "ticketsEmpty": "تظهر صفوف التذاكر هنا بعد قبول الطلب وتوجيهه إلى محطات الحلوى أو المطبخ.",
       "timeline": "الخط",
+      "operationalDetails": "دورة الطلب",
       "total": "المجموع",
       "updating": "تحديث الطلب..."
     },
