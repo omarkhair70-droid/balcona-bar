@@ -39,11 +39,11 @@ function tableStartErrorMessage(
     }
 
     if (error.status === 0) {
-      return t("errors.tableApiSlow");
+      return t("errors.tableConnectionSlow");
     }
 
     if (error.status >= 500) {
-      return t("errors.tableServiceUnavailable");
+      return t("errors.tableTemporarilyUnavailable");
     }
   }
 

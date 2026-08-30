@@ -2,6 +2,7 @@
 
 import { Check, Circle } from "lucide-react";
 import { useTranslations } from "@/lib/i18n/i18n-provider";
+import { getGuestTimelineStage } from "./customer-guest-state";
 
 type TimelineEvent = {
   type: string;
@@ -12,6 +13,10 @@ type TimelineEvent = {
 type StatusTimelineProps = {
   events: TimelineEvent[];
 };
+
+function timelineKey(type: string) {
+  return `status.timelineStages.${getGuestTimelineStage(type)}`;
+}
 
 export function StatusTimeline({ events }: StatusTimelineProps) {
   const t = useTranslations("customer");
@@ -63,10 +68,13 @@ export function StatusTimeline({ events }: StatusTimelineProps) {
                     : "text-sm font-semibold text-muted-foreground"
                 }
               >
-                {event.label}
+                {t(timelineKey(event.type))}
               </p>
               <p className="mt-1 text-[11px] text-muted-foreground">
-                {new Date(event.occurredAt).toLocaleString()}
+                {new Date(event.occurredAt).toLocaleTimeString([], {
+                  hour: "2-digit",
+                  minute: "2-digit"
+                })}
               </p>
             </div>
           </li>

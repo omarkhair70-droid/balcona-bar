@@ -7,11 +7,10 @@ const { chromium } = require("playwright");
 
 const BASE_URL =
   process.env.BALCONA_VISUAL_BASE_URL ?? "http://localhost:3001";
-const OUTPUT_DIR = path.resolve("artifacts/office-visual-qa");
+const OUTPUT_DIR = path.resolve("artifacts/office-control-visual-qa");
 
 const COMPANY_ID = "company-office-visual";
 const BRANCH_ID = "branch-office-visual";
-const BRANCH_2_ID = "branch-office-visual-2";
 
 const company = {
   id: COMPANY_ID,
@@ -29,33 +28,34 @@ const branch = {
   status: "active"
 };
 
-const branchSecondary = {
-  id: BRANCH_2_ID,
-  companyId: COMPANY_ID,
-  name: "Balcona Riverside",
-  slug: "riverside",
-  address: "Riverside Avenue",
-  status: "active"
-};
-
 const permissions = [
-  "owner_analytics.read",
-  "menu.read",
-  "menu.manage_categories",
-  "menu.manage_items",
-  "menu.manage_modifiers",
-  "menu.manage_branch_overrides",
-  "inventory.read",
-  "inventory.manage",
-  "settings.manage",
-  "saas.read"
-];
-
-const restrictedPermissions = [
+  "companies.read",
+  "branches.read",
+  "staff.read",
+  "staff.manage",
   "owner_analytics.read",
   "menu.read",
   "inventory.read",
+  "bills.read",
+  "online_payments.read",
+  "online_payments.manage",
+  "media.read",
+  "media.manage",
+  "experience.read",
+  "experience.manage",
+  "content.read",
+  "content.manage",
+  "venue_zones.read",
+  "venue_zones.manage",
+  "presence.read",
+  "notifications.read",
+  "settings.read",
   "settings.manage",
+  "feature_flags.read",
+  "feature_flags.manage",
+  "tenant_onboarding.read",
+  "tenant_onboarding.manage",
+  "audit.read",
   "saas.read"
 ];
 
@@ -75,30 +75,10 @@ const access = {
       source: "company_membership",
       roles: ["owner"],
       permissions
-    },
-    {
-      company,
-      branch: branchSecondary,
-      source: "company_membership",
-      roles: ["owner"],
-      permissions
     }
   ],
   roles: ["owner"],
   permissions
-};
-
-const restrictedAccess = {
-  ...access,
-  companies: access.companies.map((entry) => ({
-    ...entry,
-    permissions: restrictedPermissions
-  })),
-  branches: access.branches.map((entry) => ({
-    ...entry,
-    permissions: restrictedPermissions
-  })),
-  permissions: restrictedPermissions
 };
 
 const staffUser = {
@@ -423,50 +403,6 @@ const dashboard = {
   generatedAt: "2026-08-29T14:15:00.000Z"
 };
 
-const dashboardSecondary = {
-  ...dashboard,
-  branch: branchSecondary,
-  summary: {
-    ...summary,
-    branch: branchSecondary,
-    paidRevenueMinor: 176800,
-    collectedMinor: 169500,
-    paidBillCount: 11,
-    submittedOrderCount: 16,
-    openWaiterCallCount: 1,
-    activeBillRequestCount: 1,
-    lowStockCount: 1,
-    outOfStockCount: 0,
-    stockBlockedMenuItemCount: 0
-  },
-  orders: {
-    ...orders,
-    branch: branchSecondary,
-    submittedOrderCount: 16
-  },
-  operations: {
-    ...operations,
-    branch: branchSecondary,
-    activeAttentionCount: 2,
-    urgentAttentionCount: 0,
-    failedPrintJobCount: 0
-  },
-  cashierShifts: {
-    ...cashierShifts,
-    branch: branchSecondary,
-    totalOverShortMinor: 0,
-    shiftCount: 1
-  },
-  aiWaiter: {
-    ...aiWaiter,
-    branch: branchSecondary,
-    aiSessionCount: 7,
-    aiMessageCount: 31,
-    escalatedCount: 1
-  },
-  generatedAt: "2026-08-29T14:15:00.000Z"
-};
-
 const dailyReport = {
   ...dashboard,
   reportType: "owner_daily_report",
@@ -633,120 +569,6 @@ const onboarding = {
   }
 };
 
-const menuAdminOverview = {
-  company,
-  branch,
-  stats: {
-    categories: 0,
-    items: 0,
-    visibleItems: 0,
-    unavailableItems: 0,
-    hiddenItems: 0,
-    modifierGroups: 0,
-    setupWarnings: 0
-  },
-  categories: [],
-  modifierGroups: [],
-  setupIssues: []
-};
-
-const inventoryItems = { company, items: [] };
-const inventoryLevels = {
-  company,
-  branch,
-  levels: [],
-  summary: {
-    totalInventoryItemCount: 0,
-    trackedLevelCount: 0,
-    lowStockCount: 0,
-    outOfStockCount: 0
-  },
-  lastMovementAt: null
-};
-const inventoryAlerts = {
-  company,
-  branch,
-  lowStockLevels: [],
-  outOfStockLevels: [],
-  stockBlockedMenuItems: [],
-  recentMovements: [],
-  summary: {
-    lowStockCount: 0,
-    outOfStockCount: 0,
-    stockBlockedMenuItemCount: 0
-  }
-};
-const inventoryMenuAvailability = {
-  company,
-  branch,
-  items: [],
-  summary: {
-    itemCount: 0,
-    canOrderCount: 0,
-    lowStockCount: 0,
-    outOfStockCount: 0,
-    stockBlockedCount: 0
-  }
-};
-const suppliers = { company, branch, suppliers: [] };
-const purchaseOrders = { company, branch, purchaseOrders: [] };
-const inventoryReceipts = { company, branch, receipts: [] };
-
-const branchAdminBranch = {
-  ...branch,
-  floorsCount: 0,
-  tablesCount: 0
-};
-const branchAdminOverview = {
-  company,
-  branches: [branchAdminBranch],
-  selectedBranch: branchAdminBranch,
-  floors: [],
-  tablesByFloor: [],
-  ungroupedTables: [],
-  activeSessions: [],
-  stats: {
-    totalTables: 0,
-    activeTables: 0,
-    inactiveTables: 0,
-    maintenanceTables: 0,
-    occupiedTables: 0,
-    activeSessions: 0,
-    needsAttention: 0,
-    tablesWithQrToken: 0,
-    tablesMissingQrToken: 0,
-    setupWarnings: 0
-  },
-  setupIssues: []
-};
-const printerStations = {
-  branch,
-  printerStations: [
-    {
-      id: "printer-kitchen",
-      companyId: COMPANY_ID,
-      branchId: BRANCH_ID,
-      name: "Kitchen Pass",
-      slug: "kitchen-pass",
-      station: "kitchen",
-      adapterType: "escpos_lan",
-      status: "active",
-      isDefault: true
-    },
-    {
-      id: "printer-barista",
-      companyId: COMPANY_ID,
-      branchId: BRANCH_ID,
-      name: "Barista Rail",
-      slug: "barista-rail",
-      station: "barista",
-      adapterType: "browser_print",
-      status: "active",
-      isDefault: true
-    }
-  ]
-};
-
 const experience = {
   company,
   branch,
@@ -789,14 +611,14 @@ const experience = {
   ]
 };
 
-function persistedStaffSession(accessValue = access) {
+function persistedStaffSession() {
   return JSON.stringify({
     state: {
       accessToken: "office-visual-token",
       expiresAt: "2099-01-01T00:00:00.000Z",
       staffUser,
       staffSession,
-      effectiveAccess: accessValue,
+      effectiveAccess: access,
       defaultBranch: branch,
       selectedBranchId: BRANCH_ID,
       lastLoadedAt: "2026-08-29T14:00:00.000Z"
@@ -813,7 +635,7 @@ function json(body, status = 200) {
   };
 }
 
-async function installApiMocks(page, accessValue = access) {
+async function installApiMocks(page) {
   const apiRoutePattern = ["**", "api", "v1", "**"].join("/");
 
   await page.route(apiRoutePattern, async (route) => {
@@ -822,12 +644,7 @@ async function installApiMocks(page, accessValue = access) {
     const pathname = url.pathname;
 
     if (pathname === "/api/v1/staff-auth/me") {
-      return route.fulfill(
-        json({
-          ...staffContext,
-          staffAccess: accessValue
-        })
-      );
+      return route.fulfill(json(staffContext));
     }
 
     if (
@@ -842,61 +659,6 @@ async function installApiMocks(page, accessValue = access) {
       `/api/v1/branches/${BRANCH_ID}/owner-analytics/daily-report`
     ) {
       return route.fulfill(json(dailyReport));
-    }
-
-    if (
-      pathname ===
-      `/api/v1/branches/${BRANCH_2_ID}/owner-analytics/dashboard`
-    ) {
-      return route.fulfill(json(dashboardSecondary));
-    }
-
-    if (pathname === `/api/v1/branches/${BRANCH_ID}/menu-admin/overview`) {
-      return route.fulfill(json(menuAdminOverview));
-    }
-
-    if (pathname === `/api/v1/companies/${COMPANY_ID}/inventory/items`) {
-      return route.fulfill(json(inventoryItems));
-    }
-
-    if (pathname === `/api/v1/branches/${BRANCH_ID}/inventory/levels`) {
-      return route.fulfill(json(inventoryLevels));
-    }
-
-    if (pathname === `/api/v1/branches/${BRANCH_ID}/inventory/alerts`) {
-      return route.fulfill(json(inventoryAlerts));
-    }
-
-    if (
-      pathname ===
-      `/api/v1/branches/${BRANCH_ID}/inventory/menu-availability`
-    ) {
-      return route.fulfill(json(inventoryMenuAvailability));
-    }
-
-    if (pathname === `/api/v1/branches/${BRANCH_ID}/suppliers`) {
-      return route.fulfill(json(suppliers));
-    }
-
-    if (pathname === `/api/v1/branches/${BRANCH_ID}/purchase-orders`) {
-      return route.fulfill(json(purchaseOrders));
-    }
-
-    if (
-      pathname === `/api/v1/branches/${BRANCH_ID}/inventory/receipts`
-    ) {
-      return route.fulfill(json(inventoryReceipts));
-    }
-
-    if (
-      pathname ===
-      `/api/v1/companies/${COMPANY_ID}/branch-admin/overview`
-    ) {
-      return route.fulfill(json(branchAdminOverview));
-    }
-
-    if (pathname === `/api/v1/branches/${BRANCH_ID}/printer-stations`) {
-      return route.fulfill(json(printerStations));
     }
 
     if (pathname === `/api/v1/branches/${BRANCH_ID}/onboarding`) {
@@ -936,11 +698,355 @@ async function installApiMocks(page, accessValue = access) {
       });
     }
 
+    if (pathname === "/api/v1/staff") {
+      return route.fulfill(
+        json([
+          {
+            id: staffUser.id,
+            email: staffUser.email,
+            name: staffUser.name,
+            status: "active",
+            memberships: [
+              {
+                id: "membership-owner-office-visual",
+                role: "owner",
+                status: "active",
+                company,
+                branch,
+                createdAt: "2026-08-01T08:10:00.000Z"
+              }
+            ]
+          },
+          {
+            id: "staff-manager-office-visual",
+            email: "manager@balcona.local",
+            name: "Mariam Manager",
+            status: "active",
+            memberships: [
+              {
+                id: "membership-manager-office-visual",
+                role: "branch_manager",
+                status: "active",
+                company,
+                branch,
+                createdAt: "2026-08-02T08:10:00.000Z"
+              }
+            ]
+          }
+        ])
+      );
+    }
+
+    if (pathname === `/api/v1/branches/${BRANCH_ID}/bills`) {
+      return route.fulfill(
+        json({
+          branch,
+          bills: [
+            {
+              id: "bill-office-visual",
+              status: "paid",
+              totalMinor: 38500,
+              currency: "EGP",
+              createdAt: "2026-08-29T13:40:00.000Z"
+            }
+          ]
+        })
+      );
+    }
+
+    if (pathname === `/api/v1/branches/${BRANCH_ID}/online-payments`) {
+      return route.fulfill(
+        json({
+          branch,
+          onlinePaymentIntents: [
+            {
+              id: "intent-office-visual",
+              provider: "paymob",
+              status: "succeeded",
+              amountMinor: 38500,
+              currency: "EGP",
+              createdAt: "2026-08-29T13:41:00.000Z",
+              metadata: {
+                expectedLive: false,
+                isLive: false
+              }
+            }
+          ]
+        })
+      );
+    }
+
+    if (
+      pathname ===
+      `/api/v1/branches/${BRANCH_ID}/online-payment-reconciliation/runs`
+    ) {
+      return route.fulfill(
+        json([
+          {
+            id: "reconciliation-office-visual",
+            source: "settlement_statement",
+            status: "completed",
+            matchedCount: 8,
+            pendingCount: 0,
+            mismatchCount: 1,
+            createdAt: "2026-08-29T14:00:00.000Z",
+            settlementBatch: {
+              id: "settlement-office-visual",
+              externalReference: "PAYMOB-2026-08-29",
+              payoutReference: "PAYOUT-7781",
+              settledAt: "2026-08-29T13:58:00.000Z"
+            }
+          }
+        ])
+      );
+    }
+
+    if (
+      pathname ===
+      `/api/v1/branches/${BRANCH_ID}/online-payment-reconciliation/issues`
+    ) {
+      return route.fulfill(
+        json([
+          {
+            id: "issue-office-visual",
+            type: "amount_mismatch",
+            status: "open",
+            message: "Provider and local movement differ by EGP 5.00",
+            detectedAt: "2026-08-29T14:01:00.000Z"
+          }
+        ])
+      );
+    }
+
+    if (pathname === `/api/v1/branches/${BRANCH_ID}/experience/profiles`) {
+      return route.fulfill(
+        json({
+          branch,
+          profiles: [
+            {
+              id: "profile-branch-office-visual",
+              key: "warm-main",
+              name: "Warm Main",
+              status: "active",
+              isDefault: true,
+              language: "ar-EG",
+              brandVoice: { tone: "warm" },
+              aiWaiterTone: { tone: "friendly" }
+            }
+          ]
+        })
+      );
+    }
+
+    if (pathname === `/api/v1/companies/${COMPANY_ID}/experience/profiles`) {
+      return route.fulfill(
+        json({
+          company,
+          profiles: [
+            {
+              id: "profile-company-office-visual",
+              key: "company-default",
+              name: "Company Default",
+              status: "active",
+              isDefault: true,
+              language: "ar-EG",
+              brandVoice: { tone: "calm" },
+              aiWaiterTone: { tone: "helpful" }
+            }
+          ]
+        })
+      );
+    }
+
+    if (pathname === `/api/v1/branches/${BRANCH_ID}/content-blocks`) {
+      return route.fulfill(
+        json({
+          branch,
+          contentBlocks: [
+            {
+              id: "content-office-visual",
+              key: "welcome",
+              title: "Welcome",
+              placement: "home",
+              language: "ar-EG",
+              status: "active"
+            }
+          ]
+        })
+      );
+    }
+
+    if (
+      pathname ===
+      `/api/v1/branches/${BRANCH_ID}/notification-templates`
+    ) {
+      return route.fulfill(
+        json({
+          branch,
+          notificationTemplates: [
+            {
+              id: "template-office-visual",
+              title: "Order ready",
+              kind: "order_ready",
+              channel: "in_app",
+              language: "ar-EG",
+              isActive: true
+            }
+          ]
+        })
+      );
+    }
+
+    if (pathname === `/api/v1/companies/${COMPANY_ID}/media-assets`) {
+      return route.fulfill(
+        json({
+          company,
+          mediaAssets: [
+            {
+              id: "media-office-visual",
+              branchId: BRANCH_ID,
+              title: "Hero image",
+              type: "image",
+              status: "active",
+              provider: "external_url",
+              publicUrl: "https://example.com/hero.jpg"
+            }
+          ]
+        })
+      );
+    }
+
+    if (pathname === `/api/v1/branches/${BRANCH_ID}/venue-zones`) {
+      return route.fulfill(
+        json({
+          branch,
+          venueZones: [
+            {
+              id: "zone-office-visual",
+              name: "Terrace",
+              type: "dining",
+              status: "active"
+            }
+          ]
+        })
+      );
+    }
+
+    if (pathname === `/api/v1/branches/${BRANCH_ID}/presence/events`) {
+      return route.fulfill(
+        json({
+          branch,
+          events: [
+            {
+              id: "presence-office-visual",
+              triggerType: "entered_zone",
+              occurredAt: "2026-08-29T14:02:00.000Z"
+            }
+          ]
+        })
+      );
+    }
+
+    if (pathname === `/api/v1/branches/${BRANCH_ID}/notifications`) {
+      return route.fulfill(
+        json({
+          branch,
+          notifications: [
+            {
+              id: "notification-office-visual",
+              title: "Order ready",
+              status: "sent",
+              createdAt: "2026-08-29T14:03:00.000Z"
+            }
+          ]
+        })
+      );
+    }
+
+    if (pathname === `/api/v1/branches/${BRANCH_ID}/operating-settings`) {
+      return route.fulfill(
+        json({
+          branch,
+          settings: {
+            id: "operating-office-visual",
+            operatingMode: "assisted",
+            serviceMode: "mixed",
+            aiWaiterEnabled: true,
+            realtimeEnabled: true,
+            notificationsEnabled: true,
+            openingHours: { sat: ["09:00", "23:00"] },
+            serviceConfig: { tableService: true },
+            attentionConfig: { escalationMinutes: 4 },
+            updatedAt: "2026-08-29T14:04:00.000Z"
+          }
+        })
+      );
+    }
+
+    if (pathname === `/api/v1/branches/${BRANCH_ID}/feature-flags`) {
+      return route.fulfill(
+        json({
+          branch,
+          featureFlags: [
+            { id: null, key: "ai_waiter", enabled: true },
+            { id: "flag-realtime", key: "realtime", enabled: true },
+            { id: "flag-notifications", key: "notifications", enabled: true }
+          ]
+        })
+      );
+    }
+
+    if (pathname === `/api/v1/branches/${BRANCH_ID}/audit-logs`) {
+      return route.fulfill(
+        json({
+          branch,
+          auditLogs: [
+            {
+              id: "audit-office-visual",
+              action: "branch_operating_settings_updated",
+              targetType: "branch_operating_settings",
+              actorType: "staff",
+              message: "Operating settings updated",
+              createdAt: "2026-08-29T14:04:00.000Z"
+            }
+          ]
+        })
+      );
+    }
+
+    if (pathname === `/api/v1/branches/${BRANCH_ID}/saas/status`) {
+      return route.fulfill(
+        json({
+          company,
+          branch,
+          plan: null,
+          subscription: null,
+          entitlements: {
+            setup: true,
+            kds: true,
+            inventory: true,
+            onlinePayments: true,
+            ownerAnalytics: true,
+            aiWaiter: true,
+            multiBranch: false,
+            advancedReports: false
+          },
+          usage: {},
+          warnings: [],
+          blockers: []
+        })
+      );
+    }
+
+    if (pathname === "/api/v1/saas/plans") {
+      return route.fulfill(json({ plans: [] }));
+    }
+
     return route.fulfill(json({}));
   });
 }
 
-async function newContext(browser, locale, viewport, accessValue = access) {
+async function newContext(browser, locale, viewport) {
   const context = await browser.newContext({
     viewport,
     deviceScaleFactor: 1,
@@ -962,7 +1068,7 @@ async function newContext(browser, locale, viewport, accessValue = access) {
     },
     {
       localeValue: locale,
-      staffValue: persistedStaffSession(accessValue)
+      staffValue: persistedStaffSession()
     }
   );
 
@@ -971,21 +1077,14 @@ async function newContext(browser, locale, viewport, accessValue = access) {
 
 async function capture(browser, {
   label,
-  routePath = "/staff/office",
+  pathname = "/staff/owner",
   hash = "",
   target,
   activeLabel,
-  scopeLabel,
-  accessValue = access,
   locale = "en",
   viewport = { width: 1440, height: 1000 }
 }) {
-  const context = await newContext(
-    browser,
-    locale,
-    viewport,
-    accessValue
-  );
+  const context = await newContext(browser, locale, viewport);
   const page = await context.newPage();
   const consoleErrors = [];
 
@@ -995,8 +1094,8 @@ async function capture(browser, {
     }
   });
 
-  await installApiMocks(page, accessValue);
-  await page.goto(`${BASE_URL}${routePath}${hash}`, {
+  await installApiMocks(page);
+  await page.goto(`${BASE_URL}${pathname}${hash}`, {
     waitUntil: "domcontentloaded",
     timeout: 30000
   });
@@ -1007,11 +1106,6 @@ async function capture(browser, {
     timeout: 15000
   });
 
-  if (scopeLabel) {
-    await page.getByRole("button", { name: scopeLabel, exact: true }).click();
-    await page.waitForTimeout(700);
-  }
-
   if (target) {
     const locator = page.locator(target);
     await locator.waitFor({ state: "visible", timeout: 15000 });
@@ -1021,12 +1115,9 @@ async function capture(browser, {
   await page.waitForTimeout(700);
 
   if (activeLabel) {
-    const expectedCurrent = page
-      .locator('a[aria-current="page"]')
-      .filter({ hasText: activeLabel })
-      .first();
-    await expectedCurrent.waitFor({ state: "visible", timeout: 15000 });
-    const currentText = (await expectedCurrent.innerText()).trim();
+    const current = page.locator('a[aria-current="page"]');
+    await current.waitFor({ state: "visible", timeout: 5000 });
+    const currentText = (await current.innerText()).trim();
 
     if (!currentText.includes(activeLabel)) {
       throw new Error(
@@ -1097,7 +1188,7 @@ async function capture(browser, {
 
   const result = {
     label,
-    routePath,
+    pathname,
     hash,
     locale,
     viewport,
@@ -1119,76 +1210,13 @@ const results = [];
 try {
   results.push(
     await capture(browser, {
-      label: "01-office-home-1440",
+      label: "01-office-home-desktop",
       activeLabel: "Home"
     })
   );
   results.push(
     await capture(browser, {
-      label: "02-office-home-company-1440",
-      activeLabel: "Home",
-      scopeLabel: "Company"
-    })
-  );
-  results.push(
-    await capture(browser, {
-      label: "03-office-operations-1280",
-      hash: "#operations",
-      activeLabel: "Operations",
-      viewport: { width: 1280, height: 900 }
-    })
-  );
-  results.push(
-    await capture(browser, {
-      label: "04-office-insights-tablet",
-      hash: "#insights",
-      activeLabel: "Insights",
-      viewport: { width: 1024, height: 900 }
-    })
-  );
-  results.push(
-    await capture(browser, {
-      label: "05-office-home-mobile-390",
-      activeLabel: "Home",
-      viewport: { width: 390, height: 844 }
-    })
-  );
-  results.push(
-    await capture(browser, {
-      label: "06-office-insights-ar-rtl-390",
-      hash: "#insights",
-      activeLabel: "التحليلات",
-      locale: "ar",
-      viewport: { width: 390, height: 844 }
-    })
-  );
-  results.push(
-    await capture(browser, {
-      label: "07-office-catalog-1440",
-      routePath: "/staff/menu",
-      activeLabel: "Catalog"
-    })
-  );
-  results.push(
-    await capture(browser, {
-      label: "08-office-inventory-1280",
-      routePath: "/staff/inventory",
-      activeLabel: "Inventory",
-      viewport: { width: 1280, height: 900 }
-    })
-  );
-  results.push(
-    await capture(browser, {
-      label: "09-office-locations-tablet",
-      routePath: "/staff/branches",
-      activeLabel: "Locations",
-      viewport: { width: 1024, height: 900 }
-    })
-  );
-  results.push(
-    await capture(browser, {
-      label: "10-office-control-money-isolation",
-      routePath: "/staff/owner",
+      label: "02-office-money-desktop",
       hash: "#money",
       target: "#money",
       activeLabel: "Money"
@@ -1196,8 +1224,63 @@ try {
   );
   results.push(
     await capture(browser, {
-      label: "11-office-control-team-rtl-isolation",
-      routePath: "/staff/owner",
+      label: "03-office-operations-desktop",
+      hash: "#operations",
+      target: "#operations",
+      activeLabel: "Operations"
+    })
+  );
+  results.push(
+    await capture(browser, {
+      label: "04-office-insights-desktop",
+      hash: "#insights",
+      target: "#insights",
+      activeLabel: "Insights"
+    })
+  );
+  results.push(
+    await capture(browser, {
+      label: "05-office-team-desktop",
+      hash: "#team",
+      target: "#team",
+      activeLabel: "Team"
+    })
+  );
+  results.push(
+    await capture(browser, {
+      label: "06-office-experience-desktop",
+      hash: "#experience",
+      target: "#experience",
+      activeLabel: "Experience"
+    })
+  );
+  results.push(
+    await capture(browser, {
+      label: "07-office-settings-desktop",
+      hash: "#settings",
+      target: "#settings",
+      activeLabel: "Settings"
+    })
+  );
+  results.push(
+    await capture(browser, {
+      label: "08-office-home-mobile-390",
+      activeLabel: "Home",
+      viewport: { width: 390, height: 844 }
+    })
+  );
+  results.push(
+    await capture(browser, {
+      label: "09-office-money-mobile-390",
+      hash: "#money",
+      target: "#money",
+      activeLabel: "Money",
+      viewport: { width: 390, height: 844 }
+    })
+  );
+  results.push(
+    await capture(browser, {
+      label: "10-office-team-ar-rtl-390",
       hash: "#team",
       target: "#team",
       activeLabel: "الفريق",
@@ -1207,11 +1290,64 @@ try {
   );
   results.push(
     await capture(browser, {
-      label: "12-office-catalog-permission-limited",
-      routePath: "/staff/menu",
-      activeLabel: "Catalog",
-      accessValue: restrictedAccess,
-      viewport: { width: 1280, height: 900 }
+      label: "11-office-settings-ar-rtl-390",
+      hash: "#settings",
+      target: "#settings",
+      activeLabel: "الإعدادات",
+      locale: "ar",
+      viewport: { width: 390, height: 844 }
+    })
+  );
+  results.push(
+    await capture(browser, {
+      label: "12-office-s6-team-desktop",
+      pathname: "/staff/team",
+      activeLabel: "Team"
+    })
+  );
+  results.push(
+    await capture(browser, {
+      label: "13-office-s6-money-desktop",
+      pathname: "/staff/money",
+      activeLabel: "Money"
+    })
+  );
+  results.push(
+    await capture(browser, {
+      label: "14-office-s6-experience-desktop",
+      pathname: "/staff/experience",
+      activeLabel: "Experience"
+    })
+  );
+  results.push(
+    await capture(browser, {
+      label: "15-office-s6-settings-desktop",
+      pathname: "/staff/settings",
+      activeLabel: "Settings"
+    })
+  );
+  results.push(
+    await capture(browser, {
+      label: "16-office-s6-account-desktop",
+      pathname: "/staff/account",
+      activeLabel: "Account"
+    })
+  );
+  results.push(
+    await capture(browser, {
+      label: "17-office-s6-money-tablet-1024",
+      pathname: "/staff/money",
+      activeLabel: "Money",
+      viewport: { width: 1024, height: 900 }
+    })
+  );
+  results.push(
+    await capture(browser, {
+      label: "18-office-s6-team-ar-rtl-tablet-820",
+      pathname: "/staff/team",
+      activeLabel: "الفريق",
+      locale: "ar",
+      viewport: { width: 820, height: 900 }
     })
   );
 } finally {

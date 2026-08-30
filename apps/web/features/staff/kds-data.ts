@@ -147,7 +147,7 @@ export function getPrintJobPrinterStation(value: unknown) {
 }
 
 export function getPrinterStationName(value: unknown) {
-  return getRecordString(getRecord(value), "name", "Mock printer");
+  return getRecordString(getRecord(value), "name", "Printer station");
 }
 
 export function getPrinterStationStatus(value: unknown) {

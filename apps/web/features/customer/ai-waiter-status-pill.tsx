@@ -1,10 +1,7 @@
 import { Bot, CircleAlert, Sparkles } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { useTranslations } from "@/lib/i18n/i18n-provider";
-import {
-  getString,
-  type AiLanguageOption
-} from "./ai-waiter-helpers";
+import type { AiLanguageOption } from "./ai-waiter-helpers";
 
 type AiWaiterStatusPillProps = {
   session?: Record<string, unknown> | null;
@@ -39,14 +36,13 @@ export function AiWaiterStatusPill({
     );
   }
 
-  const status = session
-    ? getString(session, "status", "active").replaceAll("_", " ")
-    : "ready";
-
   return (
     <Badge variant={session ? "success" : "muted"} className="gap-2">
       <Sparkles className="size-3.5" aria-hidden="true" />
-      {t("status.summary", { status, language: t(language.labelKey) })}
+      {t("status.summary", {
+        status: t(session ? "status.ready" : "status.available"),
+        language: t(language.labelKey)
+      })}
     </Badge>
   );
 }
