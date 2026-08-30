@@ -717,7 +717,7 @@
       "staffUserFallback": "مستخدم فريق العمل",
       "submittedDescription": "يحتاج إلى قرار الكاشير",
       "submittedLabel": "مُقدم",
-      "directTerminalTitle": "جهاز الدفع المباشر / SoftPOS",
+      "directTerminalTitle": "جهاز الدفع المباشر / نقطة بيع على الهاتف",
       "directTerminalChecking": "جارٍ فحص جاهزية جهاز الدفع للفرع…",
       "directTerminalUnavailable": "تعذر تحميل جاهزية جهاز الدفع. يظل جهاز البطاقة الخارجي تسجيل دفع يدوي فقط.",
       "directTerminalReady": "تشغيل جهاز الدفع المباشر متصل لهذا الفرع.",
