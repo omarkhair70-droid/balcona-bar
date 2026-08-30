@@ -12,6 +12,9 @@ const OUTPUT_DIR = path.resolve("artifacts/service-visual-qa");
 const COMPANY_ID = "company-service-visual";
 const BRANCH_ID = "branch-service-visual";
 const SESSION_ID = "session-service-visual";
+const VISUAL_NOW = Date.now();
+const minutesAgo = (minutes) =>
+  new Date(VISUAL_NOW - minutes * 60_000).toISOString();
 const ORDER_ID = "order-service-visual";
 const WAITER_CALL_ID = "waiter-call-service-visual";
 
@@ -110,7 +113,7 @@ const orderEnvelope = {
     totalQuantity: 3,
     itemCount: 2,
     customerNote: "One drink without sugar",
-    submittedAt: "2026-08-29T06:20:00.000Z"
+    submittedAt: minutesAgo(7)
   },
   company,
   branch,
@@ -118,7 +121,7 @@ const orderEnvelope = {
     id: SESSION_ID,
     status: "active",
     partySize: 3,
-    startedAt: "2026-08-29T06:05:00.000Z"
+    startedAt: minutesAgo(31)
   },
   floor: { id: "floor-main", name: "Main Floor", sortOrder: 1 },
   table: {
@@ -149,7 +152,7 @@ const orderEnvelope = {
     {
       id: "order-event-1",
       type: "submitted",
-      createdAt: "2026-08-29T06:20:00.000Z",
+      createdAt: minutesAgo(7),
       actorType: "customer"
     }
   ],
@@ -183,7 +186,7 @@ const secondOrderEnvelope = {
     totalQuantity: 5,
     itemCount: 3,
     customerNote: null,
-    submittedAt: "2026-08-29T06:12:00.000Z"
+    submittedAt: minutesAgo(13)
   },
   table: {
     id: "table-16",
@@ -212,8 +215,8 @@ const billEnvelope = {
   billRequest: {
     id: "bill-request-visual",
     status: "open",
-    createdAt: "2026-08-29T06:25:00.000Z",
-    requestedAt: "2026-08-29T06:25:00.000Z",
+    createdAt: minutesAgo(5),
+    requestedAt: minutesAgo(5),
     orderCount: 1
   },
   bill: {
@@ -284,7 +287,7 @@ const shift = {
   currency: "EGP",
   openingFloatMinor: 100000,
   expectedCashMinor: 238500,
-  openedAt: "2026-08-29T05:00:00.000Z"
+  openedAt: minutesAgo(180)
 };
 
 const shiftSummary = {
@@ -324,7 +327,7 @@ const attentionEnvelope = {
       }
     ],
     recommendedActions: ["acknowledge_waiter_call", "serve_ready_order"],
-    lastEvaluatedAt: "2026-08-29T06:27:00.000Z",
+    lastEvaluatedAt: minutesAgo(6),
     mutedUntil: null,
     resolvedAt: null
   },
@@ -359,7 +362,7 @@ const attentionSecond = {
       }
     ],
     recommendedActions: ["review_bill_request"],
-    lastEvaluatedAt: "2026-08-29T06:24:00.000Z",
+    lastEvaluatedAt: minutesAgo(3),
     mutedUntil: null,
     resolvedAt: null
   },
@@ -386,7 +389,7 @@ const waiterCallEnvelope = {
     type: "need_waiter",
     priority: 4,
     message: "Could someone help us with the bill?",
-    createdAt: "2026-08-29T06:26:00.000Z"
+    createdAt: minutesAgo(6)
   },
   tableSession: {
     id: SESSION_ID,
@@ -420,7 +423,7 @@ const waiterCallEnvelope = {
       id: "call-event-1",
       type: "created",
       actorType: "customer",
-      createdAt: "2026-08-29T06:26:00.000Z"
+      createdAt: minutesAgo(6)
     }
   ]
 };
@@ -489,8 +492,8 @@ const floorOverview = {
             status: "active",
             source: "qr",
             partySize: 2,
-            startedAt: "2026-08-29T06:10:00.000Z",
-            lastSeenAt: "2026-08-29T06:27:00.000Z",
+            startedAt: minutesAgo(18),
+            lastSeenAt: minutesAgo(6),
             tableAttentionSnapshot: attentionSecond.attention
           }
         },
@@ -511,8 +514,8 @@ const floorOverview = {
             status: "active",
             source: "qr",
             partySize: 3,
-            startedAt: "2026-08-29T06:05:00.000Z",
-            lastSeenAt: "2026-08-29T06:28:00.000Z",
+            startedAt: minutesAgo(31),
+            lastSeenAt: minutesAgo(1),
             tableAttentionSnapshot: attentionEnvelope.attention
           }
         },
@@ -599,7 +602,7 @@ function persistedStaffSession() {
       effectiveAccess: access,
       defaultBranch: branch,
       selectedBranchId: BRANCH_ID,
-      lastLoadedAt: "2026-08-29T06:00:00.000Z"
+      lastLoadedAt: minutesAgo(60)
     },
     version: 0
   });
@@ -724,14 +727,14 @@ async function installApiMocks(page) {
               type: "order_submitted",
               channel: "orders",
               orderId: ORDER_ID,
-              createdAt: "2026-08-29T06:28:00.000Z"
+              createdAt: minutesAgo(1)
             },
             {
               id: "realtime-2",
               type: "table_attention_updated",
               channel: "attention",
               tableSessionId: SESSION_ID,
-              createdAt: "2026-08-29T06:27:00.000Z"
+              createdAt: minutesAgo(6)
             }
           ]
         })
