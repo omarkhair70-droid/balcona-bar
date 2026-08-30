@@ -1,5 +1,5 @@
-import { PlatformPrototype } from "@/features/prototype/platform-prototype";
+import { redirect } from "next/navigation";
 
-export default function PlatformPrototypePage() {
-  return <PlatformPrototype />;
+export default function PrototypeRedirectPage() {
+  redirect("/platform");
 }
