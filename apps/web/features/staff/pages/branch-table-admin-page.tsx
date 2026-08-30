@@ -60,6 +60,7 @@ import {
   deactivateBranch,
   deactivateTable,
   generateTableQrToken,
+  getBranchPrinterStations,
   getBranchTableAdminOverview,
   regenerateTableQrToken,
   updateBranch,
@@ -1162,6 +1163,84 @@ function QrLinksSection({
   );
 }
 
+function readStationField(
+  station: Record<string, unknown>,
+  key: string,
+  fallback = "Not set"
+) {
+  const value = station[key];
+
+  if (typeof value === "string" && value.trim()) {
+    return value;
+  }
+
+  return fallback;
+}
+
+function DevicesStationsSection({
+  stations,
+  isLoading
+}: {
+  stations: Record<string, unknown>[];
+  isLoading: boolean;
+}) {
+  return (
+    <Card variant="glass">
+      <CardHeader>
+        <Badge variant="muted">Branch hardware routing</Badge>
+        <CardTitle>Devices / Stations</CardTitle>
+        <CardDescription>
+          Printer stations configured for kitchen, barista, dessert, or cashier
+          routing. Live ticket execution remains in Kitchen.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="grid gap-3">
+        {isLoading ? <LoadingState label="Loading branch stations" /> : null}
+        {stations.map((station, index) => {
+          const id = readStationField(station, "id", `station-${index}`);
+          const name = readStationField(station, "name", "Unnamed station");
+          const route = readStationField(station, "station", "General");
+          const adapter = readStationField(station, "adapterType", "Not set");
+          const status = readStationField(station, "status", "unknown");
+          const isDefault = station.isDefault === true;
+
+          return (
+            <div
+              key={id}
+              className="grid gap-3 rounded-card border bg-surface/70 p-4 md:grid-cols-[minmax(0,1fr)_auto_auto_auto] md:items-center"
+            >
+              <div className="min-w-0">
+                <p className="truncate font-semibold">{name}</p>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  {readStationField(station, "slug", id)}
+                </p>
+              </div>
+              <Badge variant="muted">
+                {humanizeBranchAdminValue(route)}
+              </Badge>
+              <span className="text-sm text-muted-foreground">
+                {humanizeBranchAdminValue(adapter)}
+              </span>
+              <div className="flex flex-wrap items-center gap-2">
+                <Badge variant={status === "active" ? "success" : "warning"}>
+                  {humanizeBranchAdminValue(status)}
+                </Badge>
+                {isDefault ? <Badge variant="muted">Default</Badge> : null}
+              </div>
+            </div>
+          );
+        })}
+        {stations.length === 0 && !isLoading ? (
+          <EmptyState
+            title="No printer stations configured"
+            description="Supported branch printer stations will appear here after configuration."
+          />
+        ) : null}
+      </CardContent>
+    </Card>
+  );
+}
+
 function BranchTableAdminContent() {
   const queryClient = useQueryClient();
   const accessToken = useStaffAuthStore((state) => state.accessToken);
@@ -1201,6 +1280,16 @@ function BranchTableAdminContent() {
         accessToken
       ),
     enabled: Boolean(accessToken && selectedCompanyId),
+    staleTime: 30_000
+  });
+  const printerStationsQuery = useQuery({
+    queryKey: staffQueryKeys.printerStations(selectedBranchId),
+    queryFn: () =>
+      getBranchPrinterStations(
+        selectedBranchId ?? "",
+        accessToken ?? undefined
+      ),
+    enabled: Boolean(accessToken && selectedBranchId),
     staleTime: 30_000
   });
   const overview = overviewQuery.data;
@@ -1544,6 +1633,9 @@ function BranchTableAdminContent() {
             {tab.id === "qr" ? (
               <QrCode className="size-4" aria-hidden="true" />
             ) : null}
+            {tab.id === "devices" ? (
+              <Printer className="size-4" aria-hidden="true" />
+            ) : null}
             {tab.label}
           </Button>
         ))}
@@ -1611,6 +1703,13 @@ function BranchTableAdminContent() {
               regenerateQrMutation.mutate(table);
             }
           }}
+        />
+      ) : null}
+
+      {activeTab === "devices" ? (
+        <DevicesStationsSection
+          stations={printerStationsQuery.data?.printerStations ?? []}
+          isLoading={printerStationsQuery.isPending}
         />
       ) : null}
 
