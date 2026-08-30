@@ -1,29 +1,44 @@
 "use client";
 
-import { Clock3, ReceiptText } from "lucide-react";
+import { ReceiptText } from "lucide-react";
 import {
   getCurrency,
   getMinorTotal,
-  getOrderCustomerNote,
   getOrderFloor,
+  getOrderItems,
   getOrderId,
   getOrderNumber,
-  getOrderSource,
   getOrderStatus,
   getOrderSubmittedAt,
   getOrderTable,
   getOrderTotals
 } from "@/features/staff/cashier-data";
 import {
-  formatDateTime,
   formatMoney,
   getRecordNumber,
+  getRecordString,
   getTableLabel,
   shortId
 } from "@/features/staff/staff-format";
 import { useTranslations } from "@/lib/i18n/i18n-provider";
 import { cn } from "@/lib/utils/cn";
 import { CashierOrderStatusPill } from "./cashier-order-status-pill";
+
+function formatOrderAge(value: string) {
+  const parsed = Date.parse(value);
+
+  if (!Number.isFinite(parsed)) {
+    return "—";
+  }
+
+  const minutes = Math.max(0, Math.floor((Date.now() - parsed) / 60_000));
+
+  if (minutes < 60) {
+    return `${minutes}m`;
+  }
+
+  return `${Math.floor(minutes / 60)}h`;
+}
 
 type CashierOrderCardProps = {
   order: Record<string, unknown>;
@@ -44,9 +59,15 @@ export function CashierOrderCard({
   const table = getOrderTable(order);
   const floor = getOrderFloor(order);
   const itemCount = getRecordNumber(totals, "itemCount");
-  const quantity = getRecordNumber(totals, "totalQuantity");
-  const note = getOrderCustomerNote(order);
-  const source = getOrderSource(order);
+  const items = getOrderItems(order);
+  const firstItem = items[0];
+  const firstItemLabel =
+    getRecordString(firstItem, "itemNameSnapshot") ||
+    t("orders.itemsQuantity", {
+      count: itemCount,
+      quantity: getRecordNumber(totals, "totalQuantity")
+    });
+  const age = formatOrderAge(getOrderSubmittedAt(order));
 
   return (
     <button
@@ -74,38 +95,21 @@ export function CashierOrderCard({
             </p>
           </div>
           <p className="mt-1 text-xs text-[#A99B8E]">
-            {getTableLabel(table, floor)}
+            {getTableLabel(table, floor)} · {age}
           </p>
         </div>
         <CashierOrderStatusPill status={getOrderStatus(order)} />
       </div>
 
       <div className="mt-3 flex items-end justify-between gap-3">
-        <div className="min-w-0">
-          <p className="text-[11px] text-[#96897E]">
-            {t("orders.itemsQuantity", { count: itemCount, quantity })}
-          </p>
-          <p className="mt-1 inline-flex items-center gap-1.5 text-[11px] text-[#8F8176]">
-            <Clock3 className="size-3.5" aria-hidden="true" />
-            {formatDateTime(getOrderSubmittedAt(order))}
-          </p>
-        </div>
+        <p className="min-w-0 truncate text-xs text-[#96897E]">
+          {firstItemLabel}
+          {items.length > 1 ? ` +${items.length - 1}` : ""}
+        </p>
         <strong className="shrink-0 text-sm text-[#FFF4E6]">
           {formatMoney(getMinorTotal(totals), getCurrency(totals))}
         </strong>
       </div>
-
-      {source ? (
-        <p className="mt-2 text-[10px] uppercase tracking-[0.08em] text-[#80746A]">
-          {source}
-        </p>
-      ) : null}
-
-      {note ? (
-        <p className="mt-3 line-clamp-2 rounded-md border border-[#71413A] bg-[#321F1C] p-2 text-xs text-[#E4A199]">
-          {note}
-        </p>
-      ) : null}
     </button>
   );
 }
