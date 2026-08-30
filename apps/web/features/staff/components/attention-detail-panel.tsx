@@ -85,7 +85,7 @@ function sourceForAttention(attention: TableSessionAttentionResult) {
     return "ready";
   }
 
-  if (reason.includes("ai")) {
+  if (/\bai\b/.test(reason)) {
     return "ai";
   }
 
@@ -157,55 +157,54 @@ export function AttentionDetailPanel({
   const canResolve = status !== "resolved";
   const canMute = status !== "resolved";
 
-  const actionable = actions.flatMap((action, index) => {
-    const actionKey = getAttentionActionKey(action);
-    const key = `${actionKey || getAttentionActionLabel(action)}-${index}`;
+  const primaryActionKey =
+    source === "waiter"
+      ? "acknowledge_waiter_call"
+      : source === "ready"
+        ? "serve_ready_order"
+        : source === "computed"
+          ? "review_bill_request"
+          : undefined;
+  const primaryAction =
+    actions.find((action) => getAttentionActionKey(action) === primaryActionKey) ??
+    actions[0];
+  const primaryActionKeyResolved = primaryAction
+    ? getAttentionActionKey(primaryAction)
+    : "";
 
-    if (actionKey === "acknowledge_waiter_call" && onAcknowledgeWaiterCall) {
-      return [
-        <Button
-          key={key}
-          className="min-h-12 flex-1"
-          onClick={onAcknowledgeWaiterCall}
-          disabled={acknowledgeWaiterCallPending || isRefreshing}
-        >
-          <Check className="size-4" aria-hidden="true" />
-          {acknowledgeWaiterCallPending
-            ? t("actions.acknowledging")
-            : t("attention.acknowledgeClaim")}
-        </Button>
-      ];
-    }
-
-    if (actionKey === "serve_ready_order" && onServeReadyOrder) {
-      return [
-        <Button
-          key={key}
-          className="min-h-12 flex-1"
-          onClick={onServeReadyOrder}
-          disabled={serveReadyOrderPending || isRefreshing}
-        >
-          <Check className="size-4" aria-hidden="true" />
-          {serveReadyOrderPending ? t("actions.serving") : t("actions.serve")}
-        </Button>
-      ];
-    }
-
-    if (actionKey === "review_bill_request" && onReviewBillRequest) {
-      return [
-        <Button
-          key={key}
-          className="min-h-12 flex-1"
-          onClick={onReviewBillRequest}
-          disabled={isRefreshing}
-        >
-          {t("attention.reviewBillRequest")}
-        </Button>
-      ];
-    }
-
-    return [];
-  });
+  const actionable =
+    primaryActionKeyResolved === "acknowledge_waiter_call" &&
+    onAcknowledgeWaiterCall ? (
+      <Button
+        className="min-h-12"
+        onClick={onAcknowledgeWaiterCall}
+        disabled={acknowledgeWaiterCallPending || isRefreshing}
+      >
+        <Check className="size-4" aria-hidden="true" />
+        {acknowledgeWaiterCallPending
+          ? t("actions.acknowledging")
+          : t("attention.acknowledgeClaim")}
+      </Button>
+    ) : primaryActionKeyResolved === "serve_ready_order" &&
+      onServeReadyOrder ? (
+      <Button
+        className="min-h-12"
+        onClick={onServeReadyOrder}
+        disabled={serveReadyOrderPending || isRefreshing}
+      >
+        <Check className="size-4" aria-hidden="true" />
+        {serveReadyOrderPending ? t("actions.serving") : t("actions.serve")}
+      </Button>
+    ) : primaryActionKeyResolved === "review_bill_request" &&
+      onReviewBillRequest ? (
+      <Button
+        className="min-h-12"
+        onClick={onReviewBillRequest}
+        disabled={isRefreshing}
+      >
+        {t("attention.reviewBillRequest")}
+      </Button>
+    ) : null;
 
   return (
     <aside className="min-w-0 border-s border-[#352B24] bg-[#17120F] p-4">
@@ -243,7 +242,7 @@ export function AttentionDetailPanel({
       </div>
 
       <div className="mt-4 grid gap-2">
-        {actionable.length > 0 ? actionable : null}
+        {actionable}
         <Button
           type="button"
           variant="secondary"
