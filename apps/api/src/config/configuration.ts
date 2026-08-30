@@ -93,6 +93,11 @@ export default () => ({
       appEnvironment() !== "production",
     checkoutBaseUrl:
       process.env.ONLINE_PAYMENT_CHECKOUT_BASE_URL ?? "http://localhost:3001",
+    maestr: {
+      apiUrl: process.env.MAESTR_API_URL || undefined,
+      apiKey: process.env.MAESTR_API_KEY || undefined,
+      timeoutMs: Number.parseInt(process.env.MAESTR_TIMEOUT_MS ?? "10000", 10),
+    },
     fawry: {
       checkoutUrl:
         process.env.FAWRY_CHECKOUT_URL ??
@@ -207,6 +212,41 @@ export default () => ({
       ),
       staffOperationMax: Number.parseInt(
         process.env.ONLINE_PAYMENT_STAFF_OPERATION_RATE_LIMIT_MAX ?? "5",
+        10,
+      ),
+    },
+  },
+  saasBilling: {
+    enabled: process.env.SAAS_BILLING_ENABLED === "true",
+    provider: "paymob",
+    expectedLive: process.env.SAAS_BILLING_EXPECT_LIVE === "true",
+    paymob: {
+      baseUrl:
+        process.env.SAAS_BILLING_PAYMOB_BASE_URL ??
+        "https://accept.paymob.com",
+      apiKey: process.env.SAAS_BILLING_PAYMOB_API_KEY || undefined,
+      secretKey: process.env.SAAS_BILLING_PAYMOB_SECRET_KEY || undefined,
+      publicKey: process.env.SAAS_BILLING_PAYMOB_PUBLIC_KEY || undefined,
+      hmacSecret: process.env.SAAS_BILLING_PAYMOB_HMAC_SECRET || undefined,
+      online3dsIntegrationId: Number.parseInt(
+        process.env.SAAS_BILLING_PAYMOB_3DS_INTEGRATION_ID ?? "0",
+        10,
+      ),
+      motoIntegrationId: Number.parseInt(
+        process.env.SAAS_BILLING_PAYMOB_MOTO_INTEGRATION_ID ?? "0",
+        10,
+      ),
+      transactionWebhookUrl:
+        process.env.SAAS_BILLING_PAYMOB_TRANSACTION_WEBHOOK_URL || undefined,
+      subscriptionWebhookUrl:
+        process.env.SAAS_BILLING_PAYMOB_SUBSCRIPTION_WEBHOOK_URL || undefined,
+      returnUrl: process.env.SAAS_BILLING_PAYMOB_RETURN_URL || undefined,
+      timeoutMs: Number.parseInt(
+        process.env.SAAS_BILLING_PAYMOB_TIMEOUT_MS ?? "10000",
+        10,
+      ),
+      expirationSeconds: Number.parseInt(
+        process.env.SAAS_BILLING_PAYMOB_INTENTION_EXPIRATION_SECONDS ?? "900",
         10,
       ),
     },

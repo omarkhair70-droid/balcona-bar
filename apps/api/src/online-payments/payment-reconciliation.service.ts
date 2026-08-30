@@ -3,6 +3,7 @@ import {
   ConflictException,
   Injectable,
   NotFoundException,
+  Optional,
   ServiceUnavailableException,
 } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
@@ -35,6 +36,7 @@ import {
   ProviderTransactionState,
 } from "./providers/payment-provider.types";
 import { PaymobPaymentProviderService } from "./providers/paymob-payment-provider.service";
+import { MerchantPaymentIntegrationsService } from "./merchant-payment-integrations.service";
 
 type LocalMovement = {
   movementType: OnlinePaymentReconciliationMovementType;
@@ -75,6 +77,8 @@ export class PaymentReconciliationService {
     private readonly configService: ConfigService,
     private readonly auditService: AuditService,
     private readonly paymobPaymentProviderService: PaymobPaymentProviderService,
+    @Optional()
+    private readonly merchantPaymentIntegrationsService?: MerchantPaymentIntegrationsService,
   ) {}
 
   async runPaymobProviderReconciliation(
@@ -86,15 +90,17 @@ export class PaymentReconciliationService {
     const currency = this.normalizeCurrency(body.currency);
     const branch = await this.loadBranch(branchId);
 
-    const existing = await this.prisma.onlinePaymentReconciliationRun.findUnique({
-      where: { idempotencyKey: body.idempotencyKey },
-    });
+    const existing =
+      await this.prisma.onlinePaymentReconciliationRun.findUnique({
+        where: { idempotencyKey: body.idempotencyKey },
+      });
 
     if (existing) {
       if (
         existing.branchId !== branchId ||
         existing.provider !== OnlinePaymentProvider.paymob ||
-        existing.source !== OnlinePaymentReconciliationSource.provider_inquiry ||
+        existing.source !==
+          OnlinePaymentReconciliationSource.provider_inquiry ||
         existing.periodStart.getTime() !== period.start.getTime() ||
         existing.periodEnd.getTime() !== period.end.getTime() ||
         existing.currency !== currency
@@ -154,7 +160,13 @@ export class PaymentReconciliationService {
 
     try {
       for (const movement of movements) {
-        await this.reconcileProviderMovement(run.id, branch.companyId, branchId, movement, counters);
+        await this.reconcileProviderMovement(
+          run.id,
+          branch.companyId,
+          branchId,
+          movement,
+          counters,
+        );
       }
 
       const providerFeeMinor = counters.providerFeeComplete
@@ -186,8 +198,7 @@ export class PaymentReconciliationService {
           mismatchCount: counters.mismatch,
           completedAt: new Date(),
           metadata: {
-            feeCoverage:
-              providerFeeMinor === null ? "incomplete" : "complete",
+            feeCoverage: providerFeeMinor === null ? "incomplete" : "complete",
           },
         },
       });
@@ -232,8 +243,7 @@ export class PaymentReconciliationService {
     const branch = await this.loadBranch(branchId);
     const period = this.parsePeriod(body.periodStart, body.periodEnd);
     const currency = this.normalizeCurrency(body.currency);
-    const provider =
-      body.provider ?? OnlinePaymentProvider.paymob;
+    const provider = body.provider ?? OnlinePaymentProvider.paymob;
     this.assertMovementCountWithinLimit(body.lines.length);
     const lines = this.normalizeSettlementLines(body.lines, currency);
     const totals = this.statementTotals(lines);
@@ -271,17 +281,16 @@ export class PaymentReconciliationService {
       )
       .digest("hex");
 
-    const existing =
-      await this.prisma.onlinePaymentSettlementBatch.findFirst({
-        where: {
-          provider,
-          branchId,
-          OR: [
-            { externalReference: body.externalReference.trim() },
-            { sourceHash },
-          ],
-        },
-      });
+    const existing = await this.prisma.onlinePaymentSettlementBatch.findFirst({
+      where: {
+        provider,
+        branchId,
+        OR: [
+          { externalReference: body.externalReference.trim() },
+          { sourceHash },
+        ],
+      },
+    });
 
     if (existing) {
       if (existing.sourceHash !== sourceHash) {
@@ -374,9 +383,10 @@ export class PaymentReconciliationService {
     }
 
     const idempotencyKey = `settlement:${batch.id}:${batch.sourceHash}`;
-    const existing = await this.prisma.onlinePaymentReconciliationRun.findUnique({
-      where: { idempotencyKey },
-    });
+    const existing =
+      await this.prisma.onlinePaymentReconciliationRun.findUnique({
+        where: { idempotencyKey },
+      });
 
     if (existing && !this.shouldResumeRun(existing, false)) {
       return this.findRun(existing.id);
@@ -476,11 +486,20 @@ export class PaymentReconciliationService {
           "statement_line_missing",
         );
         mismatchCount += 1;
-        await this.createIssue(run.id, entry.id, batch.companyId, batch.branchId, OnlinePaymentReconciliationIssueType.statement_line_missing, "Local provider transaction is missing from the imported settlement statement", {
-          providerTransactionId: movement.providerTransactionId,
-          movementType: movement.movementType,
-          localAmountMinor: movement.amountMinor,
-        }, batch.provider);
+        await this.createIssue(
+          run.id,
+          entry.id,
+          batch.companyId,
+          batch.branchId,
+          OnlinePaymentReconciliationIssueType.statement_line_missing,
+          "Local provider transaction is missing from the imported settlement statement",
+          {
+            providerTransactionId: movement.providerTransactionId,
+            movementType: movement.movementType,
+            localAmountMinor: movement.amountMinor,
+          },
+          batch.provider,
+        );
         continue;
       }
 
@@ -699,7 +718,9 @@ export class PaymentReconciliationService {
     });
 
     if (!run) {
-      throw new NotFoundException("Online payment reconciliation run not found");
+      throw new NotFoundException(
+        "Online payment reconciliation run not found",
+      );
     }
 
     return run;
@@ -789,12 +810,16 @@ export class PaymentReconciliationService {
     status: OnlinePaymentReconciliationIssueStatus,
     note?: string,
   ) {
-    const issue = await this.prisma.onlinePaymentReconciliationIssue.findUnique({
-      where: { id: issueId },
-    });
+    const issue = await this.prisma.onlinePaymentReconciliationIssue.findUnique(
+      {
+        where: { id: issueId },
+      },
+    );
 
     if (!issue) {
-      throw new NotFoundException("Online payment reconciliation issue not found");
+      throw new NotFoundException(
+        "Online payment reconciliation issue not found",
+      );
     }
 
     if (issue.status === OnlinePaymentReconciliationIssueStatus.resolved) {
@@ -880,10 +905,13 @@ export class PaymentReconciliationService {
     let state: ProviderTransactionState;
 
     try {
-      state =
-        await this.paymobPaymentProviderService.inquireTransactionById(
-          movement.providerTransactionId,
-        );
+      state = await this.paymobPaymentProviderService.inquireTransactionById(
+        movement.providerTransactionId,
+        await this.merchantPaymentIntegrationsService?.runtimeContextForIntent(
+          movement.onlinePaymentIntentId,
+          OnlinePaymentProvider.paymob,
+        ),
+      );
     } catch (error) {
       if (
         error instanceof PaymentProviderError &&
@@ -917,8 +945,7 @@ export class PaymentReconciliationService {
     const mismatch = this.providerMovementMismatch(movement, state);
     const matchStatus = mismatch
       ? OnlinePaymentReconciliationMatchStatus.mismatch
-      : state.providerSettled === false ||
-          state.providerSettled === undefined
+      : state.providerSettled === false || state.providerSettled === undefined
         ? OnlinePaymentReconciliationMatchStatus.provider_pending
         : OnlinePaymentReconciliationMatchStatus.matched;
     const entry = await this.createProviderEntry(
@@ -945,13 +972,17 @@ export class PaymentReconciliationService {
       return;
     }
 
-    if (matchStatus === OnlinePaymentReconciliationMatchStatus.provider_pending) {
+    if (
+      matchStatus === OnlinePaymentReconciliationMatchStatus.provider_pending
+    ) {
       counters.pending += 1;
     } else {
       counters.matched += 1;
     }
 
-    if (movement.movementType === OnlinePaymentReconciliationMovementType.sale) {
+    if (
+      movement.movementType === OnlinePaymentReconciliationMovementType.sale
+    ) {
       counters.providerGrossMinor += movement.amountMinor;
       if (state.providerReportedFeeMinor === undefined) {
         counters.providerFeeComplete = false;
@@ -983,10 +1014,10 @@ export class PaymentReconciliationService {
       };
     }
 
-    if (movement.movementType === OnlinePaymentReconciliationMovementType.sale) {
-      if (
-        state.amountMinor !== movement.amountMinor
-      ) {
+    if (
+      movement.movementType === OnlinePaymentReconciliationMovementType.sale
+    ) {
+      if (state.amountMinor !== movement.amountMinor) {
         return {
           code: "amount_mismatch",
           type: OnlinePaymentReconciliationIssueType.amount_mismatch,
@@ -1002,7 +1033,8 @@ export class PaymentReconciliationService {
         return {
           code: "provider_status_mismatch",
           type: OnlinePaymentReconciliationIssueType.provider_status_mismatch,
-          message: "Balcona sale is succeeded but Paymob does not report success",
+          message:
+            "Balcona sale is succeeded but Paymob does not report success",
           details: { providerStatus: state.status },
         };
       }
@@ -1014,17 +1046,23 @@ export class PaymentReconciliationService {
       movement.parentProviderTransactionId &&
       movement.providerTransactionId === movement.parentProviderTransactionId;
 
-    if (movement.movementType === OnlinePaymentReconciliationMovementType.refund) {
+    if (
+      movement.movementType === OnlinePaymentReconciliationMovementType.refund
+    ) {
       if (state.status !== OnlinePaymentIntentStatus.succeeded) {
         return {
           code: "provider_status_mismatch",
           type: OnlinePaymentReconciliationIssueType.provider_status_mismatch,
-          message: "Balcona refund is succeeded but Paymob does not report success",
+          message:
+            "Balcona refund is succeeded but Paymob does not report success",
           details: { providerStatus: state.status },
         };
       }
 
-      if (!parentState && state.operationType !== OnlinePaymentOperationType.refund) {
+      if (
+        !parentState &&
+        state.operationType !== OnlinePaymentOperationType.refund
+      ) {
         return {
           code: "operation_type_mismatch",
           type: OnlinePaymentReconciliationIssueType.operation_type_mismatch,
@@ -1087,8 +1125,7 @@ export class PaymentReconciliationService {
         movementType: movement.movementType,
         onlinePaymentIntentId: movement.onlinePaymentIntentId,
         onlinePaymentOperationId: movement.onlinePaymentOperationId,
-        providerTransactionId:
-          movement.providerTransactionId ?? "missing",
+        providerTransactionId: movement.providerTransactionId ?? "missing",
         parentProviderTransactionId:
           movement.parentProviderTransactionId ?? null,
         localAmountMinor:
@@ -1102,8 +1139,7 @@ export class PaymentReconciliationService {
         providerSettlementDate: state?.providerSettlementDate
           ? this.parseOptionalProviderDate(state.providerSettlementDate)
           : null,
-        providerSettlementReference:
-          state?.providerSettlementReference ?? null,
+        providerSettlementReference: state?.providerSettlementReference ?? null,
         matchStatus,
         mismatchCode: mismatchCode ?? null,
         metadata: state
@@ -1310,8 +1346,7 @@ export class PaymentReconciliationService {
           operation.providerTransactionId ??
           operation.parentProviderTransactionId ??
           undefined,
-        parentProviderTransactionId:
-          operation.parentProviderTransactionId,
+        parentProviderTransactionId: operation.parentProviderTransactionId,
         amountMinor: operation.amountMinor,
         currency: operation.currency,
         happenedAt: operation.completedAt!,
@@ -1418,10 +1453,7 @@ export class PaymentReconciliationService {
     let netMinor = 0;
 
     for (const line of lines) {
-      if (
-        line.movementType ===
-        OnlinePaymentReconciliationMovementType.sale
-      ) {
+      if (line.movementType === OnlinePaymentReconciliationMovementType.sale) {
         grossMinor += line.amountMinor;
       } else {
         adjustmentMinor += line.amountMinor;
@@ -1471,9 +1503,7 @@ export class PaymentReconciliationService {
     await this.auditService.recordAuditLog({
       companyId: run.companyId,
       branchId: run.branchId,
-      actorType: staffUserId
-        ? AuditActorType.staff
-        : AuditActorType.system,
+      actorType: staffUserId ? AuditActorType.staff : AuditActorType.system,
       actorStaffUserId: staffUserId,
       targetType: "online_payment_reconciliation_run",
       targetId: run.id,
@@ -1516,9 +1546,7 @@ export class PaymentReconciliationService {
         return true;
       }
 
-      throw new ConflictException(
-        "Reconciliation run is already in progress",
-      );
+      throw new ConflictException("Reconciliation run is already in progress");
     }
 
     return false;

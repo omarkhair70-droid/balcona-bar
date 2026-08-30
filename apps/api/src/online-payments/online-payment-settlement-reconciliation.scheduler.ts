@@ -92,10 +92,7 @@ function zonedMidnightToUtc(
   return new Date(candidate);
 }
 
-export function previousClosedDayRange(
-  now: Date,
-  timeZone: string,
-) {
+export function previousClosedDayRange(now: Date, timeZone: string) {
   const current = zonedParts(now, timeZone);
   const localCalendarDay = new Date(
     Date.UTC(current.year, current.month - 1, current.day),
@@ -161,8 +158,7 @@ export class OnlinePaymentSettlementReconciliationScheduler
 
   private async runTick(now = new Date()) {
     const token = randomUUID();
-    const lockKey =
-      "balcona:payments:paymob-settlement-reconciliation:lock";
+    const lockKey = "balcona:payments:paymob-settlement-reconciliation:lock";
     const lockTtlMs = Math.max(this.intervalSeconds() * 2, 900) * 1000;
 
     try {
@@ -258,12 +254,7 @@ export class OnlinePaymentSettlementReconciliationScheduler
       });
     } finally {
       try {
-        await this.redis.eval(
-          RELEASE_LOCK_SCRIPT,
-          1,
-          lockKey,
-          token,
-        );
+        await this.redis.eval(RELEASE_LOCK_SCRIPT, 1, lockKey, token);
       } catch {
         // The lock has a TTL; failed release cannot leave it permanent.
       }

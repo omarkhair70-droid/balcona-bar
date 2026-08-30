@@ -48,8 +48,7 @@ export class StaffPaymentOperationRateLimitGuard implements CanActivate {
         {
           statusCode: HttpStatus.TOO_MANY_REQUESTS,
           code: "payment_operation_rate_limit_exceeded",
-          message:
-            "Too many payment operation requests. Try again shortly.",
+          message: "Too many payment operation requests. Try again shortly.",
         },
         HttpStatus.TOO_MANY_REQUESTS,
       );

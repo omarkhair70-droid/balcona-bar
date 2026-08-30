@@ -116,12 +116,7 @@ export class OnlinePaymentReconciliationScheduler
       });
     } finally {
       try {
-        await this.redis.eval(
-          RELEASE_LOCK_SCRIPT,
-          1,
-          lockKey,
-          token,
-        );
+        await this.redis.eval(RELEASE_LOCK_SCRIPT, 1, lockKey, token);
       } catch {
         // The lock has a TTL; a failed release does not leave it permanent.
       }

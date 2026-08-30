@@ -1,6 +1,4 @@
-import {
-  OnlinePaymentReconciliationRunStatus,
-} from "@prisma/client";
+import { OnlinePaymentReconciliationRunStatus } from "@prisma/client";
 import {
   OnlinePaymentSettlementReconciliationScheduler,
   previousClosedDayRange,
@@ -47,11 +45,9 @@ describe("OnlinePaymentSettlementReconciliationScheduler", () => {
         { branchId: "branch-1", currency: "EGP" },
         { branchId: "branch-2", currency: "USD" },
       ]),
-      runPaymobProviderReconciliation: jest
-        .fn()
-        .mockResolvedValue({
-          status: OnlinePaymentReconciliationRunStatus.matched,
-        }),
+      runPaymobProviderReconciliation: jest.fn().mockResolvedValue({
+        status: OnlinePaymentReconciliationRunStatus.matched,
+      }),
     };
     const scheduler = new OnlinePaymentSettlementReconciliationScheduler(
       redis as never,
@@ -59,9 +55,7 @@ describe("OnlinePaymentSettlementReconciliationScheduler", () => {
       paymentReconciliationService as never,
     );
 
-    await (scheduler as any).runTick(
-      new Date("2026-08-28T12:00:00.000Z"),
-    );
+    await (scheduler as any).runTick(new Date("2026-08-28T12:00:00.000Z"));
 
     expect(redis.set).toHaveBeenCalledWith(
       "balcona:payments:paymob-settlement-reconciliation:lock",
@@ -79,32 +73,20 @@ describe("OnlinePaymentSettlementReconciliationScheduler", () => {
     );
     expect(
       paymentReconciliationService.runPaymobProviderReconciliation,
-    ).toHaveBeenNthCalledWith(
-      1,
-      "branch-1",
-      undefined,
-      {
-        periodStart: "2026-08-26T21:00:00.000Z",
-        periodEnd: "2026-08-27T21:00:00.000Z",
-        currency: "EGP",
-        idempotencyKey:
-          "daily-paymob-settlement:2026-08-27:branch-1:EGP",
-      },
-    );
+    ).toHaveBeenNthCalledWith(1, "branch-1", undefined, {
+      periodStart: "2026-08-26T21:00:00.000Z",
+      periodEnd: "2026-08-27T21:00:00.000Z",
+      currency: "EGP",
+      idempotencyKey: "daily-paymob-settlement:2026-08-27:branch-1:EGP",
+    });
     expect(
       paymentReconciliationService.runPaymobProviderReconciliation,
-    ).toHaveBeenNthCalledWith(
-      2,
-      "branch-2",
-      undefined,
-      {
-        periodStart: "2026-08-26T21:00:00.000Z",
-        periodEnd: "2026-08-27T21:00:00.000Z",
-        currency: "USD",
-        idempotencyKey:
-          "daily-paymob-settlement:2026-08-27:branch-2:USD",
-      },
-    );
+    ).toHaveBeenNthCalledWith(2, "branch-2", undefined, {
+      periodStart: "2026-08-26T21:00:00.000Z",
+      periodEnd: "2026-08-27T21:00:00.000Z",
+      currency: "USD",
+      idempotencyKey: "daily-paymob-settlement:2026-08-27:branch-2:USD",
+    });
     expect(redis.eval).toHaveBeenCalledTimes(1);
   });
 

@@ -17,6 +17,7 @@ import { StaffScopedAccessService } from "../staff/staff-scoped-access.service";
 import { CustomerSessionAccessGuard } from "../table-sessions/guards/customer-session-access.guard";
 import { BranchOnlinePaymentsQueryDto } from "./dto/branch-online-payments-query.dto";
 import { CreateOnlinePaymentIntentDto } from "./dto/create-online-payment-intent.dto";
+import { UpsertMerchantPaymentIntegrationDto } from "./dto/merchant-payment-integration.dto";
 import {
   FailOnlinePaymentDto,
   MockOnlinePaymentWebhookDto,
@@ -49,6 +50,7 @@ import {
   PaymobTransactionWebhookQueryDto,
 } from "./dto/paymob-transaction-webhook.dto";
 import { OnlinePaymentsService } from "./online-payments.service";
+import { MerchantPaymentIntegrationsService } from "./merchant-payment-integrations.service";
 import { PaymentRateLimit } from "./payment-rate-limit.decorator";
 import { PaymentRateLimitGuard } from "./payment-rate-limit.guard";
 import { PaymentReconciliationService } from "./payment-reconciliation.service";
@@ -61,7 +63,20 @@ export class OnlinePaymentsController {
     private readonly onlinePaymentsService: OnlinePaymentsService,
     private readonly paymentReconciliationService: PaymentReconciliationService,
     private readonly staffScopedAccessService: StaffScopedAccessService,
+    private readonly merchantPaymentIntegrationsService: MerchantPaymentIntegrationsService,
   ) {}
+
+  @Get("customer/sessions/:sessionId/bills/:billId/payment-capabilities")
+  @UseGuards(CustomerSessionAccessGuard, PaymentRateLimitGuard)
+  @PaymentRateLimit("customer_read")
+  customerPaymentCapabilities(
+    @Param() params: CustomerBillOnlinePaymentParamDto,
+  ) {
+    return this.merchantPaymentIntegrationsService.customerCapabilities(
+      params.sessionId,
+      params.billId,
+    );
+  }
 
   @Post("customer/sessions/:sessionId/bills/:billId/online-payment-intents")
   @UseGuards(CustomerSessionAccessGuard, PaymentRateLimitGuard)
@@ -97,6 +112,34 @@ export class OnlinePaymentsController {
     return this.onlinePaymentsService.findForBranch(
       params.branchId,
       query ?? {},
+    );
+  }
+
+  @Get("branches/:branchId/merchant-payment-integrations")
+  @UseGuards(StaffSessionGuard, StaffPermissionGuard)
+  @RequiredPermission("online_payments.read", { branchIdParam: "branchId" })
+  listMerchantPaymentIntegrations(@Param() params: BranchIdParamDto) {
+    return this.merchantPaymentIntegrationsService.listForBranch(
+      params.branchId,
+    );
+  }
+
+  @Post("branches/:branchId/merchant-payment-integrations")
+  @UseGuards(
+    StaffSessionGuard,
+    StaffPermissionGuard,
+    StaffPaymentOperationRateLimitGuard,
+  )
+  @RequiredPermission("online_payments.manage", { branchIdParam: "branchId" })
+  upsertMerchantPaymentIntegration(
+    @CurrentStaff() currentStaff: StaffAuthContext,
+    @Param() params: BranchIdParamDto,
+    @Body() body: UpsertMerchantPaymentIntegrationDto,
+  ) {
+    return this.merchantPaymentIntegrationsService.upsertForBranch(
+      params.branchId,
+      currentStaff.staffUser.id,
+      body,
     );
   }
 

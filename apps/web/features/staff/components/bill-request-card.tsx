@@ -141,11 +141,6 @@ export function BillRequestCard({
   const canPresent =
     Boolean(billRequestId) &&
     (requestStatus === "open" || requestStatus === "acknowledged");
-  const canRecordPayment =
-    Boolean(billId) &&
-    (billStatus === "presented" || billStatus === "payment_pending") &&
-    balanceDueMinor > 0 &&
-    !paymentBlockedReason;
   const [paymentMethod, setPaymentMethod] =
     useState<RecordManualPaymentPayload["method"]>("cash");
   const [paymentAmount, setPaymentAmount] = useState("");
@@ -181,6 +176,14 @@ export function BillRequestCard({
       ].includes(status)
     );
   }).length;
+  const hasUnresolvedOnlinePayment =
+    activeOnlinePaymentCount > 0 || unknownOnlinePaymentCount > 0;
+  const canRecordPayment =
+    Boolean(billId) &&
+    (billStatus === "presented" || billStatus === "payment_pending") &&
+    balanceDueMinor > 0 &&
+    !paymentBlockedReason &&
+    !hasUnresolvedOnlinePayment;
   const onlinePaymentBadge =
     succeededOnlinePaymentCount > 0
       ? t("billRequests.onlinePaid")
@@ -215,9 +218,11 @@ export function BillRequestCard({
           })
         : balanceDueMinor <= 0
           ? t("billRequests.paymentAlreadySettled")
-          : !paymentAmountMatchesBalance
-            ? t("billRequests.paymentExactBalanceRequired")
-            : "";
+          : hasUnresolvedOnlinePayment
+            ? t("billRequests.paymentUnresolvedOnlineRequired")
+            : !paymentAmountMatchesBalance
+              ? t("billRequests.paymentExactBalanceRequired")
+              : "";
 
   return (
     <div className="rounded-md border border-[#3B3028] bg-[#211A15] p-4">
@@ -369,6 +374,20 @@ export function BillRequestCard({
         </div>
       ) : null}
 
+      {activeOnlinePaymentCount > 0 ? (
+        <div
+          role="status"
+          className="mt-3 flex gap-2 rounded-md border border-[#7D5D2C] bg-[#392B18] p-3 text-xs leading-5 text-warning"
+        >
+          <AlertTriangle className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
+          <span>
+            {t("billRequests.onlinePendingDetail", {
+              count: activeOnlinePaymentCount,
+            })}
+          </span>
+        </div>
+      ) : null}
+
       {problemOnlinePaymentCount > 0 || unknownOnlinePaymentCount > 0 ? (
         <div
           role="alert"
@@ -504,6 +523,11 @@ export function BillRequestCard({
               placeholder={t("billRequests.optionalCashierNote")}
             />
           </label>
+          {paymentMethod === "card_pos" ? (
+            <div className="rounded-md border border-[#3A3028] bg-[#18130F] p-3 text-xs leading-5 text-[#B8AA9E]">
+              {t("billRequests.cardPosManualNotice")}
+            </div>
+          ) : null}
           {!paymentAmountMatchesBalance ? (
             <div className="rounded-md border border-[#7D5D2C] bg-[#392B18] p-3 text-xs text-warning">
               {t("billRequests.exactBalanceWarning")}

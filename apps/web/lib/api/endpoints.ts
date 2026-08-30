@@ -33,6 +33,8 @@ import type {
   BranchMenuResult,
   BranchOnlinePaymentsQuery,
   BranchOnlinePaymentsResult,
+  BranchPaymentTerminalsResult,
+  BranchTerminalPaymentRequestsResult,
   BranchPrintJobsQuery,
   BranchPrintJobsResult,
   BranchPrinterStationsResult,
@@ -89,6 +91,7 @@ import type {
   CreateTableResult,
   CreateModifierOptionResult,
   CustomerStatusResult,
+  CustomerPaymentCapabilities,
   CurrentCashierShiftResult,
   CustomerTimelineResult,
   DemoRequest,
@@ -100,6 +103,8 @@ import type {
   MenuCategoryMutationResult,
   MenuAdminOverviewResult,
   MenuItemMutationResult,
+  MerchantPaymentIntegration,
+  MerchantPaymentIntegrationsResult,
   MenuItemDetailResult,
   ModifierGroupMutationResult,
   ModifierOptionMutationResult,
@@ -124,6 +129,8 @@ import type {
   PlatformCompaniesResult,
   PlatformCompanyDetail,
   PlatformLoginPayload,
+  UpsertMerchantPaymentIntegrationPayload,
+  UpsertPaymentTerminalPayload,
   OrderPreparationTasksResult,
   OpenCashierShiftPayload,
   BootstrapCompanyInput,
@@ -143,6 +150,11 @@ import type {
   ResolveWaiterCallPayload,
   SaasPlansResult,
   SaasStatusResult,
+  SaasBillingOverview,
+  StartSaasBillingCheckoutPayload,
+  StartSaasBillingCheckoutResult,
+  ChangeSaasBillingPlanPayload,
+  SaasBillingMutationResult,
   SendAiWaiterMessagePayload,
   SendAiWaiterMessageResult,
   StaffAuthContext,
@@ -153,6 +165,7 @@ import type {
   StartAiWaiterPayload,
   StartTableSessionPayload,
   StartTableSessionResult,
+  TerminalPaymentRequestResult,
   SystemInfoResult,
   SubmitCartPayload,
   SubmitCartResult,
@@ -1609,6 +1622,17 @@ export function createOnlinePaymentIntent(
   });
 }
 
+export function getCustomerPaymentCapabilities(
+  sessionId: string,
+  billId: string,
+  token?: string,
+) {
+  return apiRequest<CustomerPaymentCapabilities>(
+    `/customer/sessions/${sessionId}/bills/${billId}/payment-capabilities`,
+    { token },
+  );
+}
+
 export function getCustomerOnlinePaymentIntent(
   sessionId: string,
   intentId: string,
@@ -2068,6 +2092,81 @@ export function getBranchOnlinePayments(
   );
 }
 
+export function getMerchantPaymentIntegrations(
+  branchId: string,
+  token?: string,
+) {
+  return apiRequest<MerchantPaymentIntegrationsResult>(
+    `/branches/${branchId}/merchant-payment-integrations`,
+    { token },
+  );
+}
+
+export function upsertMerchantPaymentIntegration(
+  branchId: string,
+  payload: UpsertMerchantPaymentIntegrationPayload,
+  token?: string,
+) {
+  return apiRequest<
+    MerchantPaymentIntegration,
+    UpsertMerchantPaymentIntegrationPayload
+  >(`/branches/${branchId}/merchant-payment-integrations`, {
+    method: "POST",
+    body: payload,
+    token,
+  });
+}
+
+export function getBranchPaymentTerminals(branchId: string, token?: string) {
+  return apiRequest<BranchPaymentTerminalsResult>(
+    `/branches/${branchId}/payment-terminals`,
+    { token },
+  );
+}
+
+export function getBranchTerminalPaymentRequests(
+  branchId: string,
+  token?: string,
+) {
+  return apiRequest<BranchTerminalPaymentRequestsResult>(
+    `/branches/${branchId}/terminal-payment-requests`,
+    { token },
+  );
+}
+
+export function upsertBranchPaymentTerminal(
+  branchId: string,
+  payload: UpsertPaymentTerminalPayload,
+  token?: string,
+) {
+  return apiRequest<
+    {
+      terminal: BranchPaymentTerminalsResult["terminals"][number];
+      execution: BranchPaymentTerminalsResult["execution"];
+    },
+    UpsertPaymentTerminalPayload
+  >(`/branches/${branchId}/payment-terminals`, {
+    method: "POST",
+    body: payload,
+    token,
+  });
+}
+
+export function startTerminalPaymentRequest(
+  billId: string,
+  payload: { terminalId: string; idempotencyKey: string },
+  token?: string,
+) {
+  return apiRequest<
+    TerminalPaymentRequestResult,
+    { terminalId: string; idempotencyKey: string }
+  >(`/bills/${billId}/terminal-payment-requests`, {
+    method: "POST",
+    body: payload,
+    token,
+  });
+}
+
 export function getSaasPlans(token?: string) {
   return apiRequest<SaasPlansResult>("/saas/plans", { token });
 }
@@ -2076,6 +2175,57 @@ export function getCompanySaasStatus(companyId: string, token?: string) {
   return apiRequest<SaasStatusResult>(
     `/companies/${companyId}/saas/status`,
     { token },
+  );
+}
+
+export function getCompanySaasBilling(companyId: string, token?: string) {
+  return apiRequest<SaasBillingOverview>(
+    `/companies/${companyId}/saas/billing`,
+    { token },
+  );
+}
+
+export function startCompanySaasBillingCheckout(
+  companyId: string,
+  payload: StartSaasBillingCheckoutPayload,
+  token?: string,
+) {
+  return apiRequest<
+    StartSaasBillingCheckoutResult,
+    StartSaasBillingCheckoutPayload
+  >(`/companies/${companyId}/saas/billing/checkout`, {
+    method: "POST",
+    body: payload,
+    token,
+  });
+}
+
+export function syncCompanySaasBilling(companyId: string, token?: string) {
+  return apiRequest<SaasBillingMutationResult>(
+    `/companies/${companyId}/saas/billing/sync`,
+    { method: "POST", token },
+  );
+}
+
+export function changeCompanySaasBillingPlan(
+  companyId: string,
+  payload: ChangeSaasBillingPlanPayload,
+  token?: string,
+) {
+  return apiRequest<SaasBillingMutationResult, ChangeSaasBillingPlanPayload>(
+    `/companies/${companyId}/saas/billing/change-plan`,
+    { method: "POST", body: payload, token },
+  );
+}
+
+export function cancelCompanySaasBilling(
+  companyId: string,
+  payload: { reason?: string } = {},
+  token?: string,
+) {
+  return apiRequest<SaasBillingMutationResult, { reason?: string }>(
+    `/companies/${companyId}/saas/billing/cancel`,
+    { method: "POST", body: payload, token },
   );
 }
 

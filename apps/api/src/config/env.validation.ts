@@ -34,6 +34,7 @@ enum OnlinePaymentProvider {
   Mock = "mock",
   Paymob = "paymob",
   Fawry = "fawry",
+  Maestr = "maestr",
   External = "external",
 }
 
@@ -236,6 +237,20 @@ class EnvironmentVariables {
 
   @IsString()
   @IsOptional()
+  MAESTR_API_URL?: string;
+
+  @IsString()
+  @IsOptional()
+  MAESTR_API_KEY?: string;
+
+  @IsInt()
+  @Min(1000)
+  @Max(60000)
+  @IsOptional()
+  MAESTR_TIMEOUT_MS?: number;
+
+  @IsString()
+  @IsOptional()
   FAWRY_CHECKOUT_URL?: string;
 
   @IsString()
@@ -333,6 +348,68 @@ class EnvironmentVariables {
   @IsBooleanString()
   @IsOptional()
   PAYMOB_EXPECT_LIVE?: string;
+
+  @IsBooleanString()
+  @IsOptional()
+  SAAS_BILLING_ENABLED?: string;
+
+  @IsString()
+  @IsOptional()
+  SAAS_BILLING_PAYMOB_BASE_URL?: string;
+
+  @IsString()
+  @IsOptional()
+  SAAS_BILLING_PAYMOB_API_KEY?: string;
+
+  @IsString()
+  @IsOptional()
+  SAAS_BILLING_PAYMOB_SECRET_KEY?: string;
+
+  @IsString()
+  @IsOptional()
+  SAAS_BILLING_PAYMOB_PUBLIC_KEY?: string;
+
+  @IsString()
+  @IsOptional()
+  SAAS_BILLING_PAYMOB_HMAC_SECRET?: string;
+
+  @IsInt()
+  @Min(1)
+  @IsOptional()
+  SAAS_BILLING_PAYMOB_3DS_INTEGRATION_ID?: number;
+
+  @IsInt()
+  @Min(1)
+  @IsOptional()
+  SAAS_BILLING_PAYMOB_MOTO_INTEGRATION_ID?: number;
+
+  @IsString()
+  @IsOptional()
+  SAAS_BILLING_PAYMOB_TRANSACTION_WEBHOOK_URL?: string;
+
+  @IsString()
+  @IsOptional()
+  SAAS_BILLING_PAYMOB_SUBSCRIPTION_WEBHOOK_URL?: string;
+
+  @IsString()
+  @IsOptional()
+  SAAS_BILLING_PAYMOB_RETURN_URL?: string;
+
+  @IsInt()
+  @Min(1000)
+  @Max(60000)
+  @IsOptional()
+  SAAS_BILLING_PAYMOB_TIMEOUT_MS?: number;
+
+  @IsInt()
+  @Min(60)
+  @Max(86400)
+  @IsOptional()
+  SAAS_BILLING_PAYMOB_INTENTION_EXPIRATION_SECONDS?: number;
+
+  @IsBooleanString()
+  @IsOptional()
+  SAAS_BILLING_EXPECT_LIVE?: string;
 
   @IsBooleanString()
   @IsOptional()
@@ -470,6 +547,16 @@ export function validateEnvironment(config: Record<string, unknown>) {
   if (
     effectiveAppEnvironment === "production" &&
     onlinePaymentsEnabled &&
+    effectivePaymentProvider === OnlinePaymentProvider.Maestr
+  ) {
+    throw new Error(
+      "Maestr production payments are disabled until the PAY-8 merchant API contract is complete",
+    );
+  }
+
+  if (
+    effectiveAppEnvironment === "production" &&
+    onlinePaymentsEnabled &&
     effectivePaymentProvider === OnlinePaymentProvider.Fawry
   ) {
     if (
@@ -502,6 +589,35 @@ export function validateEnvironment(config: Record<string, unknown>) {
     throw new Error(
       "PAYMOB_API_KEY is required for production Paymob recovery",
     );
+  }
+
+  const saasBillingEnabled =
+    validatedConfig.SAAS_BILLING_ENABLED === "true";
+
+  if (saasBillingEnabled) {
+    if (
+      !validatedConfig.SAAS_BILLING_PAYMOB_API_KEY ||
+      !validatedConfig.SAAS_BILLING_PAYMOB_SECRET_KEY ||
+      !validatedConfig.SAAS_BILLING_PAYMOB_PUBLIC_KEY ||
+      !validatedConfig.SAAS_BILLING_PAYMOB_HMAC_SECRET ||
+      !validatedConfig.SAAS_BILLING_PAYMOB_3DS_INTEGRATION_ID ||
+      !validatedConfig.SAAS_BILLING_PAYMOB_MOTO_INTEGRATION_ID ||
+      !validatedConfig.SAAS_BILLING_PAYMOB_TRANSACTION_WEBHOOK_URL ||
+      !validatedConfig.SAAS_BILLING_PAYMOB_RETURN_URL
+    ) {
+      throw new Error(
+        "SaaS billing requires Balcona Paymob API/secret/public/HMAC credentials, 3DS and MOTO integration IDs, transaction webhook URL, and return URL",
+      );
+    }
+
+    if (
+      effectiveAppEnvironment === "production" &&
+      validatedConfig.SAAS_BILLING_EXPECT_LIVE !== "true"
+    ) {
+      throw new Error(
+        "SAAS_BILLING_EXPECT_LIVE=true is required for production SaaS billing",
+      );
+    }
   }
 
   if (

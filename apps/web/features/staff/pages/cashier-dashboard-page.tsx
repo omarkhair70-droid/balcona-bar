@@ -53,6 +53,7 @@ import {
   completeOrder,
   createCashAdjustment,
   getBranchBillRequests,
+  getBranchPaymentTerminals,
   getBranchRealtimeEvents,
   getCashierOrders,
   getCashierShiftXReport,
@@ -736,6 +737,14 @@ function CashierDashboardContent() {
     enabled: Boolean(selectedBranchId && accessToken),
     staleTime: 10_000,
   });
+  const paymentTerminalsQuery = useQuery({
+    queryKey: ["service", "payment-terminals", selectedBranchId],
+    queryFn: () =>
+      getBranchPaymentTerminals(selectedBranchId ?? "", accessToken),
+    enabled: Boolean(selectedBranchId && accessToken),
+    staleTime: 30_000,
+    retry: false,
+  });
   const realtimeEventsQuery = useQuery({
     queryKey: staffQueryKeys.branchRealtime(selectedBranchId),
     queryFn: () =>
@@ -801,6 +810,9 @@ function CashierDashboardContent() {
     });
     void queryClient.invalidateQueries({
       queryKey: staffQueryKeys.currentCashierShift(selectedBranchId),
+    });
+    void queryClient.invalidateQueries({
+      queryKey: ["service", "payment-terminals", selectedBranchId],
     });
     void queryClient.invalidateQueries({
       queryKey: staffQueryKeys.branchCashierShifts(selectedBranchId),
@@ -1274,6 +1286,26 @@ function CashierDashboardContent() {
             <CardDescription>{t("cashier.activityDescription")}</CardDescription>
           </CardHeader>
           <CardContent className="grid gap-3">
+            <div
+              className={
+                paymentTerminalsQuery.data?.execution?.available
+                  ? "rounded-md border border-success bg-success/10 p-3 text-xs leading-5 text-success"
+                  : "rounded-md border border-[#3A3028] bg-[#18130F] p-3 text-xs leading-5 text-[#B8AA9E]"
+              }
+            >
+              <p className="font-semibold">
+                {t("cashier.directTerminalTitle")}
+              </p>
+              <p className="mt-1">
+                {paymentTerminalsQuery.isPending
+                  ? t("cashier.directTerminalChecking")
+                  : paymentTerminalsQuery.isError
+                    ? t("cashier.directTerminalUnavailable")
+                    : paymentTerminalsQuery.data?.execution?.available
+                      ? t("cashier.directTerminalReady")
+                      : t("cashier.directTerminalBlocked")}
+              </p>
+            </div>
             {realtimeEventsQuery.isError ? (
               <div className="rounded-md border border-warning bg-warning/10 p-3 text-sm text-warning">
                 <AlertTriangle

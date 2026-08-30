@@ -2094,7 +2094,12 @@ export type RecordManualPaymentPayload = {
   note?: string | null;
 };
 
-export type OnlinePaymentProvider = "mock" | "paymob" | "external";
+export type OnlinePaymentProvider =
+  | "mock"
+  | "paymob"
+  | "fawry"
+  | "maestr"
+  | "external";
 
 export type OnlinePaymentIntentStatus =
   | "pending"
@@ -2113,6 +2118,177 @@ export type CreateOnlinePaymentIntentPayload = {
     email: string;
     phoneNumber: string;
   };
+  fawryPaymentMethod?: "CARD" | "MWALLET" | "PayAtFawry" | "VALU";
+};
+
+export type PaymentProviderCapabilities = {
+  hostedCheckout: boolean;
+  embeddedCheckout: boolean;
+  card: boolean;
+  wallet: boolean;
+  referenceCode: boolean;
+  qr: boolean;
+  deepLink: boolean;
+  inquiry: boolean;
+  refund: boolean;
+  partialRefund: boolean;
+  void: boolean;
+  capture: boolean;
+  settlementImport: boolean;
+  providerReconciliation: boolean;
+  directTerminal: boolean;
+  recurringBilling: boolean;
+  bankTransferOrIpn: boolean;
+};
+
+export type PaymentCustomerAction =
+  | {
+      type: "redirect";
+      url: string;
+    }
+  | {
+      type: "deep_link";
+      url: string;
+    }
+  | {
+      type: "qr";
+      value: string;
+    }
+  | {
+      type: "display_reference";
+      reference: string;
+    };
+
+export type CustomerPaymentCapabilities = {
+  provider: OnlinePaymentProvider;
+  environment: "sandbox" | "test" | "live";
+  status: "ready";
+  enabledChannels: string[];
+  requiresBillingData: boolean;
+  capabilities: PaymentProviderCapabilities;
+  hostedMethods: string[];
+  liveVerified: boolean;
+};
+
+export type MerchantPaymentIntegration = {
+  id: string;
+  companyId: string;
+  branchId?: string | null;
+  provider: OnlinePaymentProvider;
+  environment: "sandbox" | "test" | "live";
+  status: "draft" | "needs_setup" | "ready" | "blocked" | "disabled";
+  priority: number;
+  merchantAccountReference?: string | null;
+  enabledChannels: string[];
+  configurationMetadata?: Record<string, unknown>;
+  secretReferenceKeys: string[];
+  readinessMessage?: string | null;
+  webhookConfigured: boolean;
+  webhookVerifiedAt?: string | null;
+  recoveryReady: boolean;
+  settlementConfigured: boolean;
+  liveVerifiedAt?: string | null;
+  lastValidatedAt?: string | null;
+  capabilities: PaymentProviderCapabilities;
+};
+
+export type MerchantPaymentIntegrationsResult = {
+  branch: BranchSummary;
+  integrations: MerchantPaymentIntegration[];
+  effective?: Record<string, unknown> | null;
+};
+
+export type UpsertMerchantPaymentIntegrationPayload = {
+  scope: "company" | "branch";
+  provider: "paymob" | "fawry" | "maestr" | "external";
+  environment: "sandbox" | "test" | "live";
+  status: "draft" | "needs_setup" | "ready" | "blocked" | "disabled";
+  priority?: number;
+  merchantAccountReference?: string;
+  enabledChannels: string[];
+  configurationMetadata?: Record<string, unknown>;
+  secretReferences?: Record<string, string>;
+  readinessMessage?: string;
+  webhookConfigured: boolean;
+  recoveryReady: boolean;
+  settlementConfigured: boolean;
+};
+
+export type PaymentTerminal = {
+  id: string;
+  companyId: string;
+  branchId: string;
+  provider: "paymob" | "fawry" | "geidea" | "external" | string;
+  environment: "test" | "live" | string;
+  status: "draft" | "blocked" | "ready" | "disabled" | string;
+  displayName: string;
+  providerTerminalReference?: string | null;
+  deviceReference?: string | null;
+  merchantReference?: string | null;
+  secretReference?: string | null;
+  readinessMessage?: string | null;
+  lastSeenAt?: string | null;
+  liveVerifiedAt?: string | null;
+  executionAvailable: boolean;
+};
+
+export type BranchPaymentTerminalsResult = {
+  branch: BranchSummary;
+  execution: {
+    available: boolean;
+    blockerCode?: string;
+    message?: string;
+  };
+  terminals: PaymentTerminal[];
+};
+
+export type UpsertPaymentTerminalPayload = {
+  provider: "paymob" | "fawry" | "geidea" | "external";
+  environment: "test" | "live";
+  displayName: string;
+  providerTerminalReference?: string;
+  deviceReference?: string;
+  merchantReference?: string;
+  secretReference?: string;
+};
+
+export type TerminalPaymentRequest = {
+  id: string;
+  billId: string;
+  status:
+    | "created"
+    | "sent"
+    | "pending"
+    | "approved"
+    | "declined"
+    | "cancelled"
+    | "timeout"
+    | "unknown"
+    | "blocked"
+    | string;
+  amountMinor: number;
+  currency: string;
+  failureCode?: string | null;
+  failureMessage?: string | null;
+  requestedAt: string;
+  createdAt: string;
+  updatedAt: string;
+  terminal: PaymentTerminal;
+};
+
+export type TerminalPaymentRequestResult = {
+  request: TerminalPaymentRequest;
+  providerMutationSent: boolean;
+  billSettled: boolean;
+};
+
+export type BranchTerminalPaymentRequestsResult = {
+  branch: BranchSummary;
+  requests: Array<
+    TerminalPaymentRequest & {
+      bill: Record<string, unknown>;
+    }
+  >;
 };
 
 export type OnlinePaymentIntentResult = Record<string, unknown> & {
@@ -2121,7 +2297,9 @@ export type OnlinePaymentIntentResult = Record<string, unknown> & {
   checkout?: {
     provider?: OnlinePaymentProvider;
     url?: string | null;
+    customerAction?: PaymentCustomerAction;
     expiresAt?: string | null;
+    requiresCustomerAction?: boolean;
     requiresHostedCheckout?: boolean;
   } | null;
   settlement?: {
@@ -2197,9 +2375,99 @@ export type CompanySubscription = {
   suspendedAt?: string | null;
   cancelledAt?: string | null;
   cancellationReason?: string | null;
+  billingProvider?: "paymob" | null;
+  billingEnvironment?: "test" | "live" | null;
+  providerSubscriptionReference?: string | null;
+  providerPlanReference?: string | null;
+  graceEndsAt?: string | null;
+  lastBillingSyncAt?: string | null;
   metadata?: Record<string, unknown> | null;
   createdAt?: string;
   updatedAt?: string;
+};
+
+export type SaasBillingPaymentAttempt = {
+  id: string;
+  status:
+    | "pending"
+    | "requires_action"
+    | "succeeded"
+    | "failed"
+    | "cancelled"
+    | "unknown"
+    | string;
+  provider: "paymob" | string;
+  environment: "test" | "live" | string;
+  amountMinor: number;
+  currency: string;
+  providerTransactionReference?: string | null;
+  failureCode?: string | null;
+  failureMessage?: string | null;
+  createdAt: string;
+  updatedAt: string;
+  succeededAt?: string | null;
+  failedAt?: string | null;
+};
+
+export type SaasBillingInvoice = {
+  id: string;
+  status: "open" | "paid" | "void" | "uncollectible" | string;
+  provider: "paymob" | string;
+  environment: "test" | "live" | string;
+  amountMinor: number;
+  currency: string;
+  periodStart?: string | null;
+  periodEnd?: string | null;
+  dueAt?: string | null;
+  paidAt?: string | null;
+  createdAt: string;
+};
+
+export type SaasBillingOverview = {
+  company: CompanySummary;
+  plan: SaasPlan;
+  subscription: CompanySubscription;
+  billing: {
+    provider: "paymob";
+    enabled: boolean;
+    environment: "test" | "live";
+    ready: boolean;
+    readinessMessage: string;
+    liveVerified: boolean;
+  };
+  paymentAttempts: SaasBillingPaymentAttempt[];
+  invoices: SaasBillingInvoice[];
+};
+
+export type StartSaasBillingCheckoutPayload = {
+  firstName: string;
+  lastName: string;
+  email: string;
+  phoneNumber: string;
+};
+
+export type StartSaasBillingCheckoutResult = {
+  paymentAttemptId: string;
+  provider: "paymob";
+  environment: "test" | "live";
+  status: string;
+  amountMinor: number;
+  currency: string;
+  checkout: {
+    type: "redirect";
+    url: string;
+    expiresAt: string;
+  };
+};
+
+export type ChangeSaasBillingPlanPayload = {
+  planCode: string;
+};
+
+export type SaasBillingMutationResult = {
+  subscription: CompanySubscription;
+  providerState: string;
+  syncedAt?: string | null;
 };
 
 export type SaasUsageStatus = "ok" | "warning" | "exceeded" | "unlimited";

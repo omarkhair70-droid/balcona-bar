@@ -41,10 +41,7 @@ describe("StaffPaymentRecoveryRateLimitGuard", () => {
       "staff-1",
       "provider-recovery",
     );
-    expect(response.setHeader).toHaveBeenCalledWith(
-      "RateLimit-Remaining",
-      "9",
-    );
+    expect(response.setHeader).toHaveBeenCalledWith("RateLimit-Remaining", "9");
   });
 
   it("returns 429 and Retry-After when staff recovery limit is exceeded", async () => {
