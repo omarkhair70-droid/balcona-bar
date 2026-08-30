@@ -27,6 +27,7 @@ import { formatErrorMessage } from "@/lib/api/error-message";
 import {
   getBranchLaunchChecklist,
   getBranchOnboarding,
+  getBranchPaymentTerminals,
   getCompanyOnboarding,
   getMerchantPaymentIntegrations,
   inviteOnboardingStaff,
@@ -453,6 +454,14 @@ function StaffSetupContent() {
     staleTime: 30_000,
     retry: false
   });
+  const paymentTerminalsQuery = useQuery({
+    queryKey: ["staff", "payment-terminals", selectedBranchId],
+    queryFn: () =>
+      getBranchPaymentTerminals(selectedBranchId ?? "", accessToken),
+    enabled: Boolean(accessToken && selectedBranchId),
+    staleTime: 30_000,
+    retry: false
+  });
 
   const onboarding = branchQuery.data;
   const launchSummary = checklistQuery.data?.launchSummary ?? onboarding?.launchSummary;
@@ -505,6 +514,9 @@ function StaffSetupContent() {
       });
       void queryClient.invalidateQueries({
         queryKey: ["staff", "merchant-payment-integrations", selectedBranchId]
+      });
+      void queryClient.invalidateQueries({
+        queryKey: ["staff", "payment-terminals", selectedBranchId]
       });
     }
     void queryClient.invalidateQueries({ queryKey: staffQueryKeys.me() });
@@ -1195,6 +1207,75 @@ function StaffSetupContent() {
               />
             </div>
           </Panel>
+
+          <div className="xl:col-span-2">
+            <Panel
+              eyebrow={L(locale, "DIRECT TERMINAL / SOFTPOS", "جهاز الدفع المباشر / SoftPOS")}
+              title={L(
+                locale,
+                "Terminal readiness is explicit and fail-closed.",
+                "جاهزية جهاز الدفع واضحة ومغلقة افتراضيًا."
+              )}
+              description={
+                paymentTerminalsQuery.isPending
+                  ? L(locale, "Checking branch terminal metadata.", "جارٍ فحص بيانات أجهزة الدفع للفرع.")
+                  : paymentTerminalsQuery.isError
+                    ? L(
+                        locale,
+                        "Terminal readiness could not be loaded. Office Money remains the owning configuration surface.",
+                        "تعذر تحميل جاهزية أجهزة الدفع. يظل Office Money هو سطح الإعداد المسؤول."
+                      )
+                    : paymentTerminalsQuery.data?.execution.available
+                      ? L(locale, "Direct terminal execution is connected.", "تشغيل جهاز الدفع المباشر متصل.")
+                      : paymentTerminalsQuery.data?.execution.message ??
+                        L(
+                          locale,
+                          "Manual card POS recording is not direct terminal control. Provider execution requires a verified merchant terminal contract and test device.",
+                          "تسجيل بطاقة POS يدويًا ليس تحكمًا مباشرًا في جهاز الدفع. التشغيل المباشر يحتاج عقد تاجر موثق وجهاز اختبار."
+                        )
+              }
+              footer={linkButton(
+                "/office/money",
+                L(locale, "Configure terminal readiness", "اضبط جاهزية جهاز الدفع")
+              )}
+            >
+              <div className="grid gap-3 sm:grid-cols-3">
+                <Metric
+                  label={L(locale, "Saved terminals", "الأجهزة المسجلة")}
+                  value={String(paymentTerminalsQuery.data?.terminals.length ?? 0)}
+                  detail={L(locale, "Branch-scoped metadata", "بيانات مرتبطة بالفرع")}
+                />
+                <Metric
+                  label={L(locale, "Direct execution", "التشغيل المباشر")}
+                  value={
+                    paymentTerminalsQuery.data?.execution.available
+                      ? L(locale, "Ready", "جاهز")
+                      : L(locale, "Blocked", "متوقف")
+                  }
+                  detail={L(
+                    locale,
+                    "Never inferred from manual card_pos",
+                    "لا يتم استنتاجه من card_pos اليدوي"
+                  )}
+                />
+                <Metric
+                  label={L(locale, "Live verification", "التحقق الحي")}
+                  value={
+                    (paymentTerminalsQuery.data?.terminals ?? []).some(
+                      (terminal) => Boolean(terminal.liveVerifiedAt)
+                    )
+                      ? L(locale, "Verified device", "يوجد جهاز متحقق")
+                      : L(locale, "No verified device", "لا يوجد جهاز متحقق")
+                  }
+                  detail={L(
+                    locale,
+                    "Requires real provider/device evidence",
+                    "يحتاج إثباتًا حقيقيًا من المزود والجهاز"
+                  )}
+                />
+              </div>
+            </Panel>
+          </div>
         </div>
       );
     }
