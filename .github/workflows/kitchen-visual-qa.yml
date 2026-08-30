@@ -1,6 +1,7 @@
 name: Kitchen Closure Visual QA
 
 on:
+  workflow_dispatch:
   push:
     branches:
       - integration/a3-kitchen-shell

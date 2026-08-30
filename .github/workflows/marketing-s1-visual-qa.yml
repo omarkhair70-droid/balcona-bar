@@ -1,6 +1,7 @@
 name: Marketing S1 Visual QA
 
 on:
+  workflow_dispatch:
   push:
     branches:
       - "closure/marketing-s1"

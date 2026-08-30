@@ -1,6 +1,7 @@
 name: Setup Visual QA
 
 on:
+  workflow_dispatch:
   push:
     branches:
       - closure/setup-s7
