@@ -260,21 +260,6 @@ function WaiterDashboardContent() {
     enabled: Boolean(selectedBranchId && accessToken),
     staleTime: 10_000
   });
-  const allAttentionQuery = useQuery({
-    queryKey: staffQueryKeys.staffAttentionQueue(
-      selectedBranchId,
-      "all",
-      "all"
-    ),
-    queryFn: () =>
-      getBranchAttentionQueue(
-        selectedBranchId ?? "",
-        { status: "all", priority: "all", limit: 100 },
-        accessToken
-      ),
-    enabled: Boolean(selectedBranchId && accessToken),
-    staleTime: 10_000
-  });
   const attentionQueueQuery = useQuery({
     queryKey: staffQueryKeys.staffAttentionQueue(
       selectedBranchId,
@@ -329,17 +314,9 @@ function WaiterDashboardContent() {
     () => waiterCallsQuery.data?.waiterCalls ?? emptyRecords,
     [waiterCallsQuery.data?.waiterCalls]
   );
-  const allWaiterCalls = useMemo(
-    () => allWaiterCallsQuery.data?.waiterCalls ?? waiterCalls,
-    [allWaiterCallsQuery.data?.waiterCalls, waiterCalls]
-  );
   const attentionQueue = useMemo(
     () => attentionQueueQuery.data?.attentionQueue ?? emptyRecords,
     [attentionQueueQuery.data?.attentionQueue]
-  );
-  const allAttentionQueue = useMemo(
-    () => allAttentionQuery.data?.attentionQueue ?? attentionQueue,
-    [allAttentionQuery.data?.attentionQueue, attentionQueue]
   );
   const readyOrders = useMemo(
     () => readyOrdersQuery.data?.orders ?? emptyRecords,
