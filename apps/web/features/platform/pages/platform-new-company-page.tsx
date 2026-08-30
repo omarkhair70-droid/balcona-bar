@@ -38,12 +38,6 @@ function slugify(value: string) {
     .replace(/^-+|-+$/g, "");
 }
 
-function planLabel(planCode: string) {
-  return planCode
-    .split("-")
-    .map((part) => part[0]?.toUpperCase() + part.slice(1))
-    .join(" ");
-}
 
 function SuccessPanel({ result }: { result: BootstrapCompanyResult }) {
   const { locale } = useI18n();
