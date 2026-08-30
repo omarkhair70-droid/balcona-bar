@@ -8,9 +8,10 @@ import {
   Building2,
   Plus,
   QrCode,
+  RefreshCw,
   ShieldCheck
 } from "lucide-react";
-import { type FormEvent, useEffect, useState } from "react";
+import { type FormEvent, useEffect, useMemo, useState } from "react";
 import { PlatformAuthGate } from "@/features/platform/components/platform-auth-gate";
 import { PlatformShell } from "@/features/platform/platform-shell";
 import { formatErrorMessage } from "@/lib/api/error-message";
@@ -142,8 +143,10 @@ function PlatformNewCompanyContent() {
     staleTime: 5 * 60_000
   });
 
-  const availablePlans =
-    plansQuery.data?.plans.filter((plan) => plan.status === "active") ?? [];
+  const availablePlans = useMemo(
+    () => plansQuery.data?.plans.filter((plan) => plan.status === "active") ?? [],
+    [plansQuery.data?.plans]
+  );
 
   useEffect(() => {
     if (
@@ -411,9 +414,19 @@ function PlatformNewCompanyContent() {
               ) : null}
 
               {plansQuery.isError ? (
-                <p className="rounded-md border border-[#E4C5C1] bg-[#FBEEEE] p-3 text-xs text-[#8D3F37]">
-                  {L(locale, "Plans could not load. Retry before creating a tenant.", "تعذر تحميل الخطط. أعد المحاولة قبل إنشاء الشركة.")}
-                </p>
+                <div className="rounded-md border border-[#E4C5C1] bg-[#FBEEEE] p-3 text-xs text-[#8D3F37]">
+                  <p>
+                    {L(locale, "Plans could not load. Retry before creating a tenant.", "تعذر تحميل الخطط. أعد المحاولة قبل إنشاء الشركة.")}
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => void plansQuery.refetch()}
+                    className="mt-2 inline-flex min-h-9 items-center gap-2 rounded-md border border-[#D9B9B5] bg-white px-3 text-xs font-semibold text-[#8D3F37]"
+                  >
+                    <RefreshCw className="size-4" />
+                    {L(locale, "Retry", "إعادة المحاولة")}
+                  </button>
+                </div>
               ) : null}
 
               {!plansQuery.isPending && !plansQuery.isError && availablePlans.length === 0 ? (
