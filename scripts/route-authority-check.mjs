@@ -120,7 +120,7 @@ for (const file of runtimeFiles) {
   for (const legacyRoot of forbiddenRuntimeRoots) {
     const escaped = legacyRoot.replace(/[.*+?^$\{\}()|[\]\\]/g, "\\$&");
     const routeLiteral = new RegExp(
-      "([\\\"'\\`])" + escaped + "(?=\\\\/|#|\\\\?|[\\\"'\\`])",
+      "([\\\"'`])" + escaped + "(?=/|#|\\\\?|[\\\"'`])",
       "g"
     );
 
