@@ -2138,7 +2138,26 @@ export type PaymentProviderCapabilities = {
   providerReconciliation: boolean;
   directTerminal: boolean;
   recurringBilling: boolean;
+  bankTransferOrIpn: boolean;
 };
+
+export type PaymentCustomerAction =
+  | {
+      type: "redirect";
+      url: string;
+    }
+  | {
+      type: "deep_link";
+      url: string;
+    }
+  | {
+      type: "qr";
+      value: string;
+    }
+  | {
+      type: "display_reference";
+      reference: string;
+    };
 
 export type CustomerPaymentCapabilities = {
   provider: OnlinePaymentProvider;
@@ -2201,7 +2220,9 @@ export type OnlinePaymentIntentResult = Record<string, unknown> & {
   checkout?: {
     provider?: OnlinePaymentProvider;
     url?: string | null;
+    customerAction?: PaymentCustomerAction;
     expiresAt?: string | null;
+    requiresCustomerAction?: boolean;
     requiresHostedCheckout?: boolean;
   } | null;
   settlement?: {
