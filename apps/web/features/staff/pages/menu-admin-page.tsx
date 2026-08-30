@@ -1306,7 +1306,7 @@ function EffectiveAvailabilitySection({
             <div className="min-w-0">
               <p className="truncate font-semibold">{item.name}</p>
               <p className="text-xs text-muted-foreground">
-                {item.categoryName ?? "Catalog item"}
+                {item.category?.name ?? "Catalog item"}
               </p>
             </div>
             <Badge variant={item.isVisible ? "success" : "warning"}>
