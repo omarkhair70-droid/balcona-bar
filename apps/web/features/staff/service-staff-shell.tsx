@@ -4,8 +4,7 @@ import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
 import { type ReactNode, useEffect, useState } from "react";
 import { Banknote, BellRing, LayoutGrid, ListChecks, Receipt } from "lucide-react";
-import { LanguageSwitcher } from "@/components/i18n/language-switcher";
-import { useTranslations } from "@/lib/i18n/i18n-provider";
+import { useI18n, useTranslations } from "@/lib/i18n/i18n-provider";
 import { cn } from "@/lib/utils/cn";
 
 export type ServiceMode = "cashier" | "waiter";
@@ -111,6 +110,7 @@ export function ServiceStaffShell({
   children
 }: ServiceStaffShellProps) {
   const t = useTranslations("staff");
+  const { locale, setLocale } = useI18n();
   const pathname = usePathname();
   const activeView = useServiceView(mode);
   const activeMode = useServiceMode(mode);
@@ -176,7 +176,14 @@ export function ServiceStaffShell({
                 {actions}
               </div>
             ) : null}
-            <LanguageSwitcher className="shrink-0 border-[#41362E] bg-[#211A15]" />
+            <button
+              type="button"
+              onClick={() => setLocale(locale === "en" ? "ar" : "en")}
+              className="min-h-9 shrink-0 rounded-md border border-[#41362E] bg-[#211A15] px-3 text-xs font-bold text-[#F5EBDD] transition hover:bg-[#2B221C]"
+              aria-label={locale === "en" ? "العربية" : "English"}
+            >
+              {locale === "en" ? "العربية" : "EN"}
+            </button>
           </div>
         </div>
 
