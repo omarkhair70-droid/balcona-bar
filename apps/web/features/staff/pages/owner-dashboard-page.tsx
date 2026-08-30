@@ -1023,28 +1023,28 @@ function OwnerDashboardContent() {
         </CardHeader>
         <CardContent className="flex flex-wrap gap-3">
           <Link
-            href="/staff/billing"
+            href="/office/account"
             className={buttonVariants({ variant: "secondary" })}
           >
             <CreditCard className="size-4" aria-hidden="true" />
             {t("actions.planAndLimits")}
           </Link>
           <Link
-            href="/staff/cashier"
+            href="/service/cashier"
             className={buttonVariants({ variant: "secondary" })}
           >
             <Receipt className="size-4" aria-hidden="true" />
             {t("actions.openCashier")}
           </Link>
           <Link
-            href="/staff/kitchen"
+            href="/kitchen"
             className={buttonVariants({ variant: "secondary" })}
           >
             <ChefHat className="size-4" aria-hidden="true" />
             {t("actions.openKitchen")}
           </Link>
           <Link
-            href="/staff/waiter"
+            href="/service/waiter"
             className={buttonVariants({ variant: "secondary" })}
           >
             <UserRoundCheck className="size-4" aria-hidden="true" />

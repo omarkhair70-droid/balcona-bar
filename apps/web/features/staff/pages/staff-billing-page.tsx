@@ -536,11 +536,11 @@ export function StaffBillingPage() {
       description="Balcona SaaS plan, subscription status, entitlements, and tenant usage limits. Restaurant/customer money is managed separately."
       actions={
         <div className="flex flex-wrap gap-3">
-          <Link href="/staff/setup" className={buttonVariants({ variant: "secondary" })}>
+          <Link href="/setup" className={buttonVariants({ variant: "secondary" })}>
             <Rocket className="size-4" aria-hidden="true" />
             Setup
           </Link>
-          <Link href="/staff/owner" className={buttonVariants({ variant: "secondary" })}>
+          <Link href="/office" className={buttonVariants({ variant: "secondary" })}>
             <Gauge className="size-4" aria-hidden="true" />
             Owner
           </Link>
