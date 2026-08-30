@@ -82,23 +82,23 @@ export function getDefaultStaffRoute(
   const roles = branchRoles && branchRoles.length > 0 ? branchRoles : access?.roles;
 
   if (roles?.includes("owner") || roles?.includes("branch_manager")) {
-    return "/staff/owner";
+    return "/office";
   }
 
   if (roles?.includes("cashier")) {
-    return "/staff/cashier";
+    return "/service/cashier";
   }
 
   if (roles?.includes("kitchen") || roles?.includes("barista")) {
-    return "/staff/kitchen";
+    return "/kitchen";
   }
 
   if (roles?.includes("waiter")) {
-    return "/staff/waiter";
+    return "/service/waiter";
   }
 
   if (roles?.includes("menu_admin")) {
-    return "/staff/menu";
+    return "/office/catalog";
   }
 
   return "/staff";

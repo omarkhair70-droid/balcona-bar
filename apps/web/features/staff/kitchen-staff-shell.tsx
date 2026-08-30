@@ -28,7 +28,7 @@ export function KitchenStaffShell({
       <header className="sticky top-0 z-40 border-b border-[#34312E] bg-[#12110F]/96 backdrop-blur">
         <div className="flex min-h-14 items-center gap-3 px-3">
           <Link
-            href="/staff/kitchen"
+            href="/kitchen"
             className="flex shrink-0 items-center gap-2"
             aria-label={t("kitchen.shellProductLabel")}
           >
