@@ -73,6 +73,10 @@ type MuteAttentionAction = ResolveAttentionAction & {
 
 const emptyRecords: Record<string, unknown>[] = [];
 
+function attentionQueryStatus(status: AttentionStatusFilter) {
+  return status === "active" ? undefined : status;
+}
+
 function NoticeBanner({ notice }: { notice?: Notice }) {
   if (!notice) {
     return null;
