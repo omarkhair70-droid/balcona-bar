@@ -28,6 +28,7 @@ import {
   getBranchLaunchChecklist,
   getBranchOnboarding,
   getCompanyOnboarding,
+  getMerchantPaymentIntegrations,
   inviteOnboardingStaff,
   updateBranchOnboardingProfile,
   updateCompanyOnboardingProfile
@@ -444,6 +445,14 @@ function StaffSetupContent() {
     enabled: Boolean(accessToken && selectedBranchId),
     staleTime: 30_000
   });
+  const paymentIntegrationsQuery = useQuery({
+    queryKey: ["staff", "merchant-payment-integrations", selectedBranchId],
+    queryFn: () =>
+      getMerchantPaymentIntegrations(selectedBranchId ?? "", accessToken),
+    enabled: Boolean(accessToken && selectedBranchId),
+    staleTime: 30_000,
+    retry: false
+  });
 
   const onboarding = branchQuery.data;
   const launchSummary = checklistQuery.data?.launchSummary ?? onboarding?.launchSummary;
@@ -493,6 +502,9 @@ function StaffSetupContent() {
       });
       void queryClient.invalidateQueries({
         queryKey: staffQueryKeys.branchLaunchChecklist(selectedBranchId)
+      });
+      void queryClient.invalidateQueries({
+        queryKey: ["staff", "merchant-payment-integrations", selectedBranchId]
       });
     }
     void queryClient.invalidateQueries({ queryKey: staffQueryKeys.me() });
@@ -1085,19 +1097,105 @@ function StaffSetupContent() {
         "bills_payment_ready",
         "online_payment_provider_ready"
       ]);
+      const integrations = paymentIntegrationsQuery.data?.integrations ?? [];
+      const activeIntegration =
+        integrations.find(
+          (integration) =>
+            integration.status === "ready" && integration.environment === "live"
+        ) ??
+        integrations.find((integration) => integration.status === "ready") ??
+        integrations[0];
+      const liveVerified = Boolean(activeIntegration?.liveVerifiedAt);
+
       return (
-        <Panel
-          eyebrow={L(locale, "EXTERNAL GATE", "بوابة خارجية")}
-          title={L(locale, "Payment readiness without fake activation.", "جاهزية الدفع بدون ادعاء تفعيل غير حقيقي.")}
-          description={L(
-            locale,
-            "Manual bill/payment flow is software truth. Merchant/provider activation remains an external gate when required.",
-            "رحلة الفاتورة والدفع اليدوي حقيقة برمجية. تفعيل التاجر/المزود يظل بوابة خارجية عند الحاجة."
-          )}
-          footer={linkButton("/service/cashier", L(locale, "Open payment operations", "افتح تشغيل الدفع"))}
-        >
-          <ReadinessRows locale={locale} items={items} />
-        </Panel>
+        <div className="grid gap-4 xl:grid-cols-[1.1fr_0.9fr]">
+          <Panel
+            eyebrow={L(locale, "PAYMENT READINESS", "جاهزية الدفع")}
+            title={L(locale, "Payment readiness without fake activation.", "جاهزية الدفع بدون ادعاء تفعيل غير حقيقي.")}
+            description={L(
+              locale,
+              "Setup shows the real merchant/provider state for this branch. Manual collection can be software-ready while live online acceptance remains externally blocked.",
+              "Setup يعرض حالة التاجر ومزود الدفع الحقيقية للفرع. التحصيل اليدوي قد يكون جاهزًا برمجيًا بينما يظل قبول الدفع الأونلاين الحي متوقفًا على بوابة خارجية."
+            )}
+            footer={
+              <div className="flex flex-wrap gap-2">
+                {linkButton("/office/money", L(locale, "Configure in Office Money", "اضبط الدفع في Office Money"))}
+                {linkButton("/service/cashier#bills", L(locale, "Open Bills in Service", "افتح الحسابات في Service"))}
+              </div>
+            }
+          >
+            <ReadinessRows locale={locale} items={items} />
+          </Panel>
+
+          <Panel
+            eyebrow={L(locale, "MERCHANT CONNECTION", "ربط التاجر")}
+            title={
+              activeIntegration
+                ? `${activeIntegration.provider.toUpperCase()} · ${activeIntegration.environment}`
+                : L(locale, "No merchant integration configured", "لا يوجد ربط تاجر مُجهز")
+            }
+            description={
+              paymentIntegrationsQuery.isPending
+                ? L(locale, "Checking the effective provider for this branch.", "جارٍ فحص مزود الدفع الفعلي لهذا الفرع.")
+                : paymentIntegrationsQuery.isError
+                  ? L(locale, "Merchant readiness could not be loaded. Office Money remains the owning configuration surface.", "تعذر تحميل جاهزية التاجر. يظل Office Money هو سطح الإعداد المسؤول.")
+                  : activeIntegration
+                    ? activeIntegration.readinessMessage ??
+                      L(locale, "Provider configuration is persisted without exposing runtime secrets.", "إعداد المزود محفوظ بدون إظهار أسرار التشغيل.")
+                    : L(locale, "Configure a company-level provider or a branch override before enabling online checkout.", "جهز مزودًا على مستوى الشركة أو Override للفرع قبل تفعيل الدفع الأونلاين.")
+            }
+          >
+            <div className="grid gap-3 sm:grid-cols-2">
+              <Metric
+                label={L(locale, "Connection", "الاتصال")}
+                value={
+                  activeIntegration
+                    ? statusLabel(
+                        locale,
+                        activeIntegration.status === "ready"
+                          ? "ready"
+                          : activeIntegration.status === "blocked"
+                            ? "blocked"
+                            : "needs_attention"
+                      )
+                    : L(locale, "Needs setup", "يحتاج إعداد")
+                }
+                detail={activeIntegration?.merchantAccountReference ?? L(locale, "No merchant reference", "لا يوجد مرجع تاجر")}
+              />
+              <Metric
+                label={L(locale, "Live verification", "التحقق الحي")}
+                value={liveVerified ? L(locale, "Verified", "تم التحقق") : L(locale, "Not verified", "غير متحقق")}
+                detail={
+                  activeIntegration?.environment === "live"
+                    ? L(locale, "Real-money evidence is still required until verified.", "يلزم إثبات معاملة حقيقية حتى يتم التحقق.")
+                    : L(locale, "Sandbox/test configuration does not certify live payments.", "إعداد Sandbox/Test لا يثبت الدفع الحي.")
+                }
+              />
+              <Metric
+                label={L(locale, "Webhook", "Webhook")}
+                value={activeIntegration?.webhookConfigured ? L(locale, "Configured", "مُجهز") : L(locale, "Not configured", "غير مُجهز")}
+                detail={
+                  activeIntegration?.webhookVerifiedAt
+                    ? L(locale, "Verified callback evidence present", "يوجد إثبات Callback متحقق")
+                    : L(locale, "No verified callback evidence yet", "لا يوجد إثبات Callback متحقق بعد")
+                }
+              />
+              <Metric
+                label={L(locale, "Recovery / settlement", "الاسترجاع / التسوية")}
+                value={
+                  activeIntegration?.recoveryReady && activeIntegration?.settlementConfigured
+                    ? L(locale, "Ready", "جاهز")
+                    : L(locale, "Needs attention", "يحتاج انتباه")
+                }
+                detail={L(
+                  locale,
+                  `Recovery ${activeIntegration?.recoveryReady ? "ready" : "pending"} · Settlement ${activeIntegration?.settlementConfigured ? "ready" : "pending"}`,
+                  `الاسترجاع ${activeIntegration?.recoveryReady ? "جاهز" : "معلق"} · التسوية ${activeIntegration?.settlementConfigured ? "جاهزة" : "معلقة"}`
+                )}
+              />
+            </div>
+          </Panel>
+        </div>
       );
     }
 
