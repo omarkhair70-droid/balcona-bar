@@ -1184,56 +1184,28 @@ function CashierDashboardContent() {
     <div className="grid gap-5">
       <div
         data-service-status
-        className="flex flex-wrap items-center gap-2 border-b border-[#342A23] pb-3 text-xs text-[#B8AA9E]"
+        className="flex flex-wrap items-center gap-2 border-b border-[#342A23] bg-[#17120F] px-3 py-2 text-xs text-[#B8AA9E]"
       >
-        <div className="flex min-w-0 flex-wrap items-center gap-2">
-          <Badge variant="muted">{t("cashier.badge")}</Badge>
-          <StaffRealtimeStatus
-            state={realtime.state}
-            lastEventType={realtime.lastEventType}
-          />
-          <span className="truncate font-semibold text-[#F8EDDF]">
-            {selectedBranch.name}
-          </span>
-        </div>
-
-        <div className="ms-auto flex flex-wrap items-center gap-1.5">
-          <span className="inline-flex min-h-8 items-center gap-1.5 rounded-md border border-[#3B3028] bg-[#211A15] px-2.5">
-            <Receipt className="size-3.5 text-[#E0A764]" aria-hidden="true" />
-            {t("cashier.submittedLabel")}{" "}
-            <strong className="text-[#FFF5E8]">
-              {countOrdersByStatus(allOrders, (status) => status === "submitted")}
-            </strong>
-          </span>
-          <span className="inline-flex min-h-8 items-center gap-1.5 rounded-md border border-[#3B3028] bg-[#211A15] px-2.5">
-            <CheckCircle2 className="size-3.5 text-[#7FC37E]" aria-hidden="true" />
-            {t("cashier.inServiceLabel")}{" "}
-            <strong className="text-[#FFF5E8]">
-              {countOrdersByStatus(allOrders, (status) => activeOrderStatuses.has(status))}
-            </strong>
-          </span>
-          <span className="inline-flex min-h-8 items-center gap-1.5 rounded-md border border-[#3B3028] bg-[#211A15] px-2.5">
-            <BellRing className="size-3.5 text-[#F0C66E]" aria-hidden="true" />
-            {t("cashier.billRequestsLabel")}{" "}
-            <strong className="text-[#FFF5E8]">
-              {countBillsByStatus(activeBillRequests, (status) => activeBillStatuses.has(status))}
-            </strong>
-          </span>
-          <span className="inline-flex min-h-8 items-center gap-1.5 rounded-md border border-[#3B3028] bg-[#211A15] px-2.5">
-            <Banknote className="size-3.5 text-[#C68A4A]" aria-hidden="true" />
-            {currentShift
-              ? t("serviceShift.shiftOpen")
-              : t("serviceShift.noOpenShift")}
-          </span>
-          <Button
-            size="sm"
-            variant="secondary"
-            onClick={refreshBranch}
-            aria-label={t("actions.refreshBranch")}
-          >
-            <RefreshCw className="size-4" aria-hidden="true" />
-          </Button>
-        </div>
+        <Badge variant="muted">{selectedBranch.name}</Badge>
+        <StaffRealtimeStatus
+          state={realtime.state}
+          lastEventType={realtime.lastEventType}
+        />
+        <span className="inline-flex items-center gap-1.5">
+          <Banknote className="size-3.5 text-[#C68A4A]" aria-hidden="true" />
+          {currentShift
+            ? t("serviceShift.shiftOpen")
+            : t("serviceShift.noOpenShift")}
+        </span>
+        <Button
+          size="sm"
+          variant="ghost"
+          className="ms-auto min-h-8 text-[#AFA195] hover:bg-[#292019] hover:text-[#F6EBDD]"
+          onClick={refreshBranch}
+          aria-label={t("actions.refreshBranch")}
+        >
+          <RefreshCw className="size-4" aria-hidden="true" />
+        </Button>
       </div>
 
       <NoticeBanner notice={notice} />
