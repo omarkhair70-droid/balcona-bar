@@ -75,8 +75,6 @@
       "currentBillState": "Current bill state",
       "description": "Request the bill, follow its status and finish payment from the same table session.",
       "latestOnlinePayment": "Payment status: {status}.",
-      "latestOnlinePaymentProvider": "",
-      "mockCheckoutUrl": "",
       "mockPaymentError": "Payment could not be confirmed.",
       "noActiveRequest": "No bill request is active yet.",
       "notAvailableYet": "Not available yet",
