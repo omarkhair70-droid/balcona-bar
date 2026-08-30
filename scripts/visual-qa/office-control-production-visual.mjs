@@ -1225,7 +1225,6 @@ try {
     await capture(browser, {
       label: "03-office-operations-desktop",
       hash: "#operations",
-      target: "#operations",
       activeLabel: "Operations"
     })
   );
@@ -1233,7 +1232,6 @@ try {
     await capture(browser, {
       label: "04-office-insights-desktop",
       hash: "#insights",
-      target: "#insights",
       activeLabel: "Insights"
     })
   );
