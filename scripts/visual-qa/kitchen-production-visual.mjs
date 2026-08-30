@@ -897,9 +897,27 @@ async function capture(browser, {
     }
   }
 
-  if (scenario !== "reconnect" && consoleErrors.length > 0) {
+  const unexpectedConsoleErrors = consoleErrors.filter((message) => {
+    if (scenario === "reconnect") {
+      return false;
+    }
+
+    if (
+      scenario === "api-error" &&
+      message.includes("Failed to load resource") &&
+      message.includes("500")
+    ) {
+      return false;
+    }
+
+    return true;
+  });
+
+  if (unexpectedConsoleErrors.length > 0) {
     throw new Error(
-      label + ": browser console errors: " + consoleErrors.join(" | ")
+      label +
+        ": browser console errors: " +
+        unexpectedConsoleErrors.join(" | ")
     );
   }
 
