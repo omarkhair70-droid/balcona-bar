@@ -436,16 +436,15 @@ function CashierShiftPanel({
     <div className="mx-auto max-w-5xl">
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
-          <div className="flex flex-wrap items-center gap-2">
-            <Badge variant="success">{t("serviceShift.shiftOpen")}</Badge>
-            <Badge variant="muted">{branchName}</Badge>
-          </div>
+          <Badge variant="success">{t("serviceShift.shiftOpen")}</Badge>
           <h2 className="mt-2 text-xl font-semibold text-[#FFF5E8]">
             {t("serviceShift.title")}
           </h2>
           <p className="mt-1 text-xs text-[#9B8E82]">
             {t("serviceShift.opened")}{" "}
             {formatDateTime(getRecordString(shift, "openedAt"))}
+            {" · "}
+            {branchName}
             {" · "}
             {t("serviceShift.payments")} {paymentCount}
           </p>
