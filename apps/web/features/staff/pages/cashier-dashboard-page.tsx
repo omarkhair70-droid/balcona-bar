@@ -739,8 +739,6 @@ function CashierDashboardActions() {
     <>
       <StaffRealtimeStatus
         state={realtime.state}
-        lastEventType={realtime.lastEventType}
-        showLastEvent={false}
       />
       <StaffBranchSelector
         access={effectiveAccess}
