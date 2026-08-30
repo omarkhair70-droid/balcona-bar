@@ -103,8 +103,7 @@ export function OfficeStaffShell({
     return () => window.removeEventListener("hashchange", syncHash);
   }, []);
 
-  const isOfficeRoot =
-    pathname === "/office" || pathname === "/staff/office";
+  const isOfficeRoot = pathname === "/office";
   const hashDomain: OfficeDomain | undefined = isOfficeRoot
     ? hash === "#operations"
       ? "operations"

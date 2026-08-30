@@ -4,7 +4,7 @@ import { useRouter } from "next/navigation";
 import { LoaderCircle } from "lucide-react";
 import { useEffect } from "react";
 
-const legacyOwnerDestinations = {
+const legacyOwnerDestinations: Record<string, string> = {
   "#operations": "/office#operations",
   "#insights": "/office#insights",
   "#money": "/office/money",
