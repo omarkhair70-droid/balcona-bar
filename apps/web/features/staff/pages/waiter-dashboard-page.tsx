@@ -777,87 +777,72 @@ function WaiterDashboardContent() {
 
   return (
     <div className="grid gap-5">
-      <section
+      <div
         data-service-status
-        className="overflow-hidden rounded-lg border border-[#3B3028] bg-[#1E1814]"
+        className="flex flex-wrap items-center gap-2 border-b border-[#342A23] pb-3 text-xs text-[#B8AA9E]"
       >
-        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#342A23] px-3 py-3">
-          <div className="min-w-0">
-            <div className="flex flex-wrap items-center gap-2">
-              <Badge variant="muted">{t("waiter.badge")}</Badge>
-              <StaffRealtimeStatus
-                state={realtime.state}
-                lastEventType={realtime.lastEventType}
-              />
-            </div>
-            <p className="mt-2 truncate text-sm font-semibold text-[#FFF5E8]">
-              {selectedBranch.name}
-            </p>
-          </div>
-          <div className="flex flex-wrap gap-2">
-            <Button size="sm" variant="secondary" onClick={refreshBranch}>
-              <RefreshCw className="size-4" aria-hidden="true" />
-              {t("actions.refreshBranch")}
-            </Button>
-            <Button
-              size="sm"
-              variant="secondary"
-              onClick={() => rebuildAttentionMutation.mutate(selectedBranchId)}
-              disabled={rebuildAttentionMutation.isPending}
-            >
-              <RefreshCw
-                className={
-                  rebuildAttentionMutation.isPending
-                    ? "size-4 animate-spin"
-                    : "size-4"
-                }
-                aria-hidden="true"
-              />
-              {rebuildAttentionMutation.isPending
-                ? t("actions.rebuilding")
-                : t("actions.rebuildAttention")}
-            </Button>
-          </div>
+        <div className="flex min-w-0 flex-wrap items-center gap-2">
+          <Badge variant="muted">{t("waiter.badge")}</Badge>
+          <StaffRealtimeStatus
+            state={realtime.state}
+            lastEventType={realtime.lastEventType}
+          />
+          <span className="truncate font-semibold text-[#F8EDDF]">
+            {selectedBranch.name}
+          </span>
         </div>
-        <div className="grid grid-cols-3 divide-x divide-[#342A23] rtl:divide-x-reverse">
-          <div className="flex min-h-16 items-center gap-2 px-3 py-2">
-            <BellRing className="size-4 shrink-0 text-[#F0C66E]" aria-hidden="true" />
-            <div>
-              <strong className="block text-lg leading-none text-[#FFF5E8]">
-                {countWaiterCallsByStatus(allWaiterCalls, (status) => status === "open")}
-              </strong>
-              <span className="mt-1 block text-[10px] text-[#91857A]">
-                {t("waiter.openCallsLabel")}
-              </span>
-            </div>
-          </div>
-          <div className="flex min-h-16 items-center gap-2 px-3 py-2">
-            <AlertTriangle className="size-4 shrink-0 text-[#F09C94]" aria-hidden="true" />
-            <div>
-              <strong className="block text-lg leading-none text-[#FFF5E8]">
-                {countAttentionByStatus(
-                  allAttentionQueue,
-                  (status, priority) => status === "urgent" || priority === "urgent"
-                )}
-              </strong>
-              <span className="mt-1 block text-[10px] text-[#91857A]">
-                {t("attention.immediateAttentionLabel")}
-              </span>
-            </div>
-          </div>
-          <div className="flex min-h-16 items-center gap-2 px-3 py-2">
-            <HandPlatter className="size-4 shrink-0 text-[#7FC37E]" aria-hidden="true" />
-            <div>
-              <strong className="block text-lg leading-none text-[#FFF5E8]">
-                {readyOrders.length}
-              </strong>
-              <span className="mt-1 block text-[10px] text-[#91857A]">
-                {t("waiter.readyOrdersTitle")}
-              </span>
-            </div>
-          </div>
+
+        <div className="ms-auto flex flex-wrap items-center gap-1.5">
+          <span className="inline-flex min-h-8 items-center gap-1.5 rounded-md border border-[#3B3028] bg-[#211A15] px-2.5">
+            <BellRing className="size-3.5 text-[#F0C66E]" aria-hidden="true" />
+            {t("waiter.openCallsLabel")}{" "}
+            <strong className="text-[#FFF5E8]">
+              {countWaiterCallsByStatus(allWaiterCalls, (status) => status === "open")}
+            </strong>
+          </span>
+          <span className="inline-flex min-h-8 items-center gap-1.5 rounded-md border border-[#3B3028] bg-[#211A15] px-2.5">
+            <AlertTriangle className="size-3.5 text-[#F09C94]" aria-hidden="true" />
+            {t("attention.immediateAttentionLabel")}{" "}
+            <strong className="text-[#FFF5E8]">
+              {countAttentionByStatus(
+                allAttentionQueue,
+                (status, priority) => status === "urgent" || priority === "urgent"
+              )}
+            </strong>
+          </span>
+          <span className="inline-flex min-h-8 items-center gap-1.5 rounded-md border border-[#3B3028] bg-[#211A15] px-2.5">
+            <HandPlatter className="size-3.5 text-[#7FC37E]" aria-hidden="true" />
+            {t("waiter.readyOrdersTitle")}{" "}
+            <strong className="text-[#FFF5E8]">{readyOrders.length}</strong>
+          </span>
+          <Button
+            size="sm"
+            variant="secondary"
+            onClick={refreshBranch}
+            aria-label={t("actions.refreshBranch")}
+          >
+            <RefreshCw className="size-4" aria-hidden="true" />
+          </Button>
+          <Button
+            size="sm"
+            variant="secondary"
+            onClick={() => rebuildAttentionMutation.mutate(selectedBranchId)}
+            disabled={rebuildAttentionMutation.isPending}
+          >
+            <RefreshCw
+              className={
+                rebuildAttentionMutation.isPending
+                  ? "size-4 animate-spin"
+                  : "size-4"
+              }
+              aria-hidden="true"
+            />
+            {rebuildAttentionMutation.isPending
+              ? t("actions.rebuilding")
+              : t("actions.rebuildAttention")}
+          </Button>
         </div>
-      </section>
+      </div>
 
       <NoticeBanner notice={notice} />
 
@@ -871,7 +856,7 @@ function WaiterDashboardContent() {
         />
       </div>
 
-      <section id="attention" className="scroll-mt-36 grid gap-5 xl:grid-cols-[minmax(20rem,28rem)_1fr]">
+      <section id="attention" className="scroll-mt-36 grid gap-3 xl:grid-cols-[360px_minmax(0,1fr)]">
         <AttentionQueue
           attentionQueue={attentionQueue}
           status={attentionStatus}
@@ -915,7 +900,7 @@ function WaiterDashboardContent() {
         />
       </section>
 
-      <section className="grid gap-5 xl:grid-cols-[minmax(20rem,28rem)_1fr]">
+      <section className="grid gap-3 xl:grid-cols-[360px_minmax(0,1fr)]">
         <WaiterCallQueue
           waiterCalls={waiterCalls}
           status={waiterCallStatus}
