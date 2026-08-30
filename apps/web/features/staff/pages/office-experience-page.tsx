@@ -60,6 +60,9 @@ function ExperienceContent() {
   const queryClient = useQueryClient();
   const accessToken = useStaffAuthStore((state) => state.accessToken);
   const selectedBranchId = useStaffAuthStore((state) => state.selectedBranchId);
+  const setSelectedBranchId = useStaffAuthStore(
+    (state) => state.setSelectedBranchId,
+  );
   const effectiveAccess = useStaffAuthStore((state) => state.effectiveAccess);
 
   const branchAccess = effectiveAccess?.branches.find(
@@ -348,7 +351,7 @@ function ExperienceContent() {
   const notifications = recordsFrom(notificationsQuery.data, ["notifications"]);
   const settings = asRecord(operatingQuery.data?.settings);
   const aiWaiterEnabled = settings.aiWaiterEnabled === true;
-  const profiles = [
+  const profiles: Array<Record<string, unknown> & { _scopeLabel: string }> = [
     ...branchProfiles.map((profile) => ({ ...profile, _scopeLabel: "Location" })),
     ...companyProfiles.map((profile) => ({ ...profile, _scopeLabel: "Company" })),
   ];
@@ -356,7 +359,11 @@ function ExperienceContent() {
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center gap-3">
-        <StaffBranchSelector />
+        <StaffBranchSelector
+          access={effectiveAccess}
+          selectedBranchId={selectedBranchId}
+          onChange={setSelectedBranchId}
+        />
         <OfficeInlineNotice title="Experience scope">
           Location profiles override company defaults where the backend resolves
           them as effective. This surface keeps the two scopes explicit.
