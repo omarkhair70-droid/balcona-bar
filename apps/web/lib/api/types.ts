@@ -2214,6 +2214,83 @@ export type UpsertMerchantPaymentIntegrationPayload = {
   settlementConfigured: boolean;
 };
 
+export type PaymentTerminal = {
+  id: string;
+  companyId: string;
+  branchId: string;
+  provider: "paymob" | "fawry" | "geidea" | "external" | string;
+  environment: "test" | "live" | string;
+  status: "draft" | "blocked" | "ready" | "disabled" | string;
+  displayName: string;
+  providerTerminalReference?: string | null;
+  deviceReference?: string | null;
+  merchantReference?: string | null;
+  secretReference?: string | null;
+  readinessMessage?: string | null;
+  lastSeenAt?: string | null;
+  liveVerifiedAt?: string | null;
+  executionAvailable: boolean;
+};
+
+export type BranchPaymentTerminalsResult = {
+  branch: BranchSummary;
+  execution: {
+    available: boolean;
+    blockerCode?: string;
+    message?: string;
+  };
+  terminals: PaymentTerminal[];
+};
+
+export type UpsertPaymentTerminalPayload = {
+  provider: "paymob" | "fawry" | "geidea" | "external";
+  environment: "test" | "live";
+  displayName: string;
+  providerTerminalReference?: string;
+  deviceReference?: string;
+  merchantReference?: string;
+  secretReference?: string;
+};
+
+export type TerminalPaymentRequest = {
+  id: string;
+  billId: string;
+  status:
+    | "created"
+    | "sent"
+    | "pending"
+    | "approved"
+    | "declined"
+    | "cancelled"
+    | "timeout"
+    | "unknown"
+    | "blocked"
+    | string;
+  amountMinor: number;
+  currency: string;
+  failureCode?: string | null;
+  failureMessage?: string | null;
+  requestedAt: string;
+  createdAt: string;
+  updatedAt: string;
+  terminal: PaymentTerminal;
+};
+
+export type TerminalPaymentRequestResult = {
+  request: TerminalPaymentRequest;
+  providerMutationSent: boolean;
+  billSettled: boolean;
+};
+
+export type BranchTerminalPaymentRequestsResult = {
+  branch: BranchSummary;
+  requests: Array<
+    TerminalPaymentRequest & {
+      bill: Record<string, unknown>;
+    }
+  >;
+};
+
 export type OnlinePaymentIntentResult = Record<string, unknown> & {
   outcome?: string;
   onlinePaymentIntent?: Record<string, unknown>;
