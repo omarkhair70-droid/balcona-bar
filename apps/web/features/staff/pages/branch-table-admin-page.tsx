@@ -1651,8 +1651,8 @@ function BranchTableAdminContent() {
               {overview.selectedBranch?.name ?? overview.company.name}
             </CardTitle>
             <CardDescription>
-              Manage branches, floors, tables, QR tokens, active sessions, and
-              setup warnings from one branch-scoped surface.
+              Manage branch profiles, floors, tables, and QR access from one
+              configuration-scoped surface. Live sessions stay in Operations.
             </CardDescription>
           </div>
           <StaffBranchSelector
@@ -1687,12 +1687,6 @@ function BranchTableAdminContent() {
             ) : null}
             {tab.id === "qr" ? (
               <QrCode className="size-4" aria-hidden="true" />
-            ) : null}
-            {tab.id === "sessions" ? (
-              <UsersRound className="size-4" aria-hidden="true" />
-            ) : null}
-            {tab.id === "issues" ? (
-              <AlertTriangle className="size-4" aria-hidden="true" />
             ) : null}
             {tab.label}
           </Button>
@@ -1764,13 +1758,6 @@ function BranchTableAdminContent() {
         />
       ) : null}
 
-      {activeTab === "sessions" ? (
-        <ActiveSessionsSection overview={overview} />
-      ) : null}
-
-      {activeTab === "issues" ? (
-        <SetupIssuesSection overview={overview} />
-      ) : null}
     </div>
   );
 }
