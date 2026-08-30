@@ -612,7 +612,7 @@
       "partySize": "عدد الضيوف {count}",
       "partySizeUnknown": "غير معروف",
       "queueDescription": "إشارات الترابيزات التلقائية تساعد الفريق على متابعة الخدمة واستعادة التجربة.",
-      "queueTitle": "قائمة انتظار الانتباه",
+      "queueTitle": "التنبيهات",
       "recalculated": "إعادة حساب الاهتمام.",
       "recalculateError": "تعذر إعادة حساب الاهتمام. {message}",
       "reasonsTitle": "الأسباب",
