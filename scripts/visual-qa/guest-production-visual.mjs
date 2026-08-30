@@ -137,6 +137,7 @@ const menu = {
           name: "Flat White",
           slug: "flat-white",
           description: "Double espresso with silky steamed milk.",
+          imageUrl: "/menu/signature-latte.webp",
           basePriceMinor: 12500,
           effectivePriceMinor: 12500,
           currency: "EGP",
@@ -155,6 +156,7 @@ const menu = {
           name: "Spanish Latte",
           slug: "spanish-latte",
           description: "Espresso, milk and a soft caramel sweetness.",
+          imageUrl: "/menu/signature-latte.webp",
           basePriceMinor: 14500,
           effectivePriceMinor: 14500,
           currency: "EGP",
@@ -173,6 +175,7 @@ const menu = {
           name: "Iced Americano",
           slug: "iced-americano",
           description: "Bright double espresso over ice and water.",
+          imageUrl: "/menu/cold-drinks.webp",
           basePriceMinor: 10500,
           effectivePriceMinor: 10500,
           currency: "EGP",
@@ -201,6 +204,7 @@ const menu = {
           name: "Butter Croissant",
           slug: "butter-croissant",
           description: "Flaky, buttery and baked this morning.",
+          imageUrl: "/menu/bakery.webp",
           basePriceMinor: 9500,
           effectivePriceMinor: 9500,
           currency: "EGP",
@@ -216,6 +220,14 @@ const menu = {
     }
   ]
 };
+
+for (const category of menu.categories) {
+  for (const item of category.items) {
+    if (!item.imageUrl?.startsWith("/menu/")) {
+      throw new Error(`Guest visual fixture item "${item.slug}" is missing a seeded menu imageUrl`);
+    }
+  }
+}
 
 const orders = {
   tableSession: { id: SESSION_ID, status: "active" },

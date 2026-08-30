@@ -15,7 +15,6 @@ import {
   Receipt,
   ShoppingBag,
   Sparkles,
-  Utensils,
   WalletCards,
   X
 } from "lucide-react";
@@ -48,7 +47,7 @@ type MenuItem = {
   category: "coffee" | "cold" | "dessert" | "food";
   featured?: boolean;
   available?: boolean;
-  visual: "latte" | "matcha" | "cake" | "burger" | "croissant" | "coffee";
+  imageUrl: string;
 };
 
 type CartItem = {
@@ -68,7 +67,7 @@ const menuItems: MenuItem[] = [
     price: 95,
     category: "coffee",
     featured: true,
-    visual: "latte"
+    imageUrl: "/menu/signature-latte.webp"
   },
   {
     id: "iced-matcha",
@@ -79,7 +78,7 @@ const menuItems: MenuItem[] = [
     price: 110,
     category: "cold",
     featured: true,
-    visual: "matcha"
+    imageUrl: "/menu/cold-drinks.webp"
   },
   {
     id: "basque",
@@ -91,7 +90,7 @@ const menuItems: MenuItem[] = [
     category: "dessert",
     featured: true,
     available: false,
-    visual: "cake"
+    imageUrl: "/menu/pistachio-tiramisu.webp"
   },
   {
     id: "burger",
@@ -101,7 +100,7 @@ const menuItems: MenuItem[] = [
     descriptionAr: "لحم، شيدر، صوص بلكونة، خبز بريوش.",
     price: 185,
     category: "food",
-    visual: "burger"
+    imageUrl: "/menu/bakery.webp"
   },
   {
     id: "croissant",
@@ -111,7 +110,7 @@ const menuItems: MenuItem[] = [
     descriptionAr: "هش ودافئ، مخبوز للجلسة.",
     price: 75,
     category: "food",
-    visual: "croissant"
+    imageUrl: "/menu/bakery.webp"
   },
   {
     id: "flat-white",
@@ -121,7 +120,7 @@ const menuItems: MenuItem[] = [
     descriptionAr: "دبل إسبريسو مع فوم ناعم.",
     price: 90,
     category: "coffee",
-    visual: "coffee"
+    imageUrl: "/menu/signature-latte.webp"
   }
 ];
 
@@ -142,39 +141,12 @@ function money(value: number) {
 }
 
 function ProductVisual({
-  kind,
+  imageUrl,
   mode = "feature"
 }: {
-  kind: MenuItem["visual"];
+  imageUrl: string;
   mode?: "feature" | "row" | "sheet" | "tiny";
 }) {
-  const iconClass =
-    mode === "sheet"
-      ? "size-10"
-      : mode === "feature"
-        ? "size-7"
-        : mode === "row"
-          ? "size-5"
-          : "size-4";
-
-  const visual =
-    kind === "latte" || kind === "coffee" || kind === "matcha" ? (
-      <Coffee className={iconClass} />
-    ) : (
-      <Utensils className={iconClass} />
-    );
-
-  const gradient =
-    kind === "matcha"
-      ? "from-[#A4B77A] via-[#D6DAB7] to-[#EFE6D8]"
-      : kind === "cake"
-        ? "from-[#AE745D] via-[#D8B29D] to-[#F0DED1]"
-        : kind === "burger"
-          ? "from-[#845438] via-[#BB8256] to-[#E5BD8C]"
-          : kind === "croissant"
-            ? "from-[#BE7C3C] via-[#E4B56E] to-[#F2D5A3]"
-            : "from-[#654331] via-[#A87554] to-[#DDBA98]";
-
   const size =
     mode === "sheet"
       ? "aspect-[4/3] w-full rounded-[24px]"
@@ -186,16 +158,14 @@ function ProductVisual({
 
   return (
     <div
-      className={`relative overflow-hidden bg-gradient-to-br ${gradient} ${size}`}
+      className={`relative overflow-hidden bg-[#E9DED3] bg-cover bg-center ${size}`}
+      style={{ backgroundImage: `url(${imageUrl})` }}
+      aria-hidden="true"
     >
-      <div className="absolute inset-0 bg-[radial-gradient(circle_at_72%_20%,rgba(255,255,255,.62),transparent_23%),radial-gradient(circle_at_18%_82%,rgba(70,35,18,.18),transparent_36%)]" />
-      <div className="absolute inset-0 flex items-center justify-center text-[#3D2B21]/65">
-        {visual}
-      </div>
+      <div className="absolute inset-0 bg-gradient-to-t from-black/10 via-transparent to-white/5" />
     </div>
   );
 }
-
 function SessionHeader({
   locale,
   onLocale
@@ -436,7 +406,7 @@ function MenuView({
                 onClick={() => onSelectItem(item)}
                 className="w-[170px] shrink-0 overflow-hidden rounded-[20px] border border-[#E6DBD1] bg-white p-2 text-start shadow-[0_8px_24px_rgba(75,48,31,.05)]"
               >
-                <ProductVisual kind={item.visual} mode="feature" />
+                <ProductVisual imageUrl={item.imageUrl} mode="feature" />
                 <div className="px-1 pb-1 pt-2.5">
                   <p className="truncate text-sm font-black text-[#35271F]">
                     {itemName(locale, item)}
@@ -503,7 +473,7 @@ function MenuView({
               </div>
 
               <div className="relative">
-                <ProductVisual kind={item.visual} mode="row" />
+                <ProductVisual imageUrl={item.imageUrl} mode="row" />
                 {item.available !== false ? (
                   <span className="absolute -bottom-1 -end-1 flex size-8 items-center justify-center rounded-full border-2 border-white bg-[#2F2119] text-white">
                     <Plus className="size-3.5" />
@@ -585,7 +555,7 @@ function ItemSheet({
         </div>
 
         <div className="mt-3">
-          <ProductVisual kind={item.visual} mode="sheet" />
+          <ProductVisual imageUrl={item.imageUrl} mode="sheet" />
         </div>
 
         <div className="mt-4 flex items-start justify-between gap-4">
@@ -761,7 +731,7 @@ function CartSheet({
         <div className="mt-4 divide-y divide-[#ECE2D8]">
           {cart.map((entry) => (
             <div key={entry.item.id} className="flex gap-3 py-3">
-              <ProductVisual kind={entry.item.visual} mode="tiny" />
+              <ProductVisual imageUrl={entry.item.imageUrl} mode="tiny" />
               <div className="min-w-0 flex-1">
                 <p className="text-sm font-black text-[#372A21]">
                   {itemName(locale, entry.item)}
@@ -1419,7 +1389,7 @@ function AiSheet({
               {L(locale, "Cart proposal", "اقتراح للسلة")}
             </p>
             <div className="mt-2 flex items-center gap-3">
-              <ProductVisual kind="latte" mode="tiny" />
+              <ProductVisual imageUrl="/menu/signature-latte.webp" mode="tiny" />
               <div className="min-w-0 flex-1">
                 <p className="text-sm font-black text-[#382920]">
                   Spanish Latte
