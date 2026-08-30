@@ -57,6 +57,7 @@ import { CashierOrderStatusPill } from "./cashier-order-status-pill";
 type CashierOrderDetailPanelProps = {
   order?: OrderDetailResult;
   isLoading?: boolean;
+  isRefreshing?: boolean;
   error?: Error;
   acceptPending?: boolean;
   rejectPending?: boolean;
@@ -134,6 +135,7 @@ function getCashierDisabledReason(
 export function CashierOrderDetailPanel({
   order,
   isLoading,
+  isRefreshing,
   error,
   acceptPending,
   rejectPending,
@@ -188,6 +190,11 @@ export function CashierOrderDetailPanel({
           />
         ) : null}
         {isLoading ? <LoadingState label={t("orders.loadingDetail")} /> : null}
+        {isRefreshing ? (
+          <p role="status" className="rounded-md border border-[#5A483A] bg-[#292019] p-3 text-xs text-[#CDBEAF]">
+            {t("orders.loadingDetail")}
+          </p>
+        ) : null}
         {error ? (
           <EmptyState
             title={t("orders.orderDetailError")}
@@ -408,7 +415,7 @@ export function CashierOrderDetailPanel({
               rejectPending={rejectPending}
               cancelPending={cancelPending}
               completePending={completePending}
-              actionPending={actionPending}
+              actionPending={actionPending || isRefreshing}
               disabledReason={disabledReason}
               onRejectReasonChange={setRejectReason}
               onCancelReasonChange={setCancelReason}

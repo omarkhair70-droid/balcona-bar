@@ -2,7 +2,12 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import {
+  keepPreviousData,
+  useMutation,
+  useQuery,
+  useQueryClient,
+} from "@tanstack/react-query";
 import {
   AlertTriangle,
   Banknote,
@@ -45,6 +50,7 @@ import {
   shortId,
 } from "@/features/staff/staff-format";
 import { useStaffBranchRealtime } from "@/features/staff/use-staff-branch-realtime";
+import { pendingActionFor } from "@/lib/interaction/pending-scope";
 import {
   acceptOrder,
   acknowledgeBillRequest,
@@ -684,6 +690,9 @@ function CashierDashboardContent() {
     useState<BranchBillRequestStatusFilter>("active");
   const [userSelectedOrderId, setUserSelectedOrderId] = useState<string>();
   const [notice, setNotice] = useState<Notice>();
+  const [pendingOrderActions, setPendingOrderActions] = useState<
+    Record<string, "accept" | "reject" | "complete" | "cancel">
+  >({});
   const [shiftReport, setShiftReport] =
     useState<CashierShiftReportSnapshot | null>(null);
   const selectedBranchAccess = effectiveAccess?.branches.find(
@@ -793,6 +802,7 @@ function CashierDashboardContent() {
     queryFn: () => getOrderDetail(selectedOrderId ?? "", accessToken),
     enabled: Boolean(selectedOrderId && accessToken),
     staleTime: 5_000,
+    placeholderData: keepPreviousData,
   });
   const refreshBranch = () => {
     if (!selectedBranchId) {
@@ -980,11 +990,24 @@ function CashierDashboardContent() {
   });
   const acceptMutation = useMutation({
     mutationFn: (orderId: string) => acceptOrder(orderId, {}, accessToken),
+    onMutate: (orderId) => {
+      setPendingOrderActions((current) => ({
+        ...current,
+        [orderId]: "accept",
+      }));
+    },
     onSuccess: (result, orderId) => {
       showOrderActionSuccess(t("orders.orderAccepted"), orderId, result);
     },
     onError: (error: Error, orderId) => {
       showOrderActionError("accepted", error, orderId);
+    },
+    onSettled: (_result, _error, orderId) => {
+      setPendingOrderActions((current) => {
+        const next = { ...current };
+        delete next[orderId];
+        return next;
+      });
     },
   });
   const rejectMutation = useMutation({
@@ -995,30 +1018,69 @@ function CashierDashboardContent() {
       orderId: string;
       reason?: string | null;
     }) => rejectOrder(orderId, { reason }, accessToken),
+    onMutate: ({ orderId }) => {
+      setPendingOrderActions((current) => ({
+        ...current,
+        [orderId]: "reject",
+      }));
+    },
     onSuccess: (result, variables) => {
       showOrderActionSuccess(t("orders.orderRejected"), variables.orderId, result);
     },
     onError: (error: Error, variables) => {
       showOrderActionError("rejected", error, variables.orderId);
     },
+    onSettled: (_result, _error, variables) => {
+      setPendingOrderActions((current) => {
+        const next = { ...current };
+        delete next[variables.orderId];
+        return next;
+      });
+    },
   });
   const completeOrderMutation = useMutation({
     mutationFn: (orderId: string) => completeOrder(orderId, {}, accessToken),
+    onMutate: (orderId) => {
+      setPendingOrderActions((current) => ({
+        ...current,
+        [orderId]: "complete",
+      }));
+    },
     onSuccess: (result, orderId) => {
       showOrderActionSuccess(t("orders.orderCompleted"), orderId, result);
     },
     onError: (error: Error, orderId) => {
       showOrderActionError("completed", error, orderId);
     },
+    onSettled: (_result, _error, orderId) => {
+      setPendingOrderActions((current) => {
+        const next = { ...current };
+        delete next[orderId];
+        return next;
+      });
+    },
   });
   const cancelOrderMutation = useMutation({
     mutationFn: ({ orderId, reason }: { orderId: string; reason: string }) =>
       cancelOrder(orderId, { reason }, accessToken),
+    onMutate: ({ orderId }) => {
+      setPendingOrderActions((current) => ({
+        ...current,
+        [orderId]: "cancel",
+      }));
+    },
     onSuccess: (result, variables) => {
       showOrderActionSuccess(t("orders.orderCancelled"), variables.orderId, result);
     },
     onError: (error: Error, variables) => {
       showOrderActionError("cancelled", error, variables.orderId);
+    },
+    onSettled: (_result, _error, variables) => {
+      setPendingOrderActions((current) => {
+        const next = { ...current };
+        delete next[variables.orderId];
+        return next;
+      });
     },
   });
   const billActionMutation = useMutation({
@@ -1111,11 +1173,19 @@ function CashierDashboardContent() {
       });
     },
   });
-  const orderActionPending =
-    acceptMutation.isPending ||
-    rejectMutation.isPending ||
-    completeOrderMutation.isPending ||
-    cancelOrderMutation.isPending;
+  const selectedOrderAction = pendingActionFor(
+    pendingOrderActions,
+    selectedOrderId,
+  );
+  const orderActionPending = Boolean(selectedOrderAction);
+  const prefetchOrder = (orderId: string) => {
+    if (!accessToken) return;
+    void queryClient.prefetchQuery({
+      queryKey: staffQueryKeys.order(orderId),
+      queryFn: () => getOrderDetail(orderId, accessToken),
+      staleTime: 5_000,
+    });
+  };
 
   if (!selectedBranchId || !selectedBranch) {
     return (
@@ -1211,16 +1281,18 @@ function CashierDashboardContent() {
           error={ordersQuery.error ?? undefined}
           onStatusChange={setOrderStatus}
           onSelectOrder={setUserSelectedOrderId}
+          onPrefetchOrder={prefetchOrder}
           onRefresh={refreshBranch}
         />
         <CashierOrderDetailPanel
           order={orderDetailQuery.data}
           isLoading={orderDetailQuery.isPending && Boolean(selectedOrderId)}
+          isRefreshing={orderDetailQuery.isPlaceholderData}
           error={orderDetailQuery.error ?? undefined}
-          acceptPending={acceptMutation.isPending}
-          rejectPending={rejectMutation.isPending}
-          cancelPending={cancelOrderMutation.isPending}
-          completePending={completeOrderMutation.isPending}
+          acceptPending={selectedOrderAction === "accept"}
+          rejectPending={selectedOrderAction === "reject"}
+          cancelPending={selectedOrderAction === "cancel"}
+          completePending={selectedOrderAction === "complete"}
           actionPending={orderActionPending}
           onAccept={() => {
             if (selectedOrderId && !orderActionPending) {

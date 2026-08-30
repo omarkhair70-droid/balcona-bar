@@ -28,6 +28,7 @@ type AttentionQueueProps = {
   onStatusChange: (status: AttentionStatusFilter) => void;
   onPriorityChange: (priority: TableAttentionPriority) => void;
   onSelectAttention: (sessionId: string) => void;
+  onPrefetchAttention?: (sessionId: string) => void;
   onRefresh: () => void;
 };
 
@@ -84,6 +85,7 @@ export function AttentionQueue({
   onStatusChange,
   onPriorityChange,
   onSelectAttention,
+  onPrefetchAttention,
   onRefresh
 }: AttentionQueueProps) {
   const t = useTranslations("staff");
@@ -208,6 +210,7 @@ export function AttentionQueue({
                   attention={attention}
                   selected={selectedSessionId === sessionId}
                   onSelect={onSelectAttention}
+                  onPrefetch={onPrefetchAttention}
                 />
               );
             })}

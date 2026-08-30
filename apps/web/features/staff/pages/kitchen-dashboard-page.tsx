@@ -76,6 +76,7 @@ import {
   getTableLabel
 } from "@/features/staff/staff-format";
 import { useStaffBranchRealtime } from "@/features/staff/use-staff-branch-realtime";
+import { pendingActionFor } from "@/lib/interaction/pending-scope";
 import {
   getBranchKitchenTickets,
   getBranchPrintJobs,
@@ -410,7 +411,7 @@ function TaskCard({
   expediter,
   canStartPermission,
   canReadyPermission,
-  actionPending,
+  pendingAction,
   onStart,
   onReady
 }: {
@@ -419,7 +420,7 @@ function TaskCard({
   expediter: boolean;
   canStartPermission: boolean;
   canReadyPermission: boolean;
-  actionPending: boolean;
+  pendingAction?: "start" | "ready";
   onStart: (taskId: string) => void;
   onReady: (taskId: string) => void;
 }) {
@@ -459,6 +460,7 @@ function TaskCard({
       className={cn("rounded-lg border p-3", cardClass)}
       data-kds-task-status={status}
       data-kds-task-age={age}
+      data-kds-task-action={pendingAction ?? "idle"}
     >
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
@@ -520,22 +522,24 @@ function TaskCard({
       {status === "pending" ? (
         <button
           type="button"
-          disabled={!canStart || actionPending}
+          disabled={!canStart || Boolean(pendingAction)}
           onClick={() => taskId && onStart(taskId)}
           className="mt-4 min-h-12 w-full rounded-md border border-[#57514B] bg-[#25221F] text-sm font-black text-[#F1EAE3] transition enabled:active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-45"
         >
-          {actionPending ? t("actions.starting") : t("actions.start")}
+          {pendingAction === "start" ? t("actions.starting") : t("actions.start")}
         </button>
       ) : null}
 
       {status === "preparing" ? (
         <button
           type="button"
-          disabled={!canReady || actionPending}
+          disabled={!canReady || Boolean(pendingAction)}
           onClick={() => taskId && onReady(taskId)}
           className="mt-4 min-h-12 w-full rounded-md bg-[#C68A4A] text-sm font-black text-[#17110C] transition enabled:active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-45"
         >
-          {actionPending ? t("actions.markingReady") : t("actions.markReady")}
+          {pendingAction === "ready"
+            ? t("actions.markingReady")
+            : t("actions.markReady")}
         </button>
       ) : null}
 
@@ -564,7 +568,7 @@ function ProductionBoard({
   error,
   canStartPermission,
   canReadyPermission,
-  actionPending,
+  pendingTaskActions,
   onStart,
   onReady,
   onRefresh
@@ -576,7 +580,7 @@ function ProductionBoard({
   error?: Error;
   canStartPermission: boolean;
   canReadyPermission: boolean;
-  actionPending: boolean;
+  pendingTaskActions: Readonly<Record<string, "start" | "ready">>;
   onStart: (taskId: string) => void;
   onReady: (taskId: string) => void;
   onRefresh: () => void;
@@ -697,7 +701,10 @@ function ProductionBoard({
                         expediter={station === "expediter"}
                         canStartPermission={canStartPermission}
                         canReadyPermission={canReadyPermission}
-                        actionPending={actionPending}
+                        pendingAction={pendingActionFor(
+                          pendingTaskActions,
+                          getTaskId(task),
+                        )}
                         onStart={onStart}
                         onReady={onReady}
                       />
@@ -1012,7 +1019,7 @@ function TicketsView({
   station,
   isLoading,
   error,
-  reprintPending,
+  pendingTicketIds,
   onReprint
 }: {
   tickets: Record<string, unknown>[];
@@ -1020,7 +1027,7 @@ function TicketsView({
   station: KdsStation;
   isLoading: boolean;
   error?: Error;
-  reprintPending: boolean;
+  pendingTicketIds: ReadonlySet<string>;
   onReprint: (ticketId: string) => void;
 }) {
   const t = useTranslations("staff");
@@ -1064,7 +1071,7 @@ function TicketsView({
                 key={getTicketId(ticket) || String(index)}
                 ticket={ticket}
                 now={now}
-                reprintPending={reprintPending}
+                reprintPending={pendingTicketIds.has(getTicketId(ticket))}
                 onReprint={onReprint}
               />
             ))}
@@ -1080,7 +1087,7 @@ function PrintView({
   station,
   isLoading,
   error,
-  actionPending,
+  pendingPrintJobIds,
   onMarkFailed,
   onRetry
 }: {
@@ -1089,7 +1096,7 @@ function PrintView({
   station: KdsStation;
   isLoading: boolean;
   error?: Error;
-  actionPending: boolean;
+  pendingPrintJobIds: ReadonlySet<string>;
   onMarkFailed: (printJobId: string) => void;
   onRetry: (printJobId: string) => void;
 }) {
@@ -1153,7 +1160,7 @@ function PrintView({
                 key={getPrintJobId(job) || String(index)}
                 printJob={job}
                 now={now}
-                actionPending={actionPending}
+                actionPending={pendingPrintJobIds.has(getPrintJobId(job))}
                 onMarkFailed={onMarkFailed}
                 onRetry={onRetry}
               />
@@ -1188,6 +1195,15 @@ function KitchenDashboardContent() {
   const [view, setView] = useState<KdsView>("board");
   const [notice, setNotice] = useState<Notice>();
   const [now, setNow] = useState(() => Date.now());
+  const [pendingTaskActions, setPendingTaskActions] = useState<
+    Record<string, "start" | "ready">
+  >({});
+  const [pendingTicketIds, setPendingTicketIds] = useState<Set<string>>(
+    () => new Set(),
+  );
+  const [pendingPrintJobIds, setPendingPrintJobIds] = useState<Set<string>>(
+    () => new Set(),
+  );
   const realtime = useStaffBranchRealtime(selectedBranchId, accessToken);
   const apiStation = stationApiValue(station);
 
@@ -1314,6 +1330,12 @@ function KitchenDashboardContent() {
   const startMutation = useMutation({
     mutationFn: ({ taskId }: TaskAction) =>
       startPreparationTask(taskId, { staffUserId: staffUser?.id }, accessToken),
+    onMutate: ({ taskId }) => {
+      setPendingTaskActions((current) => ({
+        ...current,
+        [taskId]: "start",
+      }));
+    },
     onSuccess: (result, variables) => {
       setNotice({ tone: "success", message: t("kitchen.taskStarted") });
       invalidateTaskState(variables.taskId, getTaskOrderId(result));
@@ -1329,7 +1351,14 @@ function KitchenDashboardContent() {
           error
         }
       });
-    }
+    },
+    onSettled: (_result, _error, variables) => {
+      setPendingTaskActions((current) => {
+        const next = { ...current };
+        delete next[variables.taskId];
+        return next;
+      });
+    },
   });
 
   const readyMutation = useMutation({
@@ -1339,6 +1368,12 @@ function KitchenDashboardContent() {
         { staffUserId: staffUser?.id },
         accessToken
       ),
+    onMutate: ({ taskId }) => {
+      setPendingTaskActions((current) => ({
+        ...current,
+        [taskId]: "ready",
+      }));
+    },
     onSuccess: (result, variables) => {
       setNotice({ tone: "success", message: t("kitchen.taskMarkedReady") });
       invalidateTaskState(variables.taskId, getTaskOrderId(result));
@@ -1354,7 +1389,14 @@ function KitchenDashboardContent() {
           error
         }
       });
-    }
+    },
+    onSettled: (_result, _error, variables) => {
+      setPendingTaskActions((current) => {
+        const next = { ...current };
+        delete next[variables.taskId];
+        return next;
+      });
+    },
   });
 
   const reprintMutation = useMutation({
@@ -1364,6 +1406,9 @@ function KitchenDashboardContent() {
         { reason: "KDS manual reprint" },
         accessToken
       ),
+    onMutate: ({ ticketId }) => {
+      setPendingTicketIds((current) => new Set(current).add(ticketId));
+    },
     onSuccess: () => {
       setNotice({ tone: "success", message: t("kitchen.ticketReprintQueued") });
       refreshBranch();
@@ -1373,12 +1418,22 @@ function KitchenDashboardContent() {
         tone: "error",
         message: t("kitchen.ticketReprintError", { message: error.message })
       });
-    }
+    },
+    onSettled: (_result, _error, variables) => {
+      setPendingTicketIds((current) => {
+        const next = new Set(current);
+        next.delete(variables.ticketId);
+        return next;
+      });
+    },
   });
 
   const printJobFailedMutation = useMutation({
     mutationFn: ({ printJobId, errorMessage }: PrintJobFailedAction) =>
       markPrintJobFailed(printJobId, { errorMessage }, accessToken),
+    onMutate: ({ printJobId }) => {
+      setPendingPrintJobIds((current) => new Set(current).add(printJobId));
+    },
     onSuccess: () => {
       setNotice({ tone: "success", message: t("kitchen.printJobFailed") });
       refreshBranch();
@@ -1388,12 +1443,22 @@ function KitchenDashboardContent() {
         tone: "error",
         message: t("kitchen.printJobFailedError", { message: error.message })
       });
-    }
+    },
+    onSettled: (_result, _error, variables) => {
+      setPendingPrintJobIds((current) => {
+        const next = new Set(current);
+        next.delete(variables.printJobId);
+        return next;
+      });
+    },
   });
 
   const printJobRetryMutation = useMutation({
     mutationFn: ({ printJobId }: PrintJobAction) =>
       retryPrintJob(printJobId, accessToken),
+    onMutate: ({ printJobId }) => {
+      setPendingPrintJobIds((current) => new Set(current).add(printJobId));
+    },
     onSuccess: () => {
       setNotice({ tone: "success", message: t("kitchen.printJobRetry") });
       refreshBranch();
@@ -1403,7 +1468,14 @@ function KitchenDashboardContent() {
         tone: "error",
         message: t("kitchen.printJobRetryError", { message: error.message })
       });
-    }
+    },
+    onSettled: (_result, _error, variables) => {
+      setPendingPrintJobIds((current) => {
+        const next = new Set(current);
+        next.delete(variables.printJobId);
+        return next;
+      });
+    },
   });
 
   if (!selectedBranchId || !selectedBranch) {
@@ -1533,9 +1605,17 @@ function KitchenDashboardContent() {
           error={tasksQuery.error ?? undefined}
           canStartPermission={canStartPermission}
           canReadyPermission={canReadyPermission}
-          actionPending={startMutation.isPending || readyMutation.isPending}
-          onStart={(taskId) => startMutation.mutate({ taskId })}
-          onReady={(taskId) => readyMutation.mutate({ taskId })}
+          pendingTaskActions={pendingTaskActions}
+          onStart={(taskId) => {
+            if (!pendingTaskActions[taskId]) {
+              startMutation.mutate({ taskId });
+            }
+          }}
+          onReady={(taskId) => {
+            if (!pendingTaskActions[taskId]) {
+              readyMutation.mutate({ taskId });
+            }
+          }}
           onRefresh={refreshBranch}
         />
       ) : null}
@@ -1547,8 +1627,12 @@ function KitchenDashboardContent() {
           station={station}
           isLoading={ticketsQuery.isPending}
           error={ticketsQuery.error ?? undefined}
-          reprintPending={reprintMutation.isPending}
-          onReprint={(ticketId) => reprintMutation.mutate({ ticketId })}
+          pendingTicketIds={pendingTicketIds}
+          onReprint={(ticketId) => {
+            if (!pendingTicketIds.has(ticketId)) {
+              reprintMutation.mutate({ ticketId });
+            }
+          }}
         />
       ) : null}
 
@@ -1559,18 +1643,20 @@ function KitchenDashboardContent() {
           station={station}
           isLoading={printJobsQuery.isPending}
           error={printJobsQuery.error ?? undefined}
-          actionPending={
-            printJobFailedMutation.isPending || printJobRetryMutation.isPending
-          }
-          onMarkFailed={(printJobId) =>
-            printJobFailedMutation.mutate({
-              printJobId,
-              errorMessage: "Reported failed from KDS"
-            })
-          }
-          onRetry={(printJobId) =>
-            printJobRetryMutation.mutate({ printJobId })
-          }
+          pendingPrintJobIds={pendingPrintJobIds}
+          onMarkFailed={(printJobId) => {
+            if (!pendingPrintJobIds.has(printJobId)) {
+              printJobFailedMutation.mutate({
+                printJobId,
+                errorMessage: "Reported failed from KDS"
+              });
+            }
+          }}
+          onRetry={(printJobId) => {
+            if (!pendingPrintJobIds.has(printJobId)) {
+              printJobRetryMutation.mutate({ printJobId });
+            }
+          }}
         />
       ) : null}
     </div>

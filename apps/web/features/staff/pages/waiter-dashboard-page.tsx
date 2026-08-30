@@ -2,7 +2,12 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import {
+  keepPreviousData,
+  useMutation,
+  useQuery,
+  useQueryClient,
+} from "@tanstack/react-query";
 import {
   AlertTriangle,
   BellRing,
@@ -55,6 +60,7 @@ import {
   getWaiterCallTableSession
 } from "@/features/staff/waiter-data";
 import { useStaffBranchRealtime } from "@/features/staff/use-staff-branch-realtime";
+import { isEntityPending } from "@/lib/interaction/pending-scope";
 import {
   acknowledgeWaiterCall,
   cancelWaiterCall,
@@ -247,6 +253,15 @@ function WaiterDashboardContent() {
     useState<string>();
   const [userSelectedSessionId, setUserSelectedSessionId] = useState<string>();
   const [notice, setNotice] = useState<Notice>();
+  const [pendingOrderIds, setPendingOrderIds] = useState<Set<string>>(
+    () => new Set(),
+  );
+  const [pendingWaiterCallActions, setPendingWaiterCallActions] = useState<
+    Record<string, "acknowledge" | "resolve" | "cancel">
+  >({});
+  const [pendingAttentionActions, setPendingAttentionActions] = useState<
+    Record<string, "resolve" | "mute" | "recalculate">
+  >({});
   const selectedBranchAccess = effectiveAccess?.branches.find(
     (entry) => entry.branch.id === selectedBranchId
   );
@@ -390,14 +405,16 @@ function WaiterDashboardContent() {
     queryKey: staffQueryKeys.staffWaiterCall(selectedWaiterCallId),
     queryFn: () => getWaiterCallDetail(selectedWaiterCallId ?? "", accessToken),
     enabled: Boolean(selectedWaiterCallId && accessToken),
-    staleTime: 5_000
+    staleTime: 5_000,
+    placeholderData: keepPreviousData,
   });
   const attentionDetailQuery = useQuery({
     queryKey: staffQueryKeys.staffTableSessionAttention(selectedSessionId),
     queryFn: () =>
       getTableSessionAttention(selectedSessionId ?? "", accessToken),
     enabled: Boolean(selectedSessionId && accessToken),
-    staleTime: 5_000
+    staleTime: 5_000,
+    placeholderData: keepPreviousData,
   });
   const refreshBranch = () => {
     if (!selectedBranchId) {
@@ -502,6 +519,12 @@ function WaiterDashboardContent() {
         { staffUserId: staffUser?.id },
         accessToken
       ),
+    onMutate: (waiterCallId) => {
+      setPendingWaiterCallActions((current) => ({
+        ...current,
+        [waiterCallId]: "acknowledge",
+      }));
+    },
     onSuccess: (result, waiterCallId) => {
       setNotice({ tone: "success", message: t("waiter.acknowledged") });
       invalidateWaiterState(
@@ -514,10 +537,20 @@ function WaiterDashboardContent() {
         tone: "error",
         message: t("waiter.acknowledgeError", { message: error.message })
       });
-    }
+    },
+    onSettled: (_result, _error, waiterCallId) => {
+      setPendingWaiterCallActions((current) => {
+        const next = { ...current };
+        delete next[waiterCallId];
+        return next;
+      });
+    },
   });
   const serveOrderMutation = useMutation({
     mutationFn: (orderId: string) => serveOrder(orderId, {}, accessToken),
+    onMutate: (orderId) => {
+      setPendingOrderIds((current) => new Set(current).add(orderId));
+    },
     onSuccess: (_, orderId) => {
       setNotice({ tone: "success", message: t("waiter.orderMarkedServed") });
       invalidateOrderState(orderId);
@@ -527,7 +560,14 @@ function WaiterDashboardContent() {
         tone: "error",
         message: t("waiter.orderServeError", { message: error.message })
       });
-    }
+    },
+    onSettled: (_result, _error, orderId) => {
+      setPendingOrderIds((current) => {
+        const next = new Set(current);
+        next.delete(orderId);
+        return next;
+      });
+    },
   });
   const resolveWaiterCallMutation = useMutation({
     mutationFn: ({ waiterCallId, resolutionNote }: ResolveWaiterCallAction) =>
@@ -536,6 +576,12 @@ function WaiterDashboardContent() {
         { staffUserId: staffUser?.id, resolutionNote },
         accessToken
       ),
+    onMutate: ({ waiterCallId }) => {
+      setPendingWaiterCallActions((current) => ({
+        ...current,
+        [waiterCallId]: "resolve",
+      }));
+    },
     onSuccess: (result, variables) => {
       setNotice({ tone: "success", message: t("waiter.callResolved") });
       invalidateWaiterState(
@@ -548,11 +594,24 @@ function WaiterDashboardContent() {
         tone: "error",
         message: t("waiter.callResolveError", { message: error.message })
       });
-    }
+    },
+    onSettled: (_result, _error, variables) => {
+      setPendingWaiterCallActions((current) => {
+        const next = { ...current };
+        delete next[variables.waiterCallId];
+        return next;
+      });
+    },
   });
   const cancelWaiterCallMutation = useMutation({
     mutationFn: ({ waiterCallId, reason }: CancelWaiterCallAction) =>
       cancelWaiterCall(waiterCallId, { reason }, accessToken),
+    onMutate: ({ waiterCallId }) => {
+      setPendingWaiterCallActions((current) => ({
+        ...current,
+        [waiterCallId]: "cancel",
+      }));
+    },
     onSuccess: (result, variables) => {
       setNotice({ tone: "success", message: t("waiter.callCancelled") });
       invalidateWaiterState(
@@ -565,7 +624,14 @@ function WaiterDashboardContent() {
         tone: "error",
         message: t("waiter.callCancelError", { message: error.message })
       });
-    }
+    },
+    onSettled: (_result, _error, variables) => {
+      setPendingWaiterCallActions((current) => {
+        const next = { ...current };
+        delete next[variables.waiterCallId];
+        return next;
+      });
+    },
   });
   const resolveAttentionMutation = useMutation({
     mutationFn: ({ sessionId, note }: ResolveAttentionAction) =>
@@ -574,6 +640,12 @@ function WaiterDashboardContent() {
         { staffUserId: staffUser?.id, note },
         accessToken
       ),
+    onMutate: ({ sessionId }) => {
+      setPendingAttentionActions((current) => ({
+        ...current,
+        [sessionId]: "resolve",
+      }));
+    },
     onSuccess: (_, variables) => {
       setNotice({ tone: "success", message: t("attention.resolved") });
       invalidateAttentionState(variables.sessionId);
@@ -583,7 +655,14 @@ function WaiterDashboardContent() {
         tone: "error",
         message: t("attention.resolveError", { message: error.message })
       });
-    }
+    },
+    onSettled: (_result, _error, variables) => {
+      setPendingAttentionActions((current) => {
+        const next = { ...current };
+        delete next[variables.sessionId];
+        return next;
+      });
+    },
   });
   const muteAttentionMutation = useMutation({
     mutationFn: ({ sessionId, minutes, note }: MuteAttentionAction) =>
@@ -592,6 +671,12 @@ function WaiterDashboardContent() {
         { staffUserId: staffUser?.id, minutes, note },
         accessToken
       ),
+    onMutate: ({ sessionId }) => {
+      setPendingAttentionActions((current) => ({
+        ...current,
+        [sessionId]: "mute",
+      }));
+    },
     onSuccess: (_, variables) => {
       setNotice({
         tone: "success",
@@ -604,7 +689,14 @@ function WaiterDashboardContent() {
         tone: "error",
         message: t("attention.muteError", { message: error.message })
       });
-    }
+    },
+    onSettled: (_result, _error, variables) => {
+      setPendingAttentionActions((current) => {
+        const next = { ...current };
+        delete next[variables.sessionId];
+        return next;
+      });
+    },
   });
   const recalculateAttentionMutation = useMutation({
     mutationFn: (sessionId: string) =>
@@ -613,6 +705,12 @@ function WaiterDashboardContent() {
         { source: "staff_waiter_dashboard" },
         accessToken
       ),
+    onMutate: (sessionId) => {
+      setPendingAttentionActions((current) => ({
+        ...current,
+        [sessionId]: "recalculate",
+      }));
+    },
     onSuccess: (_, sessionId) => {
       setNotice({ tone: "success", message: t("attention.recalculated") });
       invalidateAttentionState(sessionId);
@@ -622,7 +720,14 @@ function WaiterDashboardContent() {
         tone: "error",
         message: t("attention.recalculateError", { message: error.message })
       });
-    }
+    },
+    onSettled: (_result, _error, sessionId) => {
+      setPendingAttentionActions((current) => {
+        const next = { ...current };
+        delete next[sessionId];
+        return next;
+      });
+    },
   });
   const rebuildAttentionMutation = useMutation({
     mutationFn: (branchId: string) => rebuildBranchAttention(branchId, accessToken),
@@ -637,6 +742,29 @@ function WaiterDashboardContent() {
       });
     }
   });
+
+  const prefetchWaiterCall = (waiterCallId: string) => {
+    if (!accessToken) return;
+    void queryClient.prefetchQuery({
+      queryKey: staffQueryKeys.staffWaiterCall(waiterCallId),
+      queryFn: () => getWaiterCallDetail(waiterCallId, accessToken),
+      staleTime: 5_000,
+    });
+  };
+  const prefetchAttention = (sessionId: string) => {
+    if (!accessToken) return;
+    void queryClient.prefetchQuery({
+      queryKey: staffQueryKeys.staffTableSessionAttention(sessionId),
+      queryFn: () => getTableSessionAttention(sessionId, accessToken),
+      staleTime: 5_000,
+    });
+  };
+  const selectedWaiterCallAction = selectedWaiterCallId
+    ? pendingWaiterCallActions[selectedWaiterCallId]
+    : undefined;
+  const selectedAttentionAction = selectedSessionId
+    ? pendingAttentionActions[selectedSessionId]
+    : undefined;
 
   if (!selectedBranchId || !selectedBranch) {
     return (
@@ -754,15 +882,17 @@ function WaiterDashboardContent() {
           onStatusChange={setAttentionStatus}
           onPriorityChange={setAttentionPriority}
           onSelectAttention={setUserSelectedSessionId}
+          onPrefetchAttention={prefetchAttention}
           onRefresh={refreshBranch}
         />
         <AttentionDetailPanel
           attention={attentionDetailQuery.data}
           isLoading={attentionDetailQuery.isPending && Boolean(selectedSessionId)}
+          isRefreshing={attentionDetailQuery.isPlaceholderData}
           error={attentionDetailQuery.error ?? undefined}
-          resolvePending={resolveAttentionMutation.isPending}
-          mutePending={muteAttentionMutation.isPending}
-          recalculatePending={recalculateAttentionMutation.isPending}
+          resolvePending={selectedAttentionAction === "resolve"}
+          mutePending={selectedAttentionAction === "mute"}
+          recalculatePending={selectedAttentionAction === "recalculate"}
           onResolve={(note) => {
             if (selectedSessionId) {
               resolveAttentionMutation.mutate({ sessionId: selectedSessionId, note });
@@ -796,15 +926,17 @@ function WaiterDashboardContent() {
           onStatusChange={setWaiterCallStatus}
           onTypeChange={setWaiterCallType}
           onSelectWaiterCall={setUserSelectedWaiterCallId}
+          onPrefetchWaiterCall={prefetchWaiterCall}
           onRefresh={refreshBranch}
         />
         <WaiterCallDetailPanel
           waiterCall={waiterCallDetailQuery.data}
           isLoading={waiterCallDetailQuery.isPending && Boolean(selectedWaiterCallId)}
+          isRefreshing={waiterCallDetailQuery.isPlaceholderData}
           error={waiterCallDetailQuery.error ?? undefined}
-          acknowledgePending={acknowledgeMutation.isPending}
-          resolvePending={resolveWaiterCallMutation.isPending}
-          cancelPending={cancelWaiterCallMutation.isPending}
+          acknowledgePending={selectedWaiterCallAction === "acknowledge"}
+          resolvePending={selectedWaiterCallAction === "resolve"}
+          cancelPending={selectedWaiterCallAction === "cancel"}
           onAcknowledge={() => {
             if (selectedWaiterCallId) {
               acknowledgeMutation.mutate(selectedWaiterCallId);
@@ -861,11 +993,16 @@ function WaiterDashboardContent() {
                   </div>
                   <Button
                     size="sm"
-                    onClick={() => orderId && serveOrderMutation.mutate(orderId)}
+                    aria-busy={isEntityPending(pendingOrderIds, orderId)}
+                    onClick={() => {
+                      if (orderId && !isEntityPending(pendingOrderIds, orderId)) {
+                        serveOrderMutation.mutate(orderId);
+                      }
+                    }}
                     disabled={
                       !orderId ||
                       status !== "ready" ||
-                      serveOrderMutation.isPending
+                      isEntityPending(pendingOrderIds, orderId)
                     }
                   >
                     <HandPlatter className="size-4" aria-hidden="true" />

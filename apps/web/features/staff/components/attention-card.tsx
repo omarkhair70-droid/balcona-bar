@@ -30,12 +30,14 @@ type AttentionCardProps = {
   attention: Record<string, unknown>;
   selected?: boolean;
   onSelect: (sessionId: string) => void;
+  onPrefetch?: (sessionId: string) => void;
 };
 
 export function AttentionCard({
   attention,
   selected,
-  onSelect
+  onSelect,
+  onPrefetch,
 }: AttentionCardProps) {
   const t = useTranslations("staff");
   const sessionId = getAttentionSessionId(attention);
@@ -53,6 +55,8 @@ export function AttentionCard({
       type="button"
       aria-pressed={selected}
       onClick={() => sessionId && onSelect(sessionId)}
+      onPointerEnter={() => sessionId && onPrefetch?.(sessionId)}
+      onFocus={() => sessionId && onPrefetch?.(sessionId)}
       className={cn(
         "relative w-full overflow-hidden rounded-md border p-3 text-start transition",
         selected

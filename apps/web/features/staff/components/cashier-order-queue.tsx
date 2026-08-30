@@ -18,6 +18,7 @@ type CashierOrderQueueProps = {
   error?: Error;
   onStatusChange: (status: CashierOrderStatus) => void;
   onSelectOrder: (orderId: string) => void;
+  onPrefetchOrder?: (orderId: string) => void;
   onRefresh: () => void;
 };
 
@@ -37,6 +38,7 @@ export function CashierOrderQueue({
   error,
   onStatusChange,
   onSelectOrder,
+  onPrefetchOrder,
   onRefresh
 }: CashierOrderQueueProps) {
   const t = useTranslations("staff");
@@ -112,6 +114,7 @@ export function CashierOrderQueue({
                   order={order}
                   selected={selectedOrderId === orderId}
                   onSelect={onSelectOrder}
+                  onPrefetch={onPrefetchOrder}
                 />
               );
             })}

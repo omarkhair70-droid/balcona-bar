@@ -50,6 +50,7 @@ import { WaiterCallStatusPill } from "./waiter-call-status-pill";
 type WaiterCallDetailPanelProps = {
   waiterCall?: WaiterCallDetailResult;
   isLoading?: boolean;
+  isRefreshing?: boolean;
   error?: Error;
   acknowledgePending?: boolean;
   resolvePending?: boolean;
@@ -62,6 +63,7 @@ type WaiterCallDetailPanelProps = {
 export function WaiterCallDetailPanel({
   waiterCall,
   isLoading,
+  isRefreshing,
   error,
   acknowledgePending,
   resolvePending,
@@ -98,6 +100,11 @@ export function WaiterCallDetailPanel({
           />
         ) : null}
         {isLoading ? <LoadingState label={t("waiter.loadingDetail")} /> : null}
+        {isRefreshing ? (
+          <p role="status" className="rounded-md border border-[#5A483A] bg-[#292019] p-3 text-xs text-[#CDBEAF]">
+            {t("waiter.loadingDetail")}
+          </p>
+        ) : null}
         {error ? (
           <EmptyState
             title={t("waiter.callDetailLoadError")}
@@ -188,7 +195,7 @@ export function WaiterCallDetailPanel({
               <div className="flex flex-wrap items-center gap-3">
                 <Button
                   onClick={onAcknowledge}
-                  disabled={!canAcknowledge || acknowledgePending}
+                  disabled={!canAcknowledge || acknowledgePending || isRefreshing}
                 >
                   <Check className="size-4" aria-hidden="true" />
                   {acknowledgePending
@@ -198,7 +205,7 @@ export function WaiterCallDetailPanel({
                 <Button
                   variant="secondary"
                   onClick={() => onResolve(resolutionNote.trim() || null)}
-                  disabled={!canResolve || resolvePending}
+                  disabled={!canResolve || resolvePending || isRefreshing}
                 >
                   <Send className="size-4" aria-hidden="true" />
                   {resolvePending ? t("actions.resolving") : t("actions.resolve")}
@@ -206,7 +213,7 @@ export function WaiterCallDetailPanel({
                 <Button
                   variant="danger"
                   onClick={() => onCancel(cancelReason.trim() || null)}
-                  disabled={!canCancel || cancelPending}
+                  disabled={!canCancel || cancelPending || isRefreshing}
                 >
                   <X className="size-4" aria-hidden="true" />
                   {cancelPending ? t("actions.cancelling") : t("actions.cancel")}
@@ -225,7 +232,7 @@ export function WaiterCallDetailPanel({
                   rows={3}
                   placeholder={t("waiter.resolutionNotePlaceholder")}
                   className="w-full resize-none rounded-md border border-[#3B3028] bg-[#211A15] px-3 py-2 text-sm text-[#F6EBDD] outline-none transition placeholder:text-[#756A61] focus:border-[#C68A4A] focus:ring-2 focus:ring-[#C68A4A]/20 disabled:cursor-not-allowed disabled:opacity-60"
-                  disabled={!canResolve || resolvePending}
+                  disabled={!canResolve || resolvePending || isRefreshing}
                 />
               </label>
               <label className="mt-4 grid gap-2 text-sm font-medium text-[#F8EDDF]">
@@ -236,7 +243,7 @@ export function WaiterCallDetailPanel({
                   rows={2}
                   placeholder={t("waiter.cancelReasonPlaceholder")}
                   className="w-full resize-none rounded-md border border-[#3B3028] bg-[#211A15] px-3 py-2 text-sm text-[#F6EBDD] outline-none transition placeholder:text-[#756A61] focus:border-[#C68A4A] focus:ring-2 focus:ring-[#C68A4A]/20 disabled:cursor-not-allowed disabled:opacity-60"
-                  disabled={!canCancel || cancelPending}
+                  disabled={!canCancel || cancelPending || isRefreshing}
                 />
               </label>
             </div>
