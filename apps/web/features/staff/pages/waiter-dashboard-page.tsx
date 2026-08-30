@@ -51,7 +51,6 @@ import {
 import { useTranslations } from "@/lib/i18n/i18n-provider";
 import {
   getWaiterCallId,
-  getWaiterCallStatus,
   getWaiterCallTableSession
 } from "@/features/staff/waiter-data";
 import { useStaffBranchRealtime } from "@/features/staff/use-staff-branch-realtime";
@@ -246,17 +245,6 @@ function WaiterDashboardContent() {
   const selectedBranch = selectedBranchAccess?.branch;
   const selectedCompanyId = selectedBranchAccess?.company.id;
   const realtime = useStaffBranchRealtime(selectedBranchId, accessToken);
-  const allWaiterCallsQuery = useQuery({
-    queryKey: staffQueryKeys.staffWaiterCalls(selectedBranchId, "all", "all"),
-    queryFn: () =>
-      getBranchWaiterCalls(
-        selectedBranchId ?? "",
-        { status: "all", type: "all" },
-        accessToken
-      ),
-    enabled: Boolean(selectedBranchId && accessToken),
-    staleTime: 10_000
-  });
   const waiterCallsQuery = useQuery({
     queryKey: staffQueryKeys.staffWaiterCalls(
       selectedBranchId,
