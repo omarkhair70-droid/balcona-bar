@@ -962,6 +962,13 @@ try {
   );
   results.push(
     await capture(browser, {
+      label: "02a-waiter-mode-bills-desktop",
+      route: "/service/cashier?mode=waiter#bills",
+      target: "#bills"
+    })
+  );
+  results.push(
+    await capture(browser, {
       label: "03-cashier-shift-desktop",
       route: "/service/cashier#shift",
       target: "#shift"
