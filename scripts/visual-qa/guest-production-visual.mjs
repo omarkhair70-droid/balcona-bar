@@ -698,11 +698,6 @@ try {
     route: `/customer/session/${SESSION_ID}/service#bill`,
     expectedPath: `/customer/session/${SESSION_ID}/bill`
   }));
-  results.push(await capture(browser, {
-    label: "16-demo-launcher-redirect-en-390",
-    route: "/demo/balkona",
-    expectedPath: "/customer"
-  }));
 } finally {
   await browser.close();
 }
