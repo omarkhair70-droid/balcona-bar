@@ -375,8 +375,8 @@ function CashierShiftPanel({
     adjustmentMinor > 0 && adjustmentNote.trim().length > 0;
 
   return (
-    <Card variant="glass" padding="lg" className="min-w-0 border-[#3B3028] bg-[#1E1814] shadow-none">
-      <CardHeader className="gap-4 border-b border-[#342A23] md:flex md:flex-row md:items-start md:justify-between md:space-y-0">
+    <Card variant="glass" padding="none" className="min-w-0 rounded-none border-0 bg-transparent shadow-none">
+      <CardHeader className="gap-4 md:flex md:flex-row md:items-start md:justify-between md:space-y-0">
         <div>
           <div className="flex flex-wrap items-center gap-2">
             <Badge variant={shift ? "success" : "warning"}>
@@ -451,46 +451,52 @@ function CashierShiftPanel({
 
         {shift ? (
           <>
-            <dl className="grid gap-3 text-xs sm:grid-cols-2 lg:grid-cols-6">
-              <div>
-                <dt className="text-[#91857A]">{t("serviceShift.opened")}</dt>
-                <dd className="mt-1 font-semibold text-[#F8EDDF]">
-                  {formatDateTime(getRecordString(shift, "openedAt"))}
-                </dd>
-              </div>
-              <div>
-                <dt className="text-[#91857A]">{t("serviceShift.openingFloat")}</dt>
-                <dd className="mt-1 font-semibold text-[#F8EDDF]">
-                  {formatMoney(
+            <div className="text-xs text-[#91857A]">
+              {t("serviceShift.opened")}{" "}
+              <strong className="text-[#F8EDDF]">
+                {formatDateTime(getRecordString(shift, "openedAt"))}
+              </strong>
+              {" · "}
+              {t("serviceShift.payments")}{" "}
+              <strong className="text-[#F8EDDF]">{paymentCount}</strong>
+            </div>
+
+            <dl className="grid overflow-hidden rounded-lg border border-[#3D322A] bg-[#211A15] text-xs sm:grid-cols-2 lg:grid-cols-4">
+              {[
+                {
+                  label: t("serviceShift.openingFloat"),
+                  value: formatMoney(
                     getRecordNumber(shift, "openingFloatMinor"),
                     currency,
-                  )}
-                </dd>
-              </div>
-              <div>
-                <dt className="text-[#91857A]">{t("serviceShift.expectedCash")}</dt>
-                <dd className="mt-1 font-semibold text-[#F8EDDF]">
-                  {formatMoney(expectedCashMinor, currency)}
-                </dd>
-              </div>
-              <div>
-                <dt className="text-[#91857A]">{t("serviceShift.collected")}</dt>
-                <dd className="mt-1 font-semibold text-[#F8EDDF]">
-                  {formatMoney(totalCollectedMinor, currency)}
-                </dd>
-              </div>
-              <div>
-                <dt className="text-[#91857A]">{t("serviceShift.payments")}</dt>
-                <dd className="mt-1 font-semibold text-[#F8EDDF]">
-                  {paymentCount}
-                </dd>
-              </div>
-              <div>
-                <dt className="text-[#91857A]">{t("serviceShift.bills")}</dt>
-                <dd className="mt-1 font-semibold text-[#F8EDDF]">
-                  {billCount}
-                </dd>
-              </div>
+                  ),
+                },
+                {
+                  label: t("serviceShift.expectedCash"),
+                  value: formatMoney(expectedCashMinor, currency),
+                },
+                {
+                  label: t("serviceShift.collected"),
+                  value: formatMoney(totalCollectedMinor, currency),
+                },
+                {
+                  label: t("serviceShift.bills"),
+                  value: String(billCount),
+                },
+              ].map((metric, index) => (
+                <div
+                  key={metric.label}
+                  className={`p-4 ${
+                    index
+                      ? "border-t border-[#362C25] sm:border-s sm:border-t-0"
+                      : ""
+                  }`}
+                >
+                  <dt className="text-[#91857A]">{metric.label}</dt>
+                  <dd className="mt-2 text-2xl font-semibold text-[#FFF5E8]">
+                    {metric.value}
+                  </dd>
+                </div>
+              ))}
             </dl>
 
             <div className="grid gap-3 text-xs md:grid-cols-4">
