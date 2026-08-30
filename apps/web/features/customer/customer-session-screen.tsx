@@ -180,13 +180,15 @@ export function CustomerSessionScreen({
           {children}
         </CustomerSessionGate>
 
-        <CustomerBottomNav
-          sessionId={sessionId}
-          active={active}
-          cartCount={getCartItemCount(cartQuery.data)}
-          orderSignal={(ordersQuery.data?.orders.length ?? 0) > 0}
-          billSignal={hasBillSignal}
-        />
+        {readiness.isReady ? (
+          <CustomerBottomNav
+            sessionId={sessionId}
+            active={active}
+            cartCount={getCartItemCount(cartQuery.data)}
+            orderSignal={(ordersQuery.data?.orders.length ?? 0) > 0}
+            billSignal={hasBillSignal}
+          />
+        ) : null}
       </main>
     </div>
   );
