@@ -18,6 +18,7 @@ const NONE: PaymentProviderCapabilities = {
   providerReconciliation: false,
   directTerminal: false,
   recurringBilling: false,
+  bankTransferOrIpn: false,
 };
 
 export const PAYMENT_PROVIDER_CAPABILITIES: Record<
@@ -50,7 +51,7 @@ export const PAYMENT_PROVIDER_CAPABILITIES: Record<
     settlementImport: true,
     providerReconciliation: true,
   },
-  [OnlinePaymentProvider.maestr]: { ...NONE },
+  [OnlinePaymentProvider.maestr]: { ...NONE, bankTransferOrIpn: true },
   [OnlinePaymentProvider.external]: { ...NONE },
 };
 
