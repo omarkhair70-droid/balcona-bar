@@ -1,4 +1,4 @@
-name: Kitchen Visual QA
+name: Kitchen Closure Visual QA
 
 on:
   push:
@@ -16,7 +16,7 @@ permissions:
 
 jobs:
   kitchen-visual-qa:
-    name: Kitchen Desktop Mobile RTL Evidence
+    name: Kitchen 1440 Tablet RTL State Evidence
     runs-on: ubuntu-latest
     timeout-minutes: 20
 
