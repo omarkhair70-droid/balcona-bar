@@ -2,9 +2,15 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import {
+  useMutation,
+  useQueries,
+  useQuery,
+  useQueryClient
+} from "@tanstack/react-query";
 import {
   BarChart3,
+  Bot,
   Boxes,
   LogIn,
   LogOut,
@@ -612,7 +618,12 @@ function OwnerDashboardContent() {
     (entry) => entry.branch.id === selectedBranchId
   );
   const selectedBranch = selectedBranchAccess?.branch;
+  const accessibleBranches = useMemo(
+    () => effectiveAccess?.branches ?? [],
+    [effectiveAccess]
+  );
   const [preset, setPreset] = useState<OwnerAnalyticsPreset>("today");
+  const [scopeMode, setScopeMode] = useState<"branch" | "company">("branch");
   const officeView = useOwnerOfficeView();
   const analyticsQuery = useMemo(() => ({ preset }), [preset]);
   const realtime = useStaffBranchRealtime(selectedBranchId, accessToken);
@@ -636,6 +647,22 @@ function OwnerDashboardContent() {
       getOwnerDailyReport(selectedBranchId ?? "", analyticsQuery, accessToken),
     enabled: Boolean(selectedBranchId && accessToken),
     staleTime: 15_000
+  });
+  const companyDashboardQueries = useQueries({
+    queries: accessibleBranches.map((entry) => ({
+      queryKey: staffQueryKeys.ownerAnalyticsDashboard(
+        entry.branch.id,
+        analyticsQuery
+      ),
+      queryFn: () =>
+        getOwnerAnalyticsDashboard(
+          entry.branch.id,
+          analyticsQuery,
+          accessToken
+        ),
+      enabled: Boolean(accessToken && scopeMode === "company"),
+      staleTime: 15_000
+    }))
   });
   const refreshAll = () => {
     if (!selectedBranchId) {
@@ -688,8 +715,52 @@ function OwnerDashboardContent() {
   const items = dashboard.items;
   const operations = dashboard.operations;
   const cashierShifts = dashboard.cashierShifts;
+  const aiWaiter = dashboard.aiWaiter;
   const currency = getDashboardCurrency(dashboard);
   const topItemName = items.topItemsByQuantity[0]?.name ?? t("empty.noData");
+  const companyRows = accessibleBranches.flatMap((entry, index) => {
+    const branchDashboard = companyDashboardQueries[index]?.data;
+
+    return branchDashboard
+      ? [{ branch: entry.branch, dashboard: branchDashboard }]
+      : [];
+  });
+  const companyCurrencies = new Set(
+    companyRows.map((row) => getDashboardCurrency(row.dashboard))
+  );
+  const companyCurrency =
+    companyCurrencies.size === 1
+      ? companyCurrencies.values().next().value ?? currency
+      : null;
+  const companyTotals = companyRows.reduce(
+    (totals, row) => {
+      totals.revenueMinor += row.dashboard.summary.paidRevenueMinor;
+      totals.orders += row.dashboard.orders.submittedOrderCount;
+      totals.urgentAttention += row.dashboard.operations.urgentAttentionCount;
+      totals.activeAttention += row.dashboard.operations.activeAttentionCount;
+      totals.waiterCalls += row.dashboard.summary.openWaiterCallCount;
+      totals.lowStock += row.dashboard.summary.lowStockCount ?? 0;
+      totals.outOfStock += row.dashboard.summary.outOfStockCount ?? 0;
+      totals.failedPrintJobs += row.dashboard.operations.failedPrintJobCount;
+      totals.blockedMenuItems +=
+        row.dashboard.summary.stockBlockedMenuItemCount ?? 0;
+      return totals;
+    },
+    {
+      revenueMinor: 0,
+      orders: 0,
+      urgentAttention: 0,
+      activeAttention: 0,
+      waiterCalls: 0,
+      lowStock: 0,
+      outOfStock: 0,
+      failedPrintJobs: 0,
+      blockedMenuItems: 0
+    }
+  );
+  const companyScopePending =
+    scopeMode === "company" &&
+    companyDashboardQueries.some((query) => query.isPending);
 
   return (
     <div className="grid gap-5">
@@ -704,23 +775,48 @@ function OwnerDashboardContent() {
                     ? officeT("office.insights")
                     : officeT("office.home")}
               </Badge>
+              <div className="flex rounded-md border border-[#D6D6D1] bg-white p-0.5">
+                <Button
+                  type="button"
+                  size="sm"
+                  variant={scopeMode === "company" ? "primary" : "ghost"}
+                  onClick={() => setScopeMode("company")}
+                  disabled={accessibleBranches.length < 2}
+                >
+                  {officeT("office.sourceCompany")}
+                </Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant={scopeMode === "branch" ? "primary" : "ghost"}
+                  onClick={() => setScopeMode("branch")}
+                >
+                  {officeT("office.sourceBranch")}
+                </Button>
+              </div>
               <StaffRealtimeStatus
                 state={realtime.state}
                 lastEventType={realtime.lastEventType}
               />
             </div>
-            <CardTitle className="mt-3">{selectedBranch.name}</CardTitle>
+            <CardTitle className="mt-3">
+              {scopeMode === "company"
+                ? selectedBranchAccess?.company.name ?? selectedBranch.name
+                : selectedBranch.name}
+            </CardTitle>
             <CardDescription>
-              {officeView === "operations"
-                ? officeT("office.operationsDescription")
-                : officeView === "insights"
-                  ? officeT("office.insightsDescription")
-                  : t("dashboard.viewingDescription", {
-                      name:
-                        staffUser?.name ||
-                        staffUser?.email ||
-                        t("dashboard.staffUserFallback")
-                    })}
+              {scopeMode === "company"
+                ? `${accessibleBranches.length.toLocaleString("en")} ${officeT("office.locations")}`
+                : officeView === "operations"
+                  ? officeT("office.operationsDescription")
+                  : officeView === "insights"
+                    ? officeT("office.insightsDescription")
+                    : t("dashboard.viewingDescription", {
+                        name:
+                          staffUser?.name ||
+                          staffUser?.email ||
+                          t("dashboard.staffUserFallback")
+                      })}
             </CardDescription>
           </div>
           <div className="grid gap-3">
