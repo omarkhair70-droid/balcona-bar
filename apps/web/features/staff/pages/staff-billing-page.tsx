@@ -358,7 +358,7 @@ function StaffBillingContent() {
           <div>
             <Badge
               variant={
-                billingQuery.data?.billing.ready
+                billingQuery.data?.billing?.ready
                   ? billingQuery.data?.billing?.liveVerified
                     ? "success"
                     : "warning"
@@ -366,9 +366,9 @@ function StaffBillingContent() {
               }
               className="mb-3"
             >
-              {billingQuery.data?.billing.liveVerified
+              {billingQuery.data?.billing?.liveVerified
                 ? "Live billing verified"
-                : billingQuery.data?.billing.ready
+                : billingQuery.data?.billing?.ready
                   ? "Billing software ready"
                   : "Billing setup"}
             </Badge>
@@ -422,9 +422,9 @@ function StaffBillingContent() {
           description={
             subscription?.currentPeriodEnd
               ? `Period ends ${formatDateTime(subscription.currentPeriodEnd)}`
-              : billingQuery.data?.billing.ready
+              : billingQuery.data?.billing?.ready
                 ? "Provider billing is ready for subscription enrollment."
-                : billingQuery.data?.billing.readinessMessage ??
+                : billingQuery.data?.billing?.readinessMessage ??
                   "Billing provider configuration is not ready."
           }
           icon={<BadgeCheck className="size-4" aria-hidden="true" />}
@@ -457,7 +457,7 @@ function StaffBillingContent() {
               <div>
                 <Badge
                   variant={
-                    billingQuery.data?.billing.ready
+                    billingQuery.data?.billing?.ready
                       ? billingQuery.data?.billing?.liveVerified
                         ? "success"
                         : "warning"
@@ -474,7 +474,7 @@ function StaffBillingContent() {
                   separately from venue payment processing.
                 </CardDescription>
               </div>
-              {billingQuery.data?.billing.environment ? (
+              {billingQuery.data?.billing?.environment ? (
                 <Badge variant="muted">
                   {billingQuery.data?.billing?.environment.toUpperCase()}
                 </Badge>
@@ -520,8 +520,8 @@ function StaffBillingContent() {
                     </p>
                     <p className="mt-1 text-sm leading-6 text-muted-foreground">
                       {billingQuery.data?.subscription?.providerSubscriptionReference
-                        ? billingQuery.data.subscription
-                            .providerSubscriptionReference
+                        ? billingQuery.data?.subscription
+                            ?.providerSubscriptionReference
                         : "A provider subscription is created only after the first verified checkout."}
                     </p>
                   </div>
@@ -677,13 +677,13 @@ function StaffBillingContent() {
                     Payment attempts
                   </p>
                   <div className="grid gap-2">
-                    {billingQuery.data?.paymentAttempts ?? [].slice(0, 4).length ===
+                    {(billingQuery.data?.paymentAttempts ?? []).slice(0, 4).length ===
                     0 ? (
                       <p className="rounded-button border bg-surface/70 p-3 text-sm text-muted-foreground">
                         No subscription payment attempts yet.
                       </p>
                     ) : (
-                      billingQuery.data?.paymentAttempts ?? []
+                      (billingQuery.data?.paymentAttempts ?? [])
                         .slice(0, 4)
                         .map((attempt) => (
                           <div
@@ -714,12 +714,12 @@ function StaffBillingContent() {
                     Invoices
                   </p>
                   <div className="grid gap-2">
-                    {billingQuery.data?.invoices ?? [].slice(0, 4).length === 0 ? (
+                    {(billingQuery.data?.invoices ?? []).slice(0, 4).length === 0 ? (
                       <p className="rounded-button border bg-surface/70 p-3 text-sm text-muted-foreground">
                         No billing invoices yet.
                       </p>
                     ) : (
-                      billingQuery.data?.invoices ?? [].slice(0, 4).map((invoice) => (
+                      (billingQuery.data?.invoices ?? []).slice(0, 4).map((invoice) => (
                         <div
                           key={invoice.id}
                           className="flex items-center justify-between gap-3 rounded-button border bg-surface/70 p-3"
