@@ -141,12 +141,6 @@ export function BillRequestCard({
   const canPresent =
     Boolean(billRequestId) &&
     (requestStatus === "open" || requestStatus === "acknowledged");
-  const canRecordPayment =
-    Boolean(billId) &&
-    (billStatus === "presented" || billStatus === "payment_pending") &&
-    balanceDueMinor > 0 &&
-    !paymentBlockedReason &&
-    !hasUnresolvedOnlinePayment;
   const [paymentMethod, setPaymentMethod] =
     useState<RecordManualPaymentPayload["method"]>("cash");
   const [paymentAmount, setPaymentAmount] = useState("");
@@ -184,6 +178,12 @@ export function BillRequestCard({
   }).length;
   const hasUnresolvedOnlinePayment =
     activeOnlinePaymentCount > 0 || unknownOnlinePaymentCount > 0;
+  const canRecordPayment =
+    Boolean(billId) &&
+    (billStatus === "presented" || billStatus === "payment_pending") &&
+    balanceDueMinor > 0 &&
+    !paymentBlockedReason &&
+    !hasUnresolvedOnlinePayment;
   const onlinePaymentBadge =
     succeededOnlinePaymentCount > 0
       ? t("billRequests.onlinePaid")
