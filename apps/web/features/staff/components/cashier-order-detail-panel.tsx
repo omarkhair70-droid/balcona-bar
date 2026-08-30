@@ -170,7 +170,7 @@ export function CashierOrderDetailPanel({
   );
 
   return (
-    <Card variant="glass" padding="lg" className="min-h-[34rem] min-w-0 border-[#3B3028] bg-[#1E1814] shadow-none">
+    <Card variant="glass" padding="lg" className="min-w-0 xl:min-h-[34rem] border-[#3B3028] bg-[#1E1814] shadow-none">
       <CardHeader>
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
