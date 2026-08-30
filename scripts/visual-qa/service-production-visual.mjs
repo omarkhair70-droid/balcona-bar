@@ -653,6 +653,25 @@ async function installApiMocks(page) {
       );
     }
 
+    if (pathname === `/api/v1/table-sessions/${SESSION_ID}/orders`) {
+      return route.fulfill(
+        json({
+          tableSession: attentionEnvelope.tableSession,
+          orders: [orderEnvelope]
+        })
+      );
+    }
+
+    if (pathname === `/api/v1/table-sessions/${SESSION_ID}/bill`) {
+      return route.fulfill(
+        json({
+          ...billEnvelope,
+          activeBillRequest: billEnvelope.billRequest,
+          activeBill: billEnvelope.bill
+        })
+      );
+    }
+
     if (pathname.startsWith("/api/v1/orders/") && method === "GET") {
       return route.fulfill(json(orderEnvelope));
     }
