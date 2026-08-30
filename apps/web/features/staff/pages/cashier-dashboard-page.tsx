@@ -715,6 +715,7 @@ function CashierDashboardActions() {
     (state) => state.setSelectedBranchId,
   );
   const clearSession = useStaffAuthStore((state) => state.clearSession);
+  const realtime = useStaffBranchRealtime(selectedBranchId, accessToken);
   const logoutMutation = useMutation({
     mutationFn: () =>
       accessToken ? staffLogout(accessToken) : Promise.resolve({}),
@@ -735,6 +736,10 @@ function CashierDashboardActions() {
 
   return (
     <>
+      <StaffRealtimeStatus
+        state={realtime.state}
+        lastEventType={realtime.lastEventType}
+      />
       <StaffBranchSelector
         access={effectiveAccess}
         selectedBranchId={selectedBranchId}
@@ -775,7 +780,6 @@ function CashierDashboardContent() {
     (entry) => entry.branch.id === selectedBranchId,
   );
   const selectedBranch = selectedBranchAccess?.branch;
-  const realtime = useStaffBranchRealtime(selectedBranchId, accessToken);
   const ordersQuery = useQuery({
     queryKey: staffQueryKeys.branchOrders(selectedBranchId, orderStatus),
     queryFn: () =>
@@ -1293,32 +1297,6 @@ function CashierDashboardContent() {
 
   return (
     <div className="grid gap-5">
-      <div
-        data-service-status
-        className="flex flex-wrap items-center gap-2 border-b border-[#342A23] bg-[#17120F] px-3 py-2 text-xs text-[#B8AA9E]"
-      >
-        <Badge variant="muted">{selectedBranch.name}</Badge>
-        <StaffRealtimeStatus
-          state={realtime.state}
-          lastEventType={realtime.lastEventType}
-        />
-        <span className="inline-flex items-center gap-1.5">
-          <Banknote className="size-3.5 text-[#C68A4A]" aria-hidden="true" />
-          {currentShift
-            ? t("serviceShift.shiftOpen")
-            : t("serviceShift.noOpenShift")}
-        </span>
-        <Button
-          size="sm"
-          variant="ghost"
-          className="ms-auto min-h-8 text-[#AFA195] hover:bg-[#292019] hover:text-[#F6EBDD]"
-          onClick={refreshBranch}
-          aria-label={t("actions.refreshBranch")}
-        >
-          <RefreshCw className="size-4" aria-hidden="true" />
-        </Button>
-      </div>
-
       <NoticeBanner notice={notice} />
 
       {serviceView === "orders" ? (
