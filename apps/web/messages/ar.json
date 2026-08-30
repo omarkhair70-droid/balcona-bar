@@ -727,7 +727,9 @@
       "printConfigBoundary": "إعداد الطابعات والمحطات موجود في Office ← Locations ← Devices & Stations. المطبخ يعرض فقط شغل الطباعة الحي والاستثناءات.",
       "printSuccessExternal": "تُسجل حالة الطباعة فقط عندما يبلغ نظام الطباعة عنها. المطبخ لا يفترض نجاح الطباعة الفعلية.",
       "ticketsEyebrow": "تذاكر المطبخ",
-      "productionBoard": "بورد الإنتاج"
+      "productionBoard": "بورد الإنتاج",
+      "printRoutingMissing": "لا يوجد مسار طباعة",
+      "printerStationMissing": "لا توجد محطة طابعة محددة"
     },
     "navigation": {
       "billing": "الحسابات",
