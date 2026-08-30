@@ -201,6 +201,10 @@ export function ServiceStaffShell({
             const Icon = entry.icon;
             const [entryPath, entryHash = ""] = entry.href.split("#");
             const active = activeView === entryHash;
+            const preferred =
+              (activeMode === "cashier" && entryHash === "orders") ||
+              (activeMode === "waiter" &&
+                (entryHash === "floor" || entryHash === "attention"));
             const href = `${entryPath}?mode=${activeMode}#${entryHash}`;
 
             return (
@@ -224,6 +228,9 @@ export function ServiceStaffShell({
                   aria-hidden="true"
                 />
                 {t(entry.labelKey)}
+                {preferred && !active ? (
+                  <span className="size-1.5 rounded-full bg-[#C68A4A]" />
+                ) : null}
               </Link>
             );
           })}
