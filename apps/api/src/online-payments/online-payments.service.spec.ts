@@ -112,14 +112,12 @@ function operation(
     parentProviderTransactionId: "555001",
     providerTransactionId:
       status === OnlinePaymentOperationStatus.pending ? null : "555010",
-    amountMinor:
-      type === OnlinePaymentOperationType.refund ? 5000 : 12500,
+    amountMinor: type === OnlinePaymentOperationType.refund ? 5000 : 12500,
     currency: "EGP",
     reason: "customer request",
     requestedByStaffUserId: "staff-1",
     requestedAt: now,
-    completedAt:
-      status === OnlinePaymentOperationStatus.succeeded ? now : null,
+    completedAt: status === OnlinePaymentOperationStatus.succeeded ? now : null,
     failedAt: status === OnlinePaymentOperationStatus.failed ? now : null,
     failureCode: null,
     failureMessage: null,
@@ -255,9 +253,7 @@ function createService(provider = "mock", environment = "test") {
   };
 }
 
-function fawryState(
-  overrides: Record<string, unknown> = {},
-) {
+function fawryState(overrides: Record<string, unknown> = {}) {
   return {
     provider: OnlinePaymentProvider.fawry,
     providerEventId: "fawry_event_1",
@@ -279,9 +275,7 @@ function fawryState(
   };
 }
 
-function providerState(
-  overrides: Record<string, unknown> = {},
-) {
+function providerState(overrides: Record<string, unknown> = {}) {
   return {
     provider: OnlinePaymentProvider.paymob,
     providerEventId: "paymob_inquiry_555001_state",
@@ -314,27 +308,27 @@ function setupOperationHarness(
   intentStatus: OnlinePaymentIntentStatus,
 ) {
   const { tx } = context;
-  let currentIntent = intent(
-    intentStatus,
-    OnlinePaymentProvider.paymob,
-    {
-      metadata: { paymobTransactionId: "555001" },
-    },
-  );
+  let currentIntent = intent(intentStatus, OnlinePaymentProvider.paymob, {
+    metadata: { paymobTransactionId: "555001" },
+  });
   let currentOperation: any = null;
 
-  tx.onlinePaymentIntent.findUnique.mockImplementation(async () => currentIntent);
-  tx.onlinePaymentIntent.updateMany.mockImplementation(async ({ data }: any) => {
-    currentIntent = {
-      ...currentIntent,
-      ...data,
-      status: data?.status ?? currentIntent.status,
-    };
-    if (currentOperation) {
-      currentOperation.onlinePaymentIntent = currentIntent;
-    }
-    return { count: 1 };
-  });
+  tx.onlinePaymentIntent.findUnique.mockImplementation(
+    async () => currentIntent,
+  );
+  tx.onlinePaymentIntent.updateMany.mockImplementation(
+    async ({ data }: any) => {
+      currentIntent = {
+        ...currentIntent,
+        ...data,
+        status: data?.status ?? currentIntent.status,
+      };
+      if (currentOperation) {
+        currentOperation.onlinePaymentIntent = currentIntent;
+      }
+      return { count: 1 };
+    },
+  );
 
   tx.onlinePaymentOperation.findUnique.mockImplementation(
     async ({ where }: any) => {
@@ -412,6 +406,22 @@ describe("OnlinePaymentsService", () => {
     expect(tx.onlinePaymentIntent.create).not.toHaveBeenCalled();
   });
 
+  it("fails closed before provider or intent mutation when Maestr is selected without the merchant contract", async () => {
+    const { service, tx, paymobPaymentProviderService, fawryPaymentProviderService } =
+      createService("maestr", "staging");
+
+    await expect(
+      service.createIntentForCustomer("session-1", "bill-1"),
+    ).rejects.toThrow(
+      "Maestr commercial IPN payments remain fail-closed until the PAY-8 merchant API contract is verified",
+    );
+
+    expect(tx.bill.findUnique).not.toHaveBeenCalled();
+    expect(tx.onlinePaymentIntent.create).not.toHaveBeenCalled();
+    expect(paymobPaymentProviderService.createPayment).not.toHaveBeenCalled();
+    expect(fawryPaymentProviderService.createPayment).not.toHaveBeenCalled();
+  });
+
   it("serializes mock intent creation with a bill advisory lock before checking active intents", async () => {
     const { service, tx } = createService("mock");
     const pendingIntent = intent(
@@ -431,10 +441,7 @@ describe("OnlinePaymentsService", () => {
     tx.onlinePaymentIntent.findFirst.mockResolvedValueOnce(null);
     tx.onlinePaymentIntent.create.mockResolvedValueOnce(pendingIntent);
 
-    const result = await service.createIntentForCustomer(
-      "session-1",
-      "bill-1",
-    );
+    const result = await service.createIntentForCustomer("session-1", "bill-1");
 
     expect(tx.$executeRaw).toHaveBeenCalledTimes(1);
     expect(tx.onlinePaymentIntent.create).toHaveBeenCalledTimes(1);
@@ -457,11 +464,9 @@ describe("OnlinePaymentsService", () => {
       balanceDueMinor: 12500,
     });
     tx.onlinePaymentIntent.findFirst.mockResolvedValueOnce(
-      intent(
-        OnlinePaymentIntentStatus.pending,
-        OnlinePaymentProvider.mock,
-        { amountMinor: 10000 },
-      ),
+      intent(OnlinePaymentIntentStatus.pending, OnlinePaymentProvider.mock, {
+        amountMinor: 10000,
+      }),
     );
 
     await expect(
@@ -487,10 +492,7 @@ describe("OnlinePaymentsService", () => {
       balanceDueMinor: 12500,
     });
     tx.onlinePaymentIntent.findFirst.mockResolvedValueOnce(
-      intent(
-        OnlinePaymentIntentStatus.pending,
-        OnlinePaymentProvider.paymob,
-      ),
+      intent(OnlinePaymentIntentStatus.pending, OnlinePaymentProvider.paymob),
     );
 
     await expect(
@@ -503,8 +505,7 @@ describe("OnlinePaymentsService", () => {
   });
 
   it("requires billing data before Fawry checkout initialization", async () => {
-    const { service, tx, fawryPaymentProviderService } =
-      createService("fawry");
+    const { service, tx, fawryPaymentProviderService } = createService("fawry");
 
     await expect(
       service.createIntentForCustomer("session-1", "bill-1", {
@@ -517,12 +518,8 @@ describe("OnlinePaymentsService", () => {
   });
 
   it("persists Fawry merchant reference before provider initialization and finalizes hosted checkout", async () => {
-    const {
-      service,
-      tx,
-      fawryPaymentProviderService,
-      realtimeEventsService,
-    } = createService("fawry");
+    const { service, tx, fawryPaymentProviderService, realtimeEventsService } =
+      createService("fawry");
     const localIntent = intent(
       OnlinePaymentIntentStatus.pending,
       OnlinePaymentProvider.fawry,
@@ -561,8 +558,7 @@ describe("OnlinePaymentsService", () => {
       providerIntentId: "fawry:intent-1",
       providerOrderId: "intent-1",
       status: OnlinePaymentIntentStatus.pending,
-      checkoutUrl:
-        "https://atfawry.fawrystaging.com/checkout/session-1",
+      checkoutUrl: "https://atfawry.fawrystaging.com/checkout/session-1",
       checkoutExpiresAt: new Date("2026-06-05T10:15:00.000Z"),
       metadata: {
         fawryPaymentMethod: "CARD",
@@ -610,19 +606,20 @@ describe("OnlinePaymentsService", () => {
     ).toHaveBeenCalledWith("intent-1", tx);
     expect(result.checkout).toMatchObject({
       provider: OnlinePaymentProvider.fawry,
+      requiresCustomerAction: true,
       requiresHostedCheckout: true,
+      customerAction: {
+        type: "redirect",
+        url: readyIntent.providerCheckoutUrl,
+      },
     });
   });
 
   it("rejects an invalid Fawry signature before touching payment storage", async () => {
-    const { service, tx, fawryPaymentProviderService } =
-      createService("fawry");
+    const { service, tx, fawryPaymentProviderService } = createService("fawry");
     fawryPaymentProviderService.verifyNotification.mockImplementationOnce(
       () => {
-        throw new PaymentProviderError(
-          "bad signature",
-          "signature_invalid",
-        );
+        throw new PaymentProviderError("bad signature", "signature_invalid");
       },
     );
 
@@ -635,12 +632,8 @@ describe("OnlinePaymentsService", () => {
   });
 
   it("settles a verified Fawry PAID notification through the central bill guard", async () => {
-    const {
-      service,
-      tx,
-      billsService,
-      fawryPaymentProviderService,
-    } = createService("fawry");
+    const { service, tx, billsService, fawryPaymentProviderService } =
+      createService("fawry");
     const pendingIntent = intent(
       OnlinePaymentIntentStatus.pending,
       OnlinePaymentProvider.fawry,
@@ -682,12 +675,8 @@ describe("OnlinePaymentsService", () => {
   });
 
   it("does not settle a Fawry notification when the signed amount differs", async () => {
-    const {
-      service,
-      tx,
-      billsService,
-      fawryPaymentProviderService,
-    } = createService("fawry");
+    const { service, tx, billsService, fawryPaymentProviderService } =
+      createService("fawry");
     const pendingIntent = intent(
       OnlinePaymentIntentStatus.pending,
       OnlinePaymentProvider.fawry,
@@ -708,12 +697,8 @@ describe("OnlinePaymentsService", () => {
   });
 
   it("preserves the original succeeded Fawry sale when a refund notification arrives", async () => {
-    const {
-      service,
-      tx,
-      billsService,
-      fawryPaymentProviderService,
-    } = createService("fawry");
+    const { service, tx, billsService, fawryPaymentProviderService } =
+      createService("fawry");
     const succeededIntent = intent(
       OnlinePaymentIntentStatus.succeeded,
       OnlinePaymentProvider.fawry,
@@ -738,7 +723,8 @@ describe("OnlinePaymentsService", () => {
   });
 
   it("requires billing data before Paymob checkout initialization", async () => {
-    const { service, tx, paymobPaymentProviderService } = createService("paymob");
+    const { service, tx, paymobPaymentProviderService } =
+      createService("paymob");
 
     await expect(
       service.createIntentForCustomer("session-1", "bill-1", {
@@ -751,12 +737,8 @@ describe("OnlinePaymentsService", () => {
   });
 
   it("creates a local Paymob intent before the provider call and finalizes hosted checkout", async () => {
-    const {
-      service,
-      tx,
-      paymobPaymentProviderService,
-      realtimeEventsService,
-    } = createService("paymob");
+    const { service, tx, paymobPaymentProviderService, realtimeEventsService } =
+      createService("paymob");
     const localIntent = intent(
       OnlinePaymentIntentStatus.pending,
       OnlinePaymentProvider.paymob,
@@ -864,17 +846,18 @@ describe("OnlinePaymentsService", () => {
     expect(result.checkout).toMatchObject({
       provider: OnlinePaymentProvider.paymob,
       url: readyIntent.providerCheckoutUrl,
+      requiresCustomerAction: true,
       requiresHostedCheckout: true,
+      customerAction: {
+        type: "redirect",
+        url: readyIntent.providerCheckoutUrl,
+      },
     });
   });
 
   it("recovers a missed Paymob success through inquiry and settles exactly once", async () => {
-    const {
-      service,
-      tx,
-      billsService,
-      paymobPaymentProviderService,
-    } = createService("paymob");
+    const { service, tx, billsService, paymobPaymentProviderService } =
+      createService("paymob");
     const failedIntent = intent(
       OnlinePaymentIntentStatus.failed,
       OnlinePaymentProvider.paymob,
@@ -888,24 +871,26 @@ describe("OnlinePaymentsService", () => {
       OnlinePaymentIntentStatus.succeeded,
       OnlinePaymentProvider.paymob,
     );
-    paymobPaymentProviderService.inquireTransactionByOrder.mockResolvedValueOnce({
-      found: true,
-      provider: OnlinePaymentProvider.paymob,
-      providerOrderId: "12345",
-      transaction: {
+    paymobPaymentProviderService.inquireTransactionByOrder.mockResolvedValueOnce(
+      {
+        found: true,
         provider: OnlinePaymentProvider.paymob,
-        providerEventId: "paymob_inquiry_555001_state",
-        providerTransactionId: "555001",
         providerOrderId: "12345",
-        merchantReference: "intent-1",
-        integrationId: 101,
-        status: OnlinePaymentIntentStatus.succeeded,
-        amountMinor: 12500,
-        currency: "EGP",
-        actionable: true,
-        safeMetadata: { inquiry: true, isLive: false },
+        transaction: {
+          provider: OnlinePaymentProvider.paymob,
+          providerEventId: "paymob_inquiry_555001_state",
+          providerTransactionId: "555001",
+          providerOrderId: "12345",
+          merchantReference: "intent-1",
+          integrationId: 101,
+          status: OnlinePaymentIntentStatus.succeeded,
+          amountMinor: 12500,
+          currency: "EGP",
+          actionable: true,
+          safeMetadata: { inquiry: true, isLive: false },
+        },
       },
-    });
+    );
     tx.onlinePaymentIntent.findUnique
       .mockResolvedValueOnce(failedIntent)
       .mockResolvedValueOnce(failedIntent)
@@ -933,12 +918,8 @@ describe("OnlinePaymentsService", () => {
   });
 
   it("reactivates a locally failed intent when Paymob inquiry says it is still pending", async () => {
-    const {
-      service,
-      tx,
-      billsService,
-      paymobPaymentProviderService,
-    } = createService("paymob");
+    const { service, tx, billsService, paymobPaymentProviderService } =
+      createService("paymob");
     const failedIntent = intent(
       OnlinePaymentIntentStatus.failed,
       OnlinePaymentProvider.paymob,
@@ -952,24 +933,26 @@ describe("OnlinePaymentsService", () => {
       OnlinePaymentIntentStatus.pending,
       OnlinePaymentProvider.paymob,
     );
-    paymobPaymentProviderService.inquireTransactionByOrder.mockResolvedValueOnce({
-      found: true,
-      provider: OnlinePaymentProvider.paymob,
-      providerOrderId: "12345",
-      transaction: {
+    paymobPaymentProviderService.inquireTransactionByOrder.mockResolvedValueOnce(
+      {
+        found: true,
         provider: OnlinePaymentProvider.paymob,
-        providerEventId: "paymob_inquiry_555001_pending",
-        providerTransactionId: "555001",
         providerOrderId: "12345",
-        merchantReference: "intent-1",
-        integrationId: 101,
-        status: OnlinePaymentIntentStatus.pending,
-        amountMinor: 12500,
-        currency: "EGP",
-        actionable: true,
-        safeMetadata: { inquiry: true, isLive: false },
+        transaction: {
+          provider: OnlinePaymentProvider.paymob,
+          providerEventId: "paymob_inquiry_555001_pending",
+          providerTransactionId: "555001",
+          providerOrderId: "12345",
+          merchantReference: "intent-1",
+          integrationId: 101,
+          status: OnlinePaymentIntentStatus.pending,
+          amountMinor: 12500,
+          currency: "EGP",
+          actionable: true,
+          safeMetadata: { inquiry: true, isLive: false },
+        },
       },
-    });
+    );
     tx.onlinePaymentIntent.findUnique
       .mockResolvedValueOnce(failedIntent)
       .mockResolvedValueOnce(failedIntent)
@@ -998,12 +981,8 @@ describe("OnlinePaymentsService", () => {
   });
 
   it("expires an active Paymob checkout after inquiry confirms no provider transaction exists", async () => {
-    const {
-      service,
-      tx,
-      paymobPaymentProviderService,
-      realtimeEventsService,
-    } = createService("paymob");
+    const { service, tx, paymobPaymentProviderService, realtimeEventsService } =
+      createService("paymob");
     const pendingIntent = intent(
       OnlinePaymentIntentStatus.pending,
       OnlinePaymentProvider.paymob,
@@ -1020,11 +999,13 @@ describe("OnlinePaymentsService", () => {
         failureCode: "paymob_checkout_expired_without_transaction",
       },
     );
-    paymobPaymentProviderService.inquireTransactionByOrder.mockResolvedValueOnce({
-      found: false,
-      provider: OnlinePaymentProvider.paymob,
-      providerOrderId: "12345",
-    });
+    paymobPaymentProviderService.inquireTransactionByOrder.mockResolvedValueOnce(
+      {
+        found: false,
+        provider: OnlinePaymentProvider.paymob,
+        providerOrderId: "12345",
+      },
+    );
     tx.onlinePaymentIntent.findUnique
       .mockResolvedValueOnce(pendingIntent)
       .mockResolvedValueOnce(expiredIntent);
@@ -1049,34 +1030,32 @@ describe("OnlinePaymentsService", () => {
   });
 
   it("rejects inquiry amount mismatch without settling the bill", async () => {
-    const {
-      service,
-      tx,
-      billsService,
-      paymobPaymentProviderService,
-    } = createService("paymob");
+    const { service, tx, billsService, paymobPaymentProviderService } =
+      createService("paymob");
     const pendingIntent = intent(
       OnlinePaymentIntentStatus.pending,
       OnlinePaymentProvider.paymob,
     );
-    paymobPaymentProviderService.inquireTransactionByOrder.mockResolvedValueOnce({
-      found: true,
-      provider: OnlinePaymentProvider.paymob,
-      providerOrderId: "12345",
-      transaction: {
+    paymobPaymentProviderService.inquireTransactionByOrder.mockResolvedValueOnce(
+      {
+        found: true,
         provider: OnlinePaymentProvider.paymob,
-        providerEventId: "paymob_inquiry_555001_amount",
-        providerTransactionId: "555001",
         providerOrderId: "12345",
-        merchantReference: "intent-1",
-        integrationId: 101,
-        status: OnlinePaymentIntentStatus.succeeded,
-        amountMinor: 9900,
-        currency: "EGP",
-        actionable: true,
-        safeMetadata: { inquiry: true, isLive: false },
+        transaction: {
+          provider: OnlinePaymentProvider.paymob,
+          providerEventId: "paymob_inquiry_555001_amount",
+          providerTransactionId: "555001",
+          providerOrderId: "12345",
+          merchantReference: "intent-1",
+          integrationId: 101,
+          status: OnlinePaymentIntentStatus.succeeded,
+          amountMinor: 9900,
+          currency: "EGP",
+          actionable: true,
+          safeMetadata: { inquiry: true, isLive: false },
+        },
       },
-    });
+    );
     tx.onlinePaymentIntent.findUnique
       .mockResolvedValueOnce(pendingIntent)
       .mockResolvedValueOnce(pendingIntent);
@@ -1091,11 +1070,8 @@ describe("OnlinePaymentsService", () => {
   });
 
   it("blocks a new Paymob retry when inquiry recovers the previous attempt as pending", async () => {
-    const {
-      service,
-      tx,
-      paymobPaymentProviderService,
-    } = createService("paymob");
+    const { service, tx, paymobPaymentProviderService } =
+      createService("paymob");
     const failedIntent = intent(
       OnlinePaymentIntentStatus.failed,
       OnlinePaymentProvider.paymob,
@@ -1108,24 +1084,26 @@ describe("OnlinePaymentsService", () => {
       OnlinePaymentIntentStatus.pending,
       OnlinePaymentProvider.paymob,
     );
-    paymobPaymentProviderService.inquireTransactionByOrder.mockResolvedValueOnce({
-      found: true,
-      provider: OnlinePaymentProvider.paymob,
-      providerOrderId: "12345",
-      transaction: {
+    paymobPaymentProviderService.inquireTransactionByOrder.mockResolvedValueOnce(
+      {
+        found: true,
         provider: OnlinePaymentProvider.paymob,
-        providerEventId: "paymob_inquiry_555001_pending_retry",
-        providerTransactionId: "555001",
         providerOrderId: "12345",
-        merchantReference: "intent-1",
-        integrationId: 101,
-        status: OnlinePaymentIntentStatus.pending,
-        amountMinor: 12500,
-        currency: "EGP",
-        actionable: true,
-        safeMetadata: { inquiry: true, isLive: false },
+        transaction: {
+          provider: OnlinePaymentProvider.paymob,
+          providerEventId: "paymob_inquiry_555001_pending_retry",
+          providerTransactionId: "555001",
+          providerOrderId: "12345",
+          merchantReference: "intent-1",
+          integrationId: 101,
+          status: OnlinePaymentIntentStatus.pending,
+          amountMinor: 12500,
+          currency: "EGP",
+          actionable: true,
+          safeMetadata: { inquiry: true, isLive: false },
+        },
       },
-    });
+    );
     tx.onlinePaymentIntent.findFirst
       .mockResolvedValueOnce(failedIntent)
       .mockResolvedValueOnce(null)
@@ -1228,15 +1206,11 @@ describe("OnlinePaymentsService", () => {
       amountMinor: 5000,
     });
 
-    const result = await service.refundProviderIntent(
-      "intent-1",
-      "staff-1",
-      {
-        amountMinor: 5000,
-        idempotencyKey: "fawry-refund-key-1",
-        reason: "customer request",
-      },
-    );
+    const result = await service.refundProviderIntent("intent-1", "staff-1", {
+      amountMinor: 5000,
+      idempotencyKey: "fawry-refund-key-1",
+      reason: "customer request",
+    });
 
     expect(fawryPaymentProviderService.refundPayment).toHaveBeenCalledWith({
       referenceNumber: "987654321",
@@ -1260,8 +1234,7 @@ describe("OnlinePaymentsService", () => {
   });
 
   it("rejects Fawry over-refund before calling the provider", async () => {
-    const { service, tx, fawryPaymentProviderService } =
-      createService("fawry");
+    const { service, tx, fawryPaymentProviderService } = createService("fawry");
     const succeededIntent = intent(
       OnlinePaymentIntentStatus.succeeded,
       OnlinePaymentProvider.fawry,
@@ -1281,17 +1254,14 @@ describe("OnlinePaymentsService", () => {
         amountMinor: 3000,
         idempotencyKey: "fawry-over-refund",
       }),
-    ).rejects.toThrow(
-      "Refund amount exceeds the remaining refundable amount",
-    );
+    ).rejects.toThrow("Refund amount exceeds the remaining refundable amount");
 
     expect(fawryPaymentProviderService.refundPayment).not.toHaveBeenCalled();
     expect(tx.onlinePaymentOperation.create).not.toHaveBeenCalled();
   });
 
   it("keeps an ambiguous Fawry refund timeout pending and blocks another refund", async () => {
-    const { service, tx, fawryPaymentProviderService } =
-      createService("fawry");
+    const { service, tx, fawryPaymentProviderService } = createService("fawry");
     const succeededIntent = intent(
       OnlinePaymentIntentStatus.succeeded,
       OnlinePaymentProvider.fawry,
@@ -1356,9 +1326,7 @@ describe("OnlinePaymentsService", () => {
       "Fawry refund outcome is uncertain and must be recovered before another refund",
     );
 
-    expect(currentOperation.status).toBe(
-      OnlinePaymentOperationStatus.pending,
-    );
+    expect(currentOperation.status).toBe(OnlinePaymentOperationStatus.pending);
     expect(currentOperation.failureCode).toBe("uncertain:timeout");
 
     await expect(
@@ -1419,23 +1387,19 @@ describe("OnlinePaymentsService", () => {
       safeMetadata: { responseAccepted: true },
     });
 
-    const result = await service.refundPaymobIntent(
-      "intent-1",
-      "staff-1",
+    const result = await service.refundPaymobIntent("intent-1", "staff-1", {
+      amountMinor: 5000,
+      idempotencyKey: "refund-key-1",
+      reason: "customer request",
+    });
+
+    expect(paymobPaymentProviderService.refundTransaction).toHaveBeenCalledWith(
       {
+        parentProviderTransactionId: "555001",
         amountMinor: 5000,
-        idempotencyKey: "refund-key-1",
-        reason: "customer request",
+        expectedCurrency: "EGP",
       },
     );
-
-    expect(
-      paymobPaymentProviderService.refundTransaction,
-    ).toHaveBeenCalledWith({
-      parentProviderTransactionId: "555001",
-      amountMinor: 5000,
-      expectedCurrency: "EGP",
-    });
     expect(tx.onlinePaymentOperation.updateMany).toHaveBeenCalledWith(
       expect.objectContaining({
         data: expect.objectContaining({
@@ -1469,11 +1433,11 @@ describe("OnlinePaymentsService", () => {
         amountMinor: 3000,
         idempotencyKey: "refund-key-over",
       }),
-    ).rejects.toThrow(
-      "Refund amount exceeds the remaining refundable amount",
-    );
+    ).rejects.toThrow("Refund amount exceeds the remaining refundable amount");
 
-    expect(paymobPaymentProviderService.refundTransaction).not.toHaveBeenCalled();
+    expect(
+      paymobPaymentProviderService.refundTransaction,
+    ).not.toHaveBeenCalled();
     expect(tx.onlinePaymentOperation.create).not.toHaveBeenCalled();
   });
 
@@ -1495,17 +1459,15 @@ describe("OnlinePaymentsService", () => {
       "Balcona currently requires full capture to preserve full-bill settlement integrity",
     );
 
-    expect(paymobPaymentProviderService.captureTransaction).not.toHaveBeenCalled();
+    expect(
+      paymobPaymentProviderService.captureTransaction,
+    ).not.toHaveBeenCalled();
     expect(tx.onlinePaymentOperation.create).not.toHaveBeenCalled();
   });
 
   it("full capture settles the bill only after authoritative capture inquiry", async () => {
     const context = createService("paymob");
-    const {
-      service,
-      billsService,
-      paymobPaymentProviderService,
-    } = context;
+    const { service, billsService, paymobPaymentProviderService } = context;
     setupOperationHarness(
       context,
       OnlinePaymentOperationType.capture,
@@ -1555,14 +1517,10 @@ describe("OnlinePaymentsService", () => {
       safeMetadata: { responseAccepted: true },
     });
 
-    const result = await service.capturePaymobIntent(
-      "intent-1",
-      "staff-1",
-      {
-        amountMinor: 12500,
-        idempotencyKey: "capture-full",
-      },
-    );
+    const result = await service.capturePaymobIntent("intent-1", "staff-1", {
+      amountMinor: 12500,
+      idempotencyKey: "capture-full",
+    });
 
     expect(billsService.settleBillWithOnlinePayment).toHaveBeenCalledTimes(1);
     expect(result.outcome).toBe("succeeded");
@@ -1570,11 +1528,7 @@ describe("OnlinePaymentsService", () => {
 
   it("leaves an ambiguous refund timeout pending so a second financial operation stays blocked", async () => {
     const context = createService("paymob");
-    const {
-      service,
-      tx,
-      paymobPaymentProviderService,
-    } = context;
+    const { service, tx, paymobPaymentProviderService } = context;
     const harness = setupOperationHarness(
       context,
       OnlinePaymentOperationType.refund,
@@ -1650,12 +1604,7 @@ describe("OnlinePaymentsService", () => {
 
   it("uses a child webhook only as a trigger and finalizes the pending refund from authoritative inquiry", async () => {
     const context = createService("paymob");
-    const {
-      service,
-      tx,
-      billsService,
-      paymobPaymentProviderService,
-    } = context;
+    const { service, tx, billsService, paymobPaymentProviderService } = context;
     const harness = setupOperationHarness(
       context,
       OnlinePaymentOperationType.refund,
@@ -1711,10 +1660,9 @@ describe("OnlinePaymentsService", () => {
       }),
     );
 
-    const result = await service.processPaymobWebhook(
-      "verified-hmac",
-      { child: "callback" },
-    );
+    const result = await service.processPaymobWebhook("verified-hmac", {
+      child: "callback",
+    });
 
     expect(
       paymobPaymentProviderService.inquireTransactionById,
@@ -1763,15 +1711,13 @@ describe("OnlinePaymentsService", () => {
       .mockResolvedValueOnce(succeededIntent)
       .mockResolvedValueOnce(succeededIntent);
 
-    const result = await service.processPaymobWebhook(
-      "verified-hmac",
-      { signed: "payload" },
-    );
+    const result = await service.processPaymobWebhook("verified-hmac", {
+      signed: "payload",
+    });
 
-    expect(paymobPaymentProviderService.verifyTransactionWebhook).toHaveBeenCalledWith(
-      { signed: "payload" },
-      "verified-hmac",
-    );
+    expect(
+      paymobPaymentProviderService.verifyTransactionWebhook,
+    ).toHaveBeenCalledWith({ signed: "payload" }, "verified-hmac");
     expect(tx.onlinePaymentEvent.create).toHaveBeenCalledWith(
       expect.objectContaining({
         data: expect.objectContaining({
@@ -1810,12 +1756,8 @@ describe("OnlinePaymentsService", () => {
   });
 
   it("recovers a verified late Paymob success after an earlier local failed state", async () => {
-    const {
-      service,
-      tx,
-      billsService,
-      paymobPaymentProviderService,
-    } = createService("paymob");
+    const { service, tx, billsService, paymobPaymentProviderService } =
+      createService("paymob");
     const failedIntent = intent(
       OnlinePaymentIntentStatus.failed,
       OnlinePaymentProvider.paymob,
@@ -1848,10 +1790,9 @@ describe("OnlinePaymentsService", () => {
       .mockResolvedValueOnce(succeededIntent)
       .mockResolvedValueOnce(succeededIntent);
 
-    const result = await service.processPaymobWebhook(
-      "verified-hmac",
-      { signed: "payload" },
-    );
+    const result = await service.processPaymobWebhook("verified-hmac", {
+      signed: "payload",
+    });
 
     expect(tx.onlinePaymentIntent.updateMany).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -1878,10 +1819,7 @@ describe("OnlinePaymentsService", () => {
       createService("paymob");
     paymobPaymentProviderService.verifyTransactionWebhook.mockImplementationOnce(
       () => {
-        throw new PaymentProviderError(
-          "bad signature",
-          "signature_invalid",
-        );
+        throw new PaymentProviderError("bad signature", "signature_invalid");
       },
     );
 
@@ -1913,10 +1851,9 @@ describe("OnlinePaymentsService", () => {
     tx.onlinePaymentEvent.findUnique.mockResolvedValueOnce(null);
     tx.onlinePaymentIntent.findUnique.mockResolvedValueOnce(null);
 
-    const result = await service.processPaymobWebhook(
-      "verified-hmac",
-      { signed: "payload" },
-    );
+    const result = await service.processPaymobWebhook("verified-hmac", {
+      signed: "payload",
+    });
 
     expect(tx.onlinePaymentEvent.create).not.toHaveBeenCalled();
     expect(tx.onlinePaymentIntent.updateMany).not.toHaveBeenCalled();
@@ -1957,10 +1894,9 @@ describe("OnlinePaymentsService", () => {
     });
     tx.onlinePaymentIntent.findUnique.mockResolvedValueOnce(succeededIntent);
 
-    const result = await service.processPaymobWebhook(
-      "verified-hmac",
-      { signed: "payload" },
-    );
+    const result = await service.processPaymobWebhook("verified-hmac", {
+      signed: "payload",
+    });
 
     expect(billsService.settleBillWithOnlinePayment).not.toHaveBeenCalled();
     expect(tx.onlinePaymentEvent.create).not.toHaveBeenCalled();
@@ -1993,10 +1929,9 @@ describe("OnlinePaymentsService", () => {
     tx.onlinePaymentEvent.findUnique.mockResolvedValueOnce(null);
     tx.onlinePaymentIntent.findUnique.mockResolvedValueOnce(pendingIntent);
 
-    const result = await service.processPaymobWebhook(
-      "verified-hmac",
-      { signed: "payload" },
-    );
+    const result = await service.processPaymobWebhook("verified-hmac", {
+      signed: "payload",
+    });
 
     expect(billsService.settleBillWithOnlinePayment).not.toHaveBeenCalled();
     expect(tx.onlinePaymentIntent.updateMany).not.toHaveBeenCalled();
@@ -2039,10 +1974,9 @@ describe("OnlinePaymentsService", () => {
       .mockResolvedValueOnce(pendingIntent)
       .mockResolvedValueOnce(authIntent);
 
-    const result = await service.processPaymobWebhook(
-      "verified-hmac",
-      { signed: "payload" },
-    );
+    const result = await service.processPaymobWebhook("verified-hmac", {
+      signed: "payload",
+    });
 
     expect(billsService.settleBillWithOnlinePayment).not.toHaveBeenCalled();
     expect(tx.onlinePaymentIntent.updateMany).toHaveBeenCalledWith(
@@ -2078,10 +2012,9 @@ describe("OnlinePaymentsService", () => {
     tx.onlinePaymentEvent.findUnique.mockResolvedValueOnce(null);
     tx.onlinePaymentIntent.findUnique.mockResolvedValueOnce(pendingIntent);
 
-    const result = await service.processPaymobWebhook(
-      "verified-hmac",
-      { signed: "payload" },
-    );
+    const result = await service.processPaymobWebhook("verified-hmac", {
+      signed: "payload",
+    });
 
     expect(tx.onlinePaymentIntent.updateMany).not.toHaveBeenCalled();
     expect(billsService.settleBillWithOnlinePayment).not.toHaveBeenCalled();

@@ -53,10 +53,7 @@ describe("PaymentRateLimitGuard", () => {
       "session-1",
     );
     expect(response.setHeader).toHaveBeenCalledWith("RateLimit-Limit", "6");
-    expect(response.setHeader).toHaveBeenCalledWith(
-      "RateLimit-Remaining",
-      "4",
-    );
+    expect(response.setHeader).toHaveBeenCalledWith("RateLimit-Remaining", "4");
   });
 
   it("returns 429 with Retry-After after the customer payment limit is exceeded", async () => {

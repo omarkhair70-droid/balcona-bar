@@ -111,7 +111,27 @@
       "paymentUnavailable": "Online payment is not available right now. You can still ask the team to help with the bill.",
       "requestErrorSimple": "We could not request the bill yet. Please try again.",
       "preparingBillTitle": "Preparing your bill",
-      "preparingBillDescription": "The team is checking the final bill before payment becomes available."
+      "preparingBillDescription": "The team is checking the final bill before payment becomes available.",
+      "merchantNotReady": "Secure online payment is not configured for this venue yet.",
+      "checkoutDetails": "Secure checkout details",
+      "checkoutDetailsDescription": "These details are sent only to the active payment provider to prepare checkout.",
+      "paymentMethod": "Payment method",
+      "firstName": "First name",
+      "lastName": "Last name",
+      "email": "Email",
+      "phoneNumber": "Mobile number",
+      "cancelCheckout": "Cancel",
+      "continueSecurely": "Continue securely",
+      "method": {
+        "CARD": "Card",
+        "MWALLET": "Mobile wallet",
+        "PayAtFawry": "Fawry reference",
+        "VALU": "ValU"
+      },
+      "paymentQr": "Scan to pay",
+      "paymentQrDescription": "Use the payment app or method shown by the provider, then return here while Balcona verifies the payment.",
+      "paymentReference": "Payment reference",
+      "paymentReferenceDescription": "Use this provider-issued reference to complete payment. Balcona will confirm the payment from the provider before settling the bill."
     },
     "cart": {
       "clear": "Clear",
@@ -617,7 +637,7 @@
       "balance": "Balance",
       "billFallback": "Bill {billNumber}",
       "billLines": "Bill lines",
-      "cardPos": "Card POS",
+      "cardPos": "External card terminal",
       "cash": "Cash",
       "description": "Present a stable bill, record a manual payment, then issue a receipt. No online payment is taken here.",
       "emptyDescription": "Customer bill requests will appear here when the backend marks them active.",
@@ -667,7 +687,10 @@
       "onlineProblem": "Online problem",
       "onlineUnknown": "Online unknown",
       "onlineProblemDetail": "{count} online payment attempt(s) failed, expired, or were cancelled. Verify the provider state before taking another payment.",
-      "onlineUnknownDetail": "{count} online payment attempt(s) returned an unknown state. Treat payment as unresolved until the provider state is verified."
+      "onlineUnknownDetail": "{count} online payment attempt(s) returned an unknown state. Treat payment as unresolved until the provider state is verified.",
+      "onlinePendingDetail": "{count} online payment attempt(s) are still pending or awaiting customer action. Do not collect another payment until the provider state resolves.",
+      "paymentUnresolvedOnlineRequired": "An online payment is still unresolved. Check or recover the provider state before recording a manual payment.",
+      "cardPosManualNotice": "Record this only after the external terminal has approved the payment. Balcona is not sending the amount to that device yet."
     },
     "cashier": {
       "activityDescription": "Latest branch realtime events returned by the API.",
@@ -693,7 +716,12 @@
       "shiftManualPaymentsRequireOpen": "Manual payments require an open cashier shift for this branch.",
       "staffUserFallback": "Staff user",
       "submittedDescription": "Needs cashier decision",
-      "submittedLabel": "Submitted"
+      "submittedLabel": "Submitted",
+      "directTerminalTitle": "Direct terminal / SoftPOS",
+      "directTerminalChecking": "Checking branch terminal readiness…",
+      "directTerminalUnavailable": "Terminal readiness could not be loaded. External card terminal remains a manual tender record only.",
+      "directTerminalReady": "Direct terminal execution is connected for this branch.",
+      "directTerminalBlocked": "Direct terminal execution is not connected yet. Use External card terminal only after the separate device approves the payment."
     },
     "errors": {
       "orderActionFailed": "Order could not be {action}. {message}"

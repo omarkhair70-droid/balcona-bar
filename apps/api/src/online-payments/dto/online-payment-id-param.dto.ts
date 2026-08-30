@@ -5,7 +5,6 @@ export class OnlinePaymentIntentIdParamDto {
   intentId!: string;
 }
 
-
 export class OnlinePaymentOperationIdParamDto {
   @IsUUID()
   operationId!: string;

@@ -13,6 +13,7 @@ import {
   PaymentProviderError,
   ProviderPostPaymentOperationInput,
   ProviderPostPaymentOperationResult,
+  ProviderRuntimeContext,
   ProviderTransactionInquiryResult,
   ProviderTransactionState,
   VerifiedProviderTransactionWebhook,
@@ -56,19 +57,24 @@ type PaymobPostPaymentConfig = {
   expectedLive: boolean;
 };
 
-
 @Injectable()
 export class PaymobPaymentProviderService {
   readonly provider = OnlinePaymentProvider.paymob;
-  private inquiryAuthToken?: { token: string; expiresAtMs: number };
-  private inquiryAuthTokenRequest?: Promise<string>;
+  private readonly inquiryAuthTokens = new Map<
+    string,
+    { token: string; expiresAtMs: number }
+  >();
+  private readonly inquiryAuthTokenRequests = new Map<
+    string,
+    Promise<string>
+  >();
 
   constructor(private readonly configService: ConfigService) {}
 
   async createPayment(
     input: CreateProviderPaymentInput,
   ): Promise<CreateProviderPaymentResult> {
-    const config = this.readConfig();
+    const config = this.readConfig(input.runtimeContext);
     const returnUrl = this.validatedReturnUrl(input.customerReturnUrl, config);
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), config.timeoutMs);
@@ -202,9 +208,8 @@ export class PaymobPaymentProviderService {
       providerOrderId,
       status: OnlinePaymentIntentStatus.pending,
       checkoutUrl: checkoutUrl.toString(),
-      checkoutExpiresAt: new Date(
-        Date.now() + config.expirationSeconds * 1000,
-      ),
+      customerAction: { type: "redirect", url: checkoutUrl.toString() },
+      checkoutExpiresAt: new Date(Date.now() + config.expirationSeconds * 1000),
       metadata: {
         paymobIntentionOrderId: payload.intention_order_id,
         paymobStatus: payload.status,
@@ -219,40 +224,47 @@ export class PaymobPaymentProviderService {
 
   refundTransaction(
     input: Omit<ProviderPostPaymentOperationInput, "type">,
+    runtimeContext?: ProviderRuntimeContext,
   ) {
-    return this.performPostPaymentOperation({
-      ...input,
-      type: OnlinePaymentOperationType.refund,
-    });
+    return this.performPostPaymentOperation(
+      { ...input, type: OnlinePaymentOperationType.refund },
+      runtimeContext,
+    );
   }
 
   voidTransaction(
     input: Omit<ProviderPostPaymentOperationInput, "type">,
+    runtimeContext?: ProviderRuntimeContext,
   ) {
-    return this.performPostPaymentOperation({
-      ...input,
-      type: OnlinePaymentOperationType.void,
-    });
+    return this.performPostPaymentOperation(
+      { ...input, type: OnlinePaymentOperationType.void },
+      runtimeContext,
+    );
   }
 
   captureTransaction(
     input: Omit<ProviderPostPaymentOperationInput, "type">,
+    runtimeContext?: ProviderRuntimeContext,
   ) {
-    return this.performPostPaymentOperation({
-      ...input,
-      type: OnlinePaymentOperationType.capture,
-    });
+    return this.performPostPaymentOperation(
+      { ...input, type: OnlinePaymentOperationType.capture },
+      runtimeContext,
+    );
   }
 
   private async performPostPaymentOperation(
     input: ProviderPostPaymentOperationInput,
+    runtimeContext?: ProviderRuntimeContext,
   ): Promise<ProviderPostPaymentOperationResult> {
-    const config = this.readPostPaymentConfig();
+    const config = this.readPostPaymentConfig(runtimeContext);
     const parentProviderTransactionId = this.identifierString(
       input.parentProviderTransactionId,
     );
 
-    if (!parentProviderTransactionId || !/^\d+$/.test(parentProviderTransactionId)) {
+    if (
+      !parentProviderTransactionId ||
+      !/^\d+$/.test(parentProviderTransactionId)
+    ) {
       throw new PaymentProviderError(
         "Paymob transaction id is invalid",
         "invalid_request",
@@ -311,17 +323,14 @@ export class PaymobPaymentProviderService {
       );
     }
 
-    return this.normalizePostPaymentOperation(
-      value,
-      input,
-      config,
-    );
+    return this.normalizePostPaymentOperation(value, input, config);
   }
 
   async inquireTransactionByOrder(
     providerOrderIdValue: string,
+    runtimeContext?: ProviderRuntimeContext,
   ): Promise<ProviderTransactionInquiryResult> {
-    const config = this.readInquiryConfig();
+    const config = this.readInquiryConfig(runtimeContext);
     const providerOrderId = this.identifierString(providerOrderIdValue);
 
     if (!providerOrderId) {
@@ -339,7 +348,7 @@ export class PaymobPaymentProviderService {
     );
 
     if (response.status === 401 || response.status === 403) {
-      this.inquiryAuthToken = undefined;
+      this.clearInquiryAuthToken(config);
       authToken = await this.getInquiryAuthToken(config, true);
       response = await this.fetchTransactionInquiry(
         config,
@@ -388,8 +397,9 @@ export class PaymobPaymentProviderService {
 
   async inquireTransactionById(
     providerTransactionIdValue: string,
+    runtimeContext?: ProviderRuntimeContext,
   ): Promise<ProviderTransactionState> {
-    const config = this.readInquiryConfig();
+    const config = this.readInquiryConfig(runtimeContext);
     const providerTransactionId = this.identifierString(
       providerTransactionIdValue,
     );
@@ -409,7 +419,7 @@ export class PaymobPaymentProviderService {
     );
 
     if (response.status === 401 || response.status === 403) {
-      this.inquiryAuthToken = undefined;
+      this.clearInquiryAuthToken(config);
       authToken = await this.getInquiryAuthToken(config, true);
       response = await this.fetchTransactionById(
         config,
@@ -462,37 +472,34 @@ export class PaymobPaymentProviderService {
     forceRefresh = false,
   ) {
     const now = Date.now();
+    const cacheKey = this.inquiryCacheKey(config);
+    const cached = this.inquiryAuthTokens.get(cacheKey);
 
-    if (
-      !forceRefresh &&
-      this.inquiryAuthToken &&
-      this.inquiryAuthToken.expiresAtMs > now
-    ) {
-      return this.inquiryAuthToken.token;
+    if (!forceRefresh && cached && cached.expiresAtMs > now) {
+      return cached.token;
     }
 
-    if (!forceRefresh && this.inquiryAuthTokenRequest) {
-      return this.inquiryAuthTokenRequest;
+    const pendingRequest = this.inquiryAuthTokenRequests.get(cacheKey);
+    if (!forceRefresh && pendingRequest) {
+      return pendingRequest;
     }
 
     const request = this.requestInquiryAuthToken(config);
 
     if (!forceRefresh) {
-      this.inquiryAuthTokenRequest = request;
+      this.inquiryAuthTokenRequests.set(cacheKey, request);
     }
 
     try {
       return await request;
     } finally {
       if (!forceRefresh) {
-        this.inquiryAuthTokenRequest = undefined;
+        this.inquiryAuthTokenRequests.delete(cacheKey);
       }
     }
   }
 
-  private async requestInquiryAuthToken(
-    config: PaymobInquiryConfig,
-  ) {
+  private async requestInquiryAuthToken(config: PaymobInquiryConfig) {
     const response = await this.fetchWithTimeout(
       `${config.baseUrl}/api/auth/tokens`,
       {
@@ -534,10 +541,10 @@ export class PaymobPaymentProviderService {
       );
     }
 
-    this.inquiryAuthToken = {
+    this.inquiryAuthTokens.set(this.inquiryCacheKey(config), {
       token,
       expiresAtMs: Date.now() + 55 * 60 * 1000,
-    };
+    });
 
     return token;
   }
@@ -604,10 +611,7 @@ export class PaymobPaymentProviderService {
         throw new PaymentProviderError(timeoutMessage, "timeout");
       }
 
-      throw new PaymentProviderError(
-        failureMessage,
-        "provider_unavailable",
-      );
+      throw new PaymentProviderError(failureMessage, "provider_unavailable");
     } finally {
       clearTimeout(timeout);
     }
@@ -618,7 +622,10 @@ export class PaymobPaymentProviderService {
     expectedProviderOrderId: string | undefined,
     config: PaymobInquiryConfig,
   ): ProviderTransactionState {
-    const obj = this.requireRecord(value, "Paymob transaction inquiry response");
+    const obj = this.requireRecord(
+      value,
+      "Paymob transaction inquiry response",
+    );
     const order = this.requireRecord(
       obj.order,
       "Paymob transaction inquiry order",
@@ -692,9 +699,7 @@ export class PaymobPaymentProviderService {
     const isVoided = this.booleanValue(obj.is_voided);
     const isRefunded = this.booleanValue(obj.is_refunded);
     const isCaptured = this.booleanValue(obj.is_captured);
-    const hasParentTransaction = this.booleanValue(
-      obj.has_parent_transaction,
-    );
+    const hasParentTransaction = this.booleanValue(obj.has_parent_transaction);
 
     if (
       pending === undefined ||
@@ -735,8 +740,9 @@ export class PaymobPaymentProviderService {
           ? OnlinePaymentOperationType.void
           : undefined;
     const refundedAmountMinor = this.integerValue(obj.refunded_amount_cents);
-    const capturedAmountMinor =
-      isCapture ? amountMinor : this.integerValue(obj.captured_amount);
+    const capturedAmountMinor = isCapture
+      ? amountMinor
+      : this.integerValue(obj.captured_amount);
     const updatedAt = this.nonEmptyString(obj.updated_at);
     const providerSettled = this.booleanValue(obj.is_settled);
     const merchantCommissionMinor =
@@ -875,8 +881,9 @@ export class PaymobPaymentProviderService {
   verifyTransactionWebhook(
     objValue: unknown,
     receivedHmacValue: string,
+    runtimeContext?: ProviderRuntimeContext,
   ): VerifiedProviderTransactionWebhook {
-    const config = this.readWebhookConfig();
+    const config = this.readWebhookConfig(runtimeContext);
     const obj = this.requireRecord(objValue, "Paymob transaction object");
     const order = this.requireRecord(obj.order, "Paymob transaction order");
     const sourceData = this.requireRecord(
@@ -969,9 +976,7 @@ export class PaymobPaymentProviderService {
     const isAuth = this.booleanValue(obj.is_auth);
     const isCapture = this.booleanValue(obj.is_capture);
     const isVoided = this.booleanValue(obj.is_voided);
-    const hasParentTransaction = this.booleanValue(
-      obj.has_parent_transaction,
-    );
+    const hasParentTransaction = this.booleanValue(obj.has_parent_transaction);
 
     if (
       pending === undefined ||
@@ -996,8 +1001,7 @@ export class PaymobPaymentProviderService {
     });
 
     const merchantReference = this.identifierString(order.merchant_order_id);
-    const providerEventId =
-      `paymob_tx_${providerTransactionId}_${computedHmac.slice(0, 32)}`;
+    const providerEventId = `paymob_tx_${providerTransactionId}_${computedHmac.slice(0, 32)}`;
 
     return {
       provider: this.provider,
@@ -1031,25 +1035,35 @@ export class PaymobPaymentProviderService {
     };
   }
 
-  private readPostPaymentConfig(): PaymobPostPaymentConfig {
+  private readPostPaymentConfig(
+    runtimeContext?: ProviderRuntimeContext,
+  ): PaymobPostPaymentConfig {
+    const metadata = runtimeContext?.configurationMetadata ?? {};
     const configuredBaseUrl = (
+      this.stringValue(metadata.baseUrl) ??
       this.configService.get<string>("onlinePayments.paymob.baseUrl") ??
       DEFAULT_PAYMOB_BASE_URL
     ).replace(/\/+$/, "");
     const appEnvironment =
       this.configService.get<string>("app.environment") ?? "development";
     const secretKey = this.nonEmptyString(
-      this.configService.get<string>("onlinePayments.paymob.secretKey"),
+      this.runtimeSecret(runtimeContext, "secretKey") ??
+        this.configService.get<string>("onlinePayments.paymob.secretKey"),
     );
     const integrationIds =
-      this.configService.get<number[]>("onlinePayments.paymob.integrationIds") ??
+      this.numberArray(metadata.integrationIds) ??
+      this.configService.get<number[]>(
+        "onlinePayments.paymob.integrationIds",
+      ) ??
       [];
     const timeoutMs =
       this.configService.get<number>("onlinePayments.paymob.timeoutMs") ??
       DEFAULT_TIMEOUT_MS;
-    const expectedLive =
-      this.configService.get<boolean>("onlinePayments.paymob.expectedLive") ??
-      false;
+    const expectedLive = runtimeContext
+      ? runtimeContext.environment === "live"
+      : (this.configService.get<boolean>(
+          "onlinePayments.paymob.expectedLive",
+        ) ?? false);
 
     if (!secretKey) {
       throw new PaymentProviderError(
@@ -1090,10 +1104,7 @@ export class PaymobPaymentProviderService {
     input: ProviderPostPaymentOperationInput,
     config: PaymobPostPaymentConfig,
   ): ProviderPostPaymentOperationResult {
-    const obj = this.requireRecord(
-      value,
-      `Paymob ${input.type} response`,
-    );
+    const obj = this.requireRecord(value, `Paymob ${input.type} response`);
     const providerTransactionId =
       this.identifierString(obj.id) ?? input.parentProviderTransactionId;
     const parentProviderTransactionId =
@@ -1203,25 +1214,35 @@ export class PaymobPaymentProviderService {
     );
   }
 
-  private readInquiryConfig(): PaymobInquiryConfig {
+  private readInquiryConfig(
+    runtimeContext?: ProviderRuntimeContext,
+  ): PaymobInquiryConfig {
+    const metadata = runtimeContext?.configurationMetadata ?? {};
     const configuredBaseUrl = (
+      this.stringValue(metadata.baseUrl) ??
       this.configService.get<string>("onlinePayments.paymob.baseUrl") ??
       DEFAULT_PAYMOB_BASE_URL
     ).replace(/\/+$/, "");
     const appEnvironment =
       this.configService.get<string>("app.environment") ?? "development";
     const apiKey = this.nonEmptyString(
-      this.configService.get<string>("onlinePayments.paymob.apiKey"),
+      this.runtimeSecret(runtimeContext, "apiKey") ??
+        this.configService.get<string>("onlinePayments.paymob.apiKey"),
     );
     const integrationIds =
-      this.configService.get<number[]>("onlinePayments.paymob.integrationIds") ??
+      this.numberArray(metadata.integrationIds) ??
+      this.configService.get<number[]>(
+        "onlinePayments.paymob.integrationIds",
+      ) ??
       [];
     const timeoutMs =
       this.configService.get<number>("onlinePayments.paymob.timeoutMs") ??
       DEFAULT_TIMEOUT_MS;
-    const expectedLive =
-      this.configService.get<boolean>("onlinePayments.paymob.expectedLive") ??
-      false;
+    const expectedLive = runtimeContext
+      ? runtimeContext.environment === "live"
+      : (this.configService.get<boolean>(
+          "onlinePayments.paymob.expectedLive",
+        ) ?? false);
 
     if (!apiKey) {
       throw new PaymentProviderError(
@@ -1289,12 +1310,17 @@ export class PaymobPaymentProviderService {
     );
   }
 
-  private readWebhookConfig() {
+  private readWebhookConfig(runtimeContext?: ProviderRuntimeContext) {
+    const metadata = runtimeContext?.configurationMetadata ?? {};
     const hmacSecret = this.nonEmptyString(
-      this.configService.get<string>("onlinePayments.paymob.hmacSecret"),
+      this.runtimeSecret(runtimeContext, "hmacSecret") ??
+        this.configService.get<string>("onlinePayments.paymob.hmacSecret"),
     );
     const integrationIds =
-      this.configService.get<number[]>("onlinePayments.paymob.integrationIds") ??
+      this.numberArray(metadata.integrationIds) ??
+      this.configService.get<number[]>(
+        "onlinePayments.paymob.integrationIds",
+      ) ??
       [];
 
     if (!hmacSecret) {
@@ -1314,39 +1340,54 @@ export class PaymobPaymentProviderService {
     return { hmacSecret, integrationIds };
   }
 
-  private readConfig() {
+  private readConfig(runtimeContext?: ProviderRuntimeContext) {
+    const metadata = runtimeContext?.configurationMetadata ?? {};
     const configuredBaseUrl = (
+      this.stringValue(metadata.baseUrl) ??
       this.configService.get<string>("onlinePayments.paymob.baseUrl") ??
       DEFAULT_PAYMOB_BASE_URL
     ).replace(/\/+$/, "");
     const appEnvironment =
       this.configService.get<string>("app.environment") ?? "development";
     const secretKey = this.nonEmptyString(
-      this.configService.get<string>("onlinePayments.paymob.secretKey"),
+      this.runtimeSecret(runtimeContext, "secretKey") ??
+        this.configService.get<string>("onlinePayments.paymob.secretKey"),
     );
     const publicKey = this.nonEmptyString(
-      this.configService.get<string>("onlinePayments.paymob.publicKey"),
+      this.stringValue(metadata.publicKey) ??
+        this.configService.get<string>("onlinePayments.paymob.publicKey"),
     );
     const notificationUrl = this.nonEmptyString(
-      this.configService.get<string>("onlinePayments.paymob.notificationUrl"),
+      this.stringValue(metadata.notificationUrl) ??
+        this.configService.get<string>("onlinePayments.paymob.notificationUrl"),
     );
     const integrationIds =
-      this.configService.get<number[]>("onlinePayments.paymob.integrationIds") ??
+      this.numberArray(metadata.integrationIds) ??
+      this.configService.get<number[]>(
+        "onlinePayments.paymob.integrationIds",
+      ) ??
       [];
     const allowedReturnOrigins =
+      this.stringArray(metadata.allowedReturnOrigins) ??
       this.configService.get<string[]>(
         "onlinePayments.paymob.allowedReturnOrigins",
-      ) ?? [];
+      ) ??
+      [];
     const timeoutMs =
+      this.integerValue(metadata.timeoutMs) ??
       this.configService.get<number>("onlinePayments.paymob.timeoutMs") ??
       DEFAULT_TIMEOUT_MS;
     const expirationSeconds =
+      this.integerValue(metadata.expirationSeconds) ??
       this.configService.get<number>(
         "onlinePayments.paymob.expirationSeconds",
-      ) ?? DEFAULT_EXPIRATION_SECONDS;
-    const expectedLive =
-      this.configService.get<boolean>("onlinePayments.paymob.expectedLive") ??
-      false;
+      ) ??
+      DEFAULT_EXPIRATION_SECONDS;
+    const expectedLive = runtimeContext
+      ? runtimeContext.environment === "live"
+      : (this.configService.get<boolean>(
+          "onlinePayments.paymob.expectedLive",
+        ) ?? false);
 
     if (!secretKey || !publicKey || !notificationUrl) {
       throw new PaymentProviderError(
@@ -1391,6 +1432,42 @@ export class PaymobPaymentProviderService {
       expirationSeconds,
       expectedLive,
     };
+  }
+
+  private inquiryCacheKey(config: PaymobInquiryConfig) {
+    return createHash("sha256")
+      .update(`${config.baseUrl}:${config.apiKey}`)
+      .digest("hex");
+  }
+
+  private clearInquiryAuthToken(config: PaymobInquiryConfig) {
+    this.inquiryAuthTokens.delete(this.inquiryCacheKey(config));
+  }
+
+  private runtimeSecret(
+    runtimeContext: ProviderRuntimeContext | undefined,
+    key: string,
+  ) {
+    const reference = runtimeContext?.secretReferences[key];
+    return reference ? this.configService.get<string>(reference) : undefined;
+  }
+
+  private stringValue(value: unknown) {
+    return typeof value === "string" && value.trim() ? value.trim() : undefined;
+  }
+
+  private stringArray(value: unknown) {
+    return Array.isArray(value) &&
+      value.every((entry) => typeof entry === "string")
+      ? value
+      : undefined;
+  }
+
+  private numberArray(value: unknown) {
+    return Array.isArray(value) &&
+      value.every((entry) => Number.isInteger(entry))
+      ? (value as number[])
+      : undefined;
   }
 
   private validatedReturnUrl(
@@ -1457,10 +1534,7 @@ export class PaymobPaymentProviderService {
     try {
       url = new URL(value);
     } catch {
-      throw new PaymentProviderError(
-        `${label} is invalid`,
-        "missing_config",
-      );
+      throw new PaymentProviderError(`${label} is invalid`, "missing_config");
     }
 
     if (!["http:", "https:"].includes(url.protocol)) {
@@ -1514,10 +1588,7 @@ export class PaymobPaymentProviderService {
 
   private requireRecord(value: unknown, label: string) {
     if (!value || typeof value !== "object" || Array.isArray(value)) {
-      throw new PaymentProviderError(
-        `${label} is invalid`,
-        "invalid_response",
-      );
+      throw new PaymentProviderError(`${label} is invalid`, "invalid_response");
     }
 
     return value as Record<string, unknown>;

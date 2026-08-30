@@ -74,10 +74,7 @@ export class SettlementStatementLineDto {
 
 export class ImportOnlinePaymentSettlementDto {
   @IsOptional()
-  @IsIn([
-    OnlinePaymentProvider.paymob,
-    OnlinePaymentProvider.fawry,
-  ])
+  @IsIn([OnlinePaymentProvider.paymob, OnlinePaymentProvider.fawry])
   provider?: OnlinePaymentProvider;
 
   @IsString()

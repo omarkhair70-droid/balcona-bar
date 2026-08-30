@@ -202,9 +202,9 @@ describe("PaymobPaymentProviderService", () => {
   });
 
   it("creates a server-side Paymob intention and returns Unified Checkout", async () => {
-    const fetchSpy = jest.spyOn(global, "fetch").mockResolvedValue(
-      successResponse(),
-    );
+    const fetchSpy = jest
+      .spyOn(global, "fetch")
+      .mockResolvedValue(successResponse());
     const service = new PaymobPaymentProviderService(config());
 
     const result = await service.createPayment(input());
@@ -236,8 +236,7 @@ describe("PaymobPaymentProviderService", () => {
       special_reference: "intent-1",
       notification_url:
         "https://api.example.com/api/v1/online-payments/webhooks/paymob",
-      redirection_url:
-        "https://app.example.com/payment/return?bill=bill-1",
+      redirection_url: "https://app.example.com/payment/return?bill=bill-1",
       expiration: 900,
       billing_data: {
         first_name: "Omar",
@@ -486,7 +485,8 @@ describe("PaymobPaymentProviderService", () => {
   });
 
   it("inquires a child transaction by id and normalizes its operation identity", async () => {
-    jest.spyOn(global, "fetch")
+    jest
+      .spyOn(global, "fetch")
       .mockResolvedValueOnce(
         new Response(JSON.stringify({ token: "inquiry-auth-token" }), {
           status: 201,
@@ -527,7 +527,8 @@ describe("PaymobPaymentProviderService", () => {
   });
 
   it("normalizes provider settlement signals from Paymob transaction inquiry", async () => {
-    jest.spyOn(global, "fetch")
+    jest
+      .spyOn(global, "fetch")
       .mockResolvedValueOnce(
         new Response(JSON.stringify({ token: "inquiry-auth-token" }), {
           status: 201,
@@ -575,7 +576,8 @@ describe("PaymobPaymentProviderService", () => {
   });
 
   it("keeps provider settlement pending when Paymob explicitly reports is_settled=false", async () => {
-    jest.spyOn(global, "fetch")
+    jest
+      .spyOn(global, "fetch")
       .mockResolvedValueOnce(
         new Response(JSON.stringify({ token: "inquiry-auth-token" }), {
           status: 201,
@@ -599,7 +601,8 @@ describe("PaymobPaymentProviderService", () => {
   });
 
   it("authenticates with the Paymob API key and inquires by stored provider order id", async () => {
-    const fetchSpy = jest.spyOn(global, "fetch")
+    const fetchSpy = jest
+      .spyOn(global, "fetch")
       .mockResolvedValueOnce(
         new Response(JSON.stringify({ token: "inquiry-auth-token" }), {
           status: 201,
@@ -656,7 +659,8 @@ describe("PaymobPaymentProviderService", () => {
   });
 
   it("returns not-found when Paymob has no transaction for the order", async () => {
-    jest.spyOn(global, "fetch")
+    jest
+      .spyOn(global, "fetch")
       .mockResolvedValueOnce(
         new Response(JSON.stringify({ token: "inquiry-auth-token" }), {
           status: 201,
@@ -674,7 +678,8 @@ describe("PaymobPaymentProviderService", () => {
   });
 
   it("refreshes a rejected cached inquiry token exactly once", async () => {
-    const fetchSpy = jest.spyOn(global, "fetch")
+    const fetchSpy = jest
+      .spyOn(global, "fetch")
       .mockResolvedValueOnce(
         new Response(JSON.stringify({ token: "stale-token" }), {
           status: 201,
@@ -696,7 +701,9 @@ describe("PaymobPaymentProviderService", () => {
       );
     const service = new PaymobPaymentProviderService(config());
 
-    await expect(service.inquireTransactionByOrder("12345")).resolves.toMatchObject({
+    await expect(
+      service.inquireTransactionByOrder("12345"),
+    ).resolves.toMatchObject({
       found: true,
     });
     expect(fetchSpy).toHaveBeenCalledTimes(4);
@@ -708,7 +715,8 @@ describe("PaymobPaymentProviderService", () => {
   });
 
   it("rejects an inquiry transaction from the wrong live/test environment", async () => {
-    jest.spyOn(global, "fetch")
+    jest
+      .spyOn(global, "fetch")
       .mockResolvedValueOnce(
         new Response(JSON.stringify({ token: "inquiry-auth-token" }), {
           status: 201,
@@ -716,13 +724,10 @@ describe("PaymobPaymentProviderService", () => {
         }),
       )
       .mockResolvedValueOnce(
-        new Response(
-          JSON.stringify(inquiryTransaction({ is_live: true })),
-          {
-            status: 200,
-            headers: { "Content-Type": "application/json" },
-          },
-        ),
+        new Response(JSON.stringify(inquiryTransaction({ is_live: true })), {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        }),
       );
     const service = new PaymobPaymentProviderService(config());
 
@@ -734,7 +739,8 @@ describe("PaymobPaymentProviderService", () => {
   });
 
   it("defers refunded or child inquiry transactions to PAY-5 instead of settling them", async () => {
-    jest.spyOn(global, "fetch")
+    jest
+      .spyOn(global, "fetch")
       .mockResolvedValueOnce(
         new Response(JSON.stringify({ token: "inquiry-auth-token" }), {
           status: 201,
@@ -765,10 +771,7 @@ describe("PaymobPaymentProviderService", () => {
   it("verifies a Paymob transaction callback with the documented 20-field HMAC", () => {
     const service = new PaymobPaymentProviderService(config());
     const obj = paymobTransaction();
-    const result = service.verifyTransactionWebhook(
-      obj,
-      transactionHmac(obj),
-    );
+    const result = service.verifyTransactionWebhook(obj, transactionHmac(obj));
 
     expect(result).toMatchObject({
       provider: OnlinePaymentProvider.paymob,
@@ -781,9 +784,7 @@ describe("PaymobPaymentProviderService", () => {
       status: "succeeded",
       actionable: true,
     });
-    expect(result.providerEventId).toMatch(
-      /^paymob_tx_555001_[a-f0-9]{32}$/,
-    );
+    expect(result.providerEventId).toMatch(/^paymob_tx_555001_[a-f0-9]{32}$/);
     expect(result.safeMetadata).not.toHaveProperty("pan");
   });
 
@@ -796,9 +797,7 @@ describe("PaymobPaymentProviderService", () => {
       amount_cents: 9900,
     };
 
-    expect(() =>
-      service.verifyTransactionWebhook(tampered, hmac),
-    ).toThrow(
+    expect(() => service.verifyTransactionWebhook(tampered, hmac)).toThrow(
       expect.objectContaining({
         code: "signature_invalid",
       }),
@@ -826,10 +825,7 @@ describe("PaymobPaymentProviderService", () => {
       is_standalone_payment: false,
     });
 
-    const result = service.verifyTransactionWebhook(
-      obj,
-      transactionHmac(obj),
-    );
+    const result = service.verifyTransactionWebhook(obj, transactionHmac(obj));
 
     expect(result.status).toBe("requires_action");
   });
@@ -841,10 +837,7 @@ describe("PaymobPaymentProviderService", () => {
       id: 555002,
     });
 
-    const result = service.verifyTransactionWebhook(
-      obj,
-      transactionHmac(obj),
-    );
+    const result = service.verifyTransactionWebhook(obj, transactionHmac(obj));
 
     expect(result.actionable).toBe(false);
   });

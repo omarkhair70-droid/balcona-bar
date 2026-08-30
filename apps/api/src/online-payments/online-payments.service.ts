@@ -4,6 +4,7 @@ import {
   ForbiddenException,
   Injectable,
   NotFoundException,
+  Optional,
   ServiceUnavailableException,
   UnauthorizedException,
 } from "@nestjs/common";
@@ -38,9 +39,12 @@ import { PrismaService } from "../prisma/prisma.service";
 import { RealtimeEventsService } from "../realtime-events/realtime-events.service";
 import { SaasService } from "../saas/saas.service";
 import { FawryPaymentProviderService } from "./providers/fawry-payment-provider.service";
+import { MerchantPaymentIntegrationsService } from "./merchant-payment-integrations.service";
 import { PaymobPaymentProviderService } from "./providers/paymob-payment-provider.service";
 import {
   PaymentProviderError,
+  ProviderCustomerAction,
+  ProviderRuntimeContext,
   ProviderTransactionState,
   VerifiedProviderTransactionWebhook,
 } from "./providers/payment-provider.types";
@@ -130,6 +134,8 @@ export class OnlinePaymentsService {
     private readonly auditService: AuditService,
     private readonly paymobPaymentProviderService: PaymobPaymentProviderService,
     private readonly fawryPaymentProviderService: FawryPaymentProviderService,
+    @Optional()
+    private readonly merchantPaymentIntegrationsService?: MerchantPaymentIntegrationsService,
   ) {}
 
   async createIntentForCustomer(
@@ -138,15 +144,71 @@ export class OnlinePaymentsService {
     body: CreateOnlinePaymentIntentDto = {},
   ) {
     this.assertOnlinePaymentsEnabled();
-    const provider = this.getConfiguredProvider();
+    const paymentScope = this.merchantPaymentIntegrationsService
+      ? await this.prisma.bill.findUnique({
+          where: { id: billId },
+          select: {
+            companyId: true,
+            branchId: true,
+            tableSessionId: true,
+          },
+        })
+      : null;
+
+    if (
+      this.merchantPaymentIntegrationsService &&
+      (!paymentScope || paymentScope.tableSessionId !== sessionId)
+    ) {
+      throw new NotFoundException("Bill not found for this table session");
+    }
+
+    const merchantIntegration =
+      this.merchantPaymentIntegrationsService && paymentScope
+        ? await this.merchantPaymentIntegrationsService.resolveForScope(
+            paymentScope.companyId,
+            paymentScope.branchId,
+            true,
+          )
+        : null;
+    const runtimeContext = merchantIntegration?.id
+      ? {
+          integrationId: merchantIntegration.id,
+          environment: merchantIntegration.environment,
+          merchantAccountReference:
+            merchantIntegration.merchantAccountReference,
+          enabledChannels: merchantIntegration.enabledChannels,
+          configurationMetadata: merchantIntegration.configurationMetadata,
+          secretReferences: merchantIntegration.secretReferences,
+        }
+      : undefined;
+    const provider =
+      merchantIntegration?.provider ?? this.getConfiguredProvider();
     this.assertConfiguredProviderAllowed(provider);
 
     if (provider === OnlinePaymentProvider.paymob) {
-      return this.createPaymobIntentForCustomer(sessionId, billId, body);
+      return this.createPaymobIntentForCustomer(
+        sessionId,
+        billId,
+        body,
+        merchantIntegration?.id ?? null,
+        runtimeContext,
+      );
     }
 
     if (provider === OnlinePaymentProvider.fawry) {
-      return this.createFawryIntentForCustomer(sessionId, billId, body);
+      return this.createFawryIntentForCustomer(
+        sessionId,
+        billId,
+        body,
+        merchantIntegration?.id ?? null,
+        runtimeContext,
+      );
+    }
+
+    if (provider === OnlinePaymentProvider.maestr) {
+      throw new ServiceUnavailableException(
+        "Maestr commercial IPN payments remain fail-closed until the PAY-8 merchant API contract is verified",
+      );
     }
 
     if (provider !== OnlinePaymentProvider.mock) {
@@ -233,6 +295,7 @@ export class OnlinePaymentsService {
           tableSessionId: sessionId,
           billId: bill.id,
           provider,
+          merchantPaymentIntegrationId: merchantIntegration?.id ?? null,
           providerIntentId,
           providerCheckoutUrl,
           idempotencyKey: body.idempotencyKey ?? `auto_${randomUUID()}`,
@@ -279,6 +342,8 @@ export class OnlinePaymentsService {
     sessionId: string,
     billId: string,
     body: CreateOnlinePaymentIntentDto,
+    merchantPaymentIntegrationId: string | null,
+    runtimeContext?: ProviderRuntimeContext,
   ) {
     const billingData = body.billingData;
 
@@ -359,10 +424,7 @@ export class OnlinePaymentsService {
 
         return {
           kind: "existing" as const,
-          result: this.toIntentResult(
-            existingActiveIntent,
-            "existing_active",
-          ),
+          result: this.toIntentResult(existingActiveIntent, "existing_active"),
         };
       }
 
@@ -375,6 +437,7 @@ export class OnlinePaymentsService {
           tableSessionId: sessionId,
           billId: bill.id,
           provider: OnlinePaymentProvider.fawry,
+          merchantPaymentIntegrationId,
           providerIntentId: null,
           providerOrderId: localIntentId,
           providerCheckoutUrl: null,
@@ -382,16 +445,13 @@ export class OnlinePaymentsService {
           status: OnlinePaymentIntentStatus.pending,
           amountMinor: bill.balanceDueMinor,
           currency: bill.currency,
-          customerReturnUrl: this.normalizeOptionalText(
-            body.customerReturnUrl,
-          ),
+          customerReturnUrl: this.normalizeOptionalText(body.customerReturnUrl),
           metadata: this.toJsonValue({
             source: "customer_pay_online",
             provider: "fawry",
             providerInitialization: "pending",
             fawryMerchantRefNumber: localIntentId,
-            fawryPaymentMethod:
-              body.fawryPaymentMethod ?? "ALL_HOSTED",
+            fawryPaymentMethod: body.fawryPaymentMethod ?? "ALL_HOSTED",
           }),
         },
         include: this.intentInclude(),
@@ -445,8 +505,8 @@ export class OnlinePaymentsService {
             currency: localIntent.currency,
             billingData,
             customerReturnUrl:
-              this.normalizeOptionalText(body.customerReturnUrl) ??
-              undefined,
+              this.normalizeOptionalText(body.customerReturnUrl) ?? undefined,
+            ...(runtimeContext ? { runtimeContext } : {}),
           },
           body.fawryPaymentMethod,
         );
@@ -468,15 +528,15 @@ export class OnlinePaymentsService {
             metadata: this.toJsonValue({
               ...this.jsonRecord(localIntent.metadata),
               ...providerPayment.metadata,
+              ...(providerPayment.customerAction
+                ? { providerCustomerAction: providerPayment.customerAction }
+                : {}),
               providerInitialization: "ready",
             }),
           },
         });
 
-        const readyIntent = await this.loadIntentOrThrow(
-          localIntent.id,
-          tx,
-        );
+        const readyIntent = await this.loadIntentOrThrow(localIntent.id, tx);
 
         if (!readyIntent.providerIntentId || !readyIntent.providerCheckoutUrl) {
           throw new ServiceUnavailableException(
@@ -563,14 +623,10 @@ export class OnlinePaymentsService {
   private mapFawryProviderError(error: unknown) {
     if (
       error instanceof PaymentProviderError &&
-      (
-        error.code === "invalid_request" ||
-        error.code === "unsupported_operation"
-      )
+      (error.code === "invalid_request" ||
+        error.code === "unsupported_operation")
     ) {
-      return new BadRequestException(
-        "Fawry checkout request is invalid",
-      );
+      return new BadRequestException("Fawry checkout request is invalid");
     }
 
     return new ServiceUnavailableException(
@@ -578,10 +634,7 @@ export class OnlinePaymentsService {
     );
   }
 
-  private async recoverBeforeFawryRetry(
-    sessionId: string,
-    billId: string,
-  ) {
+  private async recoverBeforeFawryRetry(sessionId: string, billId: string) {
     const latestIntent = await this.prisma.onlinePaymentIntent.findFirst({
       where: {
         billId,
@@ -610,17 +663,14 @@ export class OnlinePaymentsService {
       ACTIVE_ONLINE_PAYMENT_STATUSES.includes(latestIntent.status) &&
       Boolean(
         latestIntent.checkoutExpiresAt &&
-          latestIntent.checkoutExpiresAt <= new Date(),
+        latestIntent.checkoutExpiresAt <= new Date(),
       );
 
     if (!terminalStatus && !activeCheckoutExpired) {
       return;
     }
 
-    await this.recoverFawryIntent(
-      latestIntent.id,
-      "customer_retry_preflight",
-    );
+    await this.recoverFawryIntent(latestIntent.id, "customer_retry_preflight");
   }
 
   async recoverFawryIntent(
@@ -654,12 +704,20 @@ export class OnlinePaymentsService {
     }
 
     let inquiry;
+    const runtimeContext = await this.runtimeContextForIntent(
+      intent.id,
+      OnlinePaymentProvider.fawry,
+    );
 
     try {
-      inquiry =
-        await this.fawryPaymentProviderService.inquireByMerchantReference(
-          intent.providerOrderId,
-        );
+      inquiry = runtimeContext
+        ? await this.fawryPaymentProviderService.inquireByMerchantReference(
+            intent.providerOrderId,
+            runtimeContext,
+          )
+        : await this.fawryPaymentProviderService.inquireByMerchantReference(
+            intent.providerOrderId,
+          );
     } catch (error) {
       throw this.mapFawryInquiryError(error);
     }
@@ -692,9 +750,24 @@ export class OnlinePaymentsService {
 
   async processFawryWebhook(value: unknown) {
     let verified: ProviderTransactionState;
+    const providerOrderId = this.untrustedFawryProviderOrderId(value);
+    const runtimeContext =
+      providerOrderId && this.merchantPaymentIntegrationsService
+        ? await this.merchantPaymentIntegrationsService.runtimeContextForProviderOrder(
+            OnlinePaymentProvider.fawry,
+            providerOrderId,
+          )
+        : undefined;
+
+    this.assertWebhookMerchantContext(runtimeContext, providerOrderId);
 
     try {
-      verified = this.fawryPaymentProviderService.verifyNotification(value);
+      verified = runtimeContext
+        ? this.fawryPaymentProviderService.verifyNotification(
+            value,
+            runtimeContext,
+          )
+        : this.fawryPaymentProviderService.verifyNotification(value);
     } catch (error) {
       if (
         error instanceof PaymentProviderError &&
@@ -706,9 +779,7 @@ export class OnlinePaymentsService {
       }
 
       if (error instanceof PaymentProviderError) {
-        throw new BadRequestException(
-          "Fawry notification payload is invalid",
-        );
+        throw new BadRequestException("Fawry notification payload is invalid");
       }
 
       throw error;
@@ -827,17 +898,11 @@ export class OnlinePaymentsService {
     }
 
     if (verified.amountMinor !== intent.amountMinor) {
-      return this.skipFawrySettlement(
-        tx,
-        intent,
-        verified,
-        "amount_mismatch",
-        {
-          source,
-          providerAmountMinor: verified.amountMinor,
-          intentAmountMinor: intent.amountMinor,
-        },
-      );
+      return this.skipFawrySettlement(tx, intent, verified, "amount_mismatch", {
+        source,
+        providerAmountMinor: verified.amountMinor,
+        intentAmountMinor: intent.amountMinor,
+      });
     }
 
     if (verified.currency !== intent.currency) {
@@ -868,16 +933,12 @@ export class OnlinePaymentsService {
         },
       );
 
-      return this.toIntentResult(
-        intent,
-        "provider_adjustment_observed",
-        {
-          settled: false,
-          reason: "provider_adjustment_observed",
-          message:
-            "Fawry reported a refund adjustment; the original sale state is preserved",
-        },
-      );
+      return this.toIntentResult(intent, "provider_adjustment_observed", {
+        settled: false,
+        reason: "provider_adjustment_observed",
+        message:
+          "Fawry reported a refund adjustment; the original sale state is preserved",
+      });
     }
 
     if (verified.status === OnlinePaymentIntentStatus.succeeded) {
@@ -974,9 +1035,7 @@ export class OnlinePaymentsService {
 
     return this.toIntentResult(
       finalIntent,
-      settlement.settled
-        ? "succeeded"
-        : "succeeded_without_new_settlement",
+      settlement.settled ? "succeeded" : "succeeded_without_new_settlement",
       settlement,
     );
   }
@@ -1125,20 +1184,12 @@ export class OnlinePaymentsService {
 
     if (
       updateResult.count === 1 &&
-      (
-        verified.status === OnlinePaymentIntentStatus.failed ||
+      (verified.status === OnlinePaymentIntentStatus.failed ||
         verified.status === OnlinePaymentIntentStatus.cancelled ||
-        verified.status === OnlinePaymentIntentStatus.expired
-      )
+        verified.status === OnlinePaymentIntentStatus.expired)
     ) {
-      await this.restoreBillPresentedIfNoActiveOnlinePayment(
-        intent.billId,
-        tx,
-      );
-      await this.realtimeEventsService.recordOnlinePaymentFailed(
-        intent.id,
-        tx,
-      );
+      await this.restoreBillPresentedIfNoActiveOnlinePayment(intent.billId, tx);
+      await this.realtimeEventsService.recordOnlinePaymentFailed(intent.id, tx);
     }
 
     return this.toIntentResult(
@@ -1186,14 +1237,8 @@ export class OnlinePaymentsService {
       });
 
       const latest = await this.loadIntentOrThrow(intent.id, tx);
-      await this.restoreBillPresentedIfNoActiveOnlinePayment(
-        latest.billId,
-        tx,
-      );
-      await this.realtimeEventsService.recordOnlinePaymentFailed(
-        latest.id,
-        tx,
-      );
+      await this.restoreBillPresentedIfNoActiveOnlinePayment(latest.billId, tx);
+      await this.realtimeEventsService.recordOnlinePaymentFailed(latest.id, tx);
       await this.createOnlinePaymentEvent(
         tx,
         latest,
@@ -1287,8 +1332,7 @@ export class OnlinePaymentsService {
 
   async recoverProviderIntent(
     intentId: string,
-    source: "staff_manual" | "scheduled_reconciliation" =
-      "staff_manual",
+    source: "staff_manual" | "scheduled_reconciliation" = "staff_manual",
   ) {
     const intent = await this.prisma.onlinePaymentIntent.findUnique({
       where: { id: intentId },
@@ -1316,6 +1360,8 @@ export class OnlinePaymentsService {
     sessionId: string,
     billId: string,
     body: CreateOnlinePaymentIntentDto,
+    merchantPaymentIntegrationId: string | null,
+    runtimeContext?: ProviderRuntimeContext,
   ) {
     const billingData = body.billingData;
 
@@ -1396,10 +1442,7 @@ export class OnlinePaymentsService {
 
         return {
           kind: "existing" as const,
-          result: this.toIntentResult(
-            existingActiveIntent,
-            "existing_active",
-          ),
+          result: this.toIntentResult(existingActiveIntent, "existing_active"),
         };
       }
 
@@ -1410,6 +1453,7 @@ export class OnlinePaymentsService {
           tableSessionId: sessionId,
           billId: bill.id,
           provider: OnlinePaymentProvider.paymob,
+          merchantPaymentIntegrationId,
           providerIntentId: null,
           providerCheckoutUrl: null,
           idempotencyKey: body.idempotencyKey ?? `auto_${randomUUID()}`,
@@ -1472,6 +1516,7 @@ export class OnlinePaymentsService {
           billingData,
           customerReturnUrl:
             this.normalizeOptionalText(body.customerReturnUrl) ?? undefined,
+          ...(runtimeContext ? { runtimeContext } : {}),
         });
 
       return this.prisma.$transaction(async (tx) => {
@@ -1491,6 +1536,9 @@ export class OnlinePaymentsService {
             metadata: this.toJsonValue({
               ...this.jsonRecord(localIntent.metadata),
               ...providerPayment.metadata,
+              ...(providerPayment.customerAction
+                ? { providerCustomerAction: providerPayment.customerAction }
+                : {}),
               providerInitialization: "ready",
             }),
           },
@@ -1530,7 +1578,9 @@ export class OnlinePaymentsService {
     error: unknown,
   ) {
     const providerCode =
-      error instanceof PaymentProviderError ? error.code : "provider_unavailable";
+      error instanceof PaymentProviderError
+        ? error.code
+        : "provider_unavailable";
 
     await this.prisma.$transaction(async (tx) => {
       await tx.onlinePaymentIntent.updateMany({
@@ -1583,7 +1633,9 @@ export class OnlinePaymentsService {
       error instanceof PaymentProviderError &&
       error.code === "invalid_request"
     ) {
-      return new BadRequestException("Online payment checkout request is invalid");
+      return new BadRequestException(
+        "Online payment checkout request is invalid",
+      );
     }
 
     return new ServiceUnavailableException(
@@ -1591,10 +1643,7 @@ export class OnlinePaymentsService {
     );
   }
 
-  private async recoverBeforePaymobRetry(
-    sessionId: string,
-    billId: string,
-  ) {
+  private async recoverBeforePaymobRetry(sessionId: string, billId: string) {
     const latestIntent = await this.prisma.onlinePaymentIntent.findFirst({
       where: {
         billId,
@@ -1606,7 +1655,10 @@ export class OnlinePaymentsService {
       include: this.intentInclude(),
     });
 
-    if (!latestIntent || latestIntent.status === OnlinePaymentIntentStatus.succeeded) {
+    if (
+      !latestIntent ||
+      latestIntent.status === OnlinePaymentIntentStatus.succeeded
+    ) {
       return;
     }
 
@@ -1620,17 +1672,14 @@ export class OnlinePaymentsService {
       ACTIVE_ONLINE_PAYMENT_STATUSES.includes(latestIntent.status) &&
       Boolean(
         latestIntent.checkoutExpiresAt &&
-          latestIntent.checkoutExpiresAt <= new Date(),
+        latestIntent.checkoutExpiresAt <= new Date(),
       );
 
     if (!terminalStatus && !activeCheckoutExpired) {
       return;
     }
 
-    await this.recoverPaymobIntent(
-      latestIntent.id,
-      "customer_retry_preflight",
-    );
+    await this.recoverPaymobIntent(latestIntent.id, "customer_retry_preflight");
   }
 
   async recoverPaymobIntent(
@@ -1664,12 +1713,20 @@ export class OnlinePaymentsService {
     }
 
     let inquiry;
+    const runtimeContext = await this.runtimeContextForIntent(
+      intent.id,
+      OnlinePaymentProvider.paymob,
+    );
 
     try {
-      inquiry =
-        await this.paymobPaymentProviderService.inquireTransactionByOrder(
-          intent.providerOrderId,
-        );
+      inquiry = runtimeContext
+        ? await this.paymobPaymentProviderService.inquireTransactionByOrder(
+            intent.providerOrderId,
+            runtimeContext,
+          )
+        : await this.paymobPaymentProviderService.inquireTransactionByOrder(
+            intent.providerOrderId,
+          );
     } catch (error) {
       throw this.mapPaymobInquiryError(error);
     }
@@ -1823,10 +1880,7 @@ export class OnlinePaymentsService {
         failed += 1;
         failures.push({
           operationId: operation.id,
-          code:
-            error instanceof Error
-              ? error.name
-              : "unknown_error",
+          code: error instanceof Error ? error.name : "unknown_error",
         });
       }
     }
@@ -1882,10 +1936,7 @@ export class OnlinePaymentsService {
 
     for (const candidate of intents) {
       try {
-        await this.recoverFawryIntent(
-          candidate.id,
-          "scheduled_reconciliation",
-        );
+        await this.recoverFawryIntent(candidate.id, "scheduled_reconciliation");
         recovered += 1;
       } catch (error) {
         failed += 1;
@@ -2056,31 +2107,19 @@ export class OnlinePaymentsService {
     }
 
     if (state.amountMinor !== intent.amountMinor) {
-      return this.skipPaymobSettlement(
-        tx,
-        intent,
-        state,
-        "amount_mismatch",
-        {
-          inquiryAmountMinor: state.amountMinor,
-          intentAmountMinor: intent.amountMinor,
-          source,
-        },
-      );
+      return this.skipPaymobSettlement(tx, intent, state, "amount_mismatch", {
+        inquiryAmountMinor: state.amountMinor,
+        intentAmountMinor: intent.amountMinor,
+        source,
+      });
     }
 
     if (state.currency !== intent.currency) {
-      return this.skipPaymobSettlement(
-        tx,
-        intent,
-        state,
-        "currency_mismatch",
-        {
-          inquiryCurrency: state.currency,
-          intentCurrency: intent.currency,
-          source,
-        },
-      );
+      return this.skipPaymobSettlement(tx, intent, state, "currency_mismatch", {
+        inquiryCurrency: state.currency,
+        intentCurrency: intent.currency,
+        source,
+      });
     }
 
     if (!state.actionable) {
@@ -2376,13 +2415,21 @@ export class OnlinePaymentsService {
     }
 
     try {
-      const providerResult =
-        await this.fawryPaymentProviderService.refundPayment({
-          referenceNumber:
-            preparation.operation.parentProviderTransactionId,
-          amountMinor: preparation.operation.amountMinor,
-          reason: preparation.operation.reason ?? undefined,
-        });
+      const runtimeContext = await this.runtimeContextForIntent(
+        preparation.operation.onlinePaymentIntentId,
+        OnlinePaymentProvider.fawry,
+      );
+      const refundInput = {
+        referenceNumber: preparation.operation.parentProviderTransactionId,
+        amountMinor: preparation.operation.amountMinor,
+        reason: preparation.operation.reason ?? undefined,
+      };
+      const providerResult = runtimeContext
+        ? await this.fawryPaymentProviderService.refundPayment(
+            refundInput,
+            runtimeContext,
+          )
+        : await this.fawryPaymentProviderService.refundPayment(refundInput);
 
       return this.finalizeFawryRefundOperation(
         preparation.operation.id,
@@ -2394,28 +2441,20 @@ export class OnlinePaymentsService {
       );
     } catch (error) {
       if (this.isAmbiguousFawryRefundError(error)) {
-        await this.markFawryRefundUncertain(
-          preparation.operation.id,
-          error,
-        );
+        await this.markFawryRefundUncertain(preparation.operation.id, error);
 
         throw new ServiceUnavailableException(
           "Fawry refund outcome is uncertain and must be recovered before another refund",
         );
       }
 
-      await this.failFawryRefundOperation(
-        preparation.operation.id,
-        error,
-      );
+      await this.failFawryRefundOperation(preparation.operation.id, error);
 
       if (
         error instanceof PaymentProviderError &&
-        (
-          error.code === "invalid_request" ||
+        (error.code === "invalid_request" ||
           error.code === "provider_declined" ||
-          error.code === "transaction_not_found"
-        )
+          error.code === "transaction_not_found")
       ) {
         throw new BadRequestException(
           "Fawry rejected the refund for the current payment state",
@@ -2475,8 +2514,10 @@ export class OnlinePaymentsService {
 
   async recoverProviderOperation(
     operationId: string,
-    source: "staff_manual" | "scheduled_reconciliation" | "child_webhook" =
-      "staff_manual",
+    source:
+      | "staff_manual"
+      | "scheduled_reconciliation"
+      | "child_webhook" = "staff_manual",
   ) {
     const operation = await this.prisma.onlinePaymentOperation.findUnique({
       where: { id: operationId },
@@ -2528,8 +2569,7 @@ export class OnlinePaymentsService {
       return this.toOperationResult(operation, "already_terminal");
     }
 
-    const merchantRefNumber =
-      operation.onlinePaymentIntent.providerOrderId;
+    const merchantRefNumber = operation.onlinePaymentIntent.providerOrderId;
 
     if (!merchantRefNumber) {
       throw new ServiceUnavailableException(
@@ -2538,12 +2578,20 @@ export class OnlinePaymentsService {
     }
 
     let inquiry;
+    const runtimeContext = await this.runtimeContextForIntent(
+      operation.onlinePaymentIntentId,
+      OnlinePaymentProvider.fawry,
+    );
 
     try {
-      inquiry =
-        await this.fawryPaymentProviderService.inquireByMerchantReference(
-          merchantRefNumber,
-        );
+      inquiry = runtimeContext
+        ? await this.fawryPaymentProviderService.inquireByMerchantReference(
+            merchantRefNumber,
+            runtimeContext,
+          )
+        : await this.fawryPaymentProviderService.inquireByMerchantReference(
+            merchantRefNumber,
+          );
     } catch {
       throw new ServiceUnavailableException(
         "Fawry refund recovery is temporarily unavailable",
@@ -2562,33 +2610,25 @@ export class OnlinePaymentsService {
     );
     const fullTotalProvable =
       Number.isSafeInteger(expectedRefundedMinor) &&
-      expectedRefundedMinor ===
-        operation.onlinePaymentIntent.amountMinor &&
+      expectedRefundedMinor === operation.onlinePaymentIntent.amountMinor &&
       inquiry.transaction.safeMetadata.refunded === true;
 
     if (!fullTotalProvable) {
-      return this.toOperationResult(
-        operation,
-        "provider_confirmation_pending",
-      );
+      return this.toOperationResult(operation, "provider_confirmation_pending");
     }
 
-    return this.finalizeFawryRefundOperation(
-      operation.id,
-      source,
-      {
-        providerStatus:
-          inquiry.transaction.safeMetadata.orderStatus,
-        fawryRefNumber:
-          inquiry.transaction.providerTransactionId,
-      },
-    );
+    return this.finalizeFawryRefundOperation(operation.id, source, {
+      providerStatus: inquiry.transaction.safeMetadata.orderStatus,
+      fawryRefNumber: inquiry.transaction.providerTransactionId,
+    });
   }
 
   async recoverPaymobOperation(
     operationId: string,
-    source: "staff_manual" | "scheduled_reconciliation" | "child_webhook" =
-      "staff_manual",
+    source:
+      | "staff_manual"
+      | "scheduled_reconciliation"
+      | "child_webhook" = "staff_manual",
   ) {
     this.assertOnlinePaymentsEnabled();
 
@@ -2827,12 +2867,20 @@ export class OnlinePaymentsService {
     }
 
     let parentState: ProviderTransactionState;
+    const runtimeContext = await this.runtimeContextForIntent(
+      preparation.operation.onlinePaymentIntentId,
+      OnlinePaymentProvider.paymob,
+    );
 
     try {
-      parentState =
-        await this.paymobPaymentProviderService.inquireTransactionById(
-          preparation.operation.parentProviderTransactionId,
-        );
+      parentState = runtimeContext
+        ? await this.paymobPaymentProviderService.inquireTransactionById(
+            preparation.operation.parentProviderTransactionId,
+            runtimeContext,
+          )
+        : await this.paymobPaymentProviderService.inquireTransactionById(
+            preparation.operation.parentProviderTransactionId,
+          );
       this.assertPaymobOperationParentEligible(
         preparation.operation,
         parentState,
@@ -2856,18 +2904,36 @@ export class OnlinePaymentsService {
         expectedCurrency: preparation.operation.currency,
       };
 
-      providerResult =
-        preparation.operation.type === OnlinePaymentOperationType.refund
+      if (preparation.operation.type === OnlinePaymentOperationType.refund) {
+        providerResult = runtimeContext
           ? await this.paymobPaymentProviderService.refundTransaction(
               providerInput,
+              runtimeContext,
             )
-          : preparation.operation.type === OnlinePaymentOperationType.void
-            ? await this.paymobPaymentProviderService.voidTransaction(
-                providerInput,
-              )
-            : await this.paymobPaymentProviderService.captureTransaction(
-                providerInput,
-              );
+          : await this.paymobPaymentProviderService.refundTransaction(
+              providerInput,
+            );
+      } else if (
+        preparation.operation.type === OnlinePaymentOperationType.void
+      ) {
+        providerResult = runtimeContext
+          ? await this.paymobPaymentProviderService.voidTransaction(
+              providerInput,
+              runtimeContext,
+            )
+          : await this.paymobPaymentProviderService.voidTransaction(
+              providerInput,
+            );
+      } else {
+        providerResult = runtimeContext
+          ? await this.paymobPaymentProviderService.captureTransaction(
+              providerInput,
+              runtimeContext,
+            )
+          : await this.paymobPaymentProviderService.captureTransaction(
+              providerInput,
+            );
+      }
     } catch (error) {
       if (this.isAmbiguousProviderMutationError(error)) {
         await this.markPaymobOperationUncertain(
@@ -2963,9 +3029,7 @@ export class OnlinePaymentsService {
     operation: OnlinePaymentOperationRecord,
     state: ProviderTransactionState,
   ) {
-    if (
-      state.providerTransactionId !== operation.parentProviderTransactionId
-    ) {
+    if (state.providerTransactionId !== operation.parentProviderTransactionId) {
       throw new PaymentProviderError(
         "Paymob operation target transaction changed",
         "invalid_response",
@@ -3029,28 +3093,36 @@ export class OnlinePaymentsService {
     source: string,
   ) {
     let state: ProviderTransactionState;
+    const runtimeContext = await this.runtimeContextForIntent(
+      operation.onlinePaymentIntentId,
+      OnlinePaymentProvider.paymob,
+    );
 
     if (
       operation.providerTransactionId &&
-      operation.providerTransactionId !==
-        operation.parentProviderTransactionId
+      operation.providerTransactionId !== operation.parentProviderTransactionId
     ) {
-      state = await this.paymobPaymentProviderService.inquireTransactionById(
-        operation.providerTransactionId,
-      );
+      state = runtimeContext
+        ? await this.paymobPaymentProviderService.inquireTransactionById(
+            operation.providerTransactionId,
+            runtimeContext,
+          )
+        : await this.paymobPaymentProviderService.inquireTransactionById(
+            operation.providerTransactionId,
+          );
     } else {
-      state = await this.paymobPaymentProviderService.inquireTransactionById(
-        operation.parentProviderTransactionId,
-      );
+      state = runtimeContext
+        ? await this.paymobPaymentProviderService.inquireTransactionById(
+            operation.parentProviderTransactionId,
+            runtimeContext,
+          )
+        : await this.paymobPaymentProviderService.inquireTransactionById(
+            operation.parentProviderTransactionId,
+          );
     }
 
     return this.prisma.$transaction((tx) =>
-      this.finalizePaymobOperationFromState(
-        tx,
-        operation.id,
-        state,
-        source,
-      ),
+      this.finalizePaymobOperationFromState(tx, operation.id, state, source),
     );
   }
 
@@ -3122,11 +3194,11 @@ export class OnlinePaymentsService {
         }
       }
 
-      if (
-        operation.type === OnlinePaymentOperationType.void &&
-        !isVoided
-      ) {
-        return this.toOperationResult(operation, "provider_confirmation_pending");
+      if (operation.type === OnlinePaymentOperationType.void && !isVoided) {
+        return this.toOperationResult(
+          operation,
+          "provider_confirmation_pending",
+        );
       }
 
       if (
@@ -3135,7 +3207,10 @@ export class OnlinePaymentsService {
           (state.capturedAmountMinor !== undefined &&
             state.capturedAmountMinor < operation.amountMinor))
       ) {
-        return this.toOperationResult(operation, "provider_confirmation_pending");
+        return this.toOperationResult(
+          operation,
+          "provider_confirmation_pending",
+        );
       }
     }
 
@@ -3209,16 +3284,12 @@ export class OnlinePaymentsService {
     let latestOperation = await this.loadOperationOrThrow(operation.id, tx);
 
     if (latestOperation.type === OnlinePaymentOperationType.capture) {
-      await this.applyPaymobSuccess(
-        tx,
-        latestOperation.onlinePaymentIntent,
-        {
-          ...state,
-          status: OnlinePaymentIntentStatus.succeeded,
-          amountMinor: latestOperation.amountMinor,
-          actionable: true,
-        },
-      );
+      await this.applyPaymobSuccess(tx, latestOperation.onlinePaymentIntent, {
+        ...state,
+        status: OnlinePaymentIntentStatus.succeeded,
+        amountMinor: latestOperation.amountMinor,
+        actionable: true,
+      });
     } else if (
       latestOperation.type === OnlinePaymentOperationType.void &&
       latestOperation.onlinePaymentIntent.status ===
@@ -3384,9 +3455,7 @@ export class OnlinePaymentsService {
       }
 
       if (error.code === "provider_declined") {
-        return new BadRequestException(
-          "Paymob declined the payment operation",
-        );
+        return new BadRequestException("Paymob declined the payment operation");
       }
     }
 
@@ -3447,8 +3516,7 @@ export class OnlinePaymentsService {
           provider: OnlinePaymentProvider.fawry,
           amountMinor: operation.amountMinor,
           source,
-          parentProviderTransactionId:
-            operation.parentProviderTransactionId,
+          parentProviderTransactionId: operation.parentProviderTransactionId,
         },
       );
       await this.billsService.refreshReceiptForOnlinePaymentAdjustment(
@@ -3470,8 +3538,7 @@ export class OnlinePaymentsService {
             billId: operation.billId,
             amountMinor: operation.amountMinor,
             currency: operation.currency,
-            parentProviderTransactionId:
-              operation.parentProviderTransactionId,
+            parentProviderTransactionId: operation.parentProviderTransactionId,
             source,
           },
         },
@@ -3482,14 +3549,9 @@ export class OnlinePaymentsService {
     });
   }
 
-  private async markFawryRefundUncertain(
-    operationId: string,
-    error: unknown,
-  ) {
+  private async markFawryRefundUncertain(operationId: string, error: unknown) {
     const providerCode =
-      error instanceof PaymentProviderError
-        ? error.code
-        : "unknown_error";
+      error instanceof PaymentProviderError ? error.code : "unknown_error";
     const operation = await this.prisma.onlinePaymentOperation.findUnique({
       where: { id: operationId },
       select: { metadata: true },
@@ -3514,14 +3576,9 @@ export class OnlinePaymentsService {
     });
   }
 
-  private async failFawryRefundOperation(
-    operationId: string,
-    error: unknown,
-  ) {
+  private async failFawryRefundOperation(operationId: string, error: unknown) {
     const providerCode =
-      error instanceof PaymentProviderError
-        ? error.code
-        : "unknown_error";
+      error instanceof PaymentProviderError ? error.code : "unknown_error";
 
     return this.prisma.$transaction(async (tx) => {
       await tx.onlinePaymentOperation.updateMany({
@@ -3558,18 +3615,13 @@ export class OnlinePaymentsService {
   private isAmbiguousFawryRefundError(error: unknown) {
     return (
       error instanceof PaymentProviderError &&
-      [
-        "timeout",
-        "provider_unavailable",
-        "invalid_response",
-      ].includes(error.code)
+      ["timeout", "provider_unavailable", "invalid_response"].includes(
+        error.code,
+      )
     );
   }
 
-  private async loadOperationOrThrow(
-    operationId: string,
-    tx: PrismaExecutor,
-  ) {
+  private async loadOperationOrThrow(operationId: string, tx: PrismaExecutor) {
     const operation = await tx.onlinePaymentOperation.findUnique({
       where: { id: operationId },
       include: onlinePaymentOperationInclude,
@@ -3605,8 +3657,7 @@ export class OnlinePaymentsService {
         provider: operation.provider,
         type: operation.type,
         status: operation.status,
-        parentProviderTransactionId:
-          operation.parentProviderTransactionId,
+        parentProviderTransactionId: operation.parentProviderTransactionId,
         providerTransactionId: operation.providerTransactionId,
         amountMinor: operation.amountMinor,
         currency: operation.currency,
@@ -3617,9 +3668,7 @@ export class OnlinePaymentsService {
         failureCode: operation.failureCode,
         failureMessage: operation.failureMessage,
       },
-      onlinePaymentIntent: this.toIntentSummary(
-        operation.onlinePaymentIntent,
-      ),
+      onlinePaymentIntent: this.toIntentSummary(operation.onlinePaymentIntent),
     };
   }
 
@@ -3635,19 +3684,13 @@ export class OnlinePaymentsService {
     return AuditAction.online_payment_captured;
   }
 
-  private booleanMetadata(
-    metadata: Record<string, unknown>,
-    key: string,
-  ) {
+  private booleanMetadata(metadata: Record<string, unknown>, key: string) {
     return typeof metadata[key] === "boolean"
       ? (metadata[key] as boolean)
       : undefined;
   }
 
-  private stringMetadata(
-    metadata: Record<string, unknown>,
-    key: string,
-  ) {
+  private stringMetadata(metadata: Record<string, unknown>, key: string) {
     return typeof metadata[key] === "string"
       ? (metadata[key] as string)
       : undefined;
@@ -3657,13 +3700,28 @@ export class OnlinePaymentsService {
     this.assertOnlinePaymentsEnabled();
 
     let verified: VerifiedProviderTransactionWebhook;
+    const providerOrderId = this.untrustedPaymobProviderOrderId(obj);
+    const runtimeContext =
+      providerOrderId && this.merchantPaymentIntegrationsService
+        ? await this.merchantPaymentIntegrationsService.runtimeContextForProviderOrder(
+            OnlinePaymentProvider.paymob,
+            providerOrderId,
+          )
+        : undefined;
+
+    this.assertWebhookMerchantContext(runtimeContext, providerOrderId);
 
     try {
-      verified =
-        this.paymobPaymentProviderService.verifyTransactionWebhook(
-          obj,
-          receivedHmac,
-        );
+      verified = runtimeContext
+        ? this.paymobPaymentProviderService.verifyTransactionWebhook(
+            obj,
+            receivedHmac,
+            runtimeContext,
+          )
+        : this.paymobPaymentProviderService.verifyTransactionWebhook(
+            obj,
+            receivedHmac,
+          );
     } catch (error) {
       if (
         error instanceof PaymentProviderError &&
@@ -3776,10 +3834,18 @@ export class OnlinePaymentsService {
     let state: ProviderTransactionState;
 
     try {
-      state =
-        await this.paymobPaymentProviderService.inquireTransactionById(
-          verified.providerTransactionId,
-        );
+      const runtimeContext = await this.runtimeContextForIntent(
+        receipt.intentId,
+        OnlinePaymentProvider.paymob,
+      );
+      state = runtimeContext
+        ? await this.paymobPaymentProviderService.inquireTransactionById(
+            verified.providerTransactionId,
+            runtimeContext,
+          )
+        : await this.paymobPaymentProviderService.inquireTransactionById(
+            verified.providerTransactionId,
+          );
     } catch (error) {
       throw this.mapPaymobInquiryError(error);
     }
@@ -3805,10 +3871,7 @@ export class OnlinePaymentsService {
         return this.toIntentResult(intent, "child_transaction_scope_mismatch");
       }
 
-      if (
-        !state.parentProviderTransactionId ||
-        !state.operationType
-      ) {
+      if (!state.parentProviderTransactionId || !state.operationType) {
         await this.createOnlinePaymentEvent(
           tx,
           intent,
@@ -3852,8 +3915,7 @@ export class OnlinePaymentsService {
           ...(state.operationType ? { type: state.operationType } : {}),
           ...(state.parentProviderTransactionId
             ? {
-                parentProviderTransactionId:
-                  state.parentProviderTransactionId,
+                parentProviderTransactionId: state.parentProviderTransactionId,
               }
             : {}),
           OR: [
@@ -3872,8 +3934,7 @@ export class OnlinePaymentsService {
           {
             reason: "unmatched_child_transaction",
             providerTransactionId: state.providerTransactionId,
-            parentProviderTransactionId:
-              state.parentProviderTransactionId,
+            parentProviderTransactionId: state.parentProviderTransactionId,
             operationType: state.operationType,
           },
         );
@@ -3950,7 +4011,8 @@ export class OnlinePaymentsService {
         settlement: {
           settled: false,
           reason: "unmatched_provider_order",
-          message: "Verified Paymob order is not linked to a local payment intent",
+          message:
+            "Verified Paymob order is not linked to a local payment intent",
         },
       };
     }
@@ -4874,11 +4936,71 @@ export class OnlinePaymentsService {
       return OnlinePaymentProvider.fawry;
     }
 
+    if (provider === OnlinePaymentProvider.maestr) {
+      return OnlinePaymentProvider.maestr;
+    }
+
     if (provider === OnlinePaymentProvider.external) {
       return OnlinePaymentProvider.external;
     }
 
     return OnlinePaymentProvider.mock;
+  }
+
+  private runtimeContextForIntent(
+    intentId: string,
+    provider: OnlinePaymentProvider,
+  ) {
+    return this.merchantPaymentIntegrationsService?.runtimeContextForIntent(
+      intentId,
+      provider,
+    );
+  }
+
+  private assertWebhookMerchantContext(
+    runtimeContext: ProviderRuntimeContext | undefined,
+    providerOrderId: string | undefined,
+  ) {
+    if (
+      this.merchantPaymentIntegrationsService &&
+      this.configService.get<string>("app.environment") === "production" &&
+      (!providerOrderId || !runtimeContext)
+    ) {
+      throw new UnauthorizedException(
+        "Payment webhook is not bound to a tenant merchant integration",
+      );
+    }
+  }
+
+  private untrustedFawryProviderOrderId(value: unknown) {
+    if (!value || typeof value !== "object" || Array.isArray(value)) {
+      return undefined;
+    }
+    const input = value as Record<string, unknown>;
+    return this.untrustedIdentifier(
+      input.merchantRefNumber ?? input.merchantRefNum,
+    );
+  }
+
+  private untrustedPaymobProviderOrderId(value: unknown) {
+    if (!value || typeof value !== "object" || Array.isArray(value)) {
+      return undefined;
+    }
+    const order = (value as Record<string, unknown>).order;
+    if (!order || typeof order !== "object" || Array.isArray(order)) {
+      return undefined;
+    }
+    return this.untrustedIdentifier((order as Record<string, unknown>).id);
+  }
+
+  private untrustedIdentifier(value: unknown) {
+    if (typeof value === "string" && value.trim()) {
+      return value.trim();
+    }
+    if (typeof value === "number" && Number.isFinite(value)) {
+      return String(value);
+    }
+    return undefined;
   }
 
   private buildMockCheckoutUrl(providerIntentId: string) {
@@ -4901,7 +5023,14 @@ export class OnlinePaymentsService {
       checkout: {
         provider: intent.provider,
         url: intent.providerCheckoutUrl,
+        customerAction: this.providerCustomerAction(
+          intent.metadata,
+          intent.providerCheckoutUrl,
+        ),
         expiresAt: intent.checkoutExpiresAt,
+        requiresCustomerAction:
+          intent.status === OnlinePaymentIntentStatus.pending ||
+          intent.status === OnlinePaymentIntentStatus.requires_action,
         requiresHostedCheckout:
           intent.status === OnlinePaymentIntentStatus.pending ||
           intent.status === OnlinePaymentIntentStatus.requires_action,
@@ -4972,6 +5101,52 @@ export class OnlinePaymentsService {
     const normalizedValue = value.trim();
 
     return normalizedValue.length > 0 ? normalizedValue : null;
+  }
+
+  private providerCustomerAction(
+    metadata: Prisma.JsonValue | null,
+    fallbackCheckoutUrl?: string | null,
+  ): ProviderCustomerAction | undefined {
+    const rawAction = this.jsonRecord(metadata).providerCustomerAction;
+
+    if (
+      rawAction &&
+      typeof rawAction === "object" &&
+      !Array.isArray(rawAction)
+    ) {
+      const action = rawAction as Record<string, unknown>;
+      const type = action.type;
+
+      if (type === "redirect" || type === "deep_link") {
+        const url = typeof action.url === "string" ? action.url.trim() : "";
+
+        if (url) {
+          return { type, url };
+        }
+      }
+
+      if (type === "qr") {
+        const value =
+          typeof action.value === "string" ? action.value.trim() : "";
+
+        if (value) {
+          return { type, value };
+        }
+      }
+
+      if (type === "display_reference") {
+        const reference =
+          typeof action.reference === "string" ? action.reference.trim() : "";
+
+        if (reference) {
+          return { type, reference };
+        }
+      }
+    }
+
+    const fallback = fallbackCheckoutUrl?.trim();
+
+    return fallback ? { type: "redirect", url: fallback } : undefined;
   }
 
   private jsonRecord(value: Prisma.JsonValue | null): Record<string, unknown> {

@@ -1,15 +1,45 @@
 import {
+  MerchantPaymentIntegrationEnvironment,
   OnlinePaymentIntentStatus,
   OnlinePaymentOperationStatus,
   OnlinePaymentOperationType,
   OnlinePaymentProvider,
 } from "@prisma/client";
 
+export type ProviderRuntimeContext = {
+  integrationId: string;
+  environment: MerchantPaymentIntegrationEnvironment;
+  merchantAccountReference: string | null;
+  enabledChannels: string[];
+  configurationMetadata: Record<string, unknown>;
+  secretReferences: Record<string, string>;
+};
+
 export type PaymentBillingData = {
   firstName: string;
   lastName: string;
   email: string;
   phoneNumber: string;
+};
+
+export type PaymentProviderCapabilities = {
+  hostedCheckout: boolean;
+  embeddedCheckout: boolean;
+  card: boolean;
+  wallet: boolean;
+  referenceCode: boolean;
+  qr: boolean;
+  deepLink: boolean;
+  inquiry: boolean;
+  refund: boolean;
+  partialRefund: boolean;
+  void: boolean;
+  capture: boolean;
+  settlementImport: boolean;
+  providerReconciliation: boolean;
+  directTerminal: boolean;
+  recurringBilling: boolean;
+  bankTransferOrIpn: boolean;
 };
 
 export type CreateProviderPaymentInput = {
@@ -21,14 +51,34 @@ export type CreateProviderPaymentInput = {
   currency: string;
   billingData: PaymentBillingData;
   customerReturnUrl?: string;
+  runtimeContext?: ProviderRuntimeContext;
 };
+
+export type ProviderCustomerAction =
+  | {
+      type: "redirect";
+      url: string;
+    }
+  | {
+      type: "deep_link";
+      url: string;
+    }
+  | {
+      type: "qr";
+      value: string;
+    }
+  | {
+      type: "display_reference";
+      reference: string;
+    };
 
 export type CreateProviderPaymentResult = {
   provider: OnlinePaymentProvider;
   providerIntentId: string;
   providerOrderId?: string;
   status: OnlinePaymentIntentStatus;
-  checkoutUrl: string;
+  checkoutUrl?: string;
+  customerAction?: ProviderCustomerAction;
   checkoutExpiresAt?: Date;
   metadata?: Record<string, unknown>;
 };
@@ -58,14 +108,14 @@ export class PaymentProviderError extends Error {
   }
 }
 
-
 export type ProviderTransactionState = {
   provider: OnlinePaymentProvider;
   providerEventId: string;
   providerTransactionId: string;
   providerOrderId: string;
   merchantReference?: string;
-  integrationId: number;
+  integrationId?: number;
+  providerIntegrationReference?: string;
   status: OnlinePaymentIntentStatus;
   amountMinor: number;
   currency: string;
@@ -97,7 +147,6 @@ export type ProviderTransactionInquiryResult =
       providerOrderId: string;
       transaction: ProviderTransactionState;
     };
-
 
 export type ProviderPostPaymentOperationInput = {
   type: OnlinePaymentOperationType;

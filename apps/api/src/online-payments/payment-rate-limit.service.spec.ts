@@ -23,10 +23,7 @@ describe("PaymentRateLimitService", () => {
     const redis = {
       eval: jest.fn().mockResolvedValue([2, 51]),
     };
-    const service = new PaymentRateLimitService(
-      redis as never,
-      config(),
-    );
+    const service = new PaymentRateLimitService(redis as never, config());
 
     await expect(
       service.consume("customer_create", "identity-1", "session-1"),
@@ -43,10 +40,7 @@ describe("PaymentRateLimitService", () => {
     const redis = {
       eval: jest.fn().mockResolvedValue([3, 44]),
     };
-    const service = new PaymentRateLimitService(
-      redis as never,
-      config(),
-    );
+    const service = new PaymentRateLimitService(redis as never, config());
 
     await expect(
       service.consume("customer_create", "identity-1", "session-1"),
@@ -62,10 +56,7 @@ describe("PaymentRateLimitService", () => {
     const redis = {
       eval: jest.fn().mockResolvedValue([3, 39]),
     };
-    const service = new PaymentRateLimitService(
-      redis as never,
-      config(),
-    );
+    const service = new PaymentRateLimitService(redis as never, config());
 
     await expect(
       service.consume("staff_recover", "staff-1", "provider-recovery"),
@@ -81,10 +72,7 @@ describe("PaymentRateLimitService", () => {
     const redis = {
       eval: jest.fn().mockRejectedValue(new Error("redis unavailable")),
     };
-    const service = new PaymentRateLimitService(
-      redis as never,
-      config("test"),
-    );
+    const service = new PaymentRateLimitService(redis as never, config("test"));
 
     await expect(
       service.consume("customer_create", "identity-1", "session-1"),

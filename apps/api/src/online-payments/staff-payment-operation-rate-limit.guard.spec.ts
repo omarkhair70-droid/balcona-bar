@@ -26,9 +26,7 @@ describe("StaffPaymentOperationRateLimitGuard", () => {
     );
 
     await expect(
-      guard.canActivate(
-        context({ staffUser: { id: "staff-1" } }, response),
-      ),
+      guard.canActivate(context({ staffUser: { id: "staff-1" } }, response)),
     ).resolves.toBe(true);
 
     expect(paymentRateLimitService.consume).toHaveBeenCalledWith(
