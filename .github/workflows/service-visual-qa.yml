@@ -1,6 +1,7 @@
 name: Service Visual QA
 
 on:
+  workflow_dispatch:
   push:
     branches:
       - integration/a2-service-shell

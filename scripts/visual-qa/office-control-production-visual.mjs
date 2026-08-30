@@ -1115,9 +1115,12 @@ async function capture(browser, {
   await page.waitForTimeout(700);
 
   if (activeLabel) {
-    const current = page.locator('a[aria-current="page"]');
-    await current.waitFor({ state: "visible", timeout: 5000 });
-    const currentText = (await current.innerText()).trim();
+    const expectedCurrent = page
+      .locator('a[aria-current="page"]')
+      .filter({ hasText: activeLabel })
+      .first();
+    await expectedCurrent.waitFor({ state: "visible", timeout: 15000 });
+    const currentText = (await expectedCurrent.innerText()).trim();
 
     if (!currentText.includes(activeLabel)) {
       throw new Error(

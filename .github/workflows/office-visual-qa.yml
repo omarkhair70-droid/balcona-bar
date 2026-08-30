@@ -1,6 +1,7 @@
 name: Office Visual QA
 
 on:
+  workflow_dispatch:
   push:
     branches:
       - integration/a4-office-shell
