@@ -290,8 +290,8 @@ try {
   await openRoute(failurePage, "/request-demo");
   await fillDemoRequest(failurePage, "Failure");
   await failurePage.getByRole("button", { name: "Request the demo" }).click();
-  const alert = failurePage.locator('[role="alert"]');
-  await alert.waitFor({ timeout: 10_000 });
+  const alert = failurePage.locator('form [role="alert"]').last();
+  await alert.waitFor({ state: "visible", timeout: 10_000 });
   const alertText = await alert.innerText();
   record(
     "demo form failure state",
