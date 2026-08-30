@@ -618,14 +618,10 @@ function OwnerDashboardContent() {
     (entry) => entry.branch.id === selectedBranchId
   );
   const selectedBranch = selectedBranchAccess?.branch;
-  const accessibleBranches = useMemo(
-    () =>
-      (effectiveAccess?.branches ?? []).filter(
-        (entry) =>
-          !selectedBranchAccess?.company.id ||
-          entry.company.id === selectedBranchAccess.company.id
-      ),
-    [effectiveAccess, selectedBranchAccess?.company.id]
+  const accessibleBranches = (effectiveAccess?.branches ?? []).filter(
+    (entry) =>
+      !selectedBranchAccess?.company.id ||
+      entry.company.id === selectedBranchAccess.company.id
   );
   const [preset, setPreset] = useState<OwnerAnalyticsPreset>("today");
   const [scopeMode, setScopeMode] = useState<"branch" | "company">("branch");
@@ -1539,10 +1535,11 @@ function OwnerDashboardContent() {
 
 export function OfficeCoreDashboardPage() {
   const t = useTranslations("owner");
+  const officeView = useOwnerOfficeView();
 
   return (
     <OfficeStaffShell
-      activeDomain="home"
+      activeDomain={officeView}
       title={t("dashboard.title")}
       description={t("dashboard.description")}
       actions={<OwnerDashboardActions />}
