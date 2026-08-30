@@ -206,7 +206,7 @@ New S6 surfaces implement:
 - real mutation failure display
 - no optimistic/fake success messaging
 
-The Office shell already uses responsive desktop/tablet behavior and logical-direction border/alignment utilities. New tables are horizontally scrollable where needed and all controls remain usable in RTL.
+The Office shell already uses responsive desktop/tablet behavior and logical-direction border/alignment utilities. New tables are horizontally scrollable where needed and all controls remain usable in RTL. The Office visual harness now captures Team, Money, Experience, Settings, and Account directly, including a tablet Money viewport and an Arabic RTL Team tablet viewport.
 
 ## Reference synthesis
 
@@ -236,6 +236,8 @@ The following shared files are intentionally touched and kept narrow:
   - Account navigation label only
 - `apps/api/src/staff/staff-scoped-access.service.ts`
   - adds scope resolution helpers for Experience Profile, Content Block, Notification Template, Media Asset, and Media Usage
+- `scripts/visual-qa/office-production-visual.mjs`
+  - extends the existing Office visual harness with S6 routes, deterministic API fixtures, desktop/tablet captures, RTL capture, overflow checks, and browser-console failure checks
 
 No broad shared shell rewrite is included.
 

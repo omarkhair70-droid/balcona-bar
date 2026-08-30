@@ -29,10 +29,33 @@ const branch = {
 };
 
 const permissions = [
+  "companies.read",
+  "branches.read",
+  "staff.read",
+  "staff.manage",
   "owner_analytics.read",
   "menu.read",
   "inventory.read",
+  "bills.read",
+  "online_payments.read",
+  "online_payments.manage",
+  "media.read",
+  "media.manage",
+  "experience.read",
+  "experience.manage",
+  "content.read",
+  "content.manage",
+  "venue_zones.read",
+  "venue_zones.manage",
+  "presence.read",
+  "notifications.read",
+  "settings.read",
   "settings.manage",
+  "feature_flags.read",
+  "feature_flags.manage",
+  "tenant_onboarding.read",
+  "tenant_onboarding.manage",
+  "audit.read",
   "saas.read"
 ];
 
@@ -675,6 +698,350 @@ async function installApiMocks(page) {
       });
     }
 
+    if (pathname === "/api/v1/staff") {
+      return route.fulfill(
+        json([
+          {
+            id: staffUser.id,
+            email: staffUser.email,
+            name: staffUser.name,
+            status: "active",
+            memberships: [
+              {
+                id: "membership-owner-office-visual",
+                role: "owner",
+                status: "active",
+                company,
+                branch,
+                createdAt: "2026-08-01T08:10:00.000Z"
+              }
+            ]
+          },
+          {
+            id: "staff-manager-office-visual",
+            email: "manager@balcona.local",
+            name: "Mariam Manager",
+            status: "active",
+            memberships: [
+              {
+                id: "membership-manager-office-visual",
+                role: "branch_manager",
+                status: "active",
+                company,
+                branch,
+                createdAt: "2026-08-02T08:10:00.000Z"
+              }
+            ]
+          }
+        ])
+      );
+    }
+
+    if (pathname === `/api/v1/branches/${BRANCH_ID}/bills`) {
+      return route.fulfill(
+        json({
+          branch,
+          bills: [
+            {
+              id: "bill-office-visual",
+              status: "paid",
+              totalMinor: 38500,
+              currency: "EGP",
+              createdAt: "2026-08-29T13:40:00.000Z"
+            }
+          ]
+        })
+      );
+    }
+
+    if (pathname === `/api/v1/branches/${BRANCH_ID}/online-payments`) {
+      return route.fulfill(
+        json({
+          branch,
+          onlinePaymentIntents: [
+            {
+              id: "intent-office-visual",
+              provider: "paymob",
+              status: "succeeded",
+              amountMinor: 38500,
+              currency: "EGP",
+              createdAt: "2026-08-29T13:41:00.000Z",
+              metadata: {
+                expectedLive: false,
+                isLive: false
+              }
+            }
+          ]
+        })
+      );
+    }
+
+    if (
+      pathname ===
+      `/api/v1/branches/${BRANCH_ID}/online-payment-reconciliation/runs`
+    ) {
+      return route.fulfill(
+        json([
+          {
+            id: "reconciliation-office-visual",
+            source: "settlement_statement",
+            status: "completed",
+            matchedCount: 8,
+            pendingCount: 0,
+            mismatchCount: 1,
+            createdAt: "2026-08-29T14:00:00.000Z",
+            settlementBatch: {
+              id: "settlement-office-visual",
+              externalReference: "PAYMOB-2026-08-29",
+              payoutReference: "PAYOUT-7781",
+              settledAt: "2026-08-29T13:58:00.000Z"
+            }
+          }
+        ])
+      );
+    }
+
+    if (
+      pathname ===
+      `/api/v1/branches/${BRANCH_ID}/online-payment-reconciliation/issues`
+    ) {
+      return route.fulfill(
+        json([
+          {
+            id: "issue-office-visual",
+            type: "amount_mismatch",
+            status: "open",
+            message: "Provider and local movement differ by EGP 5.00",
+            detectedAt: "2026-08-29T14:01:00.000Z"
+          }
+        ])
+      );
+    }
+
+    if (pathname === `/api/v1/branches/${BRANCH_ID}/experience/profiles`) {
+      return route.fulfill(
+        json({
+          branch,
+          profiles: [
+            {
+              id: "profile-branch-office-visual",
+              key: "warm-main",
+              name: "Warm Main",
+              status: "active",
+              isDefault: true,
+              language: "ar-EG",
+              brandVoice: { tone: "warm" },
+              aiWaiterTone: { tone: "friendly" }
+            }
+          ]
+        })
+      );
+    }
+
+    if (pathname === `/api/v1/companies/${COMPANY_ID}/experience/profiles`) {
+      return route.fulfill(
+        json({
+          company,
+          profiles: [
+            {
+              id: "profile-company-office-visual",
+              key: "company-default",
+              name: "Company Default",
+              status: "active",
+              isDefault: true,
+              language: "ar-EG",
+              brandVoice: { tone: "calm" },
+              aiWaiterTone: { tone: "helpful" }
+            }
+          ]
+        })
+      );
+    }
+
+    if (pathname === `/api/v1/branches/${BRANCH_ID}/content-blocks`) {
+      return route.fulfill(
+        json({
+          branch,
+          contentBlocks: [
+            {
+              id: "content-office-visual",
+              key: "welcome",
+              title: "Welcome",
+              placement: "home",
+              language: "ar-EG",
+              status: "active"
+            }
+          ]
+        })
+      );
+    }
+
+    if (
+      pathname ===
+      `/api/v1/branches/${BRANCH_ID}/notification-templates`
+    ) {
+      return route.fulfill(
+        json({
+          branch,
+          notificationTemplates: [
+            {
+              id: "template-office-visual",
+              title: "Order ready",
+              kind: "order_ready",
+              channel: "in_app",
+              language: "ar-EG",
+              isActive: true
+            }
+          ]
+        })
+      );
+    }
+
+    if (pathname === `/api/v1/companies/${COMPANY_ID}/media-assets`) {
+      return route.fulfill(
+        json({
+          company,
+          mediaAssets: [
+            {
+              id: "media-office-visual",
+              branchId: BRANCH_ID,
+              title: "Hero image",
+              type: "image",
+              status: "active",
+              provider: "external_url",
+              publicUrl: "https://example.com/hero.jpg"
+            }
+          ]
+        })
+      );
+    }
+
+    if (pathname === `/api/v1/branches/${BRANCH_ID}/venue-zones`) {
+      return route.fulfill(
+        json({
+          branch,
+          venueZones: [
+            {
+              id: "zone-office-visual",
+              name: "Terrace",
+              type: "dining",
+              status: "active"
+            }
+          ]
+        })
+      );
+    }
+
+    if (pathname === `/api/v1/branches/${BRANCH_ID}/presence/events`) {
+      return route.fulfill(
+        json({
+          branch,
+          events: [
+            {
+              id: "presence-office-visual",
+              triggerType: "entered_zone",
+              occurredAt: "2026-08-29T14:02:00.000Z"
+            }
+          ]
+        })
+      );
+    }
+
+    if (pathname === `/api/v1/branches/${BRANCH_ID}/notifications`) {
+      return route.fulfill(
+        json({
+          branch,
+          notifications: [
+            {
+              id: "notification-office-visual",
+              title: "Order ready",
+              status: "sent",
+              createdAt: "2026-08-29T14:03:00.000Z"
+            }
+          ]
+        })
+      );
+    }
+
+    if (pathname === `/api/v1/branches/${BRANCH_ID}/operating-settings`) {
+      return route.fulfill(
+        json({
+          branch,
+          settings: {
+            id: "operating-office-visual",
+            operatingMode: "assisted",
+            serviceMode: "mixed",
+            aiWaiterEnabled: true,
+            realtimeEnabled: true,
+            notificationsEnabled: true,
+            openingHours: { sat: ["09:00", "23:00"] },
+            serviceConfig: { tableService: true },
+            attentionConfig: { escalationMinutes: 4 },
+            updatedAt: "2026-08-29T14:04:00.000Z"
+          }
+        })
+      );
+    }
+
+    if (pathname === `/api/v1/branches/${BRANCH_ID}/feature-flags`) {
+      return route.fulfill(
+        json({
+          branch,
+          featureFlags: [
+            { id: null, key: "ai_waiter", enabled: true },
+            { id: "flag-realtime", key: "realtime", enabled: true },
+            { id: "flag-notifications", key: "notifications", enabled: true }
+          ]
+        })
+      );
+    }
+
+    if (pathname === `/api/v1/branches/${BRANCH_ID}/audit-logs`) {
+      return route.fulfill(
+        json({
+          branch,
+          auditLogs: [
+            {
+              id: "audit-office-visual",
+              action: "branch_operating_settings_updated",
+              targetType: "branch_operating_settings",
+              actorType: "staff",
+              message: "Operating settings updated",
+              createdAt: "2026-08-29T14:04:00.000Z"
+            }
+          ]
+        })
+      );
+    }
+
+    if (pathname === `/api/v1/branches/${BRANCH_ID}/saas/status`) {
+      return route.fulfill(
+        json({
+          company,
+          branch,
+          plan: null,
+          subscription: null,
+          entitlements: {
+            setup: true,
+            kds: true,
+            inventory: true,
+            onlinePayments: true,
+            ownerAnalytics: true,
+            aiWaiter: true,
+            multiBranch: false,
+            advancedReports: false
+          },
+          usage: {},
+          warnings: [],
+          blockers: []
+        })
+      );
+    }
+
+    if (pathname === "/api/v1/saas/plans") {
+      return route.fulfill(json({ plans: [] }));
+    }
+
     return route.fulfill(json({}));
   });
 }
@@ -710,6 +1077,7 @@ async function newContext(browser, locale, viewport) {
 
 async function capture(browser, {
   label,
+  pathname = "/staff/owner",
   hash = "",
   target,
   activeLabel,
@@ -727,7 +1095,7 @@ async function capture(browser, {
   });
 
   await installApiMocks(page);
-  await page.goto(`${BASE_URL}/staff/owner${hash}`, {
+  await page.goto(`${BASE_URL}${pathname}${hash}`, {
     waitUntil: "domcontentloaded",
     timeout: 30000
   });
@@ -820,6 +1188,7 @@ async function capture(browser, {
 
   const result = {
     label,
+    pathname,
     hash,
     locale,
     viewport,
@@ -927,6 +1296,58 @@ try {
       activeLabel: "الإعدادات",
       locale: "ar",
       viewport: { width: 390, height: 844 }
+    })
+  );
+  results.push(
+    await capture(browser, {
+      label: "12-office-s6-team-desktop",
+      pathname: "/staff/team",
+      activeLabel: "Team"
+    })
+  );
+  results.push(
+    await capture(browser, {
+      label: "13-office-s6-money-desktop",
+      pathname: "/staff/money",
+      activeLabel: "Money"
+    })
+  );
+  results.push(
+    await capture(browser, {
+      label: "14-office-s6-experience-desktop",
+      pathname: "/staff/experience",
+      activeLabel: "Experience"
+    })
+  );
+  results.push(
+    await capture(browser, {
+      label: "15-office-s6-settings-desktop",
+      pathname: "/staff/settings",
+      activeLabel: "Settings"
+    })
+  );
+  results.push(
+    await capture(browser, {
+      label: "16-office-s6-account-desktop",
+      pathname: "/staff/account",
+      activeLabel: "Account"
+    })
+  );
+  results.push(
+    await capture(browser, {
+      label: "17-office-s6-money-tablet-1024",
+      pathname: "/staff/money",
+      activeLabel: "Money",
+      viewport: { width: 1024, height: 900 }
+    })
+  );
+  results.push(
+    await capture(browser, {
+      label: "18-office-s6-team-ar-rtl-tablet-820",
+      pathname: "/staff/team",
+      activeLabel: "الفريق",
+      locale: "ar",
+      viewport: { width: 820, height: 900 }
     })
   );
 } finally {
