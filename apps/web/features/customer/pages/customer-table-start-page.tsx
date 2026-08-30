@@ -85,7 +85,7 @@ export function CustomerTableStartPage({
     },
     retry: false,
     onSuccess: (result) => {
-      router.replace(`/customer/session/${result.session.id}`);
+      router.replace(`/customer/session/${result.session.id}/menu`);
     }
   });
   const { isIdle, mutate } = startMutation;
