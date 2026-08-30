@@ -1,3 +1,5 @@
-import { MarketingStoryPage } from "@/features/marketing/marketing-story-page";
-import { stories } from "@/features/marketing/stories";
-export default function DemoPage() { return <MarketingStoryPage story={stories.demo} />; }
+import { DemoTourPage } from "@/features/marketing/demo-tour-page";
+
+export default function DemoPage() {
+  return <DemoTourPage />;
+}

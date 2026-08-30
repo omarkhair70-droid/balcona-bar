@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   Body,
   Controller,
   Delete,
@@ -7,6 +8,7 @@ import {
   Patch,
   Post,
   Query,
+  UseGuards,
 } from '@nestjs/common';
 import {
   CreateMediaAssetDto,
@@ -21,13 +23,24 @@ import {
   MediaAssetIdParamDto,
   MediaUsageIdParamDto,
 } from './dto/media-param.dto';
+import { CurrentStaff } from '../staff-auth/decorators/current-staff.decorator';
+import { StaffSessionGuard } from '../staff-auth/guards/staff-session.guard';
+import { StaffAuthContext } from '../staff-auth/staff-auth.types';
+import { RequiredPermission } from '../staff/required-permission.decorator';
+import { StaffPermissionGuard } from '../staff/staff-permission.guard';
+import { StaffScopedAccessService } from '../staff/staff-scoped-access.service';
 import { MediaAssetsService } from './media-assets.service';
 
 @Controller()
 export class MediaAssetsController {
-  constructor(private readonly mediaAssetsService: MediaAssetsService) {}
+  constructor(
+    private readonly mediaAssetsService: MediaAssetsService,
+    private readonly staffScopedAccessService: StaffScopedAccessService,
+  ) {}
 
   @Get('companies/:companyId/media-assets')
+  @UseGuards(StaffSessionGuard, StaffPermissionGuard)
+  @RequiredPermission('media.read', { companyIdParam: 'companyId' })
   listAssets(
     @Param() params: CompanyIdParamDto,
     @Query() query: ListMediaAssetsQueryDto,
@@ -36,6 +49,8 @@ export class MediaAssetsController {
   }
 
   @Post('companies/:companyId/media-assets')
+  @UseGuards(StaffSessionGuard, StaffPermissionGuard)
+  @RequiredPermission('media.manage', { companyIdParam: 'companyId' })
   createAsset(
     @Param() params: CompanyIdParamDto,
     @Body() body: CreateMediaAssetDto,
@@ -44,56 +59,136 @@ export class MediaAssetsController {
   }
 
   @Get('media-assets/:mediaAssetId')
-  getAsset(@Param() params: MediaAssetIdParamDto) {
+  @UseGuards(StaffSessionGuard)
+  async getAsset(
+    @CurrentStaff() currentStaff: StaffAuthContext,
+    @Param() params: MediaAssetIdParamDto,
+  ) {
+    await this.staffScopedAccessService.assertCanForMediaAsset(
+      currentStaff.staffUser.id,
+      'media.read',
+      params.mediaAssetId,
+    );
     return this.mediaAssetsService.getAsset(params.mediaAssetId);
   }
 
   @Patch('media-assets/:mediaAssetId')
-  updateAsset(
+  @UseGuards(StaffSessionGuard)
+  async updateAsset(
+    @CurrentStaff() currentStaff: StaffAuthContext,
     @Param() params: MediaAssetIdParamDto,
     @Body() body: UpdateMediaAssetDto,
   ) {
+    await this.staffScopedAccessService.assertCanForMediaAsset(
+      currentStaff.staffUser.id,
+      'media.manage',
+      params.mediaAssetId,
+    );
     return this.mediaAssetsService.updateAsset(params.mediaAssetId, body);
   }
 
   @Post('media-assets/:mediaAssetId/archive')
-  archiveAsset(@Param() params: MediaAssetIdParamDto) {
+  @UseGuards(StaffSessionGuard)
+  async archiveAsset(
+    @CurrentStaff() currentStaff: StaffAuthContext,
+    @Param() params: MediaAssetIdParamDto,
+  ) {
+    await this.staffScopedAccessService.assertCanForMediaAsset(
+      currentStaff.staffUser.id,
+      'media.manage',
+      params.mediaAssetId,
+    );
     return this.mediaAssetsService.archiveAsset(params.mediaAssetId);
   }
 
   @Post('media-assets/:mediaAssetId/restore')
-  restoreAsset(@Param() params: MediaAssetIdParamDto) {
+  @UseGuards(StaffSessionGuard)
+  async restoreAsset(
+    @CurrentStaff() currentStaff: StaffAuthContext,
+    @Param() params: MediaAssetIdParamDto,
+  ) {
+    await this.staffScopedAccessService.assertCanForMediaAsset(
+      currentStaff.staffUser.id,
+      'media.manage',
+      params.mediaAssetId,
+    );
     return this.mediaAssetsService.restoreAsset(params.mediaAssetId);
   }
 
   @Post('media-assets/:mediaAssetId/delete-marker')
-  markAssetDeleted(@Param() params: MediaAssetIdParamDto) {
+  @UseGuards(StaffSessionGuard)
+  async markAssetDeleted(
+    @CurrentStaff() currentStaff: StaffAuthContext,
+    @Param() params: MediaAssetIdParamDto,
+  ) {
+    await this.staffScopedAccessService.assertCanForMediaAsset(
+      currentStaff.staffUser.id,
+      'media.manage',
+      params.mediaAssetId,
+    );
     return this.mediaAssetsService.markAssetDeleted(params.mediaAssetId);
   }
 
   @Get('media-usages')
-  listUsages(@Query() query: ListMediaUsagesQueryDto) {
+  @UseGuards(StaffSessionGuard)
+  async listUsages(
+    @CurrentStaff() currentStaff: StaffAuthContext,
+    @Query() query: ListMediaUsagesQueryDto,
+  ) {
+    if (!query.companyId) {
+      throw new BadRequestException(
+        'companyId is required for scoped media usage listing',
+      );
+    }
+    await this.staffScopedAccessService.assertCanForCompany(
+      currentStaff.staffUser.id,
+      'media.read',
+      query.companyId,
+    );
     return this.mediaAssetsService.listUsages(query);
   }
 
   @Post('media-assets/:mediaAssetId/usages')
-  createUsage(
+  @UseGuards(StaffSessionGuard)
+  async createUsage(
+    @CurrentStaff() currentStaff: StaffAuthContext,
     @Param() params: MediaAssetIdParamDto,
     @Body() body: CreateMediaUsageDto,
   ) {
+    await this.staffScopedAccessService.assertCanForMediaAsset(
+      currentStaff.staffUser.id,
+      'media.manage',
+      params.mediaAssetId,
+    );
     return this.mediaAssetsService.createUsage(params.mediaAssetId, body);
   }
 
   @Patch('media-usages/:usageId')
-  updateUsage(
+  @UseGuards(StaffSessionGuard)
+  async updateUsage(
+    @CurrentStaff() currentStaff: StaffAuthContext,
     @Param() params: MediaUsageIdParamDto,
     @Body() body: UpdateMediaUsageDto,
   ) {
+    await this.staffScopedAccessService.assertCanForMediaUsage(
+      currentStaff.staffUser.id,
+      'media.manage',
+      params.usageId,
+    );
     return this.mediaAssetsService.updateUsage(params.usageId, body);
   }
 
   @Delete('media-usages/:usageId')
-  deleteUsage(@Param() params: MediaUsageIdParamDto) {
+  @UseGuards(StaffSessionGuard)
+  async deleteUsage(
+    @CurrentStaff() currentStaff: StaffAuthContext,
+    @Param() params: MediaUsageIdParamDto,
+  ) {
+    await this.staffScopedAccessService.assertCanForMediaUsage(
+      currentStaff.staffUser.id,
+      'media.manage',
+      params.usageId,
+    );
     return this.mediaAssetsService.deleteUsage(params.usageId);
   }
 }

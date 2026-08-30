@@ -6,13 +6,10 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   AlertTriangle,
   BellRing,
-  CheckCircle2,
   ClipboardList,
-  Footprints,
   HandPlatter,
   LogIn,
   LogOut,
-  Radio,
   RefreshCw
 } from "lucide-react";
 import { useMemo, useState } from "react";
@@ -26,7 +23,6 @@ import {
   CardTitle
 } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
-import { MetricCard } from "@/components/ui/metric-card";
 import {
   getAttentionPriority,
   getAttentionSessionId,
@@ -121,7 +117,6 @@ type MuteAttentionAction = ResolveAttentionAction & {
 };
 
 const emptyRecords: Record<string, unknown>[] = [];
-const terminalWaiterCallStatuses = new Set(["resolved", "cancelled"]);
 
 type BadgeVariant = "default" | "muted" | "success" | "warning" | "danger";
 
@@ -654,82 +649,12 @@ function WaiterDashboardContent() {
 
   return (
     <div className="grid gap-5">
-      <section className="grid gap-4 md:grid-cols-3 xl:grid-cols-6">
-        <MetricCard
-          label={t("waiter.openCallsLabel")}
-          value={String(
-            countWaiterCallsByStatus(
-              allWaiterCalls,
-              (status) => status === "open"
-            )
-          )}
-          description={t("waiter.openCallsDescription")}
-          icon={<BellRing className="size-4" aria-hidden="true" />}
-          tone="warning"
-        />
-        <MetricCard
-          label={t("waiter.acknowledgedLabel")}
-          value={String(
-            countWaiterCallsByStatus(
-              allWaiterCalls,
-              (status) => status === "acknowledged"
-            )
-          )}
-          description={t("waiter.acknowledgedDescription")}
-          icon={<CheckCircle2 className="size-4" aria-hidden="true" />}
-          tone="primary"
-        />
-        <MetricCard
-          label={t("attention.immediateAttentionLabel")}
-          value={String(
-            countAttentionByStatus(
-              allAttentionQueue,
-              (status, priority) => status === "urgent" || priority === "urgent"
-            )
-          )}
-          description={t("attention.immediateAttentionDescription")}
-          icon={<AlertTriangle className="size-4" aria-hidden="true" />}
-          tone="warning"
-        />
-        <MetricCard
-          label={t("attention.needsAttentionLabel")}
-          value={String(
-            countAttentionByStatus(
-              allAttentionQueue,
-              (status) => status === "needs_attention"
-            )
-          )}
-          description={t("attention.needsAttentionDescription")}
-          icon={<Footprints className="size-4" aria-hidden="true" />}
-          tone="accent"
-        />
-        <MetricCard
-          label={t("attention.closedSignalsLabel")}
-          value={String(
-            countAttentionByStatus(allAttentionQueue, (status) =>
-              terminalWaiterCallStatuses.has(status) || status === "muted"
-            )
-          )}
-          description={t("attention.closedSignalsDescription")}
-          icon={<HandPlatter className="size-4" aria-hidden="true" />}
-          tone="muted"
-        />
-        <MetricCard
-          label={t("realtime.metricLabel")}
-          value={
-            realtime.state === "connected"
-              ? t("cashier.realtimeValueLive")
-              : t("cashier.realtimeValueWatch")
-          }
-          description={humanizeStatus(realtime.state)}
-          icon={<Radio className="size-4" aria-hidden="true" />}
-          tone={realtime.state === "connected" ? "success" : "warning"}
-        />
-      </section>
-
-      <Card variant="quiet">
-        <CardHeader className="gap-4 md:flex md:flex-row md:items-start md:justify-between md:space-y-0">
-          <div>
+      <section
+        data-service-status
+        className="overflow-hidden rounded-lg border border-[#3B3028] bg-[#1E1814]"
+      >
+        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#342A23] px-3 py-3">
+          <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-2">
               <Badge variant="muted">{t("waiter.badge")}</Badge>
               <StaffRealtimeStatus
@@ -737,22 +662,17 @@ function WaiterDashboardContent() {
                 lastEventType={realtime.lastEventType}
               />
             </div>
-            <CardTitle className="mt-3">{selectedBranch.name}</CardTitle>
-            <CardDescription>
-              {t("waiter.viewingDescription", {
-                name:
-                  staffUser?.name ||
-                  staffUser?.email ||
-                  t("cashier.staffUserFallback"),
-              })}
-            </CardDescription>
+            <p className="mt-2 truncate text-sm font-semibold text-[#FFF5E8]">
+              {selectedBranch.name}
+            </p>
           </div>
-          <div className="flex flex-wrap gap-3">
-            <Button variant="secondary" onClick={refreshBranch}>
+          <div className="flex flex-wrap gap-2">
+            <Button size="sm" variant="secondary" onClick={refreshBranch}>
               <RefreshCw className="size-4" aria-hidden="true" />
               {t("actions.refreshBranch")}
             </Button>
             <Button
+              size="sm"
               variant="secondary"
               onClick={() => rebuildAttentionMutation.mutate(selectedBranchId)}
               disabled={rebuildAttentionMutation.isPending}
@@ -770,8 +690,46 @@ function WaiterDashboardContent() {
                 : t("actions.rebuildAttention")}
             </Button>
           </div>
-        </CardHeader>
-      </Card>
+        </div>
+        <div className="grid grid-cols-3 divide-x divide-[#342A23] rtl:divide-x-reverse">
+          <div className="flex min-h-16 items-center gap-2 px-3 py-2">
+            <BellRing className="size-4 shrink-0 text-[#F0C66E]" aria-hidden="true" />
+            <div>
+              <strong className="block text-lg leading-none text-[#FFF5E8]">
+                {countWaiterCallsByStatus(allWaiterCalls, (status) => status === "open")}
+              </strong>
+              <span className="mt-1 block text-[10px] text-[#91857A]">
+                {t("waiter.openCallsLabel")}
+              </span>
+            </div>
+          </div>
+          <div className="flex min-h-16 items-center gap-2 px-3 py-2">
+            <AlertTriangle className="size-4 shrink-0 text-[#F09C94]" aria-hidden="true" />
+            <div>
+              <strong className="block text-lg leading-none text-[#FFF5E8]">
+                {countAttentionByStatus(
+                  allAttentionQueue,
+                  (status, priority) => status === "urgent" || priority === "urgent"
+                )}
+              </strong>
+              <span className="mt-1 block text-[10px] text-[#91857A]">
+                {t("attention.immediateAttentionLabel")}
+              </span>
+            </div>
+          </div>
+          <div className="flex min-h-16 items-center gap-2 px-3 py-2">
+            <HandPlatter className="size-4 shrink-0 text-[#7FC37E]" aria-hidden="true" />
+            <div>
+              <strong className="block text-lg leading-none text-[#FFF5E8]">
+                {readyOrders.length}
+              </strong>
+              <span className="mt-1 block text-[10px] text-[#91857A]">
+                {t("waiter.readyOrdersTitle")}
+              </span>
+            </div>
+          </div>
+        </div>
+      </section>
 
       <NoticeBanner notice={notice} />
 

@@ -1,0 +1,874 @@
+"use client";
+
+import { useState } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import {
+  AlertTriangle,
+  Banknote,
+  FileCheck2,
+  RefreshCw,
+  RotateCcw,
+  ShieldCheck,
+} from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { EmptyState } from "@/components/ui/empty-state";
+import { Input } from "@/components/ui/input";
+import { LoadingState } from "@/components/ui/loading-state";
+import { OfficeStaffShell } from "@/features/staff/office-staff-shell";
+import {
+  OfficeControlSection,
+  OfficeFact,
+  OfficeInlineNotice,
+  OfficeStatusBadge,
+  asRecord,
+  formatMinor,
+  formatOfficeDate,
+  numberValue,
+  textValue,
+} from "@/features/staff/office-control-ui";
+import {
+  acknowledgeOfficeReconciliationIssue,
+  captureOfficePayment,
+  getOfficeReconciliationIssues,
+  getOfficeReconciliationRuns,
+  importOfficeSettlement,
+  recoverOfficePayment,
+  refundOfficePayment,
+  resolveOfficeReconciliationIssue,
+  runOfficeProviderReconciliation,
+  voidOfficePayment,
+  type OfficeRecord,
+} from "@/features/staff/office-control-data";
+import {
+  getBranchBills,
+  getBranchOnlinePayments,
+} from "@/lib/api/endpoints";
+import { formatErrorMessage } from "@/lib/api/error-message";
+import { canAccessStaffRoute } from "@/lib/staff/staff-access";
+import { useStaffAuthStore } from "@/lib/staff/staff-auth-store";
+import { StaffAuthGate } from "../components/staff-auth-gate";
+import { StaffBranchSelector } from "../components/staff-branch-selector";
+
+function randomKey(prefix: string) {
+  const suffix =
+    typeof crypto !== "undefined" && "randomUUID" in crypto
+      ? crypto.randomUUID()
+      : `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+
+  return `office:${prefix}:${suffix}`;
+}
+
+function providerTruth(intent: OfficeRecord) {
+  const provider = textValue(intent.provider, "unknown").toLowerCase();
+  const metadata = asRecord(intent.metadata);
+  const providerMetadata = asRecord(
+    metadata.providerMetadata ?? metadata.provider ?? metadata.checkout,
+  );
+  const expectedLive =
+    typeof metadata.expectedLive === "boolean"
+      ? metadata.expectedLive
+      : typeof providerMetadata.expectedLive === "boolean"
+        ? providerMetadata.expectedLive
+        : undefined;
+  const observedLive =
+    typeof metadata.isLive === "boolean"
+      ? metadata.isLive
+      : typeof providerMetadata.isLive === "boolean"
+        ? providerMetadata.isLive
+        : undefined;
+
+  if (provider === "mock") {
+    return "test / mock";
+  }
+
+  if (expectedLive === false || observedLive === false) {
+    return "sandbox / test evidence";
+  }
+
+  if (expectedLive === true && observedLive === true) {
+    return "live evidence on this transaction";
+  }
+
+  if (provider === "paymob" || provider === "fawry") {
+    return "provider recorded · live certification unverified";
+  }
+
+  return "provider state unavailable";
+}
+
+function MoneyContent() {
+  const queryClient = useQueryClient();
+  const accessToken = useStaffAuthStore((state) => state.accessToken);
+  const selectedBranchId = useStaffAuthStore((state) => state.selectedBranchId);
+  const setSelectedBranchId = useStaffAuthStore(
+    (state) => state.setSelectedBranchId,
+  );
+  const effectiveAccess = useStaffAuthStore((state) => state.effectiveAccess);
+  const [selectedIntent, setSelectedIntent] = useState<OfficeRecord>();
+  const [amount, setAmount] = useState("");
+  const [reason, setReason] = useState("");
+  const [periodStart, setPeriodStart] = useState("");
+  const [periodEnd, setPeriodEnd] = useState("");
+  const [currency, setCurrency] = useState("EGP");
+  const [settlementJson, setSettlementJson] = useState("");
+  const [issueNote, setIssueNote] = useState("");
+
+  const canManage = canAccessStaffRoute({
+    access: effectiveAccess,
+    permissions: ["online_payments.manage"],
+    branchId: selectedBranchId,
+    branchScoped: true,
+  });
+
+  const billsQuery = useQuery({
+    queryKey: ["office-control", "money", "bills", selectedBranchId],
+    queryFn: () =>
+      getBranchBills(selectedBranchId ?? "", { status: "all", limit: 100 }, accessToken),
+    enabled: Boolean(selectedBranchId && accessToken),
+    retry: false,
+  });
+
+  const paymentsQuery = useQuery({
+    queryKey: ["office-control", "money", "payments", selectedBranchId],
+    queryFn: () =>
+      getBranchOnlinePayments(
+        selectedBranchId ?? "",
+        { status: "all", provider: "all", limit: 100 },
+        accessToken,
+      ),
+    enabled: Boolean(selectedBranchId && accessToken),
+    retry: false,
+  });
+
+  const runsQuery = useQuery({
+    queryKey: ["office-control", "money", "reconciliation-runs", selectedBranchId],
+    queryFn: () =>
+      getOfficeReconciliationRuns(
+        selectedBranchId ?? "",
+        accessToken ?? "",
+      ),
+    enabled: Boolean(selectedBranchId && accessToken),
+    retry: false,
+  });
+
+  const issuesQuery = useQuery({
+    queryKey: ["office-control", "money", "reconciliation-issues", selectedBranchId],
+    queryFn: () =>
+      getOfficeReconciliationIssues(
+        selectedBranchId ?? "",
+        accessToken ?? "",
+      ),
+    enabled: Boolean(selectedBranchId && accessToken),
+    retry: false,
+  });
+
+  const invalidateMoney = () =>
+    queryClient.invalidateQueries({
+      queryKey: ["office-control", "money"],
+    });
+
+  const operationMutation = useMutation({
+    mutationFn: async (action: "refund" | "void" | "capture" | "recover") => {
+      const intentId = textValue(selectedIntent?.id, "");
+      const amountMinor = Math.round(Number(amount) * 100);
+
+      if (!intentId) {
+        throw new Error("Select a payment first");
+      }
+
+      if ((action === "refund" || action === "capture") && amountMinor <= 0) {
+        throw new Error("Enter a positive amount");
+      }
+
+      if (action === "refund") {
+        return refundOfficePayment(
+          intentId,
+          {
+            amountMinor,
+            idempotencyKey: randomKey(`refund:${intentId}`),
+            ...(reason.trim() ? { reason: reason.trim() } : {}),
+          },
+          accessToken ?? "",
+        );
+      }
+
+      if (action === "capture") {
+        return captureOfficePayment(
+          intentId,
+          {
+            amountMinor,
+            idempotencyKey: randomKey(`capture:${intentId}`),
+            ...(reason.trim() ? { reason: reason.trim() } : {}),
+          },
+          accessToken ?? "",
+        );
+      }
+
+      if (action === "void") {
+        return voidOfficePayment(
+          intentId,
+          {
+            idempotencyKey: randomKey(`void:${intentId}`),
+            ...(reason.trim() ? { reason: reason.trim() } : {}),
+          },
+          accessToken ?? "",
+        );
+      }
+
+      return recoverOfficePayment(intentId, accessToken ?? "");
+    },
+    onSuccess: () => {
+      void invalidateMoney();
+      setReason("");
+    },
+  });
+
+  const reconciliationMutation = useMutation({
+    mutationFn: () =>
+      runOfficeProviderReconciliation(
+        selectedBranchId ?? "",
+        {
+          periodStart: new Date(`${periodStart}T00:00:00.000Z`).toISOString(),
+          periodEnd: new Date(`${periodEnd}T23:59:59.999Z`).toISOString(),
+          currency: currency.trim().toUpperCase(),
+          idempotencyKey: randomKey("provider-reconciliation"),
+        },
+        accessToken ?? "",
+      ),
+    onSuccess: () => void invalidateMoney(),
+  });
+
+  const settlementMutation = useMutation({
+    mutationFn: () => {
+      const parsed: unknown = JSON.parse(settlementJson);
+      const payload = asRecord(parsed);
+
+      if (Object.keys(payload).length === 0) {
+        throw new Error("Settlement payload must be a JSON object");
+      }
+
+      return importOfficeSettlement(
+        selectedBranchId ?? "",
+        payload,
+        accessToken ?? "",
+      );
+    },
+    onSuccess: () => {
+      void invalidateMoney();
+      setSettlementJson("");
+    },
+  });
+
+  const issueMutation = useMutation({
+    mutationFn: ({
+      issueId,
+      action,
+    }: {
+      issueId: string;
+      action: "acknowledge" | "resolve";
+    }) =>
+      action === "acknowledge"
+        ? acknowledgeOfficeReconciliationIssue(
+            issueId,
+            issueNote,
+            accessToken ?? "",
+          )
+        : resolveOfficeReconciliationIssue(
+            issueId,
+            issueNote,
+            accessToken ?? "",
+          ),
+    onSuccess: () => {
+      void invalidateMoney();
+      setIssueNote("");
+    },
+  });
+
+  if (
+    billsQuery.isPending ||
+    paymentsQuery.isPending ||
+    runsQuery.isPending ||
+    issuesQuery.isPending
+  ) {
+    return <LoadingState label="Loading money operations…" />;
+  }
+
+  const firstError =
+    billsQuery.error ?? paymentsQuery.error ?? runsQuery.error ?? issuesQuery.error;
+
+  if (firstError) {
+    return (
+      <EmptyState
+        title="Money data could not be loaded"
+        description={formatErrorMessage(firstError)}
+        action={
+          <Button
+            variant="secondary"
+            onClick={() => {
+              void billsQuery.refetch();
+              void paymentsQuery.refetch();
+              void runsQuery.refetch();
+              void issuesQuery.refetch();
+            }}
+          >
+            <RefreshCw className="size-4" aria-hidden="true" />
+            Retry
+          </Button>
+        }
+      />
+    );
+  }
+
+  const bills = (billsQuery.data?.bills ?? []).map(asRecord);
+  const intents = (paymentsQuery.data?.onlinePaymentIntents ?? []).map(asRecord);
+  const runs = runsQuery.data ?? [];
+  const issues = issuesQuery.data ?? [];
+  const succeeded = intents.filter(
+    (intent) => textValue(intent.status, "").toLowerCase() === "succeeded",
+  );
+  const active = intents.filter((intent) =>
+    ["pending", "requires_action"].includes(
+      textValue(intent.status, "").toLowerCase(),
+    ),
+  );
+  const openIssues = issues.filter(
+    (issue) => textValue(issue.status, "").toLowerCase() !== "resolved",
+  );
+  const selectedProvider = textValue(selectedIntent?.provider, "").toLowerCase();
+  const canVoidOrCapture = selectedProvider === "paymob";
+  const canRefund =
+    selectedProvider === "paymob" || selectedProvider === "fawry";
+
+  return (
+    <div className="space-y-4">
+      <div className="flex flex-wrap items-center gap-3">
+        <StaffBranchSelector
+          access={effectiveAccess}
+          selectedBranchId={selectedBranchId}
+          onChange={setSelectedBranchId}
+        />
+        <OfficeInlineNotice title="Money scope">
+          Restaurant/customer money only. Balcona subscription plan and tenant
+          limits live under Account.
+        </OfficeInlineNotice>
+      </div>
+
+      <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
+        <OfficeFact label="Bills" value={bills.length} />
+        <OfficeFact label="Payment intents" value={intents.length} />
+        <OfficeFact label="Succeeded" value={succeeded.length} />
+        <OfficeFact
+          label="Financial exceptions"
+          value={openIssues.length}
+          hint={openIssues.length ? "Requires reconciliation attention." : "No open reconciliation issue returned."}
+        />
+      </div>
+
+      <div className="grid gap-4 2xl:grid-cols-[minmax(0,1.5fr)_minmax(340px,.75fr)]">
+        <OfficeControlSection
+          title="Transactions"
+          description="Provider intents for the selected branch. Provider environment labels are evidence-based and never infer live certification from code presence."
+        >
+          {intents.length === 0 ? (
+            <EmptyState
+              title="No online transactions"
+              description="No online payment intent exists in the selected branch."
+            />
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[860px] text-xs">
+                <thead className="text-[#777770]">
+                  <tr className="border-b border-[#E4E4DF]">
+                    <th className="px-2 py-2 text-start font-medium">Created</th>
+                    <th className="px-2 py-2 text-start font-medium">Provider</th>
+                    <th className="px-2 py-2 text-start font-medium">Environment truth</th>
+                    <th className="px-2 py-2 text-start font-medium">Amount</th>
+                    <th className="px-2 py-2 text-start font-medium">Status</th>
+                    <th className="px-2 py-2 text-end font-medium">Operations</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {intents.map((intent) => (
+                    <tr
+                      key={textValue(intent.id)}
+                      className="border-b border-[#EFEFEA] last:border-0"
+                    >
+                      <td className="px-2 py-3">{formatOfficeDate(intent.createdAt)}</td>
+                      <td className="px-2 py-3 font-semibold">
+                        {textValue(intent.provider)}
+                      </td>
+                      <td className="px-2 py-3 text-[#6D6D66]">
+                        {providerTruth(intent)}
+                      </td>
+                      <td className="px-2 py-3">
+                        {formatMinor(
+                          intent.amountMinor ?? intent.totalMinor,
+                          textValue(intent.currency, "EGP"),
+                        )}
+                      </td>
+                      <td className="px-2 py-3">
+                        <OfficeStatusBadge value={intent.status} />
+                      </td>
+                      <td className="px-2 py-3 text-end">
+                        <Button
+                          size="sm"
+                          variant="secondary"
+                          onClick={() => {
+                            setSelectedIntent(intent);
+                            const minor = numberValue(
+                              intent.amountMinor ?? intent.totalMinor,
+                            );
+                            setAmount(minor ? String(minor / 100) : "");
+                          }}
+                        >
+                          Manage
+                        </Button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </OfficeControlSection>
+
+        <OfficeControlSection
+          title="Payment operation"
+          description="Refund, void, capture, and provider recovery call the real scoped API. Provider/state validation remains authoritative on the server."
+          action={<ShieldCheck className="size-4 text-[#777770]" aria-hidden="true" />}
+        >
+          {!selectedIntent ? (
+            <OfficeInlineNotice title="Select a transaction">
+              Choose Manage on a transaction to inspect supported operations.
+            </OfficeInlineNotice>
+          ) : !canManage ? (
+            <OfficeInlineNotice title="Read-only access">
+              online_payments.manage is required for financial mutations.
+            </OfficeInlineNotice>
+          ) : (
+            <div className="space-y-3">
+              <div className="grid gap-2 sm:grid-cols-2">
+                <OfficeFact
+                  label="Intent"
+                  value={textValue(selectedIntent.id).slice(0, 18)}
+                />
+                <OfficeFact
+                  label="Provider"
+                  value={textValue(selectedIntent.provider)}
+                  hint={providerTruth(selectedIntent)}
+                />
+              </div>
+              <label className="block text-xs font-medium">
+                Amount
+                <Input
+                  className="mt-1.5"
+                  inputMode="decimal"
+                  value={amount}
+                  onChange={(event) => setAmount(event.target.value)}
+                  placeholder="0.00"
+                />
+              </label>
+              <label className="block text-xs font-medium">
+                Reason / note
+                <Input
+                  className="mt-1.5"
+                  value={reason}
+                  onChange={(event) => setReason(event.target.value)}
+                  placeholder="Optional operational reason"
+                />
+              </label>
+              <div className="flex flex-wrap gap-2">
+                {canRefund ? (
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    disabled={operationMutation.isPending}
+                    onClick={() => {
+                      if (
+                        window.confirm(
+                          "Submit a refund to the configured provider for this amount?",
+                        )
+                      ) {
+                        operationMutation.mutate("refund");
+                      }
+                    }}
+                  >
+                    Refund
+                  </Button>
+                ) : null}
+                {canVoidOrCapture ? (
+                  <>
+                    <Button
+                      size="sm"
+                      variant="secondary"
+                      disabled={operationMutation.isPending}
+                      onClick={() => {
+                        if (
+                          window.confirm(
+                            "Void this provider payment? The provider will decide whether the current state allows it.",
+                          )
+                        ) {
+                          operationMutation.mutate("void");
+                        }
+                      }}
+                    >
+                      Void
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="secondary"
+                      disabled={operationMutation.isPending}
+                      onClick={() => {
+                        if (
+                          window.confirm(
+                            "Capture this amount? The provider will reject unsupported payment states.",
+                          )
+                        ) {
+                          operationMutation.mutate("capture");
+                        }
+                      }}
+                    >
+                      Capture
+                    </Button>
+                  </>
+                ) : null}
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  disabled={operationMutation.isPending}
+                  onClick={() => operationMutation.mutate("recover")}
+                >
+                  <RotateCcw className="size-3.5" aria-hidden="true" />
+                  Recover / inquire
+                </Button>
+              </div>
+              {operationMutation.isError ? (
+                <OfficeInlineNotice title="Operation failed">
+                  {formatErrorMessage(operationMutation.error)}
+                </OfficeInlineNotice>
+              ) : null}
+              {selectedProvider === "mock" ? (
+                <OfficeInlineNotice title="Test provider">
+                  Mock transactions are labelled test-only. This Office surface
+                  does not expose mock succeed/fail controls.
+                </OfficeInlineNotice>
+              ) : null}
+            </div>
+          )}
+        </OfficeControlSection>
+      </div>
+
+      <OfficeControlSection
+        title="Bills"
+        description="Restaurant bills are shown separately from provider transactions so cash/POS/manual tender state is not confused with online processing."
+      >
+        {bills.length === 0 ? (
+          <EmptyState
+            title="No bills"
+            description="No bill exists in the selected branch for this query."
+          />
+        ) : (
+          <div className="grid gap-2 lg:grid-cols-2">
+            {bills.slice(0, 24).map((bill) => (
+              <div
+                key={textValue(bill.id)}
+                className="grid gap-2 rounded-md border border-[#E4E4DF] p-3 sm:grid-cols-[1fr_auto]"
+              >
+                <div>
+                  <p className="text-sm font-semibold">
+                    Bill {textValue(bill.id).slice(0, 10)}
+                  </p>
+                  <p className="mt-1 text-xs text-[#74746E]">
+                    {formatOfficeDate(bill.createdAt)}
+                  </p>
+                </div>
+                <div className="text-end">
+                  <OfficeStatusBadge value={bill.status} />
+                  <p className="mt-1 text-xs font-semibold">
+                    {formatMinor(
+                      bill.totalMinor ?? bill.amountMinor,
+                      textValue(bill.currency, "EGP"),
+                    )}
+                  </p>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </OfficeControlSection>
+
+      <div className="grid gap-4 xl:grid-cols-2">
+        <OfficeControlSection
+          title="Settlements & payouts"
+          description="Imported settlement batches appear through reconciliation runs. Import is intentionally explicit because it changes financial reconciliation state."
+          action={<Banknote className="size-4 text-[#777770]" aria-hidden="true" />}
+        >
+          <div className="space-y-3">
+            {runs.length === 0 ? (
+              <OfficeInlineNotice title="No reconciliation runs">
+                No provider or settlement reconciliation run has been recorded.
+              </OfficeInlineNotice>
+            ) : (
+              <div className="space-y-2">
+                {runs.slice(0, 12).map((run) => {
+                  const batch = asRecord(run.settlementBatch);
+
+                  return (
+                    <div
+                      key={textValue(run.id)}
+                      className="rounded-md border border-[#E4E4DF] p-3"
+                    >
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <p className="text-xs font-semibold">
+                          {textValue(run.source).replaceAll("_", " ")}
+                        </p>
+                        <OfficeStatusBadge value={run.status} />
+                      </div>
+                      <div className="mt-2 grid gap-1 text-[11px] text-[#707069] sm:grid-cols-2">
+                        <span>{formatOfficeDate(run.createdAt)}</span>
+                        <span>
+                          {batch.id
+                            ? `Payout ${textValue(batch.payoutReference, textValue(batch.externalReference))}`
+                            : "No settlement batch linked"}
+                        </span>
+                        <span>
+                          Matched {numberValue(run.matchedCount)} · Pending{" "}
+                          {numberValue(run.pendingCount)}
+                        </span>
+                        <span>
+                          Mismatches {numberValue(run.mismatchCount)}
+                        </span>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+
+            {canManage ? (
+              <details className="rounded-md border border-[#E4E4DF] p-3">
+                <summary className="cursor-pointer text-xs font-semibold">
+                  Import settlement statement
+                </summary>
+                <p className="mt-2 text-[11px] leading-4 text-[#73736D]">
+                  Paste the normalized backend payload: provider,
+                  externalReference, periodStart/periodEnd, currency, grossMinor,
+                  adjustmentMinor, feeMinor, netMinor, and lines. Server
+                  validation rejects totals that do not match the supplied lines.
+                </p>
+                <textarea
+                  className="mt-3 min-h-36 w-full rounded-md border border-input bg-background p-3 font-mono text-[11px]"
+                  value={settlementJson}
+                  onChange={(event) => setSettlementJson(event.target.value)}
+                  placeholder={'{"provider":"paymob","externalReference":"...","periodStart":"...","periodEnd":"...","currency":"EGP","grossMinor":0,"adjustmentMinor":0,"feeMinor":0,"netMinor":0,"lines":[]}'}
+                />
+                <Button
+                  className="mt-2"
+                  size="sm"
+                  disabled={!settlementJson.trim() || settlementMutation.isPending}
+                  onClick={() => {
+                    if (
+                      window.confirm(
+                        "Import this settlement statement and run reconciliation?",
+                      )
+                    ) {
+                      settlementMutation.mutate();
+                    }
+                  }}
+                >
+                  <FileCheck2 className="size-3.5" aria-hidden="true" />
+                  Import & reconcile
+                </Button>
+                {settlementMutation.isError ? (
+                  <div className="mt-2">
+                    <OfficeInlineNotice title="Settlement import failed">
+                      {formatErrorMessage(settlementMutation.error)}
+                    </OfficeInlineNotice>
+                  </div>
+                ) : null}
+              </details>
+            ) : null}
+          </div>
+        </OfficeControlSection>
+
+        <OfficeControlSection
+          title="Reconciliation"
+          description="Provider inquiry reconciliation is a real server-to-server operation and can surface financial exceptions without inventing success."
+          action={<FileCheck2 className="size-4 text-[#777770]" aria-hidden="true" />}
+        >
+          {canManage ? (
+            <div className="grid gap-3 sm:grid-cols-2">
+              <label className="text-xs font-medium">
+                From
+                <Input
+                  className="mt-1.5"
+                  type="date"
+                  value={periodStart}
+                  onChange={(event) => setPeriodStart(event.target.value)}
+                />
+              </label>
+              <label className="text-xs font-medium">
+                Through
+                <Input
+                  className="mt-1.5"
+                  type="date"
+                  value={periodEnd}
+                  onChange={(event) => setPeriodEnd(event.target.value)}
+                />
+              </label>
+              <label className="text-xs font-medium">
+                Currency
+                <Input
+                  className="mt-1.5"
+                  value={currency}
+                  maxLength={12}
+                  onChange={(event) => setCurrency(event.target.value)}
+                />
+              </label>
+              <div className="flex items-end">
+                <Button
+                  className="w-full"
+                  disabled={
+                    !periodStart ||
+                    !periodEnd ||
+                    !currency.trim() ||
+                    reconciliationMutation.isPending
+                  }
+                  onClick={() => reconciliationMutation.mutate()}
+                >
+                  Run provider reconciliation
+                </Button>
+              </div>
+            </div>
+          ) : (
+            <OfficeInlineNotice title="Read-only access">
+              online_payments.manage is required to start reconciliation.
+            </OfficeInlineNotice>
+          )}
+          {reconciliationMutation.isError ? (
+            <div className="mt-3">
+              <OfficeInlineNotice title="Reconciliation failed">
+                {formatErrorMessage(reconciliationMutation.error)}
+              </OfficeInlineNotice>
+            </div>
+          ) : null}
+        </OfficeControlSection>
+      </div>
+
+      <OfficeControlSection
+        title="Issues"
+        description="Mismatches and provider exceptions remain visible until explicitly acknowledged or resolved."
+        action={
+          openIssues.length > 0 ? (
+            <AlertTriangle className="size-4 text-[#8A6A2C]" aria-hidden="true" />
+          ) : null
+        }
+      >
+        {issues.length === 0 ? (
+          <EmptyState
+            title="No reconciliation issues"
+            description="The API returned no reconciliation exception for this branch."
+          />
+        ) : (
+          <div className="space-y-2">
+            <Input
+              value={issueNote}
+              onChange={(event) => setIssueNote(event.target.value)}
+              placeholder="Optional acknowledgement / resolution note"
+            />
+            {issues.map((issue) => {
+              const issueId = textValue(issue.id, "");
+              const status = textValue(issue.status).toLowerCase();
+
+              return (
+                <div
+                  key={issueId}
+                  className="grid gap-3 rounded-md border border-[#E4E4DF] p-3 lg:grid-cols-[1fr_auto]"
+                >
+                  <div>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <p className="text-sm font-semibold">
+                        {textValue(issue.type).replaceAll("_", " ")}
+                      </p>
+                      <OfficeStatusBadge value={issue.status} />
+                    </div>
+                    <p className="mt-1 text-xs leading-5 text-[#6F6F68]">
+                      {textValue(issue.message, "Reconciliation mismatch")}
+                    </p>
+                    <p className="mt-1 text-[11px] text-[#888881]">
+                      Detected {formatOfficeDate(issue.detectedAt)}
+                    </p>
+                  </div>
+                  {canManage && status !== "resolved" ? (
+                    <div className="flex items-center gap-2">
+                      {status !== "acknowledged" ? (
+                        <Button
+                          size="sm"
+                          variant="secondary"
+                          disabled={issueMutation.isPending}
+                          onClick={() =>
+                            issueMutation.mutate({
+                              issueId,
+                              action: "acknowledge",
+                            })
+                          }
+                        >
+                          Acknowledge
+                        </Button>
+                      ) : null}
+                      <Button
+                        size="sm"
+                        variant="secondary"
+                        disabled={issueMutation.isPending}
+                        onClick={() => {
+                          if (
+                            window.confirm(
+                              "Resolve this reconciliation issue? The resolution is audited.",
+                            )
+                          ) {
+                            issueMutation.mutate({
+                              issueId,
+                              action: "resolve",
+                            });
+                          }
+                        }}
+                      >
+                        Resolve
+                      </Button>
+                    </div>
+                  ) : null}
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </OfficeControlSection>
+
+      {active.length > 0 ? (
+        <OfficeInlineNotice title="Active payment state">
+          {active.length} payment intent{active.length === 1 ? "" : "s"} remain
+          pending or require action. These are not counted as settled money.
+        </OfficeInlineNotice>
+      ) : null}
+    </div>
+  );
+}
+
+export function OfficeMoneyPage() {
+  return (
+    <OfficeStaffShell
+      activeDomain="money"
+      title="Money"
+      description="Restaurant payment operations, bills, settlements, reconciliation, and financial exceptions. Balcona subscription billing is intentionally separate."
+    >
+      <StaffAuthGate
+        requiredPermissions={["online_payments.read"]}
+        branchScoped
+        deniedTitle="Money access required"
+        deniedDescription="This surface requires online_payments.read for the selected location."
+      >
+        <MoneyContent />
+      </StaffAuthGate>
+    </OfficeStaffShell>
+  );
+}

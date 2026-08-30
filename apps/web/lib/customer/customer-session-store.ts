@@ -8,7 +8,9 @@ export type CustomerSessionState = {
   hasHydrated: boolean;
   sessionId?: string;
   branchId?: string;
+  branchName?: string;
   tableId?: string;
+  tableCode?: string;
   qrToken?: string;
   customerAccessToken?: string;
   customerAccessTokenExpiresAt?: string | null;
@@ -31,7 +33,9 @@ export const useCustomerSessionStore = create<CustomerSessionState>()(
           hasHydrated: true,
           sessionId: result.session.id,
           branchId: result.branch.id,
+          branchName: result.branch.name,
           tableId: result.table.id,
+          tableCode: result.table.code,
           qrToken,
           customerAccessToken: result.customerAccess.customerAccessToken,
           customerAccessTokenExpiresAt:
@@ -45,7 +49,9 @@ export const useCustomerSessionStore = create<CustomerSessionState>()(
           hasHydrated: true,
           sessionId: undefined,
           branchId: undefined,
+          branchName: undefined,
           tableId: undefined,
+          tableCode: undefined,
           qrToken: undefined,
           customerAccessToken: undefined,
           customerAccessTokenExpiresAt: undefined,

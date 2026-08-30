@@ -15,7 +15,6 @@ import {
   PlusCircle,
   Receipt,
   RefreshCw,
-  XCircle,
 } from "lucide-react";
 import { useMemo, useState } from "react";
 import { CopyDebugReportButton } from "@/components/debug/copy-debug-report-button";
@@ -30,7 +29,6 @@ import {
 } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Input } from "@/components/ui/input";
-import { MetricCard } from "@/components/ui/metric-card";
 import { ServiceStaffShell } from "@/features/staff/service-staff-shell";
 import {
   getBillRequestStatus,
@@ -119,7 +117,6 @@ type CloseShiftAction = {
 };
 
 const activeOrderStatuses = new Set(["cashier_accepted", "preparing", "ready"]);
-const terminalOrderStatuses = new Set(["cashier_rejected", "cancelled"]);
 const activeBillStatuses = new Set(["open", "acknowledged", "presented"]);
 const emptyRecords: Record<string, unknown>[] = [];
 
@@ -1119,65 +1116,12 @@ function CashierDashboardContent() {
 
   return (
     <div className="grid gap-5">
-      <section className="grid gap-4 md:grid-cols-5">
-        <MetricCard
-          label={t("cashier.submittedLabel")}
-          value={String(
-            countOrdersByStatus(allOrders, (status) => status === "submitted"),
-          )}
-          description={t("cashier.submittedDescription")}
-          icon={<Receipt className="size-4" aria-hidden="true" />}
-          tone="warning"
-        />
-        <MetricCard
-          label={t("cashier.inServiceLabel")}
-          value={String(
-            countOrdersByStatus(allOrders, (status) =>
-              activeOrderStatuses.has(status),
-            ),
-          )}
-          description={t("cashier.inServiceDescription")}
-          icon={<CheckCircle2 className="size-4" aria-hidden="true" />}
-          tone="success"
-        />
-        <MetricCard
-          label={t("cashier.billRequestsLabel")}
-          value={String(
-            countBillsByStatus(activeBillRequests, (status) =>
-              activeBillStatuses.has(status),
-            ),
-          )}
-          description={t("cashier.billRequestsDescription")}
-          icon={<BellRing className="size-4" aria-hidden="true" />}
-          tone="primary"
-        />
-        <MetricCard
-          label={t("cashier.rejectedLabel")}
-          value={String(
-            countOrdersByStatus(allOrders, (status) =>
-              terminalOrderStatuses.has(status),
-            ),
-          )}
-          description={t("cashier.rejectedDescription")}
-          icon={<XCircle className="size-4" aria-hidden="true" />}
-          tone="muted"
-        />
-        <MetricCard
-          label={t("realtime.metricLabel")}
-          value={
-            realtime.state === "connected"
-              ? t("cashier.realtimeValueLive")
-              : t("cashier.realtimeValueWatch")
-          }
-          description={humanizeStatus(realtime.state)}
-          icon={<RefreshCw className="size-4" aria-hidden="true" />}
-          tone={realtime.state === "connected" ? "success" : "warning"}
-        />
-      </section>
-
-      <Card variant="quiet">
-        <CardHeader className="gap-4 md:flex md:flex-row md:items-start md:justify-between md:space-y-0">
-          <div>
+      <section
+        data-service-status
+        className="overflow-hidden rounded-lg border border-[#3B3028] bg-[#1E1814]"
+      >
+        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#342A23] px-3 py-3">
+          <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-2">
               <Badge variant="muted">{t("cashier.badge")}</Badge>
               <StaffRealtimeStatus
@@ -1185,22 +1129,64 @@ function CashierDashboardContent() {
                 lastEventType={realtime.lastEventType}
               />
             </div>
-            <CardTitle className="mt-3">{selectedBranch.name}</CardTitle>
-            <CardDescription>
-              {t("cashier.branchDescription", {
-                name:
-                  staffUser?.name ||
-                  staffUser?.email ||
-                  t("cashier.staffUserFallback"),
-              })}
-            </CardDescription>
+            <p className="mt-2 truncate text-sm font-semibold text-[#FFF5E8]">
+              {selectedBranch.name}
+            </p>
           </div>
-          <Button variant="secondary" onClick={refreshBranch}>
+          <Button size="sm" variant="secondary" onClick={refreshBranch}>
             <RefreshCw className="size-4" aria-hidden="true" />
             {t("actions.refreshBranch")}
           </Button>
-        </CardHeader>
-      </Card>
+        </div>
+        <div className="grid grid-cols-2 divide-x divide-[#342A23] border-[#342A23] sm:grid-cols-4 rtl:divide-x-reverse">
+          <div className="flex min-h-16 items-center gap-2 px-3 py-2">
+            <Receipt className="size-4 shrink-0 text-[#E0A764]" aria-hidden="true" />
+            <div>
+              <strong className="block text-lg leading-none text-[#FFF5E8]">
+                {countOrdersByStatus(allOrders, (status) => status === "submitted")}
+              </strong>
+              <span className="mt-1 block text-[10px] text-[#91857A]">
+                {t("cashier.submittedLabel")}
+              </span>
+            </div>
+          </div>
+          <div className="flex min-h-16 items-center gap-2 border-t border-[#342A23] px-3 py-2 sm:border-t-0">
+            <CheckCircle2 className="size-4 shrink-0 text-[#7FC37E]" aria-hidden="true" />
+            <div>
+              <strong className="block text-lg leading-none text-[#FFF5E8]">
+                {countOrdersByStatus(allOrders, (status) => activeOrderStatuses.has(status))}
+              </strong>
+              <span className="mt-1 block text-[10px] text-[#91857A]">
+                {t("cashier.inServiceLabel")}
+              </span>
+            </div>
+          </div>
+          <div className="flex min-h-16 items-center gap-2 border-t border-[#342A23] px-3 py-2 sm:border-t-0">
+            <BellRing className="size-4 shrink-0 text-[#F0C66E]" aria-hidden="true" />
+            <div>
+              <strong className="block text-lg leading-none text-[#FFF5E8]">
+                {countBillsByStatus(activeBillRequests, (status) => activeBillStatuses.has(status))}
+              </strong>
+              <span className="mt-1 block text-[10px] text-[#91857A]">
+                {t("cashier.billRequestsLabel")}
+              </span>
+            </div>
+          </div>
+          <div className="flex min-h-16 items-center gap-2 border-t border-[#342A23] px-3 py-2 sm:border-t-0">
+            <Banknote className="size-4 shrink-0 text-[#C68A4A]" aria-hidden="true" />
+            <div>
+              <strong className="block text-xs font-semibold text-[#FFF5E8]">
+                {currentShift
+                  ? t("serviceShift.shiftOpen")
+                  : t("serviceShift.noOpenShift")}
+              </strong>
+              <span className="mt-1 block text-[10px] text-[#91857A]">
+                {t("serviceShift.title")}
+              </span>
+            </div>
+          </div>
+        </div>
+      </section>
 
       <NoticeBanner notice={notice} />
 
