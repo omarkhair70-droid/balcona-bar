@@ -686,6 +686,24 @@ async function installApiMocks(page) {
       );
     }
 
+    if (pathname === `/api/v1/branches/${BRANCH_ID}/online-payments`) {
+      return route.fulfill(
+        json({
+          branch,
+          filters: {},
+          onlinePaymentIntents: [
+            {
+              id: "intent-unknown-visual",
+              status: "unknown",
+              provider: "paymob",
+              amountMinor: 38500,
+              currency: "EGP"
+            }
+          ]
+        })
+      );
+    }
+
     if (pathname === `/api/v1/branches/${BRANCH_ID}/cashier-shifts/current`) {
       return route.fulfill(
         json({
