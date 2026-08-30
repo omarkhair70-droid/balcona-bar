@@ -1106,7 +1106,16 @@
       "attentionContext": "تحتاج تدخل من الخدمة",
       "score": "النقاط {score}",
       "sessionContextHint": "اختيار ترابيزة نشطة يفتح أيضًا سياق تنبيه الجلسة الحقيقي عند توفره.",
-      "capacity": "السعة {count}"
+      "capacity": "السعة {count}",
+      "contextLoading": "جاري تحميل سياق الترابيزة المباشر...",
+      "openAttention": "فتح التنبيهات",
+      "orderContext": "الطلب النشط",
+      "openOrders": "فتح الطلبات",
+      "billContext": "الفاتورة",
+      "openBills": "فتح الفواتير",
+      "sessionQuiet": "الجلسة نشطة",
+      "sessionQuietDescription": "لا يوجد حاليًا تنبيه نشط أو طلب مُرسل أو طلب فاتورة مرتبط بهذه الترابيزة.",
+      "freeTableDescription": "لا توجد جلسة نشطة على هذه الترابيزة. اختر ترابيزة مشغولة لفتح سياق الخدمة المباشر."
     },
     "serviceShift": {
       "shiftOpen": "الوردية مفتوحة",
