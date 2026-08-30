@@ -801,7 +801,8 @@ async function capture(browser, {
   locale = "en",
   viewport = { width: 1440, height: 1000 },
   target,
-  authenticated = true
+  authenticated = true,
+  expectedPath
 }) {
   const context = await newContext(browser, locale, viewport, authenticated);
   const page = await context.newPage();
@@ -818,6 +819,13 @@ async function capture(browser, {
     waitUntil: "domcontentloaded",
     timeout: 30000
   });
+
+  if (expectedPath) {
+    await page.waitForURL(
+      (url) => url.pathname === expectedPath,
+      { timeout: 15000 }
+    );
+  }
 
   if (target) {
     const targetLocator = page.locator(target);
@@ -880,6 +888,14 @@ try {
       label: "00-staff-login-desktop",
       route: "/staff/login",
       authenticated: false
+    })
+  );
+  results.push(
+    await capture(browser, {
+      label: "00a-staff-root-redirect-desktop",
+      route: "/staff",
+      authenticated: false,
+      expectedPath: "/staff/login"
     })
   );
   results.push(
