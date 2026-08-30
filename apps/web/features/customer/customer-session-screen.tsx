@@ -140,7 +140,7 @@ export function CustomerSessionScreen({
         <CustomerThemeLoader branchId={branchId} />
 
         <header className="sticky top-0 z-30 -mx-4 flex min-h-14 items-center justify-between gap-3 border-b border-border bg-background/95 px-4 backdrop-blur">
-          <Link href={`/customer/session/${sessionId}/menu`} className="min-w-0">
+          <Link href={`/guest/session/${sessionId}/menu`} className="min-w-0">
             <span className="block truncate text-sm font-black tracking-[-0.02em] text-foreground">
               Balcona
             </span>

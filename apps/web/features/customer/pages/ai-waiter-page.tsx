@@ -501,7 +501,7 @@ export function AiWaiterPage({ sessionId }: AiWaiterPageProps) {
                     : t("page.startAiWaiter")}
                 </Button>
                 <Link
-                  href={`/customer/session/${sessionId}/menu`}
+                  href={`/guest/session/${sessionId}/menu`}
                   className={buttonVariants({ variant: "secondary" })}
                 >
                   {t("actions.viewMenu")}
@@ -598,7 +598,7 @@ export function AiWaiterPage({ sessionId }: AiWaiterPageProps) {
 
           <div className="flex flex-wrap items-center gap-3">
             <Link
-              href={`/customer/session/${sessionId}/cart`}
+              href={`/guest/session/${sessionId}/cart`}
               className={buttonVariants({ variant: "secondary" })}
             >
               <ShoppingBag className="size-4" aria-hidden="true" />

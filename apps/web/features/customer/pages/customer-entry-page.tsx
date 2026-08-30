@@ -23,7 +23,7 @@ export function CustomerEntryPage() {
       return;
     }
 
-    router.push(`/customer/table/${encodeURIComponent(tokenToOpen)}`);
+    router.push(`/guest/table/${encodeURIComponent(tokenToOpen)}`);
   }
 
   return (
@@ -50,7 +50,7 @@ export function CustomerEntryPage() {
             </div>
             <Button
               size="sm"
-              onClick={() => router.push(`/customer/session/${storedSessionId}`)}
+              onClick={() => router.push(`/guest/session/${storedSessionId}`)}
             >
               {t("actions.resume")}
               <ArrowRight className="size-4 rtl:rotate-180" aria-hidden="true" />

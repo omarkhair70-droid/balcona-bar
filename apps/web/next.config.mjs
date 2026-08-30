@@ -1,4 +1,8 @@
 import withPWAInit from "@ducanh2912/next-pwa";
+import {
+  canonicalRouteRewrites,
+  legacyRouteRedirects
+} from "./route-authority.mjs";
 
 const withPWA = withPWAInit({
   dest: "public",
@@ -24,7 +28,13 @@ const withPWA = withPWAInit({
 
 /** @type {import("next").NextConfig} */
 const nextConfig = {
-  reactStrictMode: true
+  reactStrictMode: true,
+  async redirects() {
+    return legacyRouteRedirects;
+  },
+  async rewrites() {
+    return canonicalRouteRewrites;
+  }
 };
 
 export default withPWA(nextConfig);

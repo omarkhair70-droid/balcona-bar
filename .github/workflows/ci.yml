@@ -32,6 +32,9 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: Check canonical route authority
+        run: node scripts/route-authority-check.mjs
+
       - name: Lint web
         run: pnpm --filter @balcona-bar/web lint
 

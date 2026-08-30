@@ -971,7 +971,7 @@ async function newContext(browser, locale, viewport, accessValue = access) {
 
 async function capture(browser, {
   label,
-  routePath = "/staff/office",
+  routePath = "/office",
   hash = "",
   target,
   activeLabel,
@@ -1165,14 +1165,14 @@ try {
   results.push(
     await capture(browser, {
       label: "07-office-catalog-1440",
-      routePath: "/staff/menu",
+      routePath: "/office/catalog",
       activeLabel: "Catalog"
     })
   );
   results.push(
     await capture(browser, {
       label: "08-office-inventory-1280",
-      routePath: "/staff/inventory",
+      routePath: "/office/inventory",
       activeLabel: "Inventory",
       viewport: { width: 1280, height: 900 }
     })
@@ -1180,7 +1180,7 @@ try {
   results.push(
     await capture(browser, {
       label: "09-office-locations-tablet",
-      routePath: "/staff/branches",
+      routePath: "/office/locations",
       activeLabel: "Locations",
       viewport: { width: 1024, height: 900 }
     })
@@ -1188,18 +1188,14 @@ try {
   results.push(
     await capture(browser, {
       label: "10-office-control-money-isolation",
-      routePath: "/staff/owner",
-      hash: "#money",
-      target: "#money",
+      routePath: "/office/money",
       activeLabel: "Money"
     })
   );
   results.push(
     await capture(browser, {
       label: "11-office-control-team-rtl-isolation",
-      routePath: "/staff/owner",
-      hash: "#team",
-      target: "#team",
+      routePath: "/office/team",
       activeLabel: "الفريق",
       locale: "ar",
       viewport: { width: 390, height: 844 }
@@ -1208,7 +1204,7 @@ try {
   results.push(
     await capture(browser, {
       label: "12-office-catalog-permission-limited",
-      routePath: "/staff/menu",
+      routePath: "/office/catalog",
       activeLabel: "Catalog",
       accessValue: restrictedAccess,
       viewport: { width: 1280, height: 900 }

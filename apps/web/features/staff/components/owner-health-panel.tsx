@@ -45,15 +45,15 @@ export function OwnerHealthPanel({ health, branchName }: OwnerHealthPanelProps) 
           <CardDescription>{t(health.descriptionKey)}</CardDescription>
         </div>
         <div className="flex flex-wrap gap-3">
-          <Link href="/staff/cashier" className={buttonVariants({ variant: "secondary" })}>
+          <Link href="/service/cashier" className={buttonVariants({ variant: "secondary" })}>
             <Receipt className="size-4" aria-hidden="true" />
             {t("actions.goToCashier")}
           </Link>
-          <Link href="/staff/kitchen" className={buttonVariants({ variant: "secondary" })}>
+          <Link href="/kitchen" className={buttonVariants({ variant: "secondary" })}>
             <ChefHat className="size-4" aria-hidden="true" />
             {t("actions.goToKitchen")}
           </Link>
-          <Link href="/staff/waiter" className={buttonVariants()}>
+          <Link href="/service/waiter" className={buttonVariants()}>
             <UserRoundCheck className="size-4" aria-hidden="true" />
             {t("actions.goToWaiter")}
           </Link>

@@ -66,7 +66,7 @@ export function CustomerBottomNav({
           return (
             <Link
               key={item.key}
-              href={`/customer/session/${sessionId}${item.href}`}
+              href={`/guest/session/${sessionId}${item.href}`}
               className={cn(
                 "relative flex min-h-12 flex-col items-center justify-center gap-1 rounded-xl px-1 text-[10px] font-bold text-muted-foreground transition hover:bg-muted hover:text-foreground",
                 isActive &&

@@ -1077,7 +1077,7 @@ async function newContext(browser, locale, viewport) {
 
 async function capture(browser, {
   label,
-  pathname = "/staff/owner",
+  pathname = "/office",
   hash = "",
   target,
   activeLabel,
@@ -1217,8 +1217,7 @@ try {
   results.push(
     await capture(browser, {
       label: "02-office-money-desktop",
-      hash: "#money",
-      target: "#money",
+      pathname: "/office/money",
       activeLabel: "Money"
     })
   );
@@ -1226,7 +1225,6 @@ try {
     await capture(browser, {
       label: "03-office-operations-desktop",
       hash: "#operations",
-      target: "#operations",
       activeLabel: "Operations"
     })
   );
@@ -1234,31 +1232,27 @@ try {
     await capture(browser, {
       label: "04-office-insights-desktop",
       hash: "#insights",
-      target: "#insights",
       activeLabel: "Insights"
     })
   );
   results.push(
     await capture(browser, {
       label: "05-office-team-desktop",
-      hash: "#team",
-      target: "#team",
+      pathname: "/office/team",
       activeLabel: "Team"
     })
   );
   results.push(
     await capture(browser, {
       label: "06-office-experience-desktop",
-      hash: "#experience",
-      target: "#experience",
+      pathname: "/office/experience",
       activeLabel: "Experience"
     })
   );
   results.push(
     await capture(browser, {
       label: "07-office-settings-desktop",
-      hash: "#settings",
-      target: "#settings",
+      pathname: "/office/settings",
       activeLabel: "Settings"
     })
   );
@@ -1272,8 +1266,7 @@ try {
   results.push(
     await capture(browser, {
       label: "09-office-money-mobile-390",
-      hash: "#money",
-      target: "#money",
+      pathname: "/office/money",
       activeLabel: "Money",
       viewport: { width: 390, height: 844 }
     })
@@ -1281,8 +1274,7 @@ try {
   results.push(
     await capture(browser, {
       label: "10-office-team-ar-rtl-390",
-      hash: "#team",
-      target: "#team",
+      pathname: "/office/team",
       activeLabel: "الفريق",
       locale: "ar",
       viewport: { width: 390, height: 844 }
@@ -1291,8 +1283,7 @@ try {
   results.push(
     await capture(browser, {
       label: "11-office-settings-ar-rtl-390",
-      hash: "#settings",
-      target: "#settings",
+      pathname: "/office/settings",
       activeLabel: "الإعدادات",
       locale: "ar",
       viewport: { width: 390, height: 844 }
@@ -1301,42 +1292,42 @@ try {
   results.push(
     await capture(browser, {
       label: "12-office-s6-team-desktop",
-      pathname: "/staff/team",
+      pathname: "/office/team",
       activeLabel: "Team"
     })
   );
   results.push(
     await capture(browser, {
       label: "13-office-s6-money-desktop",
-      pathname: "/staff/money",
+      pathname: "/office/money",
       activeLabel: "Money"
     })
   );
   results.push(
     await capture(browser, {
       label: "14-office-s6-experience-desktop",
-      pathname: "/staff/experience",
+      pathname: "/office/experience",
       activeLabel: "Experience"
     })
   );
   results.push(
     await capture(browser, {
       label: "15-office-s6-settings-desktop",
-      pathname: "/staff/settings",
+      pathname: "/office/settings",
       activeLabel: "Settings"
     })
   );
   results.push(
     await capture(browser, {
       label: "16-office-s6-account-desktop",
-      pathname: "/staff/account",
+      pathname: "/office/account",
       activeLabel: "Account"
     })
   );
   results.push(
     await capture(browser, {
       label: "17-office-s6-money-tablet-1024",
-      pathname: "/staff/money",
+      pathname: "/office/money",
       activeLabel: "Money",
       viewport: { width: 1024, height: 900 }
     })
@@ -1344,7 +1335,7 @@ try {
   results.push(
     await capture(browser, {
       label: "18-office-s6-team-ar-rtl-tablet-820",
-      pathname: "/staff/team",
+      pathname: "/office/team",
       activeLabel: "الفريق",
       locale: "ar",
       viewport: { width: 820, height: 900 }
