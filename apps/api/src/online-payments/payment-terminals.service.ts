@@ -7,6 +7,7 @@ import {
   AuditAction,
   AuditActorType,
   BillStatus,
+  OnlinePaymentIntentStatus,
   PaymentTerminalStatus,
   Prisma,
   TerminalPaymentRequestStatus,
@@ -230,7 +231,14 @@ export class PaymentTerminalsService {
         balanceDueMinor: true,
         currency: true,
         onlinePaymentIntents: {
-          where: { status: { in: ["pending", "requires_action"] } },
+          where: {
+            status: {
+              in: [
+                OnlinePaymentIntentStatus.pending,
+                OnlinePaymentIntentStatus.requires_action,
+              ],
+            },
+          },
           select: { id: true },
           take: 1,
         },
