@@ -12,6 +12,7 @@ const OUTPUT_DIR = path.resolve("artifacts/kitchen-visual-qa");
 const COMPANY_ID = "company-kitchen-visual";
 const BRANCH_ID = "branch-kitchen-visual";
 const ORDER_ID = "order-kitchen-visual";
+const FIXTURE_NOW = Date.now();
 
 const company = {
   id: COMPANY_ID,
@@ -28,7 +29,7 @@ const branch = {
   status: "active"
 };
 
-const allPermissions = [
+const fullPermissions = [
   "preparation.read",
   "preparation.start",
   "preparation.ready",
@@ -36,27 +37,10 @@ const allPermissions = [
   "orders.read"
 ];
 
-const access = {
-  companies: [
-    {
-      company,
-      branchScope: "all_branches",
-      roles: ["kitchen"],
-      permissions: allPermissions
-    }
-  ],
-  branches: [
-    {
-      company,
-      branch,
-      source: "branch_membership",
-      roles: ["kitchen"],
-      permissions: allPermissions
-    }
-  ],
-  roles: ["kitchen"],
-  permissions: allPermissions
-};
+const readOnlyPermissions = [
+  "preparation.read",
+  "orders.read"
+];
 
 const staffUser = {
   id: "staff-kitchen-visual",
@@ -74,11 +58,33 @@ const staffSession = {
   expiresAt: "2099-01-01T00:00:00.000Z"
 };
 
-const staffContext = {
-  staffUser,
-  staffSession,
-  staffAccess: access
-};
+function minutesAgo(minutes) {
+  return new Date(FIXTURE_NOW - minutes * 60_000).toISOString();
+}
+
+function accessFor(permissions) {
+  return {
+    companies: [
+      {
+        company,
+        branchScope: "all_branches",
+        roles: ["kitchen"],
+        permissions
+      }
+    ],
+    branches: [
+      {
+        company,
+        branch,
+        source: "branch_membership",
+        roles: ["kitchen"],
+        permissions
+      }
+    ],
+    roles: ["kitchen"],
+    permissions
+  };
+}
 
 function taskEnvelope({
   id,
@@ -89,63 +95,64 @@ function taskEnvelope({
   quantity,
   station,
   status,
-  createdAt,
+  age,
   notes,
   modifiers = []
 }) {
+  const createdAt = minutesAgo(age);
+
   return {
     task: {
       id,
       companyId: COMPANY_ID,
       branchId: BRANCH_ID,
-      orderId: `${ORDER_ID}-${orderNumber}`,
+      orderId: ORDER_ID + "-" + orderNumber,
       status,
       station,
       quantity,
       itemNameSnapshot: item,
       notes: notes ?? null,
       createdAt,
-      startedAt: status === "preparing" || status === "ready"
-        ? "2026-08-29T10:10:00.000Z"
-        : null,
-      readyAt: status === "ready"
-        ? "2026-08-29T10:18:00.000Z"
-        : null,
+      startedAt:
+        status === "preparing" || status === "ready"
+          ? minutesAgo(Math.max(1, age - 2))
+          : null,
+      readyAt: status === "ready" ? minutesAgo(1) : null,
       cancelledAt: null
     },
     order: {
-      id: `${ORDER_ID}-${orderNumber}`,
+      id: ORDER_ID + "-" + orderNumber,
       orderNumber,
       status: status === "ready" ? "ready" : "cashier_accepted",
       submittedAt: createdAt
     },
     tableSession: {
-      id: `session-${table}`,
+      id: "session-" + table,
       status: "active"
     },
     floor: {
-      id: `floor-${floor}`,
+      id: "floor-" + floor,
       name: floor
     },
     table: {
-      id: `table-${table}`,
+      id: "table-" + table,
       code: table,
       displayName: table
     },
     orderItem: {
-      id: `order-item-${id}`,
+      id: "order-item-" + id,
       itemNameSnapshot: item,
       notes: notes ?? null
     },
     modifierOptions: modifiers.map((name, index) => ({
-      id: `${id}-modifier-${index}`,
+      id: id + "-modifier-" + index,
       modifierGroupNameSnapshot: "Options",
       modifierOptionNameSnapshot: name,
       priceDeltaMinorSnapshot: 0
     })),
     events: [
       {
-        id: `${id}-event-created`,
+        id: id + "-event-created",
         type: "created",
         createdAt,
         actorStaffUserId: null
@@ -154,7 +161,7 @@ function taskEnvelope({
   };
 }
 
-const tasks = [
+const baseTasks = [
   taskEnvelope({
     id: "task-841",
     table: "T12",
@@ -164,7 +171,7 @@ const tasks = [
     quantity: 2,
     station: "kitchen",
     status: "pending",
-    createdAt: "2026-08-29T10:02:00.000Z",
+    age: 18,
     notes: "One burger well done",
     modifiers: ["No onion", "Extra cheese"]
   }),
@@ -177,7 +184,42 @@ const tasks = [
     quantity: 1,
     station: "kitchen",
     status: "preparing",
-    createdAt: "2026-08-29T10:04:00.000Z"
+    age: 13
+  }),
+  taskEnvelope({
+    id: "task-843",
+    table: "T08",
+    floor: "Main Floor",
+    orderNumber: "10429",
+    item: "Chicken Pasta",
+    quantity: 1,
+    station: "kitchen",
+    status: "pending",
+    age: 6,
+    notes: "Allergy note: no mushrooms"
+  }),
+  taskEnvelope({
+    id: "task-844",
+    table: "T05",
+    floor: "Terrace",
+    orderNumber: "10430",
+    item: "Grilled Salmon",
+    quantity: 1,
+    station: "kitchen",
+    status: "preparing",
+    age: 4,
+    modifiers: ["No butter"]
+  }),
+  taskEnvelope({
+    id: "task-845",
+    table: "T02",
+    floor: "Main Floor",
+    orderNumber: "10431",
+    item: "Club Sandwich",
+    quantity: 2,
+    station: "kitchen",
+    status: "pending",
+    age: 2
   }),
   taskEnvelope({
     id: "task-836",
@@ -187,8 +229,8 @@ const tasks = [
     item: "Cappuccino",
     quantity: 2,
     station: "barista",
-    status: "preparing",
-    createdAt: "2026-08-29T10:08:00.000Z",
+    status: "pending",
+    age: 11,
     modifiers: ["Oat milk"]
   }),
   taskEnvelope({
@@ -199,8 +241,8 @@ const tasks = [
     item: "Spanish Latte",
     quantity: 1,
     station: "barista",
-    status: "pending",
-    createdAt: "2026-08-29T10:11:00.000Z",
+    status: "preparing",
+    age: 3,
     notes: "Less sweet"
   }),
   taskEnvelope({
@@ -212,19 +254,34 @@ const tasks = [
     quantity: 2,
     station: "dessert",
     status: "ready",
-    createdAt: "2026-08-29T10:13:00.000Z"
-  }),
+    age: 2
+  })
+];
+
+const rushTasks = [
+  ...baseTasks,
   taskEnvelope({
-    id: "task-823",
-    table: "T07",
+    id: "task-846",
+    table: "T14",
     floor: "Main Floor",
-    orderNumber: "10418",
-    item: "Chicken Pasta",
+    orderNumber: "10432",
+    item: "Ribeye Steak",
     quantity: 1,
     station: "kitchen",
+    status: "pending",
+    age: 21,
+    notes: "Medium rare"
+  }),
+  taskEnvelope({
+    id: "task-847",
+    table: "T16",
+    floor: "Terrace",
+    orderNumber: "10433",
+    item: "Seafood Risotto",
+    quantity: 2,
+    station: "kitchen",
     status: "preparing",
-    createdAt: "2026-08-29T09:58:00.000Z",
-    notes: "Allergy note: no mushrooms"
+    age: 17
   })
 ];
 
@@ -232,10 +289,12 @@ function printJob({
   id,
   status,
   kind,
+  station,
   stationName,
-  createdAt,
+  age,
   errorMessage = null,
-  printableText
+  printableText,
+  routingMissing = false
 }) {
   return {
     printJob: {
@@ -244,15 +303,18 @@ function printJob({
       branchId: BRANCH_ID,
       status,
       kind,
-      createdAt,
+      createdAt: minutesAgo(age),
       errorMessage,
       printableText
     },
-    printerStation: {
-      id: `${id}-station`,
-      name: stationName,
-      status: "active"
-    }
+    printerStation: routingMissing
+      ? null
+      : {
+          id: id + "-station",
+          name: stationName,
+          station,
+          status: "active"
+        }
   };
 }
 
@@ -260,26 +322,39 @@ const printJobs = [
   printJob({
     id: "print-441",
     status: "failed",
-    kind: "barista_ticket",
-    stationName: "Bar printer",
-    createdAt: "2026-08-29T10:15:00.000Z",
+    kind: "kitchen_ticket",
+    station: "kitchen",
+    stationName: "Main kitchen",
+    age: 16,
     errorMessage: "Printer unreachable",
-    printableText: "B-091\nT03\n2x Cappuccino\nOat milk"
+    printableText: "K-128\nT12\n2x Beef Burger\n1x Fries"
   }),
   printJob({
-    id: "print-440",
-    status: "printed",
+    id: "print-442",
+    status: "pending",
     kind: "kitchen_ticket",
-    stationName: "Main kitchen",
-    createdAt: "2026-08-29T10:05:00.000Z",
-    printableText: "K-128\nT12\n2x Beef Burger\n1x Fries"
+    station: "kitchen",
+    stationName: "Unassigned",
+    age: 8,
+    routingMissing: true,
+    printableText: "K-129\nT08\n1x Chicken Pasta"
   }),
   printJob({
     id: "print-438",
     status: "pending",
+    kind: "barista_ticket",
+    station: "barista",
+    stationName: "Bar printer",
+    age: 5,
+    printableText: "B-091\nT03\n2x Cappuccino\nOat milk"
+  }),
+  printJob({
+    id: "print-437",
+    status: "printed",
     kind: "dessert_ticket",
+    station: "dessert",
     stationName: "Dessert printer",
-    createdAt: "2026-08-29T10:19:00.000Z",
+    age: 3,
     printableText: "D-044\nT04\n2x Basque Cheesecake"
   })
 ];
@@ -295,10 +370,10 @@ const tickets = [
       tableCodeSnapshot: "T12",
       floorNameSnapshot: "Main Floor",
       customerNoteSnapshot: "Serve sauces separately",
-      createdAt: "2026-08-29T10:02:00.000Z"
+      createdAt: minutesAgo(18)
     },
     order: {
-      id: `${ORDER_ID}-10428`,
+      id: ORDER_ID + "-10428",
       orderNumber: "10428"
     },
     floor: { id: "floor-main", name: "Main Floor" },
@@ -323,7 +398,7 @@ const tickets = [
         modifiersSnapshot: []
       }
     ],
-    printJobs: [printJobs[1]]
+    printJobs: [printJobs[0]]
   },
   {
     ticket: {
@@ -334,10 +409,10 @@ const tickets = [
       orderNumberSnapshot: "10425",
       tableCodeSnapshot: "T03",
       floorNameSnapshot: "Main Floor",
-      createdAt: "2026-08-29T10:08:00.000Z"
+      createdAt: minutesAgo(11)
     },
     order: {
-      id: `${ORDER_ID}-10425`,
+      id: ORDER_ID + "-10425",
       orderNumber: "10425"
     },
     floor: { id: "floor-main", name: "Main Floor" },
@@ -353,21 +428,21 @@ const tickets = [
         ]
       }
     ],
-    printJobs: [printJobs[0]]
+    printJobs: [printJobs[2]]
   },
   {
     ticket: {
       id: "ticket-8816",
       displayCode: "D-044",
-      status: "ready",
+      status: "served",
       station: "dessert",
       orderNumberSnapshot: "10420",
       tableCodeSnapshot: "T04",
       floorNameSnapshot: "Terrace",
-      createdAt: "2026-08-29T10:13:00.000Z"
+      createdAt: minutesAgo(9)
     },
     order: {
-      id: `${ORDER_ID}-10420`,
+      id: ORDER_ID + "-10420",
       orderNumber: "10420"
     },
     floor: { id: "floor-terrace", name: "Terrace" },
@@ -377,15 +452,45 @@ const tickets = [
         id: "ticket-item-4",
         quantity: 2,
         itemNameSnapshot: "Basque Cheesecake",
-        status: "ready",
+        status: "served",
         modifiersSnapshot: []
       }
     ],
-    printJobs: [printJobs[2]]
+    printJobs: [printJobs[3]]
+  },
+  {
+    ticket: {
+      id: "ticket-8822",
+      displayCode: "K-129",
+      status: "queued",
+      station: "kitchen",
+      orderNumberSnapshot: "10429",
+      tableCodeSnapshot: "T08",
+      floorNameSnapshot: "Main Floor",
+      createdAt: minutesAgo(8)
+    },
+    order: {
+      id: ORDER_ID + "-10429",
+      orderNumber: "10429"
+    },
+    floor: { id: "floor-main", name: "Main Floor" },
+    table: { id: "table-T08", code: "T08", displayName: "T08" },
+    items: [
+      {
+        id: "ticket-item-5",
+        quantity: 1,
+        itemNameSnapshot: "Chicken Pasta",
+        status: "queued",
+        modifiersSnapshot: []
+      }
+    ],
+    printJobs: []
   }
 ];
 
-function persistedStaffSession() {
+function persistedStaffSession(permissions) {
+  const access = accessFor(permissions);
+
   return JSON.stringify({
     state: {
       accessToken: "kitchen-visual-token",
@@ -395,7 +500,7 @@ function persistedStaffSession() {
       effectiveAccess: access,
       defaultBranch: branch,
       selectedBranchId: BRANCH_ID,
-      lastLoadedAt: "2026-08-29T10:00:00.000Z"
+      lastLoadedAt: new Date().toISOString()
     },
     version: 0
   });
@@ -409,8 +514,15 @@ function json(body, status = 200) {
   };
 }
 
-async function installApiMocks(page) {
+function tasksForScenario(scenario) {
+  if (scenario === "empty") return [];
+  if (scenario === "rush") return rushTasks;
+  return baseTasks;
+}
+
+async function installApiMocks(page, scenario, permissions) {
   const apiRoutePattern = ["**", "api", "v1", "**"].join("/");
+  const access = accessFor(permissions);
 
   await page.route(apiRoutePattern, async (route) => {
     const request = route.request();
@@ -419,13 +531,27 @@ async function installApiMocks(page) {
     const method = request.method();
 
     if (pathname === "/api/v1/staff-auth/me") {
-      return route.fulfill(json(staffContext));
+      return route.fulfill(
+        json({
+          staffUser,
+          staffSession,
+          staffAccess: access
+        })
+      );
     }
 
-    if (pathname === `/api/v1/branches/${BRANCH_ID}/preparation-tasks`) {
+    if (pathname === "/api/v1/branches/" + BRANCH_ID + "/preparation-tasks") {
+      if (scenario === "api-error") {
+        return route.fulfill(json({ message: "Kitchen API unavailable" }, 500));
+      }
+
+      if (scenario === "loading") {
+        await new Promise((resolve) => setTimeout(resolve, 2500));
+      }
+
       const station = url.searchParams.get("station") ?? "all";
       const status = url.searchParams.get("status") ?? "all";
-      let visible = tasks;
+      let visible = tasksForScenario(scenario);
 
       if (station !== "all") {
         visible = visible.filter((entry) => entry.task.station === station);
@@ -445,83 +571,62 @@ async function installApiMocks(page) {
       );
     }
 
-    if (pathname.startsWith("/api/v1/preparation-tasks/") && method === "GET") {
-      const taskId = pathname.split("/").pop();
-      const selected = tasks.find((entry) => entry.task.id === taskId) ?? tasks[0];
-      return route.fulfill(json(selected));
-    }
-
-    if (pathname === `/api/v1/branches/${BRANCH_ID}/kitchen-tickets`) {
+    if (pathname === "/api/v1/branches/" + BRANCH_ID + "/kitchen-tickets") {
       const station = url.searchParams.get("station") ?? "all";
-      const status = url.searchParams.get("status") ?? "all";
       let visible = tickets;
 
       if (station !== "all") {
         visible = visible.filter((entry) => entry.ticket.station === station);
       }
 
-      if (status !== "all") {
-        visible = visible.filter((entry) => entry.ticket.status === status);
-      }
-
       return route.fulfill(
         json({
           branch,
-          filters: { station, status },
+          filters: { station, status: "all" },
           tickets: visible
         })
       );
     }
 
-    if (pathname === `/api/v1/branches/${BRANCH_ID}/print-jobs`) {
-      const status = url.searchParams.get("status") ?? "all";
-      const visible =
-        status === "all"
-          ? printJobs
-          : printJobs.filter((entry) => entry.printJob.status === status);
+    if (pathname === "/api/v1/branches/" + BRANCH_ID + "/print-jobs") {
+      const station = url.searchParams.get("station") ?? "all";
+      let visible = printJobs;
+
+      if (station !== "all") {
+        visible = visible.filter(
+          (entry) =>
+            entry.printerStation?.station === station ||
+            (station === "kitchen" && entry.printerStation === null)
+        );
+      }
 
       return route.fulfill(
         json({
           branch,
-          filters: { status },
+          filters: { station, status: "all" },
           printJobs: visible
         })
       );
     }
 
-    if (pathname === `/api/v1/realtime/branches/${BRANCH_ID}/events`) {
-      return route.fulfill(
-        json({
-          branch,
-          events: [
-            {
-              id: "kitchen-event-1",
-              type: "preparation_task_created",
-              channel: "preparation",
-              preparationTaskId: "task-841",
-              orderId: `${ORDER_ID}-10428`,
-              createdAt: "2026-08-29T10:20:00.000Z"
-            },
-            {
-              id: "kitchen-event-2",
-              type: "preparation_task_ready",
-              channel: "preparation",
-              preparationTaskId: "task-829",
-              orderId: `${ORDER_ID}-10420`,
-              createdAt: "2026-08-29T10:18:00.000Z"
-            }
-          ]
-        })
-      );
-    }
+    if (pathname === "/api/v1/realtime/branches/" + BRANCH_ID + "/stream") {
+      if (scenario === "reconnect") {
+        return route.abort("connectionrefused");
+      }
 
-    if (pathname === `/api/v1/realtime/branches/${BRANCH_ID}/stream`) {
       return route.fulfill({
         status: 200,
         contentType: "text/event-stream",
         headers: { "cache-control": "no-cache" },
         body: "event: ready\ndata: {}\n\n"
       });
+    }
+
+    if (pathname.startsWith("/api/v1/preparation-tasks/") && method === "GET") {
+      const taskId = pathname.split("/").pop();
+      const selected =
+        baseTasks.find((entry) => entry.task.id === taskId) ?? baseTasks[0];
+      return route.fulfill(json(selected));
     }
 
     if (method !== "GET") {
@@ -532,7 +637,7 @@ async function installApiMocks(page) {
   });
 }
 
-async function newContext(browser, locale, viewport) {
+async function newContext(browser, locale, viewport, permissions) {
   const context = await browser.newContext({
     viewport,
     deviceScaleFactor: 1,
@@ -551,65 +656,42 @@ async function newContext(browser, locale, viewport) {
     ({ localeValue, staffValue }) => {
       window.localStorage.setItem("balcona.locale", localeValue);
       window.localStorage.setItem("balcona_staff_session", staffValue);
+      window.localStorage.removeItem("balcona.kitchen.station");
     },
     {
       localeValue: locale,
-      staffValue: persistedStaffSession()
+      staffValue: persistedStaffSession(permissions)
     }
   );
 
   return context;
 }
 
-async function capture(browser, {
-  label,
-  locale = "en",
-  viewport = { width: 1440, height: 1000 },
-  mode = "board"
-}) {
-  const context = await newContext(browser, locale, viewport);
-  const page = await context.newPage();
-  const consoleErrors = [];
-
-  page.on("console", (message) => {
-    if (message.type() === "error") {
-      consoleErrors.push(message.text());
+function labelFor(locale, key) {
+  const labels = {
+    en: {
+      board: "Board",
+      tickets: "Tickets",
+      print: "Print",
+      kitchen: "Kitchen",
+      barista: "Barista",
+      expediter: "Expediter"
+    },
+    ar: {
+      board: "البورد",
+      tickets: "التذاكر",
+      print: "الطباعة",
+      kitchen: "المطبخ",
+      barista: "البار",
+      expediter: "الإكسبيدايتر"
     }
-  });
+  };
 
-  await installApiMocks(page);
-  await page.goto(`${BASE_URL}/staff/kitchen`, {
-    waitUntil: "domcontentloaded",
-    timeout: 30000
-  });
+  return labels[locale][key];
+}
 
-  const boardLabel = locale === "ar" ? "البورد" : "Board";
-  await page.getByRole("button", { name: boardLabel, exact: true }).waitFor({
-    state: "visible",
-    timeout: 15000
-  });
-
-  if (mode === "tickets") {
-    await page
-      .getByRole("button", {
-        name: locale === "ar" ? "التذاكر" : "Tickets",
-        exact: true
-      })
-      .click();
-  }
-
-  if (mode === "print") {
-    await page
-      .getByRole("button", {
-        name: locale === "ar" ? "الطباعة" : "Print",
-        exact: true
-      })
-      .click();
-  }
-
-  await page.waitForTimeout(700);
-
-  const metrics = await page.evaluate(() => {
+async function pageMetrics(page) {
+  return page.evaluate(() => {
     const innerWidth = window.innerWidth;
     const offenders = Array.from(document.querySelectorAll("*"))
       .map((element) => {
@@ -623,8 +705,7 @@ async function capture(browser, {
               : "",
           left: Math.round(rect.left),
           right: Math.round(rect.right),
-          width: Math.round(rect.width),
-          scrollWidth: element.scrollWidth
+          width: Math.round(rect.width)
         };
       })
       .filter(
@@ -632,8 +713,31 @@ async function capture(browser, {
           entry.width > 0 &&
           (entry.right > innerWidth + 1 || entry.left < -1)
       )
-      .sort((a, b) => Math.max(b.right - innerWidth, -b.left) - Math.max(a.right - innerWidth, -a.left))
+      .sort(
+        (a, b) =>
+          Math.max(b.right - innerWidth, -b.left) -
+          Math.max(a.right - innerWidth, -a.left)
+      )
       .slice(0, 12);
+
+    const firstTask = document.querySelector("[data-kds-task-status]");
+    const taskParagraphs = firstTask
+      ? Array.from(firstTask.querySelectorAll("p"))
+      : [];
+    const largestTaskFont = taskParagraphs.reduce(
+      (largest, element) =>
+        Math.max(largest, parseFloat(getComputedStyle(element).fontSize) || 0),
+      0
+    );
+    const taskAction = firstTask?.querySelector("button");
+    const activePressedButtons = Array.from(
+      document.querySelectorAll('button[aria-pressed="true"]')
+    );
+    const tallestActiveControl = activePressedButtons.reduce(
+      (tallest, element) =>
+        Math.max(tallest, element.getBoundingClientRect().height),
+      0
+    );
 
     return {
       innerWidth,
@@ -642,34 +746,174 @@ async function capture(browser, {
       bodyScrollWidth: document.body.scrollWidth,
       dir: document.documentElement.dir,
       lang: document.documentElement.lang,
-      offenders
+      offenders,
+      distance: {
+        largestTaskFont,
+        taskActionHeight: taskAction
+          ? taskAction.getBoundingClientRect().height
+          : null,
+        tallestActiveControl
+      },
+      kds: {
+        station:
+          document.querySelector("[data-kds-station]")?.getAttribute(
+            "data-kds-station"
+          ) ?? null,
+        view:
+          document.querySelector("[data-kds-view]")?.getAttribute(
+            "data-kds-view"
+          ) ?? null,
+        realtime:
+          document.querySelector("[data-kds-realtime]")?.getAttribute(
+            "data-kds-realtime"
+          ) ?? null,
+        boardState:
+          document.querySelector("[data-kds-board-state]")?.getAttribute(
+            "data-kds-board-state"
+          ) ?? null,
+        failedPrints: document.querySelectorAll(
+          '[data-kds-print-status="failed"]'
+        ).length,
+        missingRoutes: document.querySelectorAll(
+          '[data-kds-print-route="missing"]'
+        ).length
+      }
     };
   });
+}
+
+async function capture(browser, {
+  label,
+  locale = "en",
+  viewport = { width: 1440, height: 1000 },
+  view = "board",
+  station = "kitchen",
+  scenario = "normal",
+  permissions = fullPermissions,
+  settleMs = 700,
+  assertDistance = true
+}) {
+  const context = await newContext(browser, locale, viewport, permissions);
+  const page = await context.newPage();
+  const consoleErrors = [];
+
+  page.on("console", (message) => {
+    if (message.type() === "error") {
+      consoleErrors.push(message.text());
+    }
+  });
+
+  await installApiMocks(page, scenario, permissions);
+  await page.goto(BASE_URL + "/staff/kitchen", {
+    waitUntil: "domcontentloaded",
+    timeout: 30000
+  });
+
+  await page
+    .getByRole("button", {
+      name: labelFor(locale, "kitchen"),
+      exact: true
+    })
+    .waitFor({ state: "visible", timeout: 15000 });
+
+  if (station !== "kitchen") {
+    await page
+      .getByRole("button", {
+        name: labelFor(locale, station),
+        exact: true
+      })
+      .click();
+  }
+
+  if (view !== "board") {
+    await page
+      .getByRole("button", {
+        name: labelFor(locale, view),
+        exact: true
+      })
+      .click();
+  }
+
+  await page.waitForTimeout(settleMs);
+
+  if (scenario === "reconnect") {
+    await page
+      .locator('[data-kds-realtime="error"]')
+      .waitFor({ state: "visible", timeout: 10000 });
+  }
+
+  const metrics = await pageMetrics(page);
 
   if (metrics.scrollWidth > metrics.clientWidth + 1) {
     throw new Error(
-      `${label}: document overflow ${metrics.scrollWidth}px > ${metrics.clientWidth}px; offenders=${JSON.stringify(metrics.offenders)}`
+      label +
+        ": document overflow " +
+        metrics.scrollWidth +
+        "px > " +
+        metrics.clientWidth +
+        "px; offenders=" +
+        JSON.stringify(metrics.offenders)
     );
   }
 
   if (locale === "ar" && metrics.dir !== "rtl") {
-    throw new Error(`${label}: expected rtl, got ${metrics.dir || "empty"}`);
+    throw new Error(label + ": expected rtl, got " + (metrics.dir || "empty"));
   }
 
-  if (consoleErrors.length > 0) {
+  if (
+    assertDistance &&
+    view === "board" &&
+    scenario !== "empty" &&
+    scenario !== "api-error" &&
+    scenario !== "loading"
+  ) {
+    if (metrics.distance.largestTaskFont < 20) {
+      throw new Error(
+        label +
+          ": distance-readability item text is only " +
+          metrics.distance.largestTaskFont +
+          "px"
+      );
+    }
+
+    if (
+      metrics.distance.taskActionHeight !== null &&
+      metrics.distance.taskActionHeight < 47
+    ) {
+      throw new Error(
+        label +
+          ": primary task action height is only " +
+          metrics.distance.taskActionHeight +
+          "px"
+      );
+    }
+
+    if (metrics.distance.tallestActiveControl < 43) {
+      throw new Error(
+        label +
+          ": active station control height is only " +
+          metrics.distance.tallestActiveControl +
+          "px"
+      );
+    }
+  }
+
+  if (scenario !== "reconnect" && consoleErrors.length > 0) {
     throw new Error(
-      `${label}: browser console errors: ${consoleErrors.join(" | ")}`
+      label + ": browser console errors: " + consoleErrors.join(" | ")
     );
   }
 
-  const screenshot = path.join(OUTPUT_DIR, `${label}.png`);
+  const screenshot = path.join(OUTPUT_DIR, label + ".png");
   await page.screenshot({ path: screenshot, fullPage: true });
 
   const result = {
     label,
     locale,
     viewport,
-    mode,
+    view,
+    station,
+    scenario,
     screenshot,
     metrics,
     consoleErrors
@@ -679,6 +923,108 @@ async function capture(browser, {
   return result;
 }
 
+async function verifyStationPersistence(browser) {
+  const context = await newContext(
+    browser,
+    "en",
+    { width: 1024, height: 768 },
+    fullPermissions
+  );
+  const page = await context.newPage();
+  await installApiMocks(page, "normal", fullPermissions);
+
+  await page.goto(BASE_URL + "/staff/kitchen", {
+    waitUntil: "domcontentloaded",
+    timeout: 30000
+  });
+  await page
+    .getByRole("button", { name: "Barista", exact: true })
+    .waitFor({ state: "visible", timeout: 15000 });
+  await page.getByRole("button", { name: "Barista", exact: true }).click();
+  await page.locator('[data-kds-station="barista"]').waitFor({
+    state: "visible",
+    timeout: 5000
+  });
+
+  await page.reload({ waitUntil: "domcontentloaded" });
+  await page.locator('[data-kds-station="barista"]').waitFor({
+    state: "visible",
+    timeout: 10000
+  });
+
+  const stored = await page.evaluate(() =>
+    window.localStorage.getItem("balcona.kitchen.station")
+  );
+
+  if (stored !== "barista") {
+    throw new Error(
+      "station-persistence: expected barista in local storage, got " + stored
+    );
+  }
+
+  const screenshot = path.join(
+    OUTPUT_DIR,
+    "09-kitchen-station-persistence-tablet.png"
+  );
+  await page.screenshot({ path: screenshot, fullPage: true });
+  await context.close();
+
+  return {
+    label: "09-kitchen-station-persistence-tablet",
+    persistedStation: stored,
+    screenshot
+  };
+}
+
+async function verifyReadOnlyPermissions(browser) {
+  const context = await newContext(
+    browser,
+    "en",
+    { width: 1024, height: 768 },
+    readOnlyPermissions
+  );
+  const page = await context.newPage();
+  await installApiMocks(page, "normal", readOnlyPermissions);
+
+  await page.goto(BASE_URL + "/staff/kitchen", {
+    waitUntil: "domcontentloaded",
+    timeout: 30000
+  });
+  const start = page.getByRole("button", { name: "Start", exact: true }).first();
+  await start.waitFor({ state: "visible", timeout: 15000 });
+
+  if (!(await start.isDisabled())) {
+    throw new Error(
+      "permissions-read-only: Start must be disabled without preparation.start"
+    );
+  }
+
+  const ready = page
+    .getByRole("button", { name: "Mark ready", exact: true })
+    .first();
+  await ready.waitFor({ state: "visible", timeout: 5000 });
+
+  if (!(await ready.isDisabled())) {
+    throw new Error(
+      "permissions-read-only: Mark ready must be disabled without preparation.ready"
+    );
+  }
+
+  const screenshot = path.join(
+    OUTPUT_DIR,
+    "10-kitchen-permissions-read-only-tablet.png"
+  );
+  await page.screenshot({ path: screenshot, fullPage: true });
+  await context.close();
+
+  return {
+    label: "10-kitchen-permissions-read-only-tablet",
+    startDisabled: true,
+    readyDisabled: true,
+    screenshot
+  };
+}
+
 await mkdir(OUTPUT_DIR, { recursive: true });
 const browser = await chromium.launch({ headless: true });
 const results = [];
@@ -686,50 +1032,81 @@ const results = [];
 try {
   results.push(
     await capture(browser, {
-      label: "01-kitchen-board-desktop",
-      mode: "board"
+      label: "01-kitchen-board-1440-aged",
+      viewport: { width: 1440, height: 1000 }
     })
   );
   results.push(
     await capture(browser, {
-      label: "02-kitchen-tickets-desktop",
-      mode: "tickets"
+      label: "02-kitchen-board-tablet-1024",
+      viewport: { width: 1024, height: 768 }
     })
   );
   results.push(
     await capture(browser, {
-      label: "03-kitchen-print-desktop",
-      mode: "print"
+      label: "03-kitchen-rush-1440",
+      scenario: "rush",
+      viewport: { width: 1440, height: 1000 }
     })
   );
   results.push(
     await capture(browser, {
-      label: "04-kitchen-board-mobile-390",
-      mode: "board",
-      viewport: { width: 390, height: 844 }
+      label: "04-kitchen-empty-tablet",
+      scenario: "empty",
+      viewport: { width: 1024, height: 768 },
+      assertDistance: false
     })
   );
   results.push(
     await capture(browser, {
-      label: "05-kitchen-tickets-mobile-390",
-      mode: "tickets",
-      viewport: { width: 390, height: 844 }
+      label: "05-kitchen-tickets-expediter-1440",
+      view: "tickets",
+      station: "expediter",
+      viewport: { width: 1440, height: 1000 },
+      assertDistance: false
     })
   );
   results.push(
     await capture(browser, {
-      label: "06-kitchen-board-ar-rtl-390",
+      label: "06-kitchen-print-failures-1440",
+      view: "print",
+      station: "expediter",
+      viewport: { width: 1440, height: 1000 },
+      assertDistance: false
+    })
+  );
+  results.push(
+    await capture(browser, {
+      label: "07-kitchen-board-ar-rtl-tablet",
       locale: "ar",
-      mode: "board",
-      viewport: { width: 390, height: 844 }
+      viewport: { width: 1024, height: 768 }
     })
   );
   results.push(
     await capture(browser, {
-      label: "07-kitchen-print-ar-rtl-390",
-      locale: "ar",
-      mode: "print",
-      viewport: { width: 390, height: 844 }
+      label: "08-kitchen-realtime-reconnect-tablet",
+      scenario: "reconnect",
+      viewport: { width: 1024, height: 768 }
+    })
+  );
+  results.push(await verifyStationPersistence(browser));
+  results.push(await verifyReadOnlyPermissions(browser));
+  results.push(
+    await capture(browser, {
+      label: "11-kitchen-loading-tablet",
+      scenario: "loading",
+      viewport: { width: 1024, height: 768 },
+      settleMs: 150,
+      assertDistance: false
+    })
+  );
+  results.push(
+    await capture(browser, {
+      label: "12-kitchen-api-error-tablet",
+      scenario: "api-error",
+      viewport: { width: 1024, height: 768 },
+      settleMs: 1000,
+      assertDistance: false
     })
   );
 } finally {
