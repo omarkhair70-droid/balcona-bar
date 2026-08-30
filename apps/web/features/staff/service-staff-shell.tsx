@@ -152,11 +152,16 @@ export function ServiceStaffShell({
             })}
           </nav>
 
-          <LanguageSwitcher className="shrink-0 border-[#41362E] bg-[#211A15]" />
+          <div className="flex shrink-0 items-center gap-2">
+            {actions ? (
+              <div className="hidden items-center gap-2 lg:flex">{actions}</div>
+            ) : null}
+            <LanguageSwitcher className="shrink-0 border-[#41362E] bg-[#211A15]" />
+          </div>
         </div>
 
         {actions ? (
-          <div className="flex flex-wrap items-center justify-end gap-2 border-t border-[#2E251F] px-3 py-2">
+          <div className="flex flex-wrap items-center justify-end gap-2 border-t border-[#2E251F] px-3 py-2 lg:hidden">
             {actions}
           </div>
         ) : null}
