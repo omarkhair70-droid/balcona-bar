@@ -172,17 +172,18 @@ export function CashierOrderDetailPanel({
   );
 
   return (
-    <Card variant="glass" padding="lg" className="min-w-0 xl:min-h-[34rem] border-[#3B3028] bg-[#1E1814] shadow-none">
-      <CardHeader>
-        <div className="flex flex-wrap items-start justify-between gap-3">
-          <div>
-            <CardTitle className="text-[#FFF5E8]">{t("orders.orderDetailTitle")}</CardTitle>
-            <CardDescription className="text-[#95887D]">{t("orders.orderDetailDescription")}</CardDescription>
+    <Card variant="glass" padding="none" className="min-w-0 min-h-[calc(100vh-8rem)] rounded-none border-0 bg-[#1E1814] shadow-none">
+      {!order ? (
+        <CardHeader className="border-b border-[#3A3028]">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <CardTitle className="text-[#FFF5E8]">{t("orders.orderDetailTitle")}</CardTitle>
+              <CardDescription className="text-[#95887D]">{t("orders.orderDetailDescription")}</CardDescription>
+            </div>
           </div>
-          {status ? <CashierOrderStatusPill status={status} /> : null}
-        </div>
-      </CardHeader>
-      <CardContent className="grid gap-4">
+        </CardHeader>
+      ) : null}
+      <CardContent className="mx-auto grid w-full max-w-3xl gap-4 p-4 lg:p-5">
         {!order && !isLoading && !error ? (
           <EmptyState
             title={t("orders.selectTitle")}
@@ -203,10 +204,13 @@ export function CashierOrderDetailPanel({
         ) : null}
         {order ? (
           <>
-            <div className="rounded-md border border-[#3C3129] bg-[#211A15] p-4">
+            <div className="border-b border-[#3A3028] pb-4">
               <div className="flex flex-wrap items-start justify-between gap-4">
                 <div>
-                  <p className="text-lg font-semibold text-[#FFF5E8]">
+                  <p className="text-[10px] font-semibold uppercase tracking-[0.13em] text-[#A68B70]">
+                    {t("orders.orderDetailTitle")}
+                  </p>
+                  <p className="mt-2 text-2xl font-semibold tracking-[-0.03em] text-[#FFF5E8]">
                     {getOrderNumber(order)}
                   </p>
                   <p className="mt-1 text-sm text-[#A99B8E]">
@@ -214,7 +218,7 @@ export function CashierOrderDetailPanel({
                   </p>
                 </div>
                 <div className="text-end">
-                  <p className="text-lg font-semibold text-[#FFF5E8]">
+                  <p className="text-2xl font-semibold text-[#FFF5E8]">
                     {formatMoney(getMinorTotal(totals), getCurrency(totals))}
                   </p>
                   <p className="mt-1 text-xs text-[#91857A]">
@@ -334,6 +338,28 @@ export function CashierOrderDetailPanel({
               })}
             </section>
 
+            <CashierActionBar
+              canAccept={canAccept}
+              canReject={canReject}
+              canCancel={canCancel}
+              canComplete={canComplete}
+              rejectReason={rejectReason}
+              cancelReason={cancelReason}
+              acceptPending={acceptPending}
+              rejectPending={rejectPending}
+              cancelPending={cancelPending}
+              completePending={completePending}
+              actionPending={actionPending || isRefreshing}
+              disabledReason={disabledReason}
+              onRejectReasonChange={setRejectReason}
+              onCancelReasonChange={setCancelReason}
+              onAccept={onAccept}
+              onReject={() => onReject(rejectReason.trim() || null)}
+              onCancel={() => onCancel(cancelReason.trim())}
+              onComplete={onComplete}
+            />
+
+
             <section className="grid gap-3">
               <h3 className="flex items-center gap-2 text-sm font-semibold text-[#F8EDDF]">
                 <ClipboardList className="size-4 text-primary" aria-hidden="true" />
@@ -404,26 +430,6 @@ export function CashierOrderDetailPanel({
               })}
             </section>
 
-            <CashierActionBar
-              canAccept={canAccept}
-              canReject={canReject}
-              canCancel={canCancel}
-              canComplete={canComplete}
-              rejectReason={rejectReason}
-              cancelReason={cancelReason}
-              acceptPending={acceptPending}
-              rejectPending={rejectPending}
-              cancelPending={cancelPending}
-              completePending={completePending}
-              actionPending={actionPending || isRefreshing}
-              disabledReason={disabledReason}
-              onRejectReasonChange={setRejectReason}
-              onCancelReasonChange={setCancelReason}
-              onAccept={onAccept}
-              onReject={() => onReject(rejectReason.trim() || null)}
-              onCancel={() => onCancel(cancelReason.trim())}
-              onComplete={onComplete}
-            />
 
             <section className="grid gap-3">
               <h3 className="flex items-center gap-2 text-sm font-semibold text-[#F8EDDF]">
