@@ -1,5 +1,5 @@
-import { SetupPrototype } from "@/features/prototype/setup-prototype";
+import { redirect } from "next/navigation";
 
-export default function SetupPrototypePage() {
-  return <SetupPrototype />;
+export default function PrototypeRedirectPage() {
+  redirect("/staff/setup");
 }
