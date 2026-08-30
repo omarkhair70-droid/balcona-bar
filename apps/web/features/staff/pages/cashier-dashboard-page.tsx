@@ -65,7 +65,6 @@ import { useTranslations } from "@/lib/i18n/i18n-provider";
 import type {
   BranchBillRequestStatusFilter,
   CashierShiftReportSnapshot,
-  CashierOrderStatus,
   CloseCashierShiftPayload,
   CreateCashAdjustmentPayload,
   CurrentCashierShiftResult,
@@ -75,7 +74,10 @@ import type {
 import { useStaffAuthStore } from "@/lib/staff/staff-auth-store";
 import { BillRequestQueue } from "../components/bill-request-queue";
 import { CashierOrderDetailPanel } from "../components/cashier-order-detail-panel";
-import { CashierOrderQueue } from "../components/cashier-order-queue";
+import {
+  CashierOrderQueue,
+  type CashierOrderLane
+} from "../components/cashier-order-queue";
 import { StaffAuthGate } from "../components/staff-auth-gate";
 import { StaffBranchSelector } from "../components/staff-branch-selector";
 import { StaffRealtimeStatus } from "../components/staff-realtime-status";
@@ -765,8 +767,8 @@ function CashierDashboardContent() {
   const staffUser = useStaffAuthStore((state) => state.staffUser);
   const effectiveAccess = useStaffAuthStore((state) => state.effectiveAccess);
   const selectedBranchId = useStaffAuthStore((state) => state.selectedBranchId);
-  const [orderStatus, setOrderStatus] =
-    useState<CashierOrderStatus>("submitted");
+  const [orderLane, setOrderLane] =
+    useState<CashierOrderLane>("needs_action");
   const [billStatus, setBillStatus] =
     useState<BranchBillRequestStatusFilter>("active");
   const [userSelectedOrderId, setUserSelectedOrderId] = useState<string>();
@@ -781,11 +783,11 @@ function CashierDashboardContent() {
   );
   const selectedBranch = selectedBranchAccess?.branch;
   const ordersQuery = useQuery({
-    queryKey: staffQueryKeys.branchOrders(selectedBranchId, orderStatus),
+    queryKey: staffQueryKeys.branchOrders(selectedBranchId, "all"),
     queryFn: () =>
       getCashierOrders(
         selectedBranchId ?? "",
-        { status: orderStatus },
+        { status: "all" },
         accessToken,
       ),
     enabled: Boolean(selectedBranchId && accessToken),
@@ -847,10 +849,26 @@ function CashierDashboardContent() {
     ),
     staleTime: 10_000,
   });
-  const orders = useMemo(
+  const allOrders = useMemo(
     () => ordersQuery.data?.orders ?? emptyRecords,
     [ordersQuery.data?.orders],
   );
+  const needsActionOrders = useMemo(
+    () =>
+      allOrders.filter((order) => getOrderStatus(order) === "submitted"),
+    [allOrders],
+  );
+  const activeOrders = useMemo(
+    () =>
+      allOrders.filter((order) =>
+        ["cashier_accepted", "preparing", "ready"].includes(
+          getOrderStatus(order),
+        ),
+      ),
+    [allOrders],
+  );
+  const orders =
+    orderLane === "needs_action" ? needsActionOrders : activeOrders;
   const billRequests = useMemo(
     () => billRequestsQuery.data?.billRequests ?? emptyRecords,
     [billRequestsQuery.data?.billRequests],
@@ -940,9 +958,6 @@ function CashierDashboardContent() {
       });
       void queryClient.invalidateQueries({
         queryKey: staffQueryKeys.branchOrders(selectedBranchId, "all"),
-      });
-      void queryClient.invalidateQueries({
-        queryKey: staffQueryKeys.branchOrders(selectedBranchId, orderStatus),
       });
       void queryClient.invalidateQueries({
         queryKey: staffQueryKeys.branchRealtime(selectedBranchId),
@@ -1303,11 +1318,13 @@ function CashierDashboardContent() {
       <section id="orders" className="grid min-h-[calc(100vh-8rem)] gap-0 lg:grid-cols-[360px_minmax(0,1fr)]">
         <CashierOrderQueue
           orders={orders}
-          status={orderStatus}
+          lane={orderLane}
+          needsActionCount={needsActionOrders.length}
+          activeCount={activeOrders.length}
           selectedOrderId={selectedOrderId}
           isLoading={ordersQuery.isPending}
           error={ordersQuery.error ?? undefined}
-          onStatusChange={setOrderStatus}
+          onLaneChange={setOrderLane}
           onSelectOrder={setUserSelectedOrderId}
           onPrefetchOrder={prefetchOrder}
           onRefresh={refreshBranch}
