@@ -11,7 +11,6 @@ import {
   Eye,
   EyeOff,
   ImageIcon,
-  LayoutDashboard,
   LinkIcon,
   Loader2,
   RefreshCw,
@@ -40,7 +39,6 @@ import {
 import { EmptyState } from "@/components/ui/empty-state";
 import { Input } from "@/components/ui/input";
 import { LoadingState } from "@/components/ui/loading-state";
-import { MetricCard } from "@/components/ui/metric-card";
 import { OfficeStaffShell } from "@/features/staff/office-staff-shell";
 import {
   formatMenuMoney,
@@ -229,12 +227,26 @@ const emptyLinkForm: LinkFormState = {
   sortOrder: "0"
 };
 
+const catalogTabOrder: MenuAdminTab[] = [
+  "items",
+  "categories",
+  "modifiers",
+  "availability",
+  "branch_overrides",
+  "preview"
+];
+
 function getVisibleMenuAdminTabs(canManageFullMenu: boolean) {
+  const orderedTabs = catalogTabOrder.flatMap((tabId) => {
+    const tab = menuAdminTabs.find((entry) => entry.id === tabId);
+
+    return tab ? [tab] : [];
+  });
+
   return canManageFullMenu
-    ? menuAdminTabs
-    : menuAdminTabs.filter(
+    ? orderedTabs
+    : orderedTabs.filter(
         (tab) =>
-          tab.id === "menus" ||
           tab.id === "availability" ||
           tab.id === "branch_overrides" ||
           tab.id === "preview"
@@ -386,35 +398,75 @@ function toModifierOptionForm(
 }
 
 function MenuAdminMetrics({ overview }: { overview: MenuAdminOverviewResult }) {
+  const metrics = [
+    {
+      label: "Customer visible",
+      value: String(overview.stats.visibleItems),
+      detail: `${overview.stats.items} configured items`,
+      icon: Eye,
+      tone:
+        overview.stats.visibleItems > 0
+          ? "text-[#4F7652]"
+          : "text-[#8A6A2C]"
+    },
+    {
+      label: "Unavailable",
+      value: String(overview.stats.unavailableItems),
+      detail: "Items not orderable for this branch",
+      icon: EyeOff,
+      tone:
+        overview.stats.unavailableItems > 0
+          ? "text-[#8A6A2C]"
+          : "text-[#4F7652]"
+    },
+    {
+      label: "Modifiers",
+      value: String(overview.stats.modifierGroups),
+      detail: "Reusable option groups",
+      icon: Settings2,
+      tone: "text-[#6E6256]"
+    },
+    {
+      label: "Setup issues",
+      value: String(overview.stats.setupWarnings),
+      detail: "Warnings and blockers",
+      icon: AlertTriangle,
+      tone:
+        overview.stats.setupWarnings > 0
+          ? "text-[#8A6A2C]"
+          : "text-[#4F7652]"
+    }
+  ];
+
   return (
-    <section className="grid gap-4 md:grid-cols-4">
-      <MetricCard
-        label="Customer visible"
-        value={String(overview.stats.visibleItems)}
-        description={`${overview.stats.items} configured items`}
-        icon={<Eye className="size-4" aria-hidden="true" />}
-        tone="success"
-      />
-      <MetricCard
-        label="Unavailable"
-        value={String(overview.stats.unavailableItems)}
-        description="Items not orderable for this branch"
-        icon={<EyeOff className="size-4" aria-hidden="true" />}
-        tone={overview.stats.unavailableItems > 0 ? "warning" : "muted"}
-      />
-      <MetricCard
-        label="Modifiers"
-        value={String(overview.stats.modifierGroups)}
-        description="Reusable option groups"
-        icon={<Settings2 className="size-4" aria-hidden="true" />}
-      />
-      <MetricCard
-        label="Setup issues"
-        value={String(overview.stats.setupWarnings)}
-        description="Warnings and blockers"
-        icon={<AlertTriangle className="size-4" aria-hidden="true" />}
-        tone={overview.stats.setupWarnings > 0 ? "warning" : "success"}
-      />
+    <section className="grid overflow-hidden rounded-lg border border-[#D9D9D4] bg-white md:grid-cols-4">
+      {metrics.map((metric, index) => {
+        const Icon = metric.icon;
+
+        return (
+          <div
+            key={metric.label}
+            className={`px-4 py-4 ${
+              index > 0
+                ? "border-t border-[#E9E9E5] md:border-s md:border-t-0"
+                : ""
+            }`}
+          >
+            <div className="flex items-center justify-between gap-3">
+              <p className="text-xs font-medium text-[#74746E]">
+                {metric.label}
+              </p>
+              <Icon className={`size-4 ${metric.tone}`} aria-hidden="true" />
+            </div>
+            <p className="mt-1.5 text-2xl font-semibold tracking-[-0.035em] text-[#22221F]">
+              {metric.value}
+            </p>
+            <p className="mt-1 text-[11px] text-[#777770]">
+              {metric.detail}
+            </p>
+          </div>
+        );
+      })}
     </section>
   );
 }
@@ -2215,7 +2267,7 @@ function MenuAdminContent() {
   const setSelectedBranchId = useStaffAuthStore(
     (state) => state.setSelectedBranchId
   );
-  const [activeTab, setActiveTab] = useState<MenuAdminTab>("menus");
+  const [activeTab, setActiveTab] = useState<MenuAdminTab>("items");
   const [categoryForm, setCategoryForm] =
     useState<CategoryFormState>(emptyCategoryForm);
   const [itemForm, setItemForm] = useState<ItemFormState>(emptyItemForm);
@@ -2279,7 +2331,7 @@ function MenuAdminContent() {
   );
   const activeVisibleTab = visibleTabs.some((tab) => tab.id === activeTab)
     ? activeTab
-    : visibleTabs[0]?.id ?? "menus";
+    : visibleTabs[0]?.id ?? "items";
 
   function refreshMenuAdmin(message?: string) {
     if (!selectedBranchId) {
@@ -2809,25 +2861,27 @@ function MenuAdminContent() {
 
   return (
     <div className="grid gap-5">
-      <Card variant="accent">
-        <CardHeader className="gap-4 md:flex md:flex-row md:items-start md:justify-between md:space-y-0">
-          <div>
-            <Badge variant="muted">Branch menu control</Badge>
-            <CardTitle>{overview.branch.name}</CardTitle>
-            <CardDescription>
-              {menuAccess.canManageFullMenu
-                ? "Manage customer-visible menu data, availability, item routing, and modifier readiness for this branch."
-                : "Manage branch availability from company-defined menu data for this branch."}
-            </CardDescription>
+      <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-[#D9D9D4] bg-white px-3 py-2.5">
+        <div className="min-w-0">
+          <div className="flex flex-wrap items-center gap-2">
+            <Badge variant="muted">Branch scope</Badge>
+            <span className="truncate text-sm font-semibold text-[#2A2A27]">
+              {overview.branch.name}
+            </span>
           </div>
-          <StaffBranchSelector
-            access={effectiveAccess}
-            selectedBranchId={selectedBranchId}
-            onChange={setSelectedBranchId}
-            className="min-w-64"
-          />
-        </CardHeader>
-      </Card>
+          <p className="mt-1 text-xs text-[#777770]">
+            {menuAccess.canManageFullMenu
+              ? "Company catalog with branch-specific availability and overrides."
+              : "Branch availability from the company-defined catalog."}
+          </p>
+        </div>
+        <StaffBranchSelector
+          access={effectiveAccess}
+          selectedBranchId={selectedBranchId}
+          onChange={setSelectedBranchId}
+          className="min-w-64"
+        />
+      </div>
 
       {!menuAccess.canManageFullMenu ? (
         <Card variant="quiet">
@@ -2853,17 +2907,22 @@ function MenuAdminContent() {
       <MutationMessage error={mutationError} />
       {mutationError ? null : <SuccessMessage message={successMessage} />}
 
-      <div className="flex flex-wrap gap-2 rounded-card border bg-surface/70 p-2">
+      <nav
+        className="flex gap-1 overflow-x-auto border-b border-[#DADAD5] px-1"
+        aria-label="Catalog sections"
+      >
         {visibleTabs.map((tab) => (
-          <Button
+          <button
             key={tab.id}
-            size="sm"
-            variant={activeVisibleTab === tab.id ? "primary" : "ghost"}
+            type="button"
             onClick={() => setActiveTab(tab.id)}
+            aria-current={activeVisibleTab === tab.id ? "page" : undefined}
+            className={`inline-flex min-h-10 shrink-0 items-center gap-2 border-b-2 px-3 text-xs font-semibold transition ${
+              activeVisibleTab === tab.id
+                ? "border-[#6E6256] text-[#22221F]"
+                : "border-transparent text-[#74746E] hover:border-[#CFCFC9] hover:text-[#2A2A27]"
+            }`}
           >
-            {tab.id === "menus" ? (
-              <LayoutDashboard className="size-4" aria-hidden="true" />
-            ) : null}
             {tab.id === "categories" ? (
               <Tags className="size-4" aria-hidden="true" />
             ) : null}
@@ -2883,9 +2942,9 @@ function MenuAdminContent() {
               <AlertTriangle className="size-4" aria-hidden="true" />
             ) : null}
             {tab.label}
-          </Button>
+          </button>
         ))}
-      </div>
+      </nav>
 
       {activeVisibleTab === "menus" ? (
         <OverviewSection overview={overview} />
