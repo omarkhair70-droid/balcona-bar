@@ -740,12 +740,13 @@ function CashierDashboardActions() {
       <StaffRealtimeStatus
         state={realtime.state}
         lastEventType={realtime.lastEventType}
+        showLastEvent={false}
       />
       <StaffBranchSelector
         access={effectiveAccess}
         selectedBranchId={selectedBranchId}
         onChange={setSelectedBranchId}
-        className="flex shrink-0 items-center gap-2 text-[0] [&>select]:min-h-9 [&>select]:max-w-[9rem] [&>select]:px-2 [&>select]:text-xs"
+        className="flex shrink-0 items-center gap-2 [&>span]:hidden [&>select]:min-h-9 [&>select]:max-w-[9rem] [&>select]:px-2 [&>select]:text-xs"
       />
       <Button
         variant="ghost"
