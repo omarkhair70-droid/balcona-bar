@@ -282,7 +282,6 @@ export function ServiceFloorBoard({
                 {activeFloor.tables.map((table, index) => {
                   const tone = getTableTone(table);
                   const session = table.activeSession;
-                  const attention = session?.tableAttentionSnapshot;
                   const selected = selectedTable?.id === table.id;
                   const elapsed = formatElapsed(
                     getElapsedMinutes(session?.startedAt, now)
