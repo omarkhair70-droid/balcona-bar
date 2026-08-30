@@ -712,7 +712,22 @@
       "activityEventTicketCreated": "تم إنشاء تذكرة مطبخ",
       "activityEventPrintCreated": "تم إنشاء مهمة طباعة",
       "activityEventPrintFailed": "فشلت مهمة الطباعة",
-      "activityEventPrintPrinted": "تمت طباعة المهمة"
+      "activityEventPrintPrinted": "تمت طباعة المهمة",
+      "stationExpediter": "الإكسبيدايتر",
+      "oldestActive": "أقدم طلب نشط",
+      "activeLabel": "نشط",
+      "lateLabel": "متأخر",
+      "readyLabel": "جاهز",
+      "rushLabel": "ضغط",
+      "nothingHere": "لا يوجد شيء هنا",
+      "ageMinutes": "{count} د",
+      "readOnlyStation": "عرض فقط على هذه المحطة",
+      "realtimeInterrupted": "انقطع الاتصال المباشر. يظل التحديث اليدوي متاحًا أثناء إعادة الاتصال.",
+      "printOperationalEyebrow": "حالة الطباعة التشغيلية",
+      "printConfigBoundary": "إعداد الطابعات والمحطات موجود في Office ← Locations ← Devices & Stations. المطبخ يعرض فقط شغل الطباعة الحي والاستثناءات.",
+      "printSuccessExternal": "تُسجل حالة الطباعة فقط عندما يبلغ نظام الطباعة عنها. المطبخ لا يفترض نجاح الطباعة الفعلية.",
+      "ticketsEyebrow": "تذاكر المطبخ",
+      "productionBoard": "بورد الإنتاج"
     },
     "navigation": {
       "billing": "الحسابات",
