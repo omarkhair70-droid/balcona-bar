@@ -202,6 +202,7 @@ function createPrisma(overrides: Record<string, unknown> = {}) {
     onlinePaymentIntent: { count: jest.fn().mockResolvedValue(0) },
     platformAuditEvent: {
       create: jest.fn().mockResolvedValue({ id: "platform-audit-1" }),
+      findMany: jest.fn().mockResolvedValue([]),
     },
   };
   const prisma = {
