@@ -46,7 +46,7 @@ import {
   getTicketStation,
   getTicketStatus
 } from "@/features/staff/kds-data";
-import { ServiceStaffShell } from "@/features/staff/service-staff-shell";
+import { ServiceStaffShell, useServiceView } from "@/features/staff/service-staff-shell";
 import {
   formatDateTime,
   getRecordString,
@@ -237,6 +237,7 @@ function WaiterDashboardActions() {
 function WaiterDashboardContent() {
   const t = useTranslations("staff");
   const queryClient = useQueryClient();
+  const serviceView = useServiceView("waiter");
   const accessToken = useStaffAuthStore((state) => state.accessToken);
   const staffUser = useStaffAuthStore((state) => state.staffUser);
   const effectiveAccess = useStaffAuthStore((state) => state.effectiveAccess);
@@ -846,7 +847,8 @@ function WaiterDashboardContent() {
 
       <NoticeBanner notice={notice} />
 
-      <div id="floor" className="scroll-mt-36">
+      {serviceView === "floor" ? (
+      <div id="floor" className="min-h-[calc(100vh-8rem)]">
         <ServiceFloorBoard
           overview={floorOverviewQuery.data}
           isLoading={floorOverviewQuery.isPending}
@@ -855,8 +857,11 @@ function WaiterDashboardContent() {
           onSelectSession={setUserSelectedSessionId}
         />
       </div>
+      ) : null}
 
-      <section id="attention" className="scroll-mt-36 grid gap-3 xl:grid-cols-[360px_minmax(0,1fr)]">
+      {serviceView === "attention" ? (
+      <>
+      <section id="attention" className="grid min-h-[calc(100vh-8rem)] gap-0 lg:grid-cols-[minmax(0,1fr)_360px]">
         <AttentionQueue
           attentionQueue={attentionQueue}
           status={attentionStatus}
@@ -1076,6 +1081,8 @@ function WaiterDashboardContent() {
           ))}
         </CardContent>
       </Card>
+      </>
+      ) : null}
     </div>
   );
 }
