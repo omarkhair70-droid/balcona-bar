@@ -21,6 +21,7 @@ import {
 import { EmptyState } from "@/components/ui/empty-state";
 import { LoadingState } from "@/components/ui/loading-state";
 import {
+  getAttentionActionKey,
   getAttentionActionLabel,
   getAttentionFloor,
   getAttentionLastEvaluatedAt,
@@ -61,6 +62,11 @@ type AttentionDetailPanelProps = {
   resolvePending?: boolean;
   mutePending?: boolean;
   recalculatePending?: boolean;
+  acknowledgeWaiterCallPending?: boolean;
+  serveReadyOrderPending?: boolean;
+  onAcknowledgeWaiterCall?: () => void;
+  onServeReadyOrder?: () => void;
+  onReviewBillRequest?: () => void;
   onResolve: (note?: string | null) => void;
   onMute: (minutes: number, note?: string | null) => void;
   onRecalculate: () => void;
@@ -76,6 +82,11 @@ export function AttentionDetailPanel({
   resolvePending,
   mutePending,
   recalculatePending,
+  acknowledgeWaiterCallPending,
+  serveReadyOrderPending,
+  onAcknowledgeWaiterCall,
+  onServeReadyOrder,
+  onReviewBillRequest,
   onResolve,
   onMute,
   onRecalculate
@@ -238,14 +249,71 @@ export function AttentionDetailPanel({
               ) : null}
               {actions.length > 0 ? (
                 <div className="flex flex-wrap gap-2">
-                  {actions.map((action, index) => (
-                    <Badge
-                      key={`${getAttentionActionLabel(action)}-${index}`}
-                      variant="default"
-                    >
-                      {getAttentionActionLabel(action)}
-                    </Badge>
-                  ))}
+                  {actions.map((action, index) => {
+                    const actionKey = getAttentionActionKey(action);
+                    const key = `${actionKey || getAttentionActionLabel(action)}-${index}`;
+
+                    if (
+                      actionKey === "acknowledge_waiter_call" &&
+                      onAcknowledgeWaiterCall
+                    ) {
+                      return (
+                        <Button
+                          key={key}
+                          size="sm"
+                          onClick={onAcknowledgeWaiterCall}
+                          disabled={acknowledgeWaiterCallPending || isRefreshing}
+                        >
+                          <Check className="size-4" aria-hidden="true" />
+                          {acknowledgeWaiterCallPending
+                            ? t("actions.acknowledging")
+                            : t("actions.acknowledge")}
+                        </Button>
+                      );
+                    }
+
+                    if (
+                      actionKey === "serve_ready_order" &&
+                      onServeReadyOrder
+                    ) {
+                      return (
+                        <Button
+                          key={key}
+                          size="sm"
+                          onClick={onServeReadyOrder}
+                          disabled={serveReadyOrderPending || isRefreshing}
+                        >
+                          <Check className="size-4" aria-hidden="true" />
+                          {serveReadyOrderPending
+                            ? t("actions.serving")
+                            : t("actions.serve")}
+                        </Button>
+                      );
+                    }
+
+                    if (
+                      actionKey === "review_bill_request" &&
+                      onReviewBillRequest
+                    ) {
+                      return (
+                        <Button
+                          key={key}
+                          size="sm"
+                          variant="secondary"
+                          onClick={onReviewBillRequest}
+                          disabled={isRefreshing}
+                        >
+                          {t("actions.review")}
+                        </Button>
+                      );
+                    }
+
+                    return (
+                      <Badge key={key} variant="default">
+                        {getAttentionActionLabel(action)}
+                      </Badge>
+                    );
+                  })}
                 </div>
               ) : null}
             </section>
