@@ -10,7 +10,6 @@ import {
 } from "@tanstack/react-query";
 import {
   AlertTriangle,
-  BellRing,
   ClipboardList,
   HandPlatter,
   LogIn,
@@ -28,11 +27,7 @@ import {
   CardTitle
 } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
-import {
-  getAttentionPriority,
-  getAttentionSessionId,
-  getAttentionStatus
-} from "@/features/staff/attention-data";
+import { getAttentionSessionId } from "@/features/staff/attention-data";
 import {
   getOrderId,
   getOrderKitchenTickets,
@@ -128,24 +123,6 @@ type BadgeVariant = "default" | "muted" | "success" | "warning" | "danger";
 
 function attentionQueryStatus(status: AttentionStatusFilter) {
   return status === "active" ? undefined : status;
-}
-
-function countWaiterCallsByStatus(
-  waiterCalls: Record<string, unknown>[],
-  predicate: (status: string) => boolean
-) {
-  return waiterCalls.filter((waiterCall) =>
-    predicate(getWaiterCallStatus(waiterCall))
-  ).length;
-}
-
-function countAttentionByStatus(
-  attentionQueue: Record<string, unknown>[],
-  predicate: (status: string, priority: string) => boolean
-) {
-  return attentionQueue.filter((attention) =>
-    predicate(getAttentionStatus(attention), getAttentionPriority(attention))
-  ).length;
 }
 
 function getReadyTicketVariant(status: string): BadgeVariant {
