@@ -530,7 +530,7 @@ async function capture(browser, {
       ({ expectExpired }) => {
         const text = document.body.innerText;
         if (expectExpired) {
-          return text.includes("expired") || text.includes("انته");
+          return text.includes("expired") || text.includes("ended") || text.includes("انته");
         }
         return !text.includes("Restoring your table") && !text.includes("استعادة");
       },

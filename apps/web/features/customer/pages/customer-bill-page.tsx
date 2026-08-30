@@ -116,7 +116,9 @@ export function CustomerBillPage({ sessionId }: CustomerBillPageProps) {
         queryKey: customerQueryKeys.bill(sessionId)
       });
       const created = record(result.onlinePaymentIntent);
-      const provider = stringValue(created, "provider").toLowerCase();
+      const provider = (
+        stringValue(created, "provider") || result.checkout?.provider || ""
+      ).toLowerCase();
       const checkoutUrl =
         result.checkout?.url ?? stringValue(created, "providerCheckoutUrl");
 
@@ -149,7 +151,11 @@ export function CustomerBillPage({ sessionId }: CustomerBillPageProps) {
   const refreshedIntent = record(intentQuery.data?.onlinePaymentIntent);
   const currentIntent = refreshedIntent ?? latestIntent;
   const intentStatus = stringValue(currentIntent, "status").toLowerCase();
-  const provider = stringValue(currentIntent, "provider").toLowerCase();
+  const provider = (
+    stringValue(currentIntent, "provider") ||
+    paymentMutation.data?.checkout?.provider ||
+    ""
+  ).toLowerCase();
   const checkoutUrl =
     paymentMutation.data?.checkout?.url ??
     stringValue(currentIntent, "providerCheckoutUrl");
@@ -172,6 +178,11 @@ export function CustomerBillPage({ sessionId }: CustomerBillPageProps) {
   const isPresented =
     Boolean(bill) &&
     ["presented", "payment_pending"].includes(billStatus);
+  const canStartPayment =
+    isPresented &&
+    !isPaid &&
+    (!latestIntent ||
+      ["failed", "cancelled", "canceled", "expired"].includes(intentStatus));
   const isRequested = Boolean(billRequest) && !bill;
   const hasNoBillableOrders = billQuery.isSuccess && orderCount === 0 && !bill;
   const canRequest =
@@ -179,8 +190,7 @@ export function CustomerBillPage({ sessionId }: CustomerBillPageProps) {
     orderCount > 0 &&
     !billRequest &&
     !bill &&
-    !receipt &&
-    !requestMutation.isPending;
+    !receipt;
 
   return (
     <CustomerSessionScreen
@@ -344,7 +354,7 @@ export function CustomerBillPage({ sessionId }: CustomerBillPageProps) {
                 </div>
               ) : null}
 
-              {isPresented && !latestIntent && !isPaid ? (
+              {canStartPayment ? (
                 <Button
                   onClick={() => paymentMutation.mutate()}
                   disabled={paymentMutation.isPending || !billId}
