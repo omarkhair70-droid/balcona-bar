@@ -362,172 +362,184 @@ function CashierShiftPanel({
   const adjustmentMinor = amountInputToMinor(adjustmentAmount);
   const adjustmentReady =
     adjustmentMinor > 0 && adjustmentNote.trim().length > 0;
+  const blockerCount =
+    closeReadiness.openOrders +
+    closeReadiness.unpaidBills +
+    closeReadiness.unknownPayments;
+
+  if (isLoading) {
+    return (
+      <div className="flex min-h-[calc(100vh-9rem)] items-center justify-center text-sm text-[#91857A]">
+        {t("serviceShift.loading")}
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div
+        role="alert"
+        className="mx-auto max-w-3xl rounded-md border border-[#7A3F3A] bg-[#3A211F] p-4 text-sm text-danger"
+      >
+        {formatErrorMessage(error)}
+      </div>
+    );
+  }
+
+  if (!shift) {
+    return (
+      <div className="flex min-h-[calc(100vh-9rem)] items-center justify-center p-3">
+        <form
+          className="w-full max-w-lg rounded-lg border border-[#40342B] bg-[#211A15] p-5"
+          onSubmit={(event) => {
+            event.preventDefault();
+            onOpen({
+              openingFloatMinor: amountInputToMinor(openingFloat),
+              note: openingNote.trim() || undefined,
+            });
+          }}
+        >
+          <Banknote className="size-6 text-[#C68A4A]" aria-hidden="true" />
+          <h2 className="mt-4 text-xl font-semibold text-[#FFF5E8]">
+            {t("serviceShift.openShift")}
+          </h2>
+          <p className="mt-2 text-sm leading-6 text-[#A99B8E]">
+            {t("cashier.shiftManualPaymentsRequireOpen")}
+          </p>
+
+          <label className="mt-5 grid gap-2 text-xs font-medium text-[#A99B8E]">
+            {t("serviceShift.openingFloat")}
+            <Input
+              inputMode="decimal"
+              value={openingFloat}
+              onChange={(event) => setOpeningFloat(event.target.value)}
+              className="border-[#4A3C32] bg-[#18130F]"
+            />
+          </label>
+          <label className="mt-3 grid gap-2 text-xs font-medium text-[#A99B8E]">
+            {t("serviceShift.note")}
+            <Input
+              value={openingNote}
+              onChange={(event) => setOpeningNote(event.target.value)}
+              placeholder={t("serviceShift.optionalOpeningNote")}
+              className="border-[#4A3C32] bg-[#18130F]"
+            />
+          </label>
+          <Button
+            type="submit"
+            className="mt-4 min-h-12 w-full"
+            disabled={openPending}
+          >
+            <Banknote className="size-4" aria-hidden="true" />
+            {t("serviceShift.openShift")}
+          </Button>
+        </form>
+      </div>
+    );
+  }
 
   return (
-    <Card variant="glass" padding="none" className="min-w-0 rounded-none border-0 bg-transparent shadow-none">
-      <CardHeader className="gap-4 md:flex md:flex-row md:items-start md:justify-between md:space-y-0">
+    <div className="mx-auto max-w-5xl">
+      <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
           <div className="flex flex-wrap items-center gap-2">
-            <Badge variant={shift ? "success" : "warning"}>
-              {shift ? t("serviceShift.shiftOpen") : t("serviceShift.noOpenShift")}
-            </Badge>
+            <Badge variant="success">{t("serviceShift.shiftOpen")}</Badge>
             <Badge variant="muted">{branchName}</Badge>
           </div>
-          <CardTitle className="mt-3 text-[#FFF5E8]">{t("serviceShift.title")}</CardTitle>
-          <CardDescription>
-            {t("cashier.shiftManualPaymentsRequireOpen")}
-          </CardDescription>
+          <h2 className="mt-2 text-xl font-semibold text-[#FFF5E8]">
+            {t("serviceShift.title")}
+          </h2>
+          <p className="mt-1 text-xs text-[#9B8E82]">
+            {t("serviceShift.opened")}{" "}
+            {formatDateTime(getRecordString(shift, "openedAt"))}
+            {" · "}
+            {t("serviceShift.payments")} {paymentCount}
+          </p>
         </div>
-        {shift ? (
-          <Button
-            type="button"
-            variant="secondary"
-            onClick={onXReport}
-            disabled={xReportPending}
-          >
-            <FileText className="size-4" aria-hidden="true" />{t("serviceShift.xReport")}
-          </Button>
-        ) : null}
-      </CardHeader>
-      <CardContent className="grid gap-4">
-        {isLoading ? (
-          <div className="rounded-md border border-[#3A3028] bg-[#18130F] p-4 text-sm text-[#91857A]">
-            {t("serviceShift.loading")}
-          </div>
-        ) : null}
-        {error ? (
+        <Button
+          type="button"
+          variant="secondary"
+          onClick={onXReport}
+          disabled={xReportPending}
+        >
+          <FileText className="size-4" aria-hidden="true" />
+          {t("serviceShift.xReport")}
+        </Button>
+      </div>
+
+      <dl className="mt-4 grid overflow-hidden rounded-lg border border-[#3D322A] bg-[#211A15] text-xs sm:grid-cols-2 lg:grid-cols-4">
+        {[
+          {
+            label: t("serviceShift.openingFloat"),
+            value: formatMoney(
+              getRecordNumber(shift, "openingFloatMinor"),
+              currency,
+            ),
+          },
+          {
+            label: t("serviceShift.expectedCash"),
+            value: formatMoney(expectedCashMinor, currency),
+          },
+          {
+            label: t("serviceShift.collected"),
+            value: formatMoney(totalCollectedMinor, currency),
+          },
+          {
+            label: t("serviceShift.bills"),
+            value: String(billCount),
+          },
+        ].map((metric, index) => (
           <div
-            role="alert"
-            className="rounded-md border border-[#7A3F3A] bg-[#3A211F] p-4 text-sm text-danger"
+            key={metric.label}
+            className={`p-4 ${
+              index
+                ? "border-t border-[#362C25] sm:border-s sm:border-t-0"
+                : ""
+            }`}
           >
-            {formatErrorMessage(error)}
+            <dt className="text-[#91857A]">{metric.label}</dt>
+            <dd className="mt-2 text-2xl font-semibold text-[#FFF5E8]">
+              {metric.value}
+            </dd>
           </div>
-        ) : null}
+        ))}
+      </dl>
 
-        {!isLoading && !error && !shift ? (
-          <form
-            className="grid gap-3 rounded-md border border-[#47392E] bg-[#18130F] p-3 md:grid-cols-[12rem_1fr_auto]"
-            onSubmit={(event) => {
-              event.preventDefault();
-              onOpen({
-                openingFloatMinor: amountInputToMinor(openingFloat),
-                note: openingNote.trim() || undefined,
-              });
-            }}
-          >
-            <label className="grid gap-1 text-xs font-medium text-[#91857A]">
-              {t("serviceShift.openingFloat")}
-              <Input
-                inputMode="decimal"
-                value={openingFloat}
-                onChange={(event) => setOpeningFloat(event.target.value)}
-              />
-            </label>
-            <label className="grid gap-1 text-xs font-medium text-[#91857A]">
-              {t("serviceShift.note")}
-              <Input
-                value={openingNote}
-                onChange={(event) => setOpeningNote(event.target.value)}
-                placeholder={t("serviceShift.optionalOpeningNote")}
-              />
-            </label>
-            <Button type="submit" className="self-end" disabled={openPending}>
-              <Banknote className="size-4" aria-hidden="true" />
-              {t("serviceShift.openShift")}
-            </Button>
-          </form>
-        ) : null}
+      <p className="mt-3 text-xs leading-5 text-[#887B70]">
+        {t("serviceShift.cash")} {formatMoney(cashMinor, currency)}
+        {" · "}
+        {t("serviceShift.cardPos")} {formatMoney(cardMinor, currency)}
+        {" · "}
+        {t("serviceShift.wallet")} {formatMoney(walletMinor, currency)}
+        {" · "}
+        {t("serviceShift.other")} {formatMoney(otherMinor, currency)}
+      </p>
 
-        {shift ? (
-          <>
-            <div className="text-xs text-[#91857A]">
-              {t("serviceShift.opened")}{" "}
-              <strong className="text-[#F8EDDF]">
-                {formatDateTime(getRecordString(shift, "openedAt"))}
-              </strong>
-              {" · "}
-              {t("serviceShift.payments")}{" "}
-              <strong className="text-[#F8EDDF]">{paymentCount}</strong>
-            </div>
-
-            <dl className="grid overflow-hidden rounded-lg border border-[#3D322A] bg-[#211A15] text-xs sm:grid-cols-2 lg:grid-cols-4">
-              {[
-                {
-                  label: t("serviceShift.openingFloat"),
-                  value: formatMoney(
-                    getRecordNumber(shift, "openingFloatMinor"),
-                    currency,
-                  ),
-                },
-                {
-                  label: t("serviceShift.expectedCash"),
-                  value: formatMoney(expectedCashMinor, currency),
-                },
-                {
-                  label: t("serviceShift.collected"),
-                  value: formatMoney(totalCollectedMinor, currency),
-                },
-                {
-                  label: t("serviceShift.bills"),
-                  value: String(billCount),
-                },
-              ].map((metric, index) => (
-                <div
-                  key={metric.label}
-                  className={`p-4 ${
-                    index
-                      ? "border-t border-[#362C25] sm:border-s sm:border-t-0"
-                      : ""
-                  }`}
-                >
-                  <dt className="text-[#91857A]">{metric.label}</dt>
-                  <dd className="mt-2 text-2xl font-semibold text-[#FFF5E8]">
-                    {metric.value}
-                  </dd>
-                </div>
-              ))}
-            </dl>
-
-            <div className="grid gap-3 text-xs md:grid-cols-4">
-              <div className="rounded-md border border-[#3A3028] bg-[#18130F] p-3">
-                {t("serviceShift.cash")} {formatMoney(cashMinor, currency)}
-              </div>
-              <div className="rounded-md border border-[#3A3028] bg-[#18130F] p-3">
-                {t("serviceShift.cardPos")} {formatMoney(cardMinor, currency)}
-              </div>
-              <div className="rounded-md border border-[#3A3028] bg-[#18130F] p-3">
-                {t("serviceShift.wallet")} {formatMoney(walletMinor, currency)}
-              </div>
-              <div className="rounded-md border border-[#3A3028] bg-[#18130F] p-3">
-                {t("serviceShift.other")} {formatMoney(otherMinor, currency)}
-              </div>
-            </div>
-
-            <form
-              className="grid gap-3 rounded-md border border-[#47392E] bg-[#18130F] p-3 md:grid-cols-[12rem_1fr_auto_auto]"
-              onSubmit={(event) => event.preventDefault()}
-            >
-              <label className="grid gap-1 text-xs font-medium text-[#91857A]">
-                {t("serviceShift.drawerAmount")}
-                <Input
-                  inputMode="decimal"
-                  value={adjustmentAmount}
-                  onChange={(event) => setAdjustmentAmount(event.target.value)}
-                  placeholder="0.00"
-                />
-              </label>
-              <label className="grid gap-1 text-xs font-medium text-[#91857A]">
-                {t("serviceShift.adjustmentNote")}
-                <Input
-                  value={adjustmentNote}
-                  onChange={(event) => setAdjustmentNote(event.target.value)}
-                  placeholder={t("serviceShift.required")}
-                />
-              </label>
+      <div className="mt-4 grid gap-4 lg:grid-cols-2">
+        <section className="rounded-lg border border-[#3D322A] bg-[#211A15] p-4">
+          <h3 className="text-sm font-semibold text-[#F4E7D8]">
+            {t("serviceShift.drawerAdjustment")}
+          </h3>
+          <div className="mt-3 grid gap-2 sm:grid-cols-[0.8fr_1.2fr]">
+            <Input
+              inputMode="decimal"
+              value={adjustmentAmount}
+              onChange={(event) => setAdjustmentAmount(event.target.value)}
+              placeholder="0.00"
+              className="border-[#493B31] bg-[#18130F]"
+              aria-label={t("serviceShift.drawerAmount")}
+            />
+            <Input
+              value={adjustmentNote}
+              onChange={(event) => setAdjustmentNote(event.target.value)}
+              placeholder={t("serviceShift.required")}
+              className="border-[#493B31] bg-[#18130F]"
+              aria-label={t("serviceShift.adjustmentNote")}
+            />
+            <div className="flex flex-wrap gap-2 sm:col-span-2">
               <Button
                 type="button"
                 variant="secondary"
-                className="self-end"
                 disabled={!adjustmentReady || adjustmentPending}
                 onClick={() =>
                   onCashAdjustment({
@@ -543,7 +555,6 @@ function CashierShiftPanel({
               <Button
                 type="button"
                 variant="secondary"
-                className="self-end"
                 disabled={!adjustmentReady || adjustmentPending}
                 onClick={() =>
                   onCashAdjustment({
@@ -556,68 +567,148 @@ function CashierShiftPanel({
                 <MinusCircle className="size-4" aria-hidden="true" />
                 {t("serviceShift.cashOut")}
               </Button>
-            </form>
+            </div>
+          </div>
+        </section>
 
-            <form
-              className="grid gap-3 rounded-md border border-[#3A3028] bg-[#18130F] p-3 md:grid-cols-[12rem_1fr_auto]"
-              onSubmit={(event) => {
-                event.preventDefault();
-
-                if (!countedCash.trim()) {
-                  return;
-                }
-
-                onClose({
-                  countedCashMinor,
-                  note: closingNote.trim() || undefined,
-                });
-              }}
-            >
-              <label className="grid gap-1 text-xs font-medium text-[#91857A]">
-                {t("serviceShift.countedCash")}
-                <Input
-                  inputMode="decimal"
-                  value={countedCash}
-                  onChange={(event) => setCountedCash(event.target.value)}
-                  placeholder={minorToInput(expectedCashMinor)}
-                />
-              </label>
-              <label className="grid gap-1 text-xs font-medium text-[#91857A]">
-                {t("serviceShift.closingNote")}
-                <Input
-                  value={closingNote}
-                  onChange={(event) => setClosingNote(event.target.value)}
-                  placeholder={t("serviceShift.optionalClosingNote")}
-                />
-              </label>
-              <Button
-                type="submit"
-                className="self-end"
-                disabled={!countedCash.trim() || closePending}
+        <section className="rounded-lg border border-[#3D322A] bg-[#211A15] p-4">
+          <div className="flex items-center justify-between gap-3">
+            <h3 className="text-sm font-semibold text-[#F4E7D8]">
+              {t("serviceShift.closeReadiness")}
+            </h3>
+            {closeReadiness.isLoading ? (
+              <span className="text-[10px] text-[#91857A]">
+                {t("serviceShift.checkingCloseReadiness")}
+              </span>
+            ) : (
+              <Badge variant={blockerCount > 0 ? "warning" : "success"}>
+                {blockerCount > 0
+                  ? t("serviceShift.closeBlockers")
+                  : t("serviceShift.closeReady")}
+              </Badge>
+            )}
+          </div>
+          <div className="mt-3 grid gap-2 text-xs">
+            {[
+              [t("serviceShift.openOrders"), closeReadiness.openOrders],
+              [t("serviceShift.unpaidBills"), closeReadiness.unpaidBills],
+              [t("serviceShift.unknownPayments"), closeReadiness.unknownPayments],
+            ].map(([label, value]) => (
+              <div
+                key={String(label)}
+                className="flex items-center justify-between gap-3"
               >
-                <CheckCircle2 className="size-4" aria-hidden="true" />
-                {t("serviceShift.closeAndGenerateZ")}
-              </Button>
-              {countedCash.trim() ? (
-                <p className="md:col-span-3 text-xs text-[#91857A]">
-                  {t("serviceShift.expectedOverShort", {
-                    expected: formatMoney(expectedCashMinor, currency),
-                    overShort: formatMoney(overShortMinor, currency)
-                  })}
-                </p>
-              ) : null}
-            </form>
-          </>
-        ) : null}
+                <span className="text-[#B7A99C]">{label}</span>
+                <strong
+                  className={
+                    Number(value) > 0 ? "text-[#F4C06D]" : "text-[#9CC69A]"
+                  }
+                >
+                  {value}
+                </strong>
+              </div>
+            ))}
+          </div>
+        </section>
+      </div>
 
-        {report ? (
-          <CashierShiftReportSummary
-            snapshot={report}
-            onClear={onClearReport}
-          />
-        ) : null}
-      </CardContent>
-    </Card>
+      {closeMode ? (
+        <section
+          className={`mt-4 rounded-lg border p-4 ${
+            blockerCount > 0
+              ? "border-[#74453E] bg-[#2E1E1B]"
+              : "border-[#3D322A] bg-[#211A15]"
+          }`}
+        >
+          {blockerCount > 0 ? (
+            <div className="mb-4">
+              <h3 className="text-sm font-semibold text-[#F2B1A9]">
+                {t("serviceShift.closeBlockers")}
+              </h3>
+              <p className="mt-2 text-xs leading-5 text-[#CFA49E]">
+                {t("serviceShift.closeBlockersDescription")}
+              </p>
+            </div>
+          ) : null}
+
+          <form
+            className="grid gap-3 md:grid-cols-[12rem_1fr_auto]"
+            onSubmit={(event) => {
+              event.preventDefault();
+
+              if (!countedCash.trim()) {
+                return;
+              }
+
+              onClose({
+                countedCashMinor,
+                note: closingNote.trim() || undefined,
+              });
+            }}
+          >
+            <label className="grid gap-1 text-xs font-medium text-[#91857A]">
+              {t("serviceShift.countedCash")}
+              <Input
+                inputMode="decimal"
+                value={countedCash}
+                onChange={(event) => setCountedCash(event.target.value)}
+                placeholder={minorToInput(expectedCashMinor)}
+              />
+            </label>
+            <label className="grid gap-1 text-xs font-medium text-[#91857A]">
+              {t("serviceShift.closingNote")}
+              <Input
+                value={closingNote}
+                onChange={(event) => setClosingNote(event.target.value)}
+                placeholder={t("serviceShift.optionalClosingNote")}
+              />
+            </label>
+            <Button
+              type="submit"
+              className="self-end"
+              disabled={!countedCash.trim() || closePending}
+            >
+              <CheckCircle2 className="size-4" aria-hidden="true" />
+              {t("serviceShift.closeAndGenerateZ")}
+            </Button>
+            {countedCash.trim() ? (
+              <p className="text-xs text-[#91857A] md:col-span-3">
+                {t("serviceShift.expectedOverShort", {
+                  expected: formatMoney(expectedCashMinor, currency),
+                  overShort: formatMoney(overShortMinor, currency),
+                })}
+              </p>
+            ) : null}
+          </form>
+
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            className="mt-3"
+            onClick={() => setCloseMode(false)}
+          >
+            {t("serviceShift.cancelClose")}
+          </Button>
+        </section>
+      ) : (
+        <div className="mt-4">
+          <Button
+            type="button"
+            variant="secondary"
+            onClick={() => setCloseMode(true)}
+          >
+            {t("serviceShift.beginClose")}
+          </Button>
+        </div>
+      )}
+
+      {report ? (
+        <div className="mt-4">
+          <CashierShiftReportSummary snapshot={report} onClear={onClearReport} />
+        </div>
+      ) : null}
+    </div>
   );
 }
 
