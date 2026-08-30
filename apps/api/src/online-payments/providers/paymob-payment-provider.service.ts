@@ -208,6 +208,7 @@ export class PaymobPaymentProviderService {
       providerOrderId,
       status: OnlinePaymentIntentStatus.pending,
       checkoutUrl: checkoutUrl.toString(),
+      customerAction: { type: "redirect", url: checkoutUrl.toString() },
       checkoutExpiresAt: new Date(Date.now() + config.expirationSeconds * 1000),
       metadata: {
         paymobIntentionOrderId: payload.intention_order_id,
