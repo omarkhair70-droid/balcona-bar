@@ -63,7 +63,6 @@ import { formatErrorMessage } from "@/lib/api/error-message";
 import { customerQueryKeys, staffQueryKeys } from "@/lib/api/query-keys";
 import { useTranslations } from "@/lib/i18n/i18n-provider";
 import type {
-  BranchBillRequestStatusFilter,
   CashierShiftReportSnapshot,
   CloseCashierShiftPayload,
   CreateCashAdjustmentPayload,
@@ -769,8 +768,6 @@ function CashierDashboardContent() {
   const selectedBranchId = useStaffAuthStore((state) => state.selectedBranchId);
   const [orderLane, setOrderLane] =
     useState<CashierOrderLane>("needs_action");
-  const [billStatus, setBillStatus] =
-    useState<BranchBillRequestStatusFilter>("active");
   const [userSelectedOrderId, setUserSelectedOrderId] = useState<string>();
   const [notice, setNotice] = useState<Notice>();
   const [pendingOrderActions, setPendingOrderActions] = useState<
@@ -794,11 +791,11 @@ function CashierDashboardContent() {
     staleTime: 10_000,
   });
   const billRequestsQuery = useQuery({
-    queryKey: staffQueryKeys.branchBillRequests(selectedBranchId, billStatus),
+    queryKey: staffQueryKeys.branchBillRequests(selectedBranchId, "all"),
     queryFn: () =>
       getBranchBillRequests(
         selectedBranchId ?? "",
-        { status: billStatus, limit: 30 },
+        { status: "all", limit: 50 },
         accessToken,
       ),
     enabled: Boolean(selectedBranchId && accessToken),
@@ -1367,7 +1364,6 @@ function CashierDashboardContent() {
       <section id="bills" className="min-h-[calc(100vh-8rem)]">
         <BillRequestQueue
           billRequests={billRequests}
-          status={billStatus}
           isLoading={billRequestsQuery.isPending}
           error={billRequestsQuery.error ?? undefined}
           pendingActionId={
@@ -1386,7 +1382,6 @@ function CashierDashboardContent() {
               ? manualPaymentMutation.error
               : undefined
           }
-          onStatusChange={setBillStatus}
           onRefresh={refreshBranch}
           onAcknowledge={(billRequestId) =>
             billActionMutation.mutate({ billRequestId, action: "acknowledge" })
