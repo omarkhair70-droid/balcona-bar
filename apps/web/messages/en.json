@@ -1106,7 +1106,16 @@
       "attentionContext": "Needs service attention",
       "score": "Score {score}",
       "sessionContextHint": "Selecting an active table also opens its real session attention context when available.",
-      "capacity": "Capacity {count}"
+      "capacity": "Capacity {count}",
+      "contextLoading": "Loading live table context...",
+      "openAttention": "Open attention",
+      "orderContext": "Active order",
+      "openOrders": "Open orders",
+      "billContext": "Bill",
+      "openBills": "Open bills",
+      "sessionQuiet": "Session active",
+      "sessionQuietDescription": "No active attention, submitted order, or bill request is attached to this table right now.",
+      "freeTableDescription": "This table has no active session. Select an occupied table to open live service context."
     },
     "serviceShift": {
       "shiftOpen": "Shift open",
