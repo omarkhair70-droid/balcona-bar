@@ -406,6 +406,22 @@ describe("OnlinePaymentsService", () => {
     expect(tx.onlinePaymentIntent.create).not.toHaveBeenCalled();
   });
 
+  it("fails closed before provider or intent mutation when Maestr is selected without the merchant contract", async () => {
+    const { service, tx, paymobPaymentProviderService, fawryPaymentProviderService } =
+      createService("maestr", "staging");
+
+    await expect(
+      service.createIntentForCustomer("session-1", "bill-1"),
+    ).rejects.toThrow(
+      "Maestr commercial IPN payments remain fail-closed until the PAY-8 merchant API contract is verified",
+    );
+
+    expect(tx.bill.findUnique).not.toHaveBeenCalled();
+    expect(tx.onlinePaymentIntent.create).not.toHaveBeenCalled();
+    expect(paymobPaymentProviderService.createPayment).not.toHaveBeenCalled();
+    expect(fawryPaymentProviderService.createPayment).not.toHaveBeenCalled();
+  });
+
   it("serializes mock intent creation with a bill advisory lock before checking active intents", async () => {
     const { service, tx } = createService("mock");
     const pendingIntent = intent(
