@@ -94,9 +94,6 @@ export function CustomerBillPage({ sessionId }: CustomerBillPageProps) {
       bill?.onlinePaymentIntents ??
       billQuery.data?.onlinePaymentIntents
   );
-  const createdIntent = record(
-    billQuery.isSuccess ? undefined : undefined
-  );
   const latestPersistedIntent =
     persistedIntents[persistedIntents.length - 1];
 
