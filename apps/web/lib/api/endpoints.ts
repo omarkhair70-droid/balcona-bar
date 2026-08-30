@@ -33,6 +33,8 @@ import type {
   BranchMenuResult,
   BranchOnlinePaymentsQuery,
   BranchOnlinePaymentsResult,
+  BranchPaymentTerminalsResult,
+  BranchTerminalPaymentRequestsResult,
   BranchPrintJobsQuery,
   BranchPrintJobsResult,
   BranchPrinterStationsResult,
@@ -128,6 +130,7 @@ import type {
   PlatformCompanyDetail,
   PlatformLoginPayload,
   UpsertMerchantPaymentIntegrationPayload,
+  UpsertPaymentTerminalPayload,
   OrderPreparationTasksResult,
   OpenCashierShiftPayload,
   BootstrapCompanyInput,
@@ -162,6 +165,7 @@ import type {
   StartAiWaiterPayload,
   StartTableSessionPayload,
   StartTableSessionResult,
+  TerminalPaymentRequestResult,
   SystemInfoResult,
   SubmitCartPayload,
   SubmitCartResult,
@@ -2107,6 +2111,56 @@ export function upsertMerchantPaymentIntegration(
     MerchantPaymentIntegration,
     UpsertMerchantPaymentIntegrationPayload
   >(`/branches/${branchId}/merchant-payment-integrations`, {
+    method: "POST",
+    body: payload,
+    token,
+  });
+}
+
+export function getBranchPaymentTerminals(branchId: string, token?: string) {
+  return apiRequest<BranchPaymentTerminalsResult>(
+    `/branches/${branchId}/payment-terminals`,
+    { token },
+  );
+}
+
+export function getBranchTerminalPaymentRequests(
+  branchId: string,
+  token?: string,
+) {
+  return apiRequest<BranchTerminalPaymentRequestsResult>(
+    `/branches/${branchId}/terminal-payment-requests`,
+    { token },
+  );
+}
+
+export function upsertBranchPaymentTerminal(
+  branchId: string,
+  payload: UpsertPaymentTerminalPayload,
+  token?: string,
+) {
+  return apiRequest<
+    {
+      terminal: BranchPaymentTerminalsResult["terminals"][number];
+      execution: BranchPaymentTerminalsResult["execution"];
+    },
+    UpsertPaymentTerminalPayload
+  >(`/branches/${branchId}/payment-terminals`, {
+    method: "POST",
+    body: payload,
+    token,
+  });
+}
+
+export function startTerminalPaymentRequest(
+  billId: string,
+  payload: { terminalId: string; idempotencyKey: string },
+  token?: string,
+) {
+  return apiRequest<
+    TerminalPaymentRequestResult,
+    { terminalId: string; idempotencyKey: string }
+  >(`/bills/${billId}/terminal-payment-requests`, {
     method: "POST",
     body: payload,
     token,
