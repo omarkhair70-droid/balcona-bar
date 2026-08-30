@@ -372,9 +372,14 @@ export function CashierOrderDetailPanel({
             />
 
 
-            <section className="grid gap-3">
-              <h3 className="flex items-center gap-2 text-sm font-semibold text-[#F8EDDF]">
-                <ClipboardList className="size-4 text-primary" aria-hidden="true" />
+            <details className="rounded-md border border-[#3A3028] bg-[#18130F]">
+              <summary className="cursor-pointer list-none px-3 py-3 text-xs font-semibold text-[#BDAEA1]">
+                {t("orders.operationalDetails")}
+              </summary>
+              <div className="grid gap-4 border-t border-[#342A23] p-3">
+                <section className="grid gap-3">
+                  <h3 className="flex items-center gap-2 text-sm font-semibold text-[#F8EDDF]">
+                    <ClipboardList className="size-4 text-primary" aria-hidden="true" />
                 {t("orders.kitchenTickets")}
               </h3>
               {needsKdsRoutingAttention ? (
@@ -477,7 +482,9 @@ export function CashierOrderDetailPanel({
                   </p>
                 </div>
               ))}
-            </section>
+                </section>
+              </div>
+            </details>
           </>
         ) : null}
       </CardContent>
