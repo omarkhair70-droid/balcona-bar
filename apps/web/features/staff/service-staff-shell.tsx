@@ -8,7 +8,8 @@ import { LanguageSwitcher } from "@/components/i18n/language-switcher";
 import { useTranslations } from "@/lib/i18n/i18n-provider";
 import { cn } from "@/lib/utils/cn";
 
-type ServiceMode = "cashier" | "waiter";
+export type ServiceMode = "cashier" | "waiter";
+export type ServiceView = "floor" | "orders" | "attention" | "bills" | "shift";
 
 type ServiceStaffShellProps = {
   mode: ServiceMode;
@@ -34,6 +35,36 @@ const modes: Array<{
     labelKey: "serviceShell.waiter"
   }
 ];
+
+const serviceViewIds = new Set<ServiceView>([
+  "floor",
+  "orders",
+  "attention",
+  "bills",
+  "shift"
+]);
+
+export function useServiceView(mode: ServiceMode): ServiceView {
+  const pathname = usePathname();
+  const [hash, setHash] = useState("");
+
+  useEffect(() => {
+    const syncHash = () => setHash(window.location.hash);
+
+    syncHash();
+    window.addEventListener("hashchange", syncHash);
+
+    return () => window.removeEventListener("hashchange", syncHash);
+  }, [pathname]);
+
+  const raw = hash.replace(/^#/, "");
+
+  if (serviceViewIds.has(raw as ServiceView)) {
+    return raw as ServiceView;
+  }
+
+  return mode === "cashier" ? "orders" : "floor";
+}
 
 const serviceViews = [
   {
@@ -72,24 +103,7 @@ export function ServiceStaffShell({
 }: ServiceStaffShellProps) {
   const t = useTranslations("staff");
   const pathname = usePathname();
-  const [hash, setHash] = useState("");
-
-  useEffect(() => {
-    const syncHash = () => setHash(window.location.hash);
-
-    syncHash();
-    window.addEventListener("hashchange", syncHash);
-
-    return () => window.removeEventListener("hashchange", syncHash);
-  }, []);
-
-  const effectiveHash =
-    hash ||
-    (pathname === "/service/cashier"
-      ? "#orders"
-      : pathname === "/service/waiter"
-        ? "#floor"
-        : "");
+  const activeView = useServiceView(mode);
 
   return (
     <main className="min-h-screen bg-[#17120F] text-[#FFF5E8]">
@@ -155,7 +169,7 @@ export function ServiceStaffShell({
             const Icon = entry.icon;
             const [entryPath, entryHash = ""] = entry.href.split("#");
             const active =
-              pathname === entryPath && effectiveHash === `#${entryHash}`;
+              pathname === entryPath && activeView === entryHash;
 
             return (
               <Link
@@ -188,7 +202,7 @@ export function ServiceStaffShell({
         <p>{description}</p>
       </div>
 
-      <div className="mx-auto max-w-[1600px] p-3 sm:p-4">{children}</div>
+      <div className="mx-auto max-w-[1600px]">{children}</div>
     </main>
   );
 }
