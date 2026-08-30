@@ -189,6 +189,98 @@ const companiesResult = {
   }
 };
 
+const companyDetail = {
+  company: companies[0],
+  subscription: companies[0].subscription,
+  plan: plans[0],
+  branches: [
+    {
+      id: "branch-01",
+      companyId: "cmp-01",
+      name: "Downtown",
+      slug: "downtown",
+      address: "Cairo",
+      status: "active",
+      floorsCount: 1,
+      tablesCount: 12
+    }
+  ],
+  owners: [],
+  saas: {
+    company: companies[0],
+    subscription: companies[0].subscription,
+    plan: plans[0],
+    entitlements: {},
+    usage: {},
+    limits: {},
+    warnings: [],
+    blockers: []
+  },
+  auditEvents: [
+    {
+      id: "audit-01",
+      action: "company_subscription_updated",
+      targetType: "company",
+      targetId: "cmp-01",
+      metadata: { planCode: "pilot", status: "active" },
+      createdAt: "2026-08-29T17:30:00.000Z",
+      platformAdminUser: admin
+    },
+    {
+      id: "audit-02",
+      action: "company_bootstrapped",
+      targetType: "company",
+      targetId: "cmp-01",
+      metadata: { branchSlug: "downtown", starterTableCount: 12 },
+      createdAt: "2026-08-01T08:00:00.000Z",
+      platformAdminUser: admin
+    }
+  ]
+};
+
+const demoRequests = [
+  {
+    id: "lead-01",
+    fullName: "Mariam Adel",
+    businessName: "Nile Bakery",
+    email: "mariam@nile-bakery.example",
+    phone: "+201000000001",
+    city: "Cairo",
+    locationCount: 2,
+    message: "We are opening a second location and need service, kitchen and office workflows.",
+    consent: true,
+    source: "request-demo",
+    utmSource: "linkedin",
+    utmMedium: "social",
+    utmCampaign: "hospitality-ops",
+    status: "new",
+    internalNotes: "",
+    lastContactedAt: null,
+    createdAt: "2026-08-30T08:30:00.000Z",
+    updatedAt: "2026-08-30T08:30:00.000Z"
+  },
+  {
+    id: "lead-02",
+    fullName: "Youssef Nabil",
+    businessName: "Roast Yard",
+    email: "ops@roast-yard.example",
+    phone: null,
+    city: "Alexandria",
+    locationCount: 1,
+    message: null,
+    consent: true,
+    source: "request-demo",
+    utmSource: null,
+    utmMedium: null,
+    utmCampaign: null,
+    status: "contacted",
+    internalNotes: "Discovery call scheduled.",
+    lastContactedAt: "2026-08-30T09:00:00.000Z",
+    createdAt: "2026-08-29T15:00:00.000Z",
+    updatedAt: "2026-08-30T09:00:00.000Z"
+  }
+];
+
 const systemInfo = {
   name: "balcona-api",
   version: "0.1.0",
@@ -230,6 +322,26 @@ async function installApiMocks(page) {
       return route.fulfill(json(companiesResult));
     }
 
+    if (pathname === "/api/v1/platform/companies/cmp-01") {
+      return route.fulfill(json(companyDetail));
+    }
+
+    if (pathname === "/api/v1/platform/demo-requests") {
+      const url = new URL(route.request().url());
+      const status = url.searchParams.get("status");
+      const search = (url.searchParams.get("search") ?? "").toLowerCase();
+      const requests = demoRequests.filter((lead) => {
+        const statusMatches = !status || lead.status === status;
+        const searchMatches =
+          !search ||
+          lead.fullName.toLowerCase().includes(search) ||
+          lead.businessName.toLowerCase().includes(search) ||
+          lead.email.toLowerCase().includes(search);
+        return statusMatches && searchMatches;
+      });
+      return route.fulfill(json({ requests, total: requests.length }));
+    }
+
     if (pathname === "/api/v1/platform/plans") {
       return route.fulfill(json({ plans }));
     }
@@ -242,7 +354,7 @@ async function installApiMocks(page) {
   });
 }
 
-async function newContext(browser, locale, viewport) {
+async function newContext(browser, locale, viewport, authenticated = true) {
   const context = await browser.newContext({
     viewport,
     deviceScaleFactor: 1,
@@ -253,10 +365,18 @@ async function newContext(browser, locale, viewport) {
     { name: "balcona_locale", value: locale, url: BASE_URL }
   ]);
 
-  await context.addInitScript(({ localeValue, sessionValue }) => {
+  await context.addInitScript(({ localeValue, sessionValue, isAuthenticated }) => {
     window.localStorage.setItem("balcona.locale", localeValue);
-    window.localStorage.setItem("balcona_platform_session", sessionValue);
-  }, { localeValue: locale, sessionValue: persistedPlatformSession() });
+    if (isAuthenticated) {
+      window.localStorage.setItem("balcona_platform_session", sessionValue);
+    } else {
+      window.localStorage.removeItem("balcona_platform_session");
+    }
+  }, {
+    localeValue: locale,
+    sessionValue: persistedPlatformSession(),
+    isAuthenticated: authenticated
+  });
 
   return context;
 }
@@ -267,9 +387,10 @@ async function capture(browser, {
   locale = "en",
   viewport = { width: 1440, height: 1000 },
   readyText,
-  afterOpen
+  afterOpen,
+  authenticated = true
 }) {
-  const context = await newContext(browser, locale, viewport);
+  const context = await newContext(browser, locale, viewport, authenticated);
   const page = await context.newPage();
   const consoleErrors = [];
 
@@ -334,6 +455,20 @@ const results = [];
 
 try {
   results.push(await capture(browser, {
+    label: "00-platform-login-desktop",
+    pathName: "/platform/login",
+    readyText: "Platform login",
+    authenticated: false
+  }));
+
+  results.push(await capture(browser, {
+    label: "00b-platform-unauthorized-desktop",
+    pathName: "/platform/companies",
+    readyText: "Platform login required",
+    authenticated: false
+  }));
+
+  results.push(await capture(browser, {
     label: "01-platform-dashboard-desktop",
     pathName: "/platform",
     readyText: "Tenant attention"
@@ -356,6 +491,25 @@ try {
     label: "03-platform-companies-desktop",
     pathName: "/platform/companies",
     readyText: "All companies"
+  }));
+
+  results.push(await capture(browser, {
+    label: "03b-platform-company-detail-desktop",
+    pathName: "/platform/companies/cmp-01",
+    readyText: "Platform activity"
+  }));
+
+  results.push(await capture(browser, {
+    label: "03c-platform-leads-detail-desktop",
+    pathName: "/platform/leads",
+    readyText: "Matching requests",
+    afterOpen: async (page) => {
+      await page.getByText("Nile Bakery", { exact: true }).click();
+      await page.getByText("Consent & provenance", { exact: true }).waitFor({
+        state: "visible",
+        timeout: 5000
+      });
+    }
   }));
 
   results.push(await capture(browser, {
