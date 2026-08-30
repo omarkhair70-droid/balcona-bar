@@ -105,6 +105,14 @@ export function ServiceStaffShell({
   const pathname = usePathname();
   const activeView = useServiceView(mode);
 
+  useEffect(() => {
+    const frame = window.requestAnimationFrame(() => {
+      window.scrollTo({ top: 0, left: 0, behavior: "auto" });
+    });
+
+    return () => window.cancelAnimationFrame(frame);
+  }, [activeView, pathname]);
+
   return (
     <main className="min-h-screen bg-[#17120F] text-[#FFF5E8]">
       <header className="sticky top-0 z-40 border-b border-[#352B24] bg-[#18130F]/96 backdrop-blur">
