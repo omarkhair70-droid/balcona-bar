@@ -238,6 +238,14 @@ export function ServiceFloorBoard({
     activeFloor?.tables.find((table) => table.activeSession) ??
     activeFloor?.tables[0];
 
+  useEffect(() => {
+    const nextSessionId = selectedTable?.activeSession?.id;
+
+    if (nextSessionId !== selectedSessionId) {
+      onSelectSession?.(nextSessionId);
+    }
+  }, [onSelectSession, selectedSessionId, selectedTable?.activeSession?.id]);
+
   const selectedTone = selectedTable ? getTableTone(selectedTable) : undefined;
   const selectedSession = selectedTable?.activeSession;
   const selectedAttention = selectedSession?.tableAttentionSnapshot;
