@@ -45,6 +45,9 @@ jobs:
       - name: Typecheck Setup web surface
         run: pnpm --filter @balcona-bar/web typecheck
 
+      - name: Generate Prisma client
+        run: pnpm --filter @balcona-bar/api prisma:generate
+
       - name: Test Setup readiness service
         run: pnpm --filter @balcona-bar/api test -- tenant-onboarding/tenant-onboarding.service.spec.ts --runInBand
 
