@@ -2298,9 +2298,99 @@ export type CompanySubscription = {
   suspendedAt?: string | null;
   cancelledAt?: string | null;
   cancellationReason?: string | null;
+  billingProvider?: "paymob" | null;
+  billingEnvironment?: "test" | "live" | null;
+  providerSubscriptionReference?: string | null;
+  providerPlanReference?: string | null;
+  graceEndsAt?: string | null;
+  lastBillingSyncAt?: string | null;
   metadata?: Record<string, unknown> | null;
   createdAt?: string;
   updatedAt?: string;
+};
+
+export type SaasBillingPaymentAttempt = {
+  id: string;
+  status:
+    | "pending"
+    | "requires_action"
+    | "succeeded"
+    | "failed"
+    | "cancelled"
+    | "unknown"
+    | string;
+  provider: "paymob" | string;
+  environment: "test" | "live" | string;
+  amountMinor: number;
+  currency: string;
+  providerTransactionReference?: string | null;
+  failureCode?: string | null;
+  failureMessage?: string | null;
+  createdAt: string;
+  updatedAt: string;
+  succeededAt?: string | null;
+  failedAt?: string | null;
+};
+
+export type SaasBillingInvoice = {
+  id: string;
+  status: "open" | "paid" | "void" | "uncollectible" | string;
+  provider: "paymob" | string;
+  environment: "test" | "live" | string;
+  amountMinor: number;
+  currency: string;
+  periodStart?: string | null;
+  periodEnd?: string | null;
+  dueAt?: string | null;
+  paidAt?: string | null;
+  createdAt: string;
+};
+
+export type SaasBillingOverview = {
+  company: CompanySummary;
+  plan: SaasPlan;
+  subscription: CompanySubscription;
+  billing: {
+    provider: "paymob";
+    enabled: boolean;
+    environment: "test" | "live";
+    ready: boolean;
+    readinessMessage: string;
+    liveVerified: boolean;
+  };
+  paymentAttempts: SaasBillingPaymentAttempt[];
+  invoices: SaasBillingInvoice[];
+};
+
+export type StartSaasBillingCheckoutPayload = {
+  firstName: string;
+  lastName: string;
+  email: string;
+  phoneNumber: string;
+};
+
+export type StartSaasBillingCheckoutResult = {
+  paymentAttemptId: string;
+  provider: "paymob";
+  environment: "test" | "live";
+  status: string;
+  amountMinor: number;
+  currency: string;
+  checkout: {
+    type: "redirect";
+    url: string;
+    expiresAt: string;
+  };
+};
+
+export type ChangeSaasBillingPlanPayload = {
+  planCode: string;
+};
+
+export type SaasBillingMutationResult = {
+  subscription: CompanySubscription;
+  providerState: string;
+  syncedAt?: string | null;
 };
 
 export type SaasUsageStatus = "ok" | "warning" | "exceeded" | "unlimited";
