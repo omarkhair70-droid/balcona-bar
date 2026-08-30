@@ -1,6 +1,6 @@
 # Office Control Plane / S6 Closure
 
-Branch: `closure/office-control-s6`  
+Branch: `closure/office-control-s6`
 Integration target: `codex/full-platform-closure-20260830-1214`
 
 ## Ownership boundary
