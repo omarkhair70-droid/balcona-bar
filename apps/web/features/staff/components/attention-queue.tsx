@@ -1,9 +1,15 @@
 "use client";
 
+import { useMemo } from "react";
 import { RefreshCw } from "lucide-react";
 import { EmptyState } from "@/components/ui/empty-state";
 import { LoadingState } from "@/components/ui/loading-state";
-import { getAttentionSessionId } from "@/features/staff/attention-data";
+import {
+  getAttentionLastEvaluatedAt,
+  getAttentionPriority,
+  getAttentionSessionId,
+  getAttentionStatus
+} from "@/features/staff/attention-data";
 import { humanizeStatus } from "@/features/staff/staff-format";
 import { cn } from "@/lib/utils/cn";
 import type { TableAttentionPriority, TableAttentionStatus } from "@/lib/api/types";
@@ -81,6 +87,48 @@ export function AttentionQueue({
   onRefresh
 }: AttentionQueueProps) {
   const t = useTranslations("staff");
+  const prioritizedQueue = useMemo(() => {
+    const statusRank: Record<string, number> = {
+      urgent: 0,
+      needs_attention: 1,
+      normal: 2,
+      muted: 3,
+      resolved: 4
+    };
+    const priorityRank: Record<string, number> = {
+      urgent: 0,
+      high: 1,
+      medium: 2,
+      low: 3,
+      all: 4
+    };
+
+    return attentionQueue
+      .map((entry, index) => ({ entry, index }))
+      .sort((left, right) => {
+        const leftStatus = statusRank[getAttentionStatus(left.entry)] ?? 5;
+        const rightStatus = statusRank[getAttentionStatus(right.entry)] ?? 5;
+
+        if (leftStatus !== rightStatus) {
+          return leftStatus - rightStatus;
+        }
+
+        const leftPriority = priorityRank[getAttentionPriority(left.entry)] ?? 5;
+        const rightPriority = priorityRank[getAttentionPriority(right.entry)] ?? 5;
+
+        if (leftPriority !== rightPriority) {
+          return leftPriority - rightPriority;
+        }
+
+        const leftTime = Date.parse(getAttentionLastEvaluatedAt(left.entry)) || 0;
+        const rightTime = Date.parse(getAttentionLastEvaluatedAt(right.entry)) || 0;
+
+        return leftTime === rightTime
+          ? left.index - right.index
+          : leftTime - rightTime;
+      })
+      .map(({ entry }) => entry);
+  }, [attentionQueue]);
 
   return (
     <section className="min-h-[34rem] min-w-0 border border-[#3B3028] bg-[#17120F]">
@@ -149,9 +197,9 @@ export function AttentionQueue({
             description={t("attention.emptyDescription")}
           />
         ) : null}
-        {!isLoading && !error && attentionQueue.length > 0 ? (
+        {!isLoading && !error && prioritizedQueue.length > 0 ? (
           <div className="grid gap-2">
-            {attentionQueue.map((attention, index) => {
+            {prioritizedQueue.map((attention, index) => {
               const sessionId = getAttentionSessionId(attention) || String(index);
 
               return (
