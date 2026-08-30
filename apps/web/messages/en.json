@@ -716,7 +716,12 @@
       "shiftManualPaymentsRequireOpen": "Manual payments require an open cashier shift for this branch.",
       "staffUserFallback": "Staff user",
       "submittedDescription": "Needs cashier decision",
-      "submittedLabel": "Submitted"
+      "submittedLabel": "Submitted",
+      "directTerminalTitle": "Direct terminal / SoftPOS",
+      "directTerminalChecking": "Checking branch terminal readiness…",
+      "directTerminalUnavailable": "Terminal readiness could not be loaded. External card terminal remains a manual tender record only.",
+      "directTerminalReady": "Direct terminal execution is connected for this branch.",
+      "directTerminalBlocked": "Direct terminal execution is not connected yet. Use External card terminal only after the separate device approves the payment."
     },
     "errors": {
       "orderActionFailed": "Order could not be {action}. {message}"
