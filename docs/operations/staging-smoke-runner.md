@@ -53,10 +53,16 @@ SMOKE_BOOTSTRAP_OVERWRITE=false
 SMOKE_RUN_ID=
 SMOKE_TIMEOUT_MS=30000
 SMOKE_RETRY_TRANSIENT=true
+SMOKE_SKIP_AI=false
 SMOKE_ENVIRONMENT=staging
 SMOKE_BRANCH_ID=
 SMOKE_COMPANY_ID=
 ```
+
+Set `SMOKE_SKIP_AI=true` for a bounded operational demo proof when the external
+AI provider is not part of the acceptance gate. Guest ordering, cashier, KDS,
+waiter, billing, owner, and web checks still run; the report marks AI coverage
+as skipped instead of presenting it as passed.
 
 Never commit `.env.smoke.local`, tokens, cookies, storage state, screenshots containing private data, Railway keys, Vercel keys, Neon URLs, or production secrets.
 
