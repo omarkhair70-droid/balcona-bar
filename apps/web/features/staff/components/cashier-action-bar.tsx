@@ -54,7 +54,7 @@ export function CashierActionBar({
     Boolean(acceptPending || rejectPending || cancelPending || completePending);
 
   return (
-    <div className="sticky bottom-2 z-20 rounded-lg border border-[#47392E] bg-[#18130F]/96 p-3 shadow-[0_-12px_40px_rgba(0,0,0,.25)] backdrop-blur">
+    <div className="rounded-lg border border-[#47392E] bg-[#18130F] p-3">
       <div className="flex flex-wrap items-center gap-2">
         {canAccept ? (
           <Button
