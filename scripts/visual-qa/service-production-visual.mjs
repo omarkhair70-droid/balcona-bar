@@ -883,14 +883,36 @@ async function capture(browser, {
     await page.waitForTimeout(900);
   }
 
-  const metrics = await page.evaluate(() => ({
-    innerWidth: window.innerWidth,
-    clientWidth: document.documentElement.clientWidth,
-    scrollWidth: document.documentElement.scrollWidth,
-    bodyScrollWidth: document.body.scrollWidth,
-    dir: document.documentElement.dir,
-    lang: document.documentElement.lang
-  }));
+  const metrics = await page.evaluate(() => {
+    const serviceMode = document.querySelector(
+      'nav[aria-label="Service mode"]'
+    );
+    const modeRect = serviceMode?.getBoundingClientRect();
+    const headerRow = document.querySelector("header > div:first-child");
+    const headerChildren = headerRow
+      ? Array.from(headerRow.children).map((element) => {
+          const rect = element.getBoundingClientRect();
+          return {
+            left: rect.left,
+            right: rect.right,
+            width: rect.width
+          };
+        })
+      : [];
+
+    return {
+      innerWidth: window.innerWidth,
+      clientWidth: document.documentElement.clientWidth,
+      scrollWidth: document.documentElement.scrollWidth,
+      bodyScrollWidth: document.body.scrollWidth,
+      dir: document.documentElement.dir,
+      lang: document.documentElement.lang,
+      serviceModeCenterDelta: modeRect
+        ? Math.abs(modeRect.left + modeRect.width / 2 - window.innerWidth / 2)
+        : null,
+      headerChildren
+    };
+  });
 
   if (metrics.scrollWidth > metrics.clientWidth + 1) {
     throw new Error(
@@ -900,6 +922,29 @@ async function capture(browser, {
 
   if (locale === "ar" && metrics.dir !== "rtl") {
     throw new Error(`${label}: expected rtl, got ${metrics.dir || "empty"}`);
+  }
+
+  if (
+    route.startsWith("/service/") &&
+    metrics.serviceModeCenterDelta !== null &&
+    metrics.serviceModeCenterDelta > 2
+  ) {
+    throw new Error(
+      `${label}: Service mode switch is off-center by ${metrics.serviceModeCenterDelta.toFixed(2)}px`
+    );
+  }
+
+  if (
+    route.startsWith("/service/") &&
+    viewport.width >= 1024 &&
+    metrics.headerChildren.length >= 3
+  ) {
+    const [left, center, right] = metrics.headerChildren;
+    if (left.right > center.left - 4 || center.right > right.left - 4) {
+      throw new Error(
+        `${label}: topbar controls overlap or crowd the centered mode switch`
+      );
+    }
   }
 
   const screenshot = path.join(OUTPUT_DIR, `${label}.png`);
