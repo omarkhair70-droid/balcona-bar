@@ -230,6 +230,38 @@ function WaiterDashboardContent() {
     () => readyOrdersQuery.data?.orders ?? emptyRecords,
     [readyOrdersQuery.data?.orders]
   );
+  const floorTables = useMemo(
+    () =>
+      floorOverviewQuery.data?.tablesByFloor.flatMap((group) => group.tables) ??
+      emptyRecords,
+    [floorOverviewQuery.data?.tablesByFloor]
+  );
+  const defaultFloorSessionId = useMemo(() => {
+    const urgent = floorTables.find((table) => {
+      const snapshot = table.activeSession?.tableAttentionSnapshot;
+      return snapshot?.status === "urgent" || snapshot?.priority === "urgent";
+    });
+    const attention = floorTables.find((table) => {
+      const snapshot = table.activeSession?.tableAttentionSnapshot;
+      return (
+        snapshot?.status === "needs_attention" ||
+        snapshot?.priority === "high"
+      );
+    });
+    const active =
+      urgent ??
+      attention ??
+      floorTables.find((table) => Boolean(table.activeSession));
+
+    return active?.activeSession?.id;
+  }, [floorTables]);
+  const floorSelectionStillVisible = floorTables.some(
+    (table) => table.activeSession?.id === floorSelectedSessionId
+  );
+  const effectiveFloorSessionId =
+    floorSelectionStillVisible && floorSelectedSessionId
+      ? floorSelectedSessionId
+      : defaultFloorSessionId;
   const selectedAttentionStillVisible = useMemo(
     () =>
       attentionQueue.some(
@@ -249,12 +281,12 @@ function WaiterDashboardContent() {
       "service",
       "floor",
       "session-orders",
-      floorSelectedSessionId
+      effectiveFloorSessionId
     ],
     queryFn: () =>
-      getTableSessionOrders(floorSelectedSessionId ?? "", accessToken),
+      getTableSessionOrders(effectiveFloorSessionId ?? "", accessToken),
     enabled: Boolean(
-      serviceView === "floor" && floorSelectedSessionId && accessToken
+      serviceView === "floor" && effectiveFloorSessionId && accessToken
     ),
     staleTime: 5_000,
     placeholderData: keepPreviousData
@@ -265,11 +297,11 @@ function WaiterDashboardContent() {
       "service",
       "floor",
       "session-bill",
-      floorSelectedSessionId
+      effectiveFloorSessionId
     ],
-    queryFn: () => getBill(floorSelectedSessionId ?? "", accessToken),
+    queryFn: () => getBill(effectiveFloorSessionId ?? "", accessToken),
     enabled: Boolean(
-      serviceView === "floor" && floorSelectedSessionId && accessToken
+      serviceView === "floor" && effectiveFloorSessionId && accessToken
     ),
     staleTime: 5_000,
     placeholderData: keepPreviousData
@@ -588,7 +620,7 @@ function WaiterDashboardContent() {
           overview={floorOverviewQuery.data}
           isLoading={floorOverviewQuery.isPending}
           error={floorOverviewQuery.error ?? undefined}
-          selectedSessionId={floorSelectedSessionId}
+          selectedSessionId={effectiveFloorSessionId}
           onSelectSession={setFloorSelectedSessionId}
           sessionOrders={floorSessionOrdersQuery.data?.orders ?? emptyRecords}
           sessionBill={floorSessionBillQuery.data}
