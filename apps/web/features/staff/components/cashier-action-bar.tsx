@@ -48,6 +48,7 @@ export function CashierActionBar({
 }: CashierActionBarProps) {
   const t = useTranslations("staff");
   const [cancelMode, setCancelMode] = useState(false);
+  const [rejectMode, setRejectMode] = useState(false);
   const anyActionPending =
     actionPending ||
     Boolean(acceptPending || rejectPending || cancelPending || completePending);
@@ -69,7 +70,7 @@ export function CashierActionBar({
         {canReject ? (
           <Button
             variant="danger"
-            onClick={onReject}
+            onClick={() => setRejectMode(true)}
             disabled={anyActionPending}
             className="min-h-11 border border-[#76413C] bg-[#321F1D] text-[#F0A39B] hover:bg-[#3B2522]"
           >
@@ -146,22 +147,38 @@ export function CashierActionBar({
         </div>
       ) : null}
 
-      {canReject ? (
-        <details className="mt-2 rounded-md border border-[#342B24] bg-[#1E1814]">
-          <summary className="cursor-pointer list-none px-3 py-2 text-xs font-medium text-[#9E9084]">
+      {rejectMode && canReject ? (
+        <div className="mt-3 rounded-md border border-[#5A3B34] bg-[#241915] p-3">
+          <label className="grid gap-1.5 text-xs font-medium text-[#D4B9B1]">
             {t("orders.rejectReason")}
-          </summary>
-          <div className="border-t border-[#342B24] p-3">
             <textarea
               value={rejectReason}
               onChange={(event) => onRejectReasonChange(event.target.value)}
               rows={2}
               placeholder={t("orders.rejectReasonPlaceholder")}
-              className="w-full resize-none rounded-md border border-[#3B3028] bg-[#211A15] px-3 py-2 text-sm text-[#F6EBDD] outline-none transition placeholder:text-[#756A61] focus:border-[#C68A4A]"
+              className="w-full resize-none rounded-md border border-[#5A3B34] bg-[#211A15] px-3 py-2 text-sm text-[#F6EBDD] outline-none transition placeholder:text-[#756A61] focus:border-[#C68A4A]"
               disabled={anyActionPending}
+              autoFocus
             />
+          </label>
+          <div className="mt-2 flex flex-wrap gap-2">
+            <Button
+              variant="danger"
+              onClick={onReject}
+              disabled={anyActionPending}
+            >
+              <X className="size-4" aria-hidden="true" />
+              {rejectPending ? t("actions.rejecting") : t("actions.reject")}
+            </Button>
+            <Button
+              variant="ghost"
+              onClick={() => setRejectMode(false)}
+              disabled={anyActionPending}
+            >
+              {t("actions.back")}
+            </Button>
           </div>
-        </details>
+        </div>
       ) : null}
     </div>
   );
