@@ -51,7 +51,9 @@ export class StaffPermissionGuard implements CanActivate {
         : undefined,
       branchId: metadata.branchIdParam
         ? this.getSingleParam(request.params[metadata.branchIdParam])
-        : undefined,
+        : metadata.branchIdQuery
+          ? this.getSingleQuery(request.query[metadata.branchIdQuery])
+          : undefined,
     });
 
     return true;
@@ -61,5 +63,17 @@ export class StaffPermissionGuard implements CanActivate {
     value: string | string[] | undefined,
   ): string | undefined {
     return Array.isArray(value) ? value[0] : value;
+  }
+
+  private getSingleQuery(value: unknown): string | undefined {
+    if (typeof value === 'string') {
+      return value;
+    }
+
+    if (Array.isArray(value) && typeof value[0] === 'string') {
+      return value[0];
+    }
+
+    return undefined;
   }
 }

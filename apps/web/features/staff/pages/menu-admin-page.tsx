@@ -2258,19 +2258,19 @@ function MenuAdminContent() {
   });
   const overview = overviewQuery.data;
   const allItems = useMemo(
-    () => overview?.categories.flatMap((category) => category.items) ?? [],
+    () => overview?.categories?.flatMap((category) => category.items) ?? [],
     [overview]
   );
   const visibleItems = useMemo(
     () => allItems.filter((item) => item.customerVisible),
     [allItems]
   );
-  const selectedModifierGroup = overview?.modifierGroups.find(
+  const selectedModifierGroup = overview?.modifierGroups?.find(
     (group) => group.id === selectedModifierGroupId
-  ) ?? overview?.modifierGroups[0];
+  ) ?? overview?.modifierGroups?.[0];
   const menuAccess = getMenuAdminAccessMode({
     access: effectiveAccess,
-    companyId: overview?.company.id,
+    companyId: overview?.company?.id,
     branchId: selectedBranchId
   });
   const visibleTabs = useMemo(
@@ -2374,7 +2374,7 @@ function MenuAdminContent() {
     onSuccess: () => {
       setItemForm({
         ...emptyItemForm,
-        categoryId: overview?.categories[0]?.id ?? ""
+        categoryId: overview?.categories?.[0]?.id ?? ""
       });
       refreshMenuAdmin("Item created.");
     }
@@ -2390,7 +2390,7 @@ function MenuAdminContent() {
     onSuccess: () => {
       setItemForm({
         ...emptyItemForm,
-        categoryId: overview?.categories[0]?.id ?? ""
+        categoryId: overview?.categories?.[0]?.id ?? ""
       });
       refreshMenuAdmin("Item saved.");
     }

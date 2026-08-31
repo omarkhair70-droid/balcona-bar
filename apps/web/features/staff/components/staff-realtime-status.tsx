@@ -43,13 +43,13 @@ export function StaffRealtimeStatus({
   const t = useTranslations("staff");
 
   return (
-    <div className="flex flex-wrap items-center gap-2">
+    <div className="flex shrink-0 flex-nowrap items-center gap-2">
       <Badge variant={realtimeVariant(state)} className="gap-2">
         <Radio className="size-3.5" aria-hidden="true" />
         {t(realtimeLabelKey(state))}
       </Badge>
       {lastEventType ? (
-        <span className="text-xs text-muted-foreground">
+        <span className="hidden text-xs text-muted-foreground md:inline">
           {t("realtime.lastEvent", { event: humanizeStatus(lastEventType) })}
         </span>
       ) : null}

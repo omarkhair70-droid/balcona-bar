@@ -1,14 +1,14 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useSearchParams } from "next/navigation";
 import { type ReactNode, useEffect, useState } from "react";
 import { Banknote, BellRing, LayoutGrid, ListChecks, Receipt } from "lucide-react";
-import { LanguageSwitcher } from "@/components/i18n/language-switcher";
-import { useTranslations } from "@/lib/i18n/i18n-provider";
+import { useI18n, useTranslations } from "@/lib/i18n/i18n-provider";
 import { cn } from "@/lib/utils/cn";
 
-type ServiceMode = "cashier" | "waiter";
+export type ServiceMode = "cashier" | "waiter";
+export type ServiceView = "floor" | "orders" | "attention" | "bills" | "shift";
 
 type ServiceStaffShellProps = {
   mode: ServiceMode;
@@ -25,15 +25,54 @@ const modes: Array<{
 }> = [
   {
     id: "cashier",
-    href: "/service/cashier",
+    href: "/service/cashier?mode=cashier#orders",
     labelKey: "serviceShell.cashier"
   },
   {
     id: "waiter",
-    href: "/service/waiter",
+    href: "/service/waiter?mode=waiter#floor",
     labelKey: "serviceShell.waiter"
   }
 ];
+
+const serviceViewIds = new Set<ServiceView>([
+  "floor",
+  "orders",
+  "attention",
+  "bills",
+  "shift"
+]);
+
+export function useServiceMode(routeMode: ServiceMode): ServiceMode {
+  const searchParams = useSearchParams();
+  const requestedMode = searchParams.get("mode");
+
+  return requestedMode === "cashier" || requestedMode === "waiter"
+    ? requestedMode
+    : routeMode;
+}
+
+export function useServiceView(mode: ServiceMode): ServiceView {
+  const pathname = usePathname();
+  const [hash, setHash] = useState("");
+
+  useEffect(() => {
+    const syncHash = () => setHash(window.location.hash);
+
+    syncHash();
+    window.addEventListener("hashchange", syncHash);
+
+    return () => window.removeEventListener("hashchange", syncHash);
+  }, [pathname]);
+
+  const raw = hash.replace(/^#/, "");
+
+  if (serviceViewIds.has(raw as ServiceView)) {
+    return raw as ServiceView;
+  }
+
+  return mode === "cashier" ? "orders" : "floor";
+}
 
 const serviceViews = [
   {
@@ -71,33 +110,26 @@ export function ServiceStaffShell({
   children
 }: ServiceStaffShellProps) {
   const t = useTranslations("staff");
+  const { locale, setLocale } = useI18n();
   const pathname = usePathname();
-  const [hash, setHash] = useState("");
+  const activeView = useServiceView(mode);
+  const activeMode = useServiceMode(mode);
 
   useEffect(() => {
-    const syncHash = () => setHash(window.location.hash);
+    const frame = window.requestAnimationFrame(() => {
+      window.scrollTo({ top: 0, left: 0, behavior: "auto" });
+    });
 
-    syncHash();
-    window.addEventListener("hashchange", syncHash);
-
-    return () => window.removeEventListener("hashchange", syncHash);
-  }, []);
-
-  const effectiveHash =
-    hash ||
-    (pathname === "/service/cashier"
-      ? "#orders"
-      : pathname === "/service/waiter"
-        ? "#floor"
-        : "");
+    return () => window.cancelAnimationFrame(frame);
+  }, [activeView, pathname]);
 
   return (
     <main className="min-h-screen bg-[#17120F] text-[#FFF5E8]">
       <header className="sticky top-0 z-40 border-b border-[#352B24] bg-[#18130F]/96 backdrop-blur">
-        <div className="flex min-h-14 items-center gap-2 px-3">
+        <div className="grid min-h-14 grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-3 px-3">
           <Link
             href="/staff"
-            className="flex shrink-0 items-center gap-2"
+            className="flex min-w-0 items-center gap-2 justify-self-start"
             aria-label="Balcona staff home"
           >
             <span className="flex size-8 items-center justify-center rounded-md bg-[#C68A4A] text-xs font-black text-[#1B120C]">
@@ -114,11 +146,11 @@ export function ServiceStaffShell({
           </Link>
 
           <nav
-            className="mx-auto flex min-w-0 items-center rounded-md border border-[#3E332B] bg-[#211A15] p-1"
+            className="flex items-center justify-self-center rounded-md border border-[#3E332B] bg-[#211A15] p-1"
             aria-label="Service mode"
           >
             {modes.map((entry) => {
-              const active = entry.id === mode;
+              const active = entry.id === activeMode;
 
               return (
                 <Link
@@ -126,7 +158,7 @@ export function ServiceStaffShell({
                   href={entry.href}
                   aria-current={active ? "page" : undefined}
                   className={cn(
-                    "min-h-8 rounded px-3 text-center text-xs font-semibold transition",
+                    "flex min-h-8 min-w-[76px] items-center justify-center rounded px-3 text-center text-xs font-semibold transition sm:min-w-[92px]",
                     active
                       ? "bg-[#C68A4A] text-[#1B120C]"
                       : "text-[#BFB0A2] hover:bg-[#2B221C] hover:text-[#F6EBDD]"
@@ -138,11 +170,25 @@ export function ServiceStaffShell({
             })}
           </nav>
 
-          <LanguageSwitcher className="shrink-0 border-[#41362E] bg-[#211A15]" />
+          <div className="flex min-w-0 items-center justify-end gap-2 justify-self-end">
+            {actions ? (
+              <div className="hidden min-w-0 items-center justify-end gap-2 lg:flex">
+                {actions}
+              </div>
+            ) : null}
+            <button
+              type="button"
+              onClick={() => setLocale(locale === "en" ? "ar" : "en")}
+              className="min-h-9 shrink-0 rounded-md border border-[#41362E] bg-[#211A15] px-3 text-xs font-bold text-[#F5EBDD] transition hover:bg-[#2B221C]"
+              aria-label={locale === "en" ? "العربية" : "English"}
+            >
+              {locale === "en" ? "العربية" : "EN"}
+            </button>
+          </div>
         </div>
 
         {actions ? (
-          <div className="flex flex-wrap items-center justify-end gap-2 border-t border-[#2E251F] px-3 py-2">
+          <div className="flex flex-nowrap items-center justify-end gap-2 overflow-x-auto border-t border-[#2E251F] px-3 py-2 lg:hidden">
             {actions}
           </div>
         ) : null}
@@ -154,16 +200,21 @@ export function ServiceStaffShell({
           {serviceViews.map((entry) => {
             const Icon = entry.icon;
             const [entryPath, entryHash = ""] = entry.href.split("#");
-            const active =
-              pathname === entryPath && effectiveHash === `#${entryHash}`;
+            const active = activeView === entryHash;
+            const preferred =
+              (activeMode === "cashier" && entryHash === "orders") ||
+              (activeMode === "waiter" &&
+                (entryHash === "floor" || entryHash === "attention"));
+            const href = `${entryPath}?mode=${activeMode}#${entryHash}`;
 
             return (
               <Link
                 key={entry.href}
-                href={entry.href}
+                href={href}
+                scroll={false}
                 aria-current={active ? "page" : undefined}
                 className={cn(
-                  "flex min-h-10 min-w-[112px] shrink-0 items-center justify-center gap-2 rounded-md px-3 text-xs font-semibold transition",
+                  "flex min-h-11 min-w-[112px] shrink-0 items-center justify-center gap-2 rounded-md px-3 text-xs font-semibold transition",
                   active
                     ? "bg-[#33271F] text-[#FFF5E7]"
                     : "text-[#B3A496] hover:bg-[#292019] hover:text-[#FFF5E7]"
@@ -177,27 +228,21 @@ export function ServiceStaffShell({
                   aria-hidden="true"
                 />
                 {t(entry.labelKey)}
+                {preferred && !active ? (
+                  <span className="size-1.5 rounded-full bg-[#C68A4A]" />
+                ) : null}
               </Link>
             );
           })}
         </nav>
       </header>
 
-      <section className="border-b border-[#342A23] bg-[#1C1612] px-3 py-4 sm:px-4">
-        <div className="mx-auto max-w-[1600px]">
-          <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[#9D856D]">
-            {mode === "cashier" ? t("serviceShell.cashierEyebrow") : t("serviceShell.waiterEyebrow")}
-          </p>
-          <h1 className="mt-1 text-xl font-semibold tracking-[-0.02em] text-[#FFF4E6] sm:text-2xl">
-            {title}
-          </h1>
-          <p className="mt-1 max-w-3xl text-xs leading-5 text-[#9E9084] sm:text-sm">
-            {description}
-          </p>
-        </div>
-      </section>
+      <div className="sr-only">
+        <h1>{title}</h1>
+        <p>{description}</p>
+      </div>
 
-      <div className="mx-auto max-w-[1600px] p-3 sm:p-4">{children}</div>
+      <div className="w-full">{children}</div>
     </main>
   );
 }

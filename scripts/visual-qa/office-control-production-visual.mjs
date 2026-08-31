@@ -1206,6 +1206,66 @@ async function capture(browser, {
   return result;
 }
 
+async function assertOfficeNavigation(browser) {
+  const destinations = [
+    ["Operations", "/office#operations"],
+    ["Catalog", "/office/catalog"],
+    ["Inventory", "/office/inventory"],
+    ["Locations", "/office/locations"],
+    ["Team", "/office/team"],
+    ["Money", "/office/money"],
+    ["Insights", "/office#insights"],
+    ["Experience", "/office/experience"],
+    ["Settings", "/office/settings"],
+    ["Account", "/office/account"],
+    ["Home", "/office"]
+  ];
+
+  const visited = [];
+
+  for (const [label, expectedPath] of destinations) {
+    const context = await newContext(browser, "en", {
+      width: 1440,
+      height: 1000
+    });
+    const page = await context.newPage();
+
+    await installApiMocks(page);
+    await page.goto(`${BASE_URL}/office`, {
+      waitUntil: "domcontentloaded",
+      timeout: 30000
+    });
+    await page.getByText("Balcona Office", { exact: true }).first().waitFor({
+      state: "visible",
+      timeout: 15000
+    });
+
+    const link = page.getByRole("link", { name: label, exact: true }).first();
+    await link.waitFor({ state: "visible", timeout: 15000 });
+    await link.click();
+    await page.waitForURL(
+      (url) => `${url.pathname}${url.hash}` === expectedPath,
+      { timeout: 15000 }
+    );
+
+    const body = (await page.locator("body").innerText()).toLowerCase();
+    if (
+      body.includes("404") &&
+      (body.includes("not found") || body.includes("page not found"))
+    ) {
+      throw new Error(`office-nav: ${label} rendered a 404 page`);
+    }
+
+    visited.push({ label, path: expectedPath });
+    await context.close();
+  }
+
+  return {
+    label: "19-office-navigation-click-smoke",
+    visited
+  };
+}
+
 await mkdir(OUTPUT_DIR, { recursive: true });
 const browser = await chromium.launch({ headless: true });
 const results = [];
@@ -1344,6 +1404,7 @@ try {
       viewport: { width: 820, height: 900 }
     })
   );
+  results.push(await assertOfficeNavigation(browser));
 } finally {
   await browser.close();
 }

@@ -9,13 +9,15 @@ type StaffBranchSelectorProps = {
   selectedBranchId?: string;
   onChange: (branchId: string) => void;
   className?: string;
+  showLabel?: boolean;
 };
 
 export function StaffBranchSelector({
   access,
   selectedBranchId,
   onChange,
-  className
+  className,
+  showLabel = true
 }: StaffBranchSelectorProps) {
   const t = useTranslations("staff");
   const branches = access?.branches ?? [];
@@ -27,7 +29,7 @@ export function StaffBranchSelector({
         className
       )}
     >
-      {t("selectors.branch")}
+      {showLabel ? <span>{t("selectors.branch")}</span> : null}
       <select
         value={selectedBranchId ?? ""}
         onChange={(event) => onChange(event.target.value)}

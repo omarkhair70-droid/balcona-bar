@@ -9,34 +9,24 @@ import {
   useQueryClient,
 } from "@tanstack/react-query";
 import {
-  AlertTriangle,
   Banknote,
-  BellRing,
   CheckCircle2,
   FileText,
   LogIn,
   LogOut,
   MinusCircle,
   PlusCircle,
-  Receipt,
   RefreshCw,
 } from "lucide-react";
 import { useMemo, useState } from "react";
 import { CopyDebugReportButton } from "@/components/debug/copy-debug-report-button";
 import { Badge } from "@/components/ui/badge";
 import { Button, buttonVariants } from "@/components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Input } from "@/components/ui/input";
-import { ServiceStaffShell } from "@/features/staff/service-staff-shell";
+import { ServiceStaffShell, useServiceView } from "@/features/staff/service-staff-shell";
 import {
-  getBillRequestStatus,
+  getBillStatus,
   getOrderId,
   getOrderStatus,
   getOrderTableSessionId,
@@ -47,7 +37,6 @@ import {
   getRecordNumber,
   getRecordString,
   humanizeStatus,
-  shortId,
 } from "@/features/staff/staff-format";
 import { useStaffBranchRealtime } from "@/features/staff/use-staff-branch-realtime";
 import { pendingActionFor } from "@/lib/interaction/pending-scope";
@@ -59,8 +48,7 @@ import {
   completeOrder,
   createCashAdjustment,
   getBranchBillRequests,
-  getBranchPaymentTerminals,
-  getBranchRealtimeEvents,
+  getBranchOnlinePayments,
   getCashierOrders,
   getCashierShiftXReport,
   getCurrentCashierShift,
@@ -75,9 +63,7 @@ import { formatErrorMessage } from "@/lib/api/error-message";
 import { customerQueryKeys, staffQueryKeys } from "@/lib/api/query-keys";
 import { useTranslations } from "@/lib/i18n/i18n-provider";
 import type {
-  BranchBillRequestStatusFilter,
   CashierShiftReportSnapshot,
-  CashierOrderStatus,
   CloseCashierShiftPayload,
   CreateCashAdjustmentPayload,
   CurrentCashierShiftResult,
@@ -87,7 +73,10 @@ import type {
 import { useStaffAuthStore } from "@/lib/staff/staff-auth-store";
 import { BillRequestQueue } from "../components/bill-request-queue";
 import { CashierOrderDetailPanel } from "../components/cashier-order-detail-panel";
-import { CashierOrderQueue } from "../components/cashier-order-queue";
+import {
+  CashierOrderQueue,
+  type CashierOrderLane
+} from "../components/cashier-order-queue";
 import { StaffAuthGate } from "../components/staff-auth-gate";
 import { StaffBranchSelector } from "../components/staff-branch-selector";
 import { StaffRealtimeStatus } from "../components/staff-realtime-status";
@@ -123,8 +112,6 @@ type CloseShiftAction = {
   payload: CloseCashierShiftPayload;
 };
 
-const activeOrderStatuses = new Set(["cashier_accepted", "preparing", "ready"]);
-const activeBillStatuses = new Set(["open", "acknowledged", "presented"]);
 const emptyRecords: Record<string, unknown>[] = [];
 
 function amountInputToMinor(value: string, fallbackMinor = 0) {
@@ -168,22 +155,6 @@ function getSnapshotNumber(
 
 function minorToInput(amountMinor: number) {
   return (amountMinor / 100).toFixed(2);
-}
-
-function countOrdersByStatus(
-  orders: Record<string, unknown>[],
-  predicate: (status: string) => boolean,
-) {
-  return orders.filter((order) => predicate(getOrderStatus(order))).length;
-}
-
-function countBillsByStatus(
-  billRequests: Record<string, unknown>[],
-  predicate: (status: string) => boolean,
-) {
-  return billRequests.filter((billRequest) =>
-    predicate(getBillRequestStatus(billRequest)),
-  ).length;
 }
 
 function NoticeBanner({ notice }: { notice?: Notice }) {
@@ -323,6 +294,7 @@ function CashierShiftPanel({
   onXReport,
   onClose,
   onClearReport,
+  closeReadiness,
 }: {
   branchName: string;
   data?: CurrentCashierShiftResult;
@@ -338,6 +310,12 @@ function CashierShiftPanel({
   onXReport: () => void;
   onClose: (payload: CloseCashierShiftPayload) => void;
   onClearReport: () => void;
+  closeReadiness: {
+    openOrders: number;
+    unpaidBills: number;
+    unknownPayments: number;
+    isLoading: boolean;
+  };
 }) {
   const t = useTranslations("staff");
   const shift = data?.shift ?? null;
@@ -348,6 +326,7 @@ function CashierShiftPanel({
   const [adjustmentNote, setAdjustmentNote] = useState("");
   const [countedCash, setCountedCash] = useState("");
   const [closingNote, setClosingNote] = useState("");
+  const [closeMode, setCloseMode] = useState(false);
   const currency = getRecordString(shift ?? undefined, "currency", "EGP");
   const expectedCashMinor = getSnapshotNumber(
     summary,
@@ -377,166 +356,183 @@ function CashierShiftPanel({
   const adjustmentMinor = amountInputToMinor(adjustmentAmount);
   const adjustmentReady =
     adjustmentMinor > 0 && adjustmentNote.trim().length > 0;
+  const blockerCount =
+    closeReadiness.openOrders +
+    closeReadiness.unpaidBills +
+    closeReadiness.unknownPayments;
+
+  if (isLoading) {
+    return (
+      <div className="flex min-h-[calc(100vh-9rem)] items-center justify-center text-sm text-[#91857A]">
+        {t("serviceShift.loading")}
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div
+        role="alert"
+        className="mx-auto max-w-3xl rounded-md border border-[#7A3F3A] bg-[#3A211F] p-4 text-sm text-danger"
+      >
+        {formatErrorMessage(error)}
+      </div>
+    );
+  }
+
+  if (!shift) {
+    return (
+      <div className="flex min-h-[calc(100vh-9rem)] items-center justify-center p-3">
+        <form
+          className="w-full max-w-lg rounded-lg border border-[#40342B] bg-[#211A15] p-5"
+          onSubmit={(event) => {
+            event.preventDefault();
+            onOpen({
+              openingFloatMinor: amountInputToMinor(openingFloat),
+              note: openingNote.trim() || undefined,
+            });
+          }}
+        >
+          <Banknote className="size-6 text-[#C68A4A]" aria-hidden="true" />
+          <h2 className="mt-4 text-xl font-semibold text-[#FFF5E8]">
+            {t("serviceShift.openShift")}
+          </h2>
+          <p className="mt-2 text-sm leading-6 text-[#A99B8E]">
+            {t("cashier.shiftManualPaymentsRequireOpen")}
+          </p>
+
+          <label className="mt-5 grid gap-2 text-xs font-medium text-[#A99B8E]">
+            {t("serviceShift.openingFloat")}
+            <Input
+              inputMode="decimal"
+              value={openingFloat}
+              onChange={(event) => setOpeningFloat(event.target.value)}
+              className="border-[#4A3C32] bg-[#18130F]"
+            />
+          </label>
+          <label className="mt-3 grid gap-2 text-xs font-medium text-[#A99B8E]">
+            {t("serviceShift.note")}
+            <Input
+              value={openingNote}
+              onChange={(event) => setOpeningNote(event.target.value)}
+              placeholder={t("serviceShift.optionalOpeningNote")}
+              className="border-[#4A3C32] bg-[#18130F]"
+            />
+          </label>
+          <Button
+            type="submit"
+            className="mt-4 min-h-12 w-full"
+            disabled={openPending}
+          >
+            <Banknote className="size-4" aria-hidden="true" />
+            {t("serviceShift.openShift")}
+          </Button>
+        </form>
+      </div>
+    );
+  }
 
   return (
-    <Card variant="glass" padding="lg" className="min-w-0 border-[#3B3028] bg-[#1E1814] shadow-none">
-      <CardHeader className="gap-4 border-b border-[#342A23] md:flex md:flex-row md:items-start md:justify-between md:space-y-0">
+    <div className="mx-auto max-w-5xl">
+      <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
-          <div className="flex flex-wrap items-center gap-2">
-            <Badge variant={shift ? "success" : "warning"}>
-              {shift ? t("serviceShift.shiftOpen") : t("serviceShift.noOpenShift")}
-            </Badge>
-            <Badge variant="muted">{branchName}</Badge>
-          </div>
-          <CardTitle className="mt-3 text-[#FFF5E8]">{t("serviceShift.title")}</CardTitle>
-          <CardDescription>
-            {t("cashier.shiftManualPaymentsRequireOpen")}
-          </CardDescription>
+          <Badge variant="success">{t("serviceShift.shiftOpen")}</Badge>
+          <h2 className="mt-2 text-xl font-semibold text-[#FFF5E8]">
+            {t("serviceShift.title")}
+          </h2>
+          <p className="mt-1 text-xs text-[#9B8E82]">
+            {t("serviceShift.opened")}{" "}
+            {formatDateTime(getRecordString(shift, "openedAt"))}
+            {" · "}
+            {branchName}
+            {" · "}
+            {t("serviceShift.payments")} {paymentCount}
+          </p>
         </div>
-        {shift ? (
-          <Button
-            type="button"
-            variant="secondary"
-            onClick={onXReport}
-            disabled={xReportPending}
-          >
-            <FileText className="size-4" aria-hidden="true" />{t("serviceShift.xReport")}
-          </Button>
-        ) : null}
-      </CardHeader>
-      <CardContent className="grid gap-4">
-        {isLoading ? (
-          <div className="rounded-md border border-[#3A3028] bg-[#18130F] p-4 text-sm text-[#91857A]">
-            {t("serviceShift.loading")}
-          </div>
-        ) : null}
-        {error ? (
+        <Button
+          type="button"
+          variant="secondary"
+          onClick={onXReport}
+          disabled={xReportPending}
+        >
+          <FileText className="size-4" aria-hidden="true" />
+          {t("serviceShift.xReport")}
+        </Button>
+      </div>
+
+      <dl className="mt-4 grid overflow-hidden rounded-lg border border-[#3D322A] bg-[#211A15] text-xs sm:grid-cols-2 lg:grid-cols-4">
+        {[
+          {
+            label: t("serviceShift.openingFloat"),
+            value: formatMoney(
+              getRecordNumber(shift, "openingFloatMinor"),
+              currency,
+            ),
+          },
+          {
+            label: t("serviceShift.expectedCash"),
+            value: formatMoney(expectedCashMinor, currency),
+          },
+          {
+            label: t("serviceShift.collected"),
+            value: formatMoney(totalCollectedMinor, currency),
+          },
+          {
+            label: t("serviceShift.bills"),
+            value: String(billCount),
+          },
+        ].map((metric, index) => (
           <div
-            role="alert"
-            className="rounded-md border border-[#7A3F3A] bg-[#3A211F] p-4 text-sm text-danger"
+            key={metric.label}
+            className={`p-4 ${
+              index
+                ? "border-t border-[#362C25] sm:border-s sm:border-t-0"
+                : ""
+            }`}
           >
-            {formatErrorMessage(error)}
+            <dt className="text-[#91857A]">{metric.label}</dt>
+            <dd className="mt-2 text-2xl font-semibold text-[#FFF5E8]">
+              {metric.value}
+            </dd>
           </div>
-        ) : null}
+        ))}
+      </dl>
 
-        {!isLoading && !error && !shift ? (
-          <form
-            className="grid gap-3 rounded-md border border-[#47392E] bg-[#18130F] p-3 md:grid-cols-[12rem_1fr_auto]"
-            onSubmit={(event) => {
-              event.preventDefault();
-              onOpen({
-                openingFloatMinor: amountInputToMinor(openingFloat),
-                note: openingNote.trim() || undefined,
-              });
-            }}
-          >
-            <label className="grid gap-1 text-xs font-medium text-[#91857A]">
-              {t("serviceShift.openingFloat")}
-              <Input
-                inputMode="decimal"
-                value={openingFloat}
-                onChange={(event) => setOpeningFloat(event.target.value)}
-              />
-            </label>
-            <label className="grid gap-1 text-xs font-medium text-[#91857A]">
-              {t("serviceShift.note")}
-              <Input
-                value={openingNote}
-                onChange={(event) => setOpeningNote(event.target.value)}
-                placeholder={t("serviceShift.optionalOpeningNote")}
-              />
-            </label>
-            <Button type="submit" className="self-end" disabled={openPending}>
-              <Banknote className="size-4" aria-hidden="true" />
-              {t("serviceShift.openShift")}
-            </Button>
-          </form>
-        ) : null}
+      <p className="mt-3 text-xs leading-5 text-[#887B70]">
+        {t("serviceShift.cash")} {formatMoney(cashMinor, currency)}
+        {" · "}
+        {t("serviceShift.cardPos")} {formatMoney(cardMinor, currency)}
+        {" · "}
+        {t("serviceShift.wallet")} {formatMoney(walletMinor, currency)}
+        {" · "}
+        {t("serviceShift.other")} {formatMoney(otherMinor, currency)}
+      </p>
 
-        {shift ? (
-          <>
-            <dl className="grid gap-3 text-xs sm:grid-cols-2 lg:grid-cols-6">
-              <div>
-                <dt className="text-[#91857A]">{t("serviceShift.opened")}</dt>
-                <dd className="mt-1 font-semibold text-[#F8EDDF]">
-                  {formatDateTime(getRecordString(shift, "openedAt"))}
-                </dd>
-              </div>
-              <div>
-                <dt className="text-[#91857A]">{t("serviceShift.openingFloat")}</dt>
-                <dd className="mt-1 font-semibold text-[#F8EDDF]">
-                  {formatMoney(
-                    getRecordNumber(shift, "openingFloatMinor"),
-                    currency,
-                  )}
-                </dd>
-              </div>
-              <div>
-                <dt className="text-[#91857A]">{t("serviceShift.expectedCash")}</dt>
-                <dd className="mt-1 font-semibold text-[#F8EDDF]">
-                  {formatMoney(expectedCashMinor, currency)}
-                </dd>
-              </div>
-              <div>
-                <dt className="text-[#91857A]">{t("serviceShift.collected")}</dt>
-                <dd className="mt-1 font-semibold text-[#F8EDDF]">
-                  {formatMoney(totalCollectedMinor, currency)}
-                </dd>
-              </div>
-              <div>
-                <dt className="text-[#91857A]">{t("serviceShift.payments")}</dt>
-                <dd className="mt-1 font-semibold text-[#F8EDDF]">
-                  {paymentCount}
-                </dd>
-              </div>
-              <div>
-                <dt className="text-[#91857A]">{t("serviceShift.bills")}</dt>
-                <dd className="mt-1 font-semibold text-[#F8EDDF]">
-                  {billCount}
-                </dd>
-              </div>
-            </dl>
-
-            <div className="grid gap-3 text-xs md:grid-cols-4">
-              <div className="rounded-md border border-[#3A3028] bg-[#18130F] p-3">
-                {t("serviceShift.cash")} {formatMoney(cashMinor, currency)}
-              </div>
-              <div className="rounded-md border border-[#3A3028] bg-[#18130F] p-3">
-                {t("serviceShift.cardPos")} {formatMoney(cardMinor, currency)}
-              </div>
-              <div className="rounded-md border border-[#3A3028] bg-[#18130F] p-3">
-                {t("serviceShift.wallet")} {formatMoney(walletMinor, currency)}
-              </div>
-              <div className="rounded-md border border-[#3A3028] bg-[#18130F] p-3">
-                {t("serviceShift.other")} {formatMoney(otherMinor, currency)}
-              </div>
-            </div>
-
-            <form
-              className="grid gap-3 rounded-md border border-[#47392E] bg-[#18130F] p-3 md:grid-cols-[12rem_1fr_auto_auto]"
-              onSubmit={(event) => event.preventDefault()}
-            >
-              <label className="grid gap-1 text-xs font-medium text-[#91857A]">
-                {t("serviceShift.drawerAmount")}
-                <Input
-                  inputMode="decimal"
-                  value={adjustmentAmount}
-                  onChange={(event) => setAdjustmentAmount(event.target.value)}
-                  placeholder="0.00"
-                />
-              </label>
-              <label className="grid gap-1 text-xs font-medium text-[#91857A]">
-                {t("serviceShift.adjustmentNote")}
-                <Input
-                  value={adjustmentNote}
-                  onChange={(event) => setAdjustmentNote(event.target.value)}
-                  placeholder={t("serviceShift.required")}
-                />
-              </label>
+      <div className="mt-4 grid gap-4 lg:grid-cols-2">
+        <section className="rounded-lg border border-[#3D322A] bg-[#211A15] p-4">
+          <h3 className="text-sm font-semibold text-[#F4E7D8]">
+            {t("serviceShift.drawerAdjustment")}
+          </h3>
+          <div className="mt-3 grid gap-2 sm:grid-cols-[0.8fr_1.2fr]">
+            <Input
+              inputMode="decimal"
+              value={adjustmentAmount}
+              onChange={(event) => setAdjustmentAmount(event.target.value)}
+              placeholder="0.00"
+              className="border-[#493B31] bg-[#18130F]"
+              aria-label={t("serviceShift.drawerAmount")}
+            />
+            <Input
+              value={adjustmentNote}
+              onChange={(event) => setAdjustmentNote(event.target.value)}
+              placeholder={t("serviceShift.required")}
+              className="border-[#493B31] bg-[#18130F]"
+              aria-label={t("serviceShift.adjustmentNote")}
+            />
+            <div className="flex flex-wrap gap-2 sm:col-span-2">
               <Button
                 type="button"
                 variant="secondary"
-                className="self-end"
                 disabled={!adjustmentReady || adjustmentPending}
                 onClick={() =>
                   onCashAdjustment({
@@ -552,7 +548,6 @@ function CashierShiftPanel({
               <Button
                 type="button"
                 variant="secondary"
-                className="self-end"
                 disabled={!adjustmentReady || adjustmentPending}
                 onClick={() =>
                   onCashAdjustment({
@@ -565,68 +560,148 @@ function CashierShiftPanel({
                 <MinusCircle className="size-4" aria-hidden="true" />
                 {t("serviceShift.cashOut")}
               </Button>
-            </form>
+            </div>
+          </div>
+        </section>
 
-            <form
-              className="grid gap-3 rounded-md border border-[#3A3028] bg-[#18130F] p-3 md:grid-cols-[12rem_1fr_auto]"
-              onSubmit={(event) => {
-                event.preventDefault();
-
-                if (!countedCash.trim()) {
-                  return;
-                }
-
-                onClose({
-                  countedCashMinor,
-                  note: closingNote.trim() || undefined,
-                });
-              }}
-            >
-              <label className="grid gap-1 text-xs font-medium text-[#91857A]">
-                {t("serviceShift.countedCash")}
-                <Input
-                  inputMode="decimal"
-                  value={countedCash}
-                  onChange={(event) => setCountedCash(event.target.value)}
-                  placeholder={minorToInput(expectedCashMinor)}
-                />
-              </label>
-              <label className="grid gap-1 text-xs font-medium text-[#91857A]">
-                {t("serviceShift.closingNote")}
-                <Input
-                  value={closingNote}
-                  onChange={(event) => setClosingNote(event.target.value)}
-                  placeholder={t("serviceShift.optionalClosingNote")}
-                />
-              </label>
-              <Button
-                type="submit"
-                className="self-end"
-                disabled={!countedCash.trim() || closePending}
+        <section className="rounded-lg border border-[#3D322A] bg-[#211A15] p-4">
+          <div className="flex items-center justify-between gap-3">
+            <h3 className="text-sm font-semibold text-[#F4E7D8]">
+              {t("serviceShift.closeReadiness")}
+            </h3>
+            {closeReadiness.isLoading ? (
+              <span className="text-[10px] text-[#91857A]">
+                {t("serviceShift.checkingCloseReadiness")}
+              </span>
+            ) : (
+              <Badge variant={blockerCount > 0 ? "warning" : "success"}>
+                {blockerCount > 0
+                  ? t("serviceShift.closeBlockers")
+                  : t("serviceShift.closeReady")}
+              </Badge>
+            )}
+          </div>
+          <div className="mt-3 grid gap-2 text-xs">
+            {[
+              [t("serviceShift.openOrders"), closeReadiness.openOrders],
+              [t("serviceShift.unpaidBills"), closeReadiness.unpaidBills],
+              [t("serviceShift.unknownPayments"), closeReadiness.unknownPayments],
+            ].map(([label, value]) => (
+              <div
+                key={String(label)}
+                className="flex items-center justify-between gap-3"
               >
-                <CheckCircle2 className="size-4" aria-hidden="true" />
-                {t("serviceShift.closeAndGenerateZ")}
-              </Button>
-              {countedCash.trim() ? (
-                <p className="md:col-span-3 text-xs text-[#91857A]">
-                  {t("serviceShift.expectedOverShort", {
-                    expected: formatMoney(expectedCashMinor, currency),
-                    overShort: formatMoney(overShortMinor, currency)
-                  })}
-                </p>
-              ) : null}
-            </form>
-          </>
-        ) : null}
+                <span className="text-[#B7A99C]">{label}</span>
+                <strong
+                  className={
+                    Number(value) > 0 ? "text-[#F4C06D]" : "text-[#9CC69A]"
+                  }
+                >
+                  {value}
+                </strong>
+              </div>
+            ))}
+          </div>
+        </section>
+      </div>
 
-        {report ? (
-          <CashierShiftReportSummary
-            snapshot={report}
-            onClear={onClearReport}
-          />
-        ) : null}
-      </CardContent>
-    </Card>
+      {closeMode ? (
+        <section
+          className={`mt-4 rounded-lg border p-4 ${
+            blockerCount > 0
+              ? "border-[#74453E] bg-[#2E1E1B]"
+              : "border-[#3D322A] bg-[#211A15]"
+          }`}
+        >
+          {blockerCount > 0 ? (
+            <div className="mb-4">
+              <h3 className="text-sm font-semibold text-[#F2B1A9]">
+                {t("serviceShift.closeBlockers")}
+              </h3>
+              <p className="mt-2 text-xs leading-5 text-[#CFA49E]">
+                {t("serviceShift.closeBlockersDescription")}
+              </p>
+            </div>
+          ) : null}
+
+          <form
+            className="grid gap-3 md:grid-cols-[12rem_1fr_auto]"
+            onSubmit={(event) => {
+              event.preventDefault();
+
+              if (!countedCash.trim()) {
+                return;
+              }
+
+              onClose({
+                countedCashMinor,
+                note: closingNote.trim() || undefined,
+              });
+            }}
+          >
+            <label className="grid gap-1 text-xs font-medium text-[#91857A]">
+              {t("serviceShift.countedCash")}
+              <Input
+                inputMode="decimal"
+                value={countedCash}
+                onChange={(event) => setCountedCash(event.target.value)}
+                placeholder={minorToInput(expectedCashMinor)}
+              />
+            </label>
+            <label className="grid gap-1 text-xs font-medium text-[#91857A]">
+              {t("serviceShift.closingNote")}
+              <Input
+                value={closingNote}
+                onChange={(event) => setClosingNote(event.target.value)}
+                placeholder={t("serviceShift.optionalClosingNote")}
+              />
+            </label>
+            <Button
+              type="submit"
+              className="self-end"
+              disabled={!countedCash.trim() || closePending}
+            >
+              <CheckCircle2 className="size-4" aria-hidden="true" />
+              {t("serviceShift.closeAndGenerateZ")}
+            </Button>
+            {countedCash.trim() ? (
+              <p className="text-xs text-[#91857A] md:col-span-3">
+                {t("serviceShift.expectedOverShort", {
+                  expected: formatMoney(expectedCashMinor, currency),
+                  overShort: formatMoney(overShortMinor, currency),
+                })}
+              </p>
+            ) : null}
+          </form>
+
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            className="mt-3"
+            onClick={() => setCloseMode(false)}
+          >
+            {t("serviceShift.cancelClose")}
+          </Button>
+        </section>
+      ) : (
+        <div className="mt-4">
+          <Button
+            type="button"
+            variant="secondary"
+            onClick={() => setCloseMode(true)}
+          >
+            {t("serviceShift.beginClose")}
+          </Button>
+        </div>
+      )}
+
+      {report ? (
+        <div className="mt-4">
+          <CashierShiftReportSummary snapshot={report} onClear={onClearReport} />
+        </div>
+      ) : null}
+    </div>
   );
 }
 
@@ -640,6 +715,7 @@ function CashierDashboardActions() {
     (state) => state.setSelectedBranchId,
   );
   const clearSession = useStaffAuthStore((state) => state.clearSession);
+  const realtime = useStaffBranchRealtime(selectedBranchId, accessToken);
   const logoutMutation = useMutation({
     mutationFn: () =>
       accessToken ? staffLogout(accessToken) : Promise.resolve({}),
@@ -660,18 +736,25 @@ function CashierDashboardActions() {
 
   return (
     <>
+      <StaffRealtimeStatus
+        state={realtime.state}
+      />
       <StaffBranchSelector
         access={effectiveAccess}
         selectedBranchId={selectedBranchId}
         onChange={setSelectedBranchId}
+        showLabel={false}
+        className="flex shrink-0 items-center gap-2 [&>select]:min-h-9 [&>select]:max-w-[9rem] [&>select]:px-2 [&>select]:text-xs"
       />
       <Button
         variant="ghost"
+        className="shrink-0 px-2 sm:px-3"
         onClick={() => logoutMutation.mutate()}
         disabled={logoutMutation.isPending}
+        aria-label={t("actions.logout")}
       >
         <LogOut className="size-4" aria-hidden="true" />
-        {t("actions.logout")}
+        <span className="hidden sm:inline">{t("actions.logout")}</span>
       </Button>
     </>
   );
@@ -680,14 +763,13 @@ function CashierDashboardActions() {
 function CashierDashboardContent() {
   const t = useTranslations("staff");
   const queryClient = useQueryClient();
+  const serviceView = useServiceView("cashier");
   const accessToken = useStaffAuthStore((state) => state.accessToken);
   const staffUser = useStaffAuthStore((state) => state.staffUser);
   const effectiveAccess = useStaffAuthStore((state) => state.effectiveAccess);
   const selectedBranchId = useStaffAuthStore((state) => state.selectedBranchId);
-  const [orderStatus, setOrderStatus] =
-    useState<CashierOrderStatus>("submitted");
-  const [billStatus, setBillStatus] =
-    useState<BranchBillRequestStatusFilter>("active");
+  const [orderLane, setOrderLane] =
+    useState<CashierOrderLane>("needs_action");
   const [userSelectedOrderId, setUserSelectedOrderId] = useState<string>();
   const [notice, setNotice] = useState<Notice>();
   const [pendingOrderActions, setPendingOrderActions] = useState<
@@ -699,42 +781,23 @@ function CashierDashboardContent() {
     (entry) => entry.branch.id === selectedBranchId,
   );
   const selectedBranch = selectedBranchAccess?.branch;
-  const realtime = useStaffBranchRealtime(selectedBranchId, accessToken);
-  const allOrdersQuery = useQuery({
-    queryKey: staffQueryKeys.branchOrders(selectedBranchId, "all"),
-    queryFn: () =>
-      getCashierOrders(selectedBranchId ?? "", { status: "all" }, accessToken),
-    enabled: Boolean(selectedBranchId && accessToken),
-    staleTime: 10_000,
-  });
   const ordersQuery = useQuery({
-    queryKey: staffQueryKeys.branchOrders(selectedBranchId, orderStatus),
+    queryKey: staffQueryKeys.branchOrders(selectedBranchId, "all"),
     queryFn: () =>
       getCashierOrders(
         selectedBranchId ?? "",
-        { status: orderStatus },
-        accessToken,
-      ),
-    enabled: Boolean(selectedBranchId && accessToken),
-    staleTime: 10_000,
-  });
-  const activeBillRequestsQuery = useQuery({
-    queryKey: staffQueryKeys.branchBillRequests(selectedBranchId, "active"),
-    queryFn: () =>
-      getBranchBillRequests(
-        selectedBranchId ?? "",
-        { status: "active", limit: 30 },
+        { status: "all" },
         accessToken,
       ),
     enabled: Boolean(selectedBranchId && accessToken),
     staleTime: 10_000,
   });
   const billRequestsQuery = useQuery({
-    queryKey: staffQueryKeys.branchBillRequests(selectedBranchId, billStatus),
+    queryKey: staffQueryKeys.branchBillRequests(selectedBranchId, "all"),
     queryFn: () =>
       getBranchBillRequests(
         selectedBranchId ?? "",
-        { status: billStatus, limit: 30 },
+        { status: "all", limit: 50 },
         accessToken,
       ),
     enabled: Boolean(selectedBranchId && accessToken),
@@ -746,40 +809,93 @@ function CashierDashboardContent() {
     enabled: Boolean(selectedBranchId && accessToken),
     staleTime: 10_000,
   });
-  const paymentTerminalsQuery = useQuery({
-    queryKey: ["service", "payment-terminals", selectedBranchId],
+  const shiftOrdersQuery = useQuery({
+    queryKey: ["service", "shift", "orders", selectedBranchId],
     queryFn: () =>
-      getBranchPaymentTerminals(selectedBranchId ?? "", accessToken),
-    enabled: Boolean(selectedBranchId && accessToken),
-    staleTime: 30_000,
-    retry: false,
-  });
-  const realtimeEventsQuery = useQuery({
-    queryKey: staffQueryKeys.branchRealtime(selectedBranchId),
-    queryFn: () =>
-      getBranchRealtimeEvents(
+      getCashierOrders(
         selectedBranchId ?? "",
-        { channel: "all", limit: 8 },
+        { status: "all" },
         accessToken,
       ),
-    enabled: Boolean(selectedBranchId && accessToken),
-    staleTime: 15_000,
+    enabled: Boolean(
+      serviceView === "shift" && selectedBranchId && accessToken
+    ),
+    staleTime: 10_000,
   });
-  const orders = useMemo(
+  const shiftBillRequestsQuery = useQuery({
+    queryKey: ["service", "shift", "bill-requests", selectedBranchId],
+    queryFn: () =>
+      getBranchBillRequests(
+        selectedBranchId ?? "",
+        { status: "active", limit: 100 },
+        accessToken,
+      ),
+    enabled: Boolean(
+      serviceView === "shift" && selectedBranchId && accessToken
+    ),
+    staleTime: 10_000,
+  });
+  const shiftOnlinePaymentsQuery = useQuery({
+    queryKey: ["service", "shift", "online-payments", selectedBranchId],
+    queryFn: () =>
+      getBranchOnlinePayments(
+        selectedBranchId ?? "",
+        { status: "all", provider: "all", limit: 100 },
+        accessToken,
+      ),
+    enabled: Boolean(
+      serviceView === "shift" && selectedBranchId && accessToken
+    ),
+    staleTime: 10_000,
+  });
+  const allOrders = useMemo(
     () => ordersQuery.data?.orders ?? emptyRecords,
     [ordersQuery.data?.orders],
   );
-  const allOrders = useMemo(
-    () => allOrdersQuery.data?.orders ?? orders,
-    [allOrdersQuery.data?.orders, orders],
+  const needsActionOrders = useMemo(
+    () =>
+      allOrders.filter((order) => getOrderStatus(order) === "submitted"),
+    [allOrders],
   );
+  const activeOrders = useMemo(
+    () =>
+      allOrders.filter((order) =>
+        ["cashier_accepted", "preparing", "ready"].includes(
+          getOrderStatus(order),
+        ),
+      ),
+    [allOrders],
+  );
+  const orders =
+    orderLane === "needs_action" ? needsActionOrders : activeOrders;
   const billRequests = useMemo(
     () => billRequestsQuery.data?.billRequests ?? emptyRecords,
     [billRequestsQuery.data?.billRequests],
   );
-  const activeBillRequests = useMemo(
-    () => activeBillRequestsQuery.data?.billRequests ?? billRequests,
-    [activeBillRequestsQuery.data?.billRequests, billRequests],
+  const shiftOpenOrders = useMemo(
+    () =>
+      (shiftOrdersQuery.data?.orders ?? emptyRecords).filter((order) => {
+        const status = getOrderStatus(order);
+        return !["served", "completed", "cancelled", "rejected"].includes(status);
+      }).length,
+    [shiftOrdersQuery.data?.orders],
+  );
+  const shiftUnpaidBills = useMemo(
+    () =>
+      (shiftBillRequestsQuery.data?.billRequests ?? emptyRecords).filter(
+        (billRequest) => {
+          const status = getBillStatus(billRequest);
+          return status !== "paid" && status !== "cancelled";
+        },
+      ).length,
+    [shiftBillRequestsQuery.data?.billRequests],
+  );
+  const shiftUnknownPayments = useMemo(
+    () =>
+      (shiftOnlinePaymentsQuery.data?.onlinePaymentIntents ?? emptyRecords).filter(
+        (intent) => getRecordString(intent, "status") === "unknown",
+      ).length,
+    [shiftOnlinePaymentsQuery.data?.onlinePaymentIntents],
   );
   const currentShift = currentShiftQuery.data?.shift ?? null;
   const paymentBlockedReason = currentShiftQuery.isPending
@@ -841,9 +957,6 @@ function CashierDashboardContent() {
       });
       void queryClient.invalidateQueries({
         queryKey: staffQueryKeys.branchOrders(selectedBranchId, "all"),
-      });
-      void queryClient.invalidateQueries({
-        queryKey: staffQueryKeys.branchOrders(selectedBranchId, orderStatus),
       });
       void queryClient.invalidateQueries({
         queryKey: staffQueryKeys.branchRealtime(selectedBranchId),
@@ -1198,88 +1311,19 @@ function CashierDashboardContent() {
 
   return (
     <div className="grid gap-5">
-      <section
-        data-service-status
-        className="overflow-hidden rounded-lg border border-[#3B3028] bg-[#1E1814]"
-      >
-        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#342A23] px-3 py-3">
-          <div className="min-w-0">
-            <div className="flex flex-wrap items-center gap-2">
-              <Badge variant="muted">{t("cashier.badge")}</Badge>
-              <StaffRealtimeStatus
-                state={realtime.state}
-                lastEventType={realtime.lastEventType}
-              />
-            </div>
-            <p className="mt-2 truncate text-sm font-semibold text-[#FFF5E8]">
-              {selectedBranch.name}
-            </p>
-          </div>
-          <Button size="sm" variant="secondary" onClick={refreshBranch}>
-            <RefreshCw className="size-4" aria-hidden="true" />
-            {t("actions.refreshBranch")}
-          </Button>
-        </div>
-        <div className="grid grid-cols-2 divide-x divide-[#342A23] border-[#342A23] sm:grid-cols-4 rtl:divide-x-reverse">
-          <div className="flex min-h-16 items-center gap-2 px-3 py-2">
-            <Receipt className="size-4 shrink-0 text-[#E0A764]" aria-hidden="true" />
-            <div>
-              <strong className="block text-lg leading-none text-[#FFF5E8]">
-                {countOrdersByStatus(allOrders, (status) => status === "submitted")}
-              </strong>
-              <span className="mt-1 block text-[10px] text-[#91857A]">
-                {t("cashier.submittedLabel")}
-              </span>
-            </div>
-          </div>
-          <div className="flex min-h-16 items-center gap-2 border-t border-[#342A23] px-3 py-2 sm:border-t-0">
-            <CheckCircle2 className="size-4 shrink-0 text-[#7FC37E]" aria-hidden="true" />
-            <div>
-              <strong className="block text-lg leading-none text-[#FFF5E8]">
-                {countOrdersByStatus(allOrders, (status) => activeOrderStatuses.has(status))}
-              </strong>
-              <span className="mt-1 block text-[10px] text-[#91857A]">
-                {t("cashier.inServiceLabel")}
-              </span>
-            </div>
-          </div>
-          <div className="flex min-h-16 items-center gap-2 border-t border-[#342A23] px-3 py-2 sm:border-t-0">
-            <BellRing className="size-4 shrink-0 text-[#F0C66E]" aria-hidden="true" />
-            <div>
-              <strong className="block text-lg leading-none text-[#FFF5E8]">
-                {countBillsByStatus(activeBillRequests, (status) => activeBillStatuses.has(status))}
-              </strong>
-              <span className="mt-1 block text-[10px] text-[#91857A]">
-                {t("cashier.billRequestsLabel")}
-              </span>
-            </div>
-          </div>
-          <div className="flex min-h-16 items-center gap-2 border-t border-[#342A23] px-3 py-2 sm:border-t-0">
-            <Banknote className="size-4 shrink-0 text-[#C68A4A]" aria-hidden="true" />
-            <div>
-              <strong className="block text-xs font-semibold text-[#FFF5E8]">
-                {currentShift
-                  ? t("serviceShift.shiftOpen")
-                  : t("serviceShift.noOpenShift")}
-              </strong>
-              <span className="mt-1 block text-[10px] text-[#91857A]">
-                {t("serviceShift.title")}
-              </span>
-            </div>
-          </div>
-        </div>
-      </section>
-
       <NoticeBanner notice={notice} />
 
-      <section id="orders" className="scroll-mt-36 grid gap-5 xl:grid-cols-[minmax(20rem,26rem)_1fr]">
+      {serviceView === "orders" ? (
+      <section id="orders" className="grid min-h-[calc(100vh-8rem)] gap-0 lg:grid-cols-[360px_minmax(0,1fr)]">
         <CashierOrderQueue
           orders={orders}
-          status={orderStatus}
+          lane={orderLane}
+          needsActionCount={needsActionOrders.length}
+          activeCount={activeOrders.length}
           selectedOrderId={selectedOrderId}
           isLoading={ordersQuery.isPending}
           error={ordersQuery.error ?? undefined}
-          onStatusChange={setOrderStatus}
+          onLaneChange={setOrderLane}
           onSelectOrder={setUserSelectedOrderId}
           onPrefetchOrder={prefetchOrder}
           onRefresh={refreshBranch}
@@ -1316,11 +1360,12 @@ function CashierDashboardContent() {
           }}
         />
       </section>
+      ) : null}
 
-      <section id="bills" className="scroll-mt-36 grid gap-5 xl:grid-cols-[1fr_22rem]">
+      {serviceView === "bills" ? (
+      <section id="bills" className="min-h-[calc(100vh-8rem)]">
         <BillRequestQueue
           billRequests={billRequests}
-          status={billStatus}
           isLoading={billRequestsQuery.isPending}
           error={billRequestsQuery.error ?? undefined}
           pendingActionId={
@@ -1339,7 +1384,6 @@ function CashierDashboardContent() {
               ? manualPaymentMutation.error
               : undefined
           }
-          onStatusChange={setBillStatus}
           onRefresh={refreshBranch}
           onAcknowledge={(billRequestId) =>
             billActionMutation.mutate({ billRequestId, action: "acknowledge" })
@@ -1352,70 +1396,11 @@ function CashierDashboardContent() {
           }
         />
 
-        <Card variant="quiet">
-          <CardHeader>
-            <CardTitle>{t("cashier.activityTitle")}</CardTitle>
-            <CardDescription>{t("cashier.activityDescription")}</CardDescription>
-          </CardHeader>
-          <CardContent className="grid gap-3">
-            <div
-              className={
-                paymentTerminalsQuery.data?.execution?.available
-                  ? "rounded-md border border-success bg-success/10 p-3 text-xs leading-5 text-success"
-                  : "rounded-md border border-[#3A3028] bg-[#18130F] p-3 text-xs leading-5 text-[#B8AA9E]"
-              }
-            >
-              <p className="font-semibold">
-                {t("cashier.directTerminalTitle")}
-              </p>
-              <p className="mt-1">
-                {paymentTerminalsQuery.isPending
-                  ? t("cashier.directTerminalChecking")
-                  : paymentTerminalsQuery.isError
-                    ? t("cashier.directTerminalUnavailable")
-                    : paymentTerminalsQuery.data?.execution?.available
-                      ? t("cashier.directTerminalReady")
-                      : t("cashier.directTerminalBlocked")}
-              </p>
-            </div>
-            {realtimeEventsQuery.isError ? (
-              <div className="rounded-md border border-warning bg-warning/10 p-3 text-sm text-warning">
-                <AlertTriangle
-                  className="me-2 inline size-4"
-                  aria-hidden="true"
-                />
-                {formatErrorMessage(realtimeEventsQuery.error)}
-              </div>
-            ) : null}
-            {(realtimeEventsQuery.data?.events ?? []).length === 0 ? (
-              <p className="rounded-md border border-dashed bg-surface/70 p-4 text-sm text-[#91857A]">
-                {t("cashier.activityEmpty")}
-              </p>
-            ) : null}
-            {(realtimeEventsQuery.data?.events ?? []).map((event, index) => (
-              <div
-                key={getRecordString(event, "id") || String(index)}
-                className="rounded-md border bg-surface/75 p-3"
-              >
-                <p className="text-sm font-semibold text-[#F8EDDF]">
-                  {humanizeStatus(getRecordString(event, "type", "event"))}
-                </p>
-                <p className="mt-1 text-xs text-[#91857A]">
-                  {getRecordString(event, "channel", "system")} /{" "}
-                  {formatDateTime(getRecordString(event, "createdAt"))}
-                </p>
-                {getRecordString(event, "orderId") ? (
-                  <p className="mt-2 text-xs text-[#91857A]">
-                    Order {shortId(getRecordString(event, "orderId"))}
-                  </p>
-                ) : null}
-              </div>
-            ))}
-          </CardContent>
-        </Card>
       </section>
+      ) : null}
 
-      <div id="shift" className="scroll-mt-36">
+      {serviceView === "shift" ? (
+      <div id="shift" className="min-h-[calc(100vh-8rem)] bg-[#1E1814] p-3 sm:p-4">
         <CashierShiftPanel
         branchName={selectedBranch.name}
         data={currentShiftQuery.data}
@@ -1449,8 +1434,18 @@ function CashierDashboardContent() {
           }
         }}
         onClearReport={() => setShiftReport(null)}
+        closeReadiness={{
+          openOrders: shiftOpenOrders,
+          unpaidBills: shiftUnpaidBills,
+          unknownPayments: shiftUnknownPayments,
+          isLoading:
+            shiftOrdersQuery.isPending ||
+            shiftBillRequestsQuery.isPending ||
+            shiftOnlinePaymentsQuery.isPending
+        }}
         />
       </div>
+      ) : null}
 
     </div>
   );

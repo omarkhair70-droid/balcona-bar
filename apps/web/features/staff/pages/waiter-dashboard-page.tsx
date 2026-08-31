@@ -8,109 +8,51 @@ import {
   useQuery,
   useQueryClient,
 } from "@tanstack/react-query";
-import {
-  AlertTriangle,
-  BellRing,
-  ClipboardList,
-  HandPlatter,
-  LogIn,
-  LogOut,
-  RefreshCw
-} from "lucide-react";
+import { LogIn, LogOut } from "lucide-react";
 import { useMemo, useState } from "react";
-import { Badge } from "@/components/ui/badge";
 import { Button, buttonVariants } from "@/components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle
-} from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
-import {
-  getAttentionPriority,
-  getAttentionSessionId,
-  getAttentionStatus
-} from "@/features/staff/attention-data";
+import { getAttentionSessionId } from "@/features/staff/attention-data";
 import {
   getOrderId,
-  getOrderKitchenTickets,
-  getOrderNumber,
-  getOrderStatus
+  getOrderTableSessionId
 } from "@/features/staff/cashier-data";
-import {
-  getPrintJobStatus,
-  getTicketDisplayCode,
-  getTicketPrintJobs,
-  getTicketStation,
-  getTicketStatus
-} from "@/features/staff/kds-data";
-import { ServiceStaffShell } from "@/features/staff/service-staff-shell";
-import {
-  formatDateTime,
-  getRecordString,
-  humanizeStatus,
-  shortId
-} from "@/features/staff/staff-format";
+import { ServiceStaffShell, useServiceView } from "@/features/staff/service-staff-shell";
+import { getRecordString } from "@/features/staff/staff-format";
 import { useTranslations } from "@/lib/i18n/i18n-provider";
 import {
   getWaiterCallId,
-  getWaiterCallStatus,
   getWaiterCallTableSession
 } from "@/features/staff/waiter-data";
 import { useStaffBranchRealtime } from "@/features/staff/use-staff-branch-realtime";
-import { isEntityPending } from "@/lib/interaction/pending-scope";
 import {
   acknowledgeWaiterCall,
-  cancelWaiterCall,
   getBranchAttentionQueue,
-  getBranchRealtimeEvents,
   getBranchTableAdminOverview,
   getBranchWaiterCalls,
+  getBill,
   getReadyToServeOrders,
   getTableSessionAttention,
-  getWaiterCallDetail,
+  getTableSessionOrders,
   muteTableSessionAttention,
-  rebuildBranchAttention,
   recalculateTableSessionAttention,
   resolveTableSessionAttention,
-  resolveWaiterCall,
   serveOrder,
   staffLogout
 } from "@/lib/api/endpoints";
 import { staffQueryKeys } from "@/lib/api/query-keys";
-import type {
-  TableAttentionPriority,
-  WaiterCallStatus,
-  WaiterCallType
-} from "@/lib/api/types";
+import type { BranchAdminTable } from "@/lib/api/types";
 import { useStaffAuthStore } from "@/lib/staff/staff-auth-store";
-import {
-  AttentionQueue,
-  type AttentionStatusFilter
-} from "../components/attention-queue";
+import { AttentionQueue } from "../components/attention-queue";
 import { AttentionDetailPanel } from "../components/attention-detail-panel";
 import { StaffAuthGate } from "../components/staff-auth-gate";
 import { StaffBranchSelector } from "../components/staff-branch-selector";
 import { StaffRealtimeStatus } from "../components/staff-realtime-status";
 import { ServiceFloorBoard } from "../components/service-floor-board";
-import { WaiterCallDetailPanel } from "../components/waiter-call-detail-panel";
-import { WaiterCallQueue } from "../components/waiter-call-queue";
 
 type Notice = {
   tone: "success" | "error";
   message: string;
-};
-
-type ResolveWaiterCallAction = {
-  waiterCallId: string;
-  resolutionNote?: string | null;
-};
-
-type CancelWaiterCallAction = {
-  waiterCallId: string;
-  reason?: string | null;
 };
 
 type ResolveAttentionAction = {
@@ -123,48 +65,6 @@ type MuteAttentionAction = ResolveAttentionAction & {
 };
 
 const emptyRecords: Record<string, unknown>[] = [];
-
-type BadgeVariant = "default" | "muted" | "success" | "warning" | "danger";
-
-function attentionQueryStatus(status: AttentionStatusFilter) {
-  return status === "active" ? undefined : status;
-}
-
-function countWaiterCallsByStatus(
-  waiterCalls: Record<string, unknown>[],
-  predicate: (status: string) => boolean
-) {
-  return waiterCalls.filter((waiterCall) =>
-    predicate(getWaiterCallStatus(waiterCall))
-  ).length;
-}
-
-function countAttentionByStatus(
-  attentionQueue: Record<string, unknown>[],
-  predicate: (status: string, priority: string) => boolean
-) {
-  return attentionQueue.filter((attention) =>
-    predicate(getAttentionStatus(attention), getAttentionPriority(attention))
-  ).length;
-}
-
-function getReadyTicketVariant(status: string): BadgeVariant {
-  if (status === "ready" || status === "served") {
-    return "success";
-  }
-
-  if (status === "cancelled" || status === "voided") {
-    return "danger";
-  }
-
-  return status === "queued" || status === "in_progress" ? "warning" : "muted";
-}
-
-function hasFailedPrint(ticket: Record<string, unknown>) {
-  return getTicketPrintJobs(ticket).some(
-    (printJob) => getPrintJobStatus(printJob) === "failed"
-  );
-}
 
 function NoticeBanner({ notice }: { notice?: Notice }) {
   if (!notice) {
@@ -197,6 +97,7 @@ function WaiterDashboardActions() {
     (state) => state.setSelectedBranchId
   );
   const clearSession = useStaffAuthStore((state) => state.clearSession);
+  const realtime = useStaffBranchRealtime(selectedBranchId, accessToken);
   const logoutMutation = useMutation({
     mutationFn: () =>
       accessToken ? staffLogout(accessToken) : Promise.resolve({}),
@@ -217,18 +118,25 @@ function WaiterDashboardActions() {
 
   return (
     <>
+      <StaffRealtimeStatus
+        state={realtime.state}
+      />
       <StaffBranchSelector
         access={effectiveAccess}
         selectedBranchId={selectedBranchId}
         onChange={setSelectedBranchId}
+        showLabel={false}
+        className="flex shrink-0 items-center gap-2 [&>select]:min-h-9 [&>select]:max-w-[9rem] [&>select]:px-2 [&>select]:text-xs"
       />
       <Button
         variant="ghost"
+        className="shrink-0 px-2 sm:px-3"
         onClick={() => logoutMutation.mutate()}
         disabled={logoutMutation.isPending}
+        aria-label={t("actions.logout")}
       >
         <LogOut className="size-4" aria-hidden="true" />
-        {t("actions.logout")}
+        <span className="hidden sm:inline">{t("actions.logout")}</span>
       </Button>
     </>
   );
@@ -236,28 +144,22 @@ function WaiterDashboardActions() {
 
 function WaiterDashboardContent() {
   const t = useTranslations("staff");
+  const router = useRouter();
   const queryClient = useQueryClient();
+  const serviceView = useServiceView("waiter");
   const accessToken = useStaffAuthStore((state) => state.accessToken);
   const staffUser = useStaffAuthStore((state) => state.staffUser);
   const effectiveAccess = useStaffAuthStore((state) => state.effectiveAccess);
   const selectedBranchId = useStaffAuthStore((state) => state.selectedBranchId);
-  const [waiterCallStatus, setWaiterCallStatus] =
-    useState<WaiterCallStatus>("open");
-  const [waiterCallType, setWaiterCallType] =
-    useState<WaiterCallType>("all");
-  const [attentionStatus, setAttentionStatus] =
-    useState<AttentionStatusFilter>("active");
-  const [attentionPriority, setAttentionPriority] =
-    useState<TableAttentionPriority>("all");
-  const [userSelectedWaiterCallId, setUserSelectedWaiterCallId] =
+  const [floorSelectedSessionId, setFloorSelectedSessionId] = useState<string>();
+  const [attentionSelectedSessionId, setAttentionSelectedSessionId] =
     useState<string>();
-  const [userSelectedSessionId, setUserSelectedSessionId] = useState<string>();
   const [notice, setNotice] = useState<Notice>();
   const [pendingOrderIds, setPendingOrderIds] = useState<Set<string>>(
     () => new Set(),
   );
   const [pendingWaiterCallActions, setPendingWaiterCallActions] = useState<
-    Record<string, "acknowledge" | "resolve" | "cancel">
+    Record<string, "acknowledge">
   >({});
   const [pendingAttentionActions, setPendingAttentionActions] = useState<
     Record<string, "resolve" | "mute" | "recalculate">
@@ -267,43 +169,16 @@ function WaiterDashboardContent() {
   );
   const selectedBranch = selectedBranchAccess?.branch;
   const selectedCompanyId = selectedBranchAccess?.company.id;
-  const realtime = useStaffBranchRealtime(selectedBranchId, accessToken);
-  const allWaiterCallsQuery = useQuery({
-    queryKey: staffQueryKeys.staffWaiterCalls(selectedBranchId, "all", "all"),
-    queryFn: () =>
-      getBranchWaiterCalls(
-        selectedBranchId ?? "",
-        { status: "all", type: "all" },
-        accessToken
-      ),
-    enabled: Boolean(selectedBranchId && accessToken),
-    staleTime: 10_000
-  });
   const waiterCallsQuery = useQuery({
     queryKey: staffQueryKeys.staffWaiterCalls(
       selectedBranchId,
-      waiterCallStatus,
-      waiterCallType
+      "open",
+      "all"
     ),
     queryFn: () =>
       getBranchWaiterCalls(
         selectedBranchId ?? "",
-        { status: waiterCallStatus, type: waiterCallType },
-        accessToken
-      ),
-    enabled: Boolean(selectedBranchId && accessToken),
-    staleTime: 10_000
-  });
-  const allAttentionQuery = useQuery({
-    queryKey: staffQueryKeys.staffAttentionQueue(
-      selectedBranchId,
-      "all",
-      "all"
-    ),
-    queryFn: () =>
-      getBranchAttentionQueue(
-        selectedBranchId ?? "",
-        { status: "all", priority: "all", limit: 100 },
+        { status: "open", type: "all" },
         accessToken
       ),
     enabled: Boolean(selectedBranchId && accessToken),
@@ -312,17 +187,13 @@ function WaiterDashboardContent() {
   const attentionQueueQuery = useQuery({
     queryKey: staffQueryKeys.staffAttentionQueue(
       selectedBranchId,
-      attentionStatus,
-      attentionPriority
+      "active",
+      "all"
     ),
     queryFn: () =>
       getBranchAttentionQueue(
         selectedBranchId ?? "",
-        {
-          status: attentionQueryStatus(attentionStatus),
-          priority: attentionPriority,
-          limit: 50
-        },
+        { limit: 50 },
         accessToken
       ),
     enabled: Boolean(selectedBranchId && accessToken),
@@ -342,17 +213,6 @@ function WaiterDashboardContent() {
     enabled: Boolean(selectedCompanyId && selectedBranchId && accessToken),
     staleTime: 10_000
   });
-  const realtimeEventsQuery = useQuery({
-    queryKey: staffQueryKeys.branchRealtime(selectedBranchId),
-    queryFn: () =>
-      getBranchRealtimeEvents(
-        selectedBranchId ?? "",
-        { channel: "all", limit: 10 },
-        accessToken
-      ),
-    enabled: Boolean(selectedBranchId && accessToken),
-    staleTime: 15_000
-  });
   const readyOrdersQuery = useQuery({
     queryKey: staffQueryKeys.branchOrders(selectedBranchId, "ready"),
     queryFn: () => getReadyToServeOrders(selectedBranchId ?? "", accessToken),
@@ -363,56 +223,97 @@ function WaiterDashboardContent() {
     () => waiterCallsQuery.data?.waiterCalls ?? emptyRecords,
     [waiterCallsQuery.data?.waiterCalls]
   );
-  const allWaiterCalls = useMemo(
-    () => allWaiterCallsQuery.data?.waiterCalls ?? waiterCalls,
-    [allWaiterCallsQuery.data?.waiterCalls, waiterCalls]
-  );
   const attentionQueue = useMemo(
     () => attentionQueueQuery.data?.attentionQueue ?? emptyRecords,
     [attentionQueueQuery.data?.attentionQueue]
-  );
-  const allAttentionQueue = useMemo(
-    () => allAttentionQuery.data?.attentionQueue ?? attentionQueue,
-    [allAttentionQuery.data?.attentionQueue, attentionQueue]
   );
   const readyOrders = useMemo(
     () => readyOrdersQuery.data?.orders ?? emptyRecords,
     [readyOrdersQuery.data?.orders]
   );
-  const selectedWaiterCallStillVisible = useMemo(
+  const floorTables = useMemo<BranchAdminTable[]>(
     () =>
-      waiterCalls.some(
-        (waiterCall) => getWaiterCallId(waiterCall) === userSelectedWaiterCallId
-      ),
-    [waiterCalls, userSelectedWaiterCallId]
+      floorOverviewQuery.data?.tablesByFloor.flatMap((group) => group.tables) ??
+      [],
+    [floorOverviewQuery.data?.tablesByFloor]
   );
-  const selectedWaiterCallId =
-    selectedWaiterCallStillVisible && userSelectedWaiterCallId
-      ? userSelectedWaiterCallId
-      : getWaiterCallId(waiterCalls[0]);
+  const defaultFloorSessionId = useMemo(() => {
+    const urgent = floorTables.find((table) => {
+      const snapshot = table.activeSession?.tableAttentionSnapshot;
+      return snapshot?.status === "urgent" || snapshot?.priority === "urgent";
+    });
+    const attention = floorTables.find((table) => {
+      const snapshot = table.activeSession?.tableAttentionSnapshot;
+      return (
+        snapshot?.status === "needs_attention" ||
+        snapshot?.priority === "high"
+      );
+    });
+    const active =
+      urgent ??
+      attention ??
+      floorTables.find((table) => Boolean(table.activeSession));
+
+    return active?.activeSession?.id;
+  }, [floorTables]);
+  const floorSelectionStillVisible = floorTables.some(
+    (table) => table.activeSession?.id === floorSelectedSessionId
+  );
+  const effectiveFloorSessionId =
+    floorSelectionStillVisible && floorSelectedSessionId
+      ? floorSelectedSessionId
+      : defaultFloorSessionId;
   const selectedAttentionStillVisible = useMemo(
     () =>
       attentionQueue.some(
-        (attention) => getAttentionSessionId(attention) === userSelectedSessionId
+        (attention) =>
+          getAttentionSessionId(attention) === attentionSelectedSessionId
       ),
-    [attentionQueue, userSelectedSessionId]
+    [attentionQueue, attentionSelectedSessionId]
   );
-  const selectedSessionId =
-    selectedAttentionStillVisible && userSelectedSessionId
-      ? userSelectedSessionId
+  const selectedAttentionSessionId =
+    selectedAttentionStillVisible && attentionSelectedSessionId
+      ? attentionSelectedSessionId
       : getAttentionSessionId(attentionQueue[0]);
-  const waiterCallDetailQuery = useQuery({
-    queryKey: staffQueryKeys.staffWaiterCall(selectedWaiterCallId),
-    queryFn: () => getWaiterCallDetail(selectedWaiterCallId ?? "", accessToken),
-    enabled: Boolean(selectedWaiterCallId && accessToken),
+
+  const floorSessionOrdersQuery = useQuery({
+    queryKey: [
+      "staff",
+      "service",
+      "floor",
+      "session-orders",
+      effectiveFloorSessionId
+    ],
+    queryFn: () =>
+      getTableSessionOrders(effectiveFloorSessionId ?? "", accessToken),
+    enabled: Boolean(
+      serviceView === "floor" && effectiveFloorSessionId && accessToken
+    ),
     staleTime: 5_000,
-    placeholderData: keepPreviousData,
+    placeholderData: keepPreviousData
+  });
+  const floorSessionBillQuery = useQuery({
+    queryKey: [
+      "staff",
+      "service",
+      "floor",
+      "session-bill",
+      effectiveFloorSessionId
+    ],
+    queryFn: () => getBill(effectiveFloorSessionId ?? "", accessToken),
+    enabled: Boolean(
+      serviceView === "floor" && effectiveFloorSessionId && accessToken
+    ),
+    staleTime: 5_000,
+    placeholderData: keepPreviousData
   });
   const attentionDetailQuery = useQuery({
-    queryKey: staffQueryKeys.staffTableSessionAttention(selectedSessionId),
+    queryKey: staffQueryKeys.staffTableSessionAttention(
+      selectedAttentionSessionId
+    ),
     queryFn: () =>
-      getTableSessionAttention(selectedSessionId ?? "", accessToken),
-    enabled: Boolean(selectedSessionId && accessToken),
+      getTableSessionAttention(selectedAttentionSessionId ?? "", accessToken),
+    enabled: Boolean(selectedAttentionSessionId && accessToken),
     staleTime: 5_000,
     placeholderData: keepPreviousData,
   });
@@ -569,70 +470,6 @@ function WaiterDashboardContent() {
       });
     },
   });
-  const resolveWaiterCallMutation = useMutation({
-    mutationFn: ({ waiterCallId, resolutionNote }: ResolveWaiterCallAction) =>
-      resolveWaiterCall(
-        waiterCallId,
-        { staffUserId: staffUser?.id, resolutionNote },
-        accessToken
-      ),
-    onMutate: ({ waiterCallId }) => {
-      setPendingWaiterCallActions((current) => ({
-        ...current,
-        [waiterCallId]: "resolve",
-      }));
-    },
-    onSuccess: (result, variables) => {
-      setNotice({ tone: "success", message: t("waiter.callResolved") });
-      invalidateWaiterState(
-        variables.waiterCallId,
-        getRecordString(getWaiterCallTableSession(result), "id")
-      );
-    },
-    onError: (error: Error) => {
-      setNotice({
-        tone: "error",
-        message: t("waiter.callResolveError", { message: error.message })
-      });
-    },
-    onSettled: (_result, _error, variables) => {
-      setPendingWaiterCallActions((current) => {
-        const next = { ...current };
-        delete next[variables.waiterCallId];
-        return next;
-      });
-    },
-  });
-  const cancelWaiterCallMutation = useMutation({
-    mutationFn: ({ waiterCallId, reason }: CancelWaiterCallAction) =>
-      cancelWaiterCall(waiterCallId, { reason }, accessToken),
-    onMutate: ({ waiterCallId }) => {
-      setPendingWaiterCallActions((current) => ({
-        ...current,
-        [waiterCallId]: "cancel",
-      }));
-    },
-    onSuccess: (result, variables) => {
-      setNotice({ tone: "success", message: t("waiter.callCancelled") });
-      invalidateWaiterState(
-        variables.waiterCallId,
-        getRecordString(getWaiterCallTableSession(result), "id")
-      );
-    },
-    onError: (error: Error) => {
-      setNotice({
-        tone: "error",
-        message: t("waiter.callCancelError", { message: error.message })
-      });
-    },
-    onSettled: (_result, _error, variables) => {
-      setPendingWaiterCallActions((current) => {
-        const next = { ...current };
-        delete next[variables.waiterCallId];
-        return next;
-      });
-    },
-  });
   const resolveAttentionMutation = useMutation({
     mutationFn: ({ sessionId, note }: ResolveAttentionAction) =>
       resolveTableSessionAttention(
@@ -729,28 +566,6 @@ function WaiterDashboardContent() {
       });
     },
   });
-  const rebuildAttentionMutation = useMutation({
-    mutationFn: (branchId: string) => rebuildBranchAttention(branchId, accessToken),
-    onSuccess: () => {
-      setNotice({ tone: "success", message: t("attention.branchRebuilt") });
-      invalidateAttentionState(selectedSessionId);
-    },
-    onError: (error: Error) => {
-      setNotice({
-        tone: "error",
-        message: t("attention.branchRebuildError", { message: error.message })
-      });
-    }
-  });
-
-  const prefetchWaiterCall = (waiterCallId: string) => {
-    if (!accessToken) return;
-    void queryClient.prefetchQuery({
-      queryKey: staffQueryKeys.staffWaiterCall(waiterCallId),
-      queryFn: () => getWaiterCallDetail(waiterCallId, accessToken),
-      staleTime: 5_000,
-    });
-  };
   const prefetchAttention = (sessionId: string) => {
     if (!accessToken) return;
     void queryClient.prefetchQuery({
@@ -759,11 +574,32 @@ function WaiterDashboardContent() {
       staleTime: 5_000,
     });
   };
-  const selectedWaiterCallAction = selectedWaiterCallId
-    ? pendingWaiterCallActions[selectedWaiterCallId]
-    : undefined;
-  const selectedAttentionAction = selectedSessionId
-    ? pendingAttentionActions[selectedSessionId]
+  const relatedWaiterCall = useMemo(
+    () =>
+      waiterCalls.find(
+        (waiterCall) =>
+          getRecordString(getWaiterCallTableSession(waiterCall), "id") ===
+          selectedAttentionSessionId
+      ),
+    [selectedAttentionSessionId, waiterCalls]
+  );
+  const relatedWaiterCallId = getWaiterCallId(relatedWaiterCall);
+  const relatedReadyOrder = useMemo(
+    () =>
+      readyOrders.find(
+        (order) => getOrderTableSessionId(order) === selectedAttentionSessionId
+      ),
+    [readyOrders, selectedAttentionSessionId]
+  );
+  const relatedReadyOrderId = getOrderId(relatedReadyOrder);
+  const relatedWaiterCallPending = relatedWaiterCallId
+    ? pendingWaiterCallActions[relatedWaiterCallId] === "acknowledge"
+    : false;
+  const relatedReadyOrderPending = relatedReadyOrderId
+    ? pendingOrderIds.has(relatedReadyOrderId)
+    : false;
+  const selectedAttentionAction = selectedAttentionSessionId
+    ? pendingAttentionActions[selectedAttentionSessionId]
     : undefined;
 
   if (!selectedBranchId || !selectedBranch) {
@@ -777,320 +613,93 @@ function WaiterDashboardContent() {
 
   return (
     <div className="grid gap-5">
-      <section
-        data-service-status
-        className="overflow-hidden rounded-lg border border-[#3B3028] bg-[#1E1814]"
-      >
-        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#342A23] px-3 py-3">
-          <div className="min-w-0">
-            <div className="flex flex-wrap items-center gap-2">
-              <Badge variant="muted">{t("waiter.badge")}</Badge>
-              <StaffRealtimeStatus
-                state={realtime.state}
-                lastEventType={realtime.lastEventType}
-              />
-            </div>
-            <p className="mt-2 truncate text-sm font-semibold text-[#FFF5E8]">
-              {selectedBranch.name}
-            </p>
-          </div>
-          <div className="flex flex-wrap gap-2">
-            <Button size="sm" variant="secondary" onClick={refreshBranch}>
-              <RefreshCw className="size-4" aria-hidden="true" />
-              {t("actions.refreshBranch")}
-            </Button>
-            <Button
-              size="sm"
-              variant="secondary"
-              onClick={() => rebuildAttentionMutation.mutate(selectedBranchId)}
-              disabled={rebuildAttentionMutation.isPending}
-            >
-              <RefreshCw
-                className={
-                  rebuildAttentionMutation.isPending
-                    ? "size-4 animate-spin"
-                    : "size-4"
-                }
-                aria-hidden="true"
-              />
-              {rebuildAttentionMutation.isPending
-                ? t("actions.rebuilding")
-                : t("actions.rebuildAttention")}
-            </Button>
-          </div>
-        </div>
-        <div className="grid grid-cols-3 divide-x divide-[#342A23] rtl:divide-x-reverse">
-          <div className="flex min-h-16 items-center gap-2 px-3 py-2">
-            <BellRing className="size-4 shrink-0 text-[#F0C66E]" aria-hidden="true" />
-            <div>
-              <strong className="block text-lg leading-none text-[#FFF5E8]">
-                {countWaiterCallsByStatus(allWaiterCalls, (status) => status === "open")}
-              </strong>
-              <span className="mt-1 block text-[10px] text-[#91857A]">
-                {t("waiter.openCallsLabel")}
-              </span>
-            </div>
-          </div>
-          <div className="flex min-h-16 items-center gap-2 px-3 py-2">
-            <AlertTriangle className="size-4 shrink-0 text-[#F09C94]" aria-hidden="true" />
-            <div>
-              <strong className="block text-lg leading-none text-[#FFF5E8]">
-                {countAttentionByStatus(
-                  allAttentionQueue,
-                  (status, priority) => status === "urgent" || priority === "urgent"
-                )}
-              </strong>
-              <span className="mt-1 block text-[10px] text-[#91857A]">
-                {t("attention.immediateAttentionLabel")}
-              </span>
-            </div>
-          </div>
-          <div className="flex min-h-16 items-center gap-2 px-3 py-2">
-            <HandPlatter className="size-4 shrink-0 text-[#7FC37E]" aria-hidden="true" />
-            <div>
-              <strong className="block text-lg leading-none text-[#FFF5E8]">
-                {readyOrders.length}
-              </strong>
-              <span className="mt-1 block text-[10px] text-[#91857A]">
-                {t("waiter.readyOrdersTitle")}
-              </span>
-            </div>
-          </div>
-        </div>
-      </section>
-
       <NoticeBanner notice={notice} />
 
-      <div id="floor" className="scroll-mt-36">
+      {serviceView === "floor" ? (
+      <div id="floor" className="min-h-[calc(100vh-8rem)]">
         <ServiceFloorBoard
           overview={floorOverviewQuery.data}
           isLoading={floorOverviewQuery.isPending}
           error={floorOverviewQuery.error ?? undefined}
-          selectedSessionId={selectedSessionId}
-          onSelectSession={setUserSelectedSessionId}
+          selectedSessionId={effectiveFloorSessionId}
+          onSelectSession={setFloorSelectedSessionId}
+          sessionOrders={floorSessionOrdersQuery.data?.orders ?? emptyRecords}
+          sessionBill={floorSessionBillQuery.data}
+          contextLoading={
+            floorSessionOrdersQuery.isPending || floorSessionBillQuery.isPending
+          }
+          onOpenOrders={() =>
+            router.push("/service/cashier?mode=waiter#orders")
+          }
+          onOpenAttention={() =>
+            router.push("/service/waiter?mode=waiter#attention")
+          }
+          onOpenBills={() =>
+            router.push("/service/cashier?mode=waiter#bills")
+          }
         />
       </div>
+      ) : null}
 
-      <section id="attention" className="scroll-mt-36 grid gap-5 xl:grid-cols-[minmax(20rem,28rem)_1fr]">
+      {serviceView === "attention" ? (
+      <>
+      <section id="attention" className="grid min-h-[calc(100vh-8rem)] gap-0 lg:grid-cols-[minmax(0,1fr)_360px]">
         <AttentionQueue
           attentionQueue={attentionQueue}
-          status={attentionStatus}
-          priority={attentionPriority}
-          selectedSessionId={selectedSessionId}
+          selectedSessionId={selectedAttentionSessionId}
           isLoading={attentionQueueQuery.isPending}
           error={attentionQueueQuery.error ?? undefined}
-          onStatusChange={setAttentionStatus}
-          onPriorityChange={setAttentionPriority}
-          onSelectAttention={setUserSelectedSessionId}
+          onSelectAttention={setAttentionSelectedSessionId}
           onPrefetchAttention={prefetchAttention}
           onRefresh={refreshBranch}
         />
         <AttentionDetailPanel
           attention={attentionDetailQuery.data}
-          isLoading={attentionDetailQuery.isPending && Boolean(selectedSessionId)}
+          isLoading={attentionDetailQuery.isPending && Boolean(selectedAttentionSessionId)}
           isRefreshing={attentionDetailQuery.isPlaceholderData}
           error={attentionDetailQuery.error ?? undefined}
           resolvePending={selectedAttentionAction === "resolve"}
           mutePending={selectedAttentionAction === "mute"}
           recalculatePending={selectedAttentionAction === "recalculate"}
+          acknowledgeWaiterCallPending={relatedWaiterCallPending}
+          serveReadyOrderPending={relatedReadyOrderPending}
+          onAcknowledgeWaiterCall={
+            relatedWaiterCallId
+              ? () => acknowledgeMutation.mutate(relatedWaiterCallId)
+              : undefined
+          }
+          onServeReadyOrder={
+            relatedReadyOrderId
+              ? () => serveOrderMutation.mutate(relatedReadyOrderId)
+              : undefined
+          }
+          onReviewBillRequest={() =>
+            router.push("/service/cashier?mode=waiter#bills")
+          }
           onResolve={(note) => {
-            if (selectedSessionId) {
-              resolveAttentionMutation.mutate({ sessionId: selectedSessionId, note });
+            if (selectedAttentionSessionId) {
+              resolveAttentionMutation.mutate({ sessionId: selectedAttentionSessionId, note });
             }
           }}
           onMute={(minutes, note) => {
-            if (selectedSessionId) {
+            if (selectedAttentionSessionId) {
               muteAttentionMutation.mutate({
-                sessionId: selectedSessionId,
+                sessionId: selectedAttentionSessionId,
                 minutes,
                 note
               });
             }
           }}
           onRecalculate={() => {
-            if (selectedSessionId) {
-              recalculateAttentionMutation.mutate(selectedSessionId);
+            if (selectedAttentionSessionId) {
+              recalculateAttentionMutation.mutate(selectedAttentionSessionId);
             }
           }}
         />
       </section>
 
-      <section className="grid gap-5 xl:grid-cols-[minmax(20rem,28rem)_1fr]">
-        <WaiterCallQueue
-          waiterCalls={waiterCalls}
-          status={waiterCallStatus}
-          type={waiterCallType}
-          selectedWaiterCallId={selectedWaiterCallId}
-          isLoading={waiterCallsQuery.isPending}
-          error={waiterCallsQuery.error ?? undefined}
-          onStatusChange={setWaiterCallStatus}
-          onTypeChange={setWaiterCallType}
-          onSelectWaiterCall={setUserSelectedWaiterCallId}
-          onPrefetchWaiterCall={prefetchWaiterCall}
-          onRefresh={refreshBranch}
-        />
-        <WaiterCallDetailPanel
-          waiterCall={waiterCallDetailQuery.data}
-          isLoading={waiterCallDetailQuery.isPending && Boolean(selectedWaiterCallId)}
-          isRefreshing={waiterCallDetailQuery.isPlaceholderData}
-          error={waiterCallDetailQuery.error ?? undefined}
-          acknowledgePending={selectedWaiterCallAction === "acknowledge"}
-          resolvePending={selectedWaiterCallAction === "resolve"}
-          cancelPending={selectedWaiterCallAction === "cancel"}
-          onAcknowledge={() => {
-            if (selectedWaiterCallId) {
-              acknowledgeMutation.mutate(selectedWaiterCallId);
-            }
-          }}
-          onResolve={(resolutionNote) => {
-            if (selectedWaiterCallId) {
-              resolveWaiterCallMutation.mutate({
-                waiterCallId: selectedWaiterCallId,
-                resolutionNote
-              });
-            }
-          }}
-          onCancel={(reason) => {
-            if (selectedWaiterCallId) {
-              cancelWaiterCallMutation.mutate({
-                waiterCallId: selectedWaiterCallId,
-                reason
-              });
-            }
-          }}
-        />
-      </section>
-
-      <Card variant="quiet">
-        <CardHeader>
-          <CardTitle>{t("waiter.readyOrdersTitle")}</CardTitle>
-          <CardDescription>{t("waiter.readyOrdersDescription")}</CardDescription>
-        </CardHeader>
-        <CardContent className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-          {readyOrders.length === 0 ? (
-            <p className="rounded-card border border-dashed bg-surface/70 p-4 text-sm text-muted-foreground">
-              {t("waiter.readyOrdersEmpty")}
-            </p>
-          ) : null}
-          {readyOrders.map((order, index) => {
-            const orderId = getOrderId(order);
-            const status = getOrderStatus(order);
-            const kitchenTickets = getOrderKitchenTickets(order);
-
-            return (
-              <div
-                key={orderId || String(index)}
-                className="rounded-card border bg-surface/75 p-4"
-              >
-                <div className="flex items-start justify-between gap-3">
-                  <div>
-                    <p className="text-sm font-semibold text-foreground">
-                      {getOrderNumber(order)}
-                    </p>
-                    <p className="mt-1 text-xs text-muted-foreground">
-                      {humanizeStatus(status)}
-                    </p>
-                  </div>
-                  <Button
-                    size="sm"
-                    aria-busy={isEntityPending(pendingOrderIds, orderId)}
-                    onClick={() => {
-                      if (orderId && !isEntityPending(pendingOrderIds, orderId)) {
-                        serveOrderMutation.mutate(orderId);
-                      }
-                    }}
-                    disabled={
-                      !orderId ||
-                      status !== "ready" ||
-                      isEntityPending(pendingOrderIds, orderId)
-                    }
-                  >
-                    <HandPlatter className="size-4" aria-hidden="true" />
-                    {t("actions.serve")}
-                  </Button>
-                </div>
-                {kitchenTickets.length > 0 ? (
-                  <div className="mt-4 flex flex-wrap gap-2">
-                    {kitchenTickets.map((ticket, ticketIndex) => {
-                      const ticketStatus = getTicketStatus(ticket);
-
-                      return (
-                        <Badge
-                          key={getTicketDisplayCode(ticket) || String(ticketIndex)}
-                          variant={
-                            hasFailedPrint(ticket)
-                              ? "warning"
-                              : getReadyTicketVariant(ticketStatus)
-                          }
-                        >
-                          <ClipboardList
-                            className="me-1 size-3"
-                            aria-hidden="true"
-                          />
-                          {humanizeStatus(getTicketStation(ticket))}:{" "}
-                          {humanizeStatus(ticketStatus)}
-                        </Badge>
-                      );
-                    })}
-                  </div>
-                ) : (
-                  <p className="mt-4 text-xs text-muted-foreground">
-                    {t("waiter.readyOrdersNoTickets")}
-                  </p>
-                )}
-              </div>
-            );
-          })}
-        </CardContent>
-      </Card>
-
-      <Card variant="quiet">
-        <CardHeader>
-          <CardTitle>{t("waiter.activityTitle")}</CardTitle>
-          <CardDescription>{t("waiter.activityDescription")}</CardDescription>
-        </CardHeader>
-        <CardContent className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
-          {realtimeEventsQuery.isError ? (
-            <div className="rounded-card border border-warning bg-warning/10 p-3 text-sm text-warning">
-              <AlertTriangle className="me-2 inline size-4" aria-hidden="true" />
-              {realtimeEventsQuery.error.message}
-            </div>
-          ) : null}
-          {(realtimeEventsQuery.data?.events ?? []).length === 0 ? (
-            <p className="rounded-card border border-dashed bg-surface/70 p-4 text-sm text-muted-foreground">
-              {t("waiter.activityEmpty")}
-            </p>
-          ) : null}
-          {(realtimeEventsQuery.data?.events ?? []).map((event, index) => (
-            <div
-              key={getRecordString(event, "id") || String(index)}
-              className="rounded-card border bg-surface/75 p-3"
-            >
-              <p className="text-sm font-semibold text-foreground">
-                {humanizeStatus(getRecordString(event, "type", "event"))}
-              </p>
-              <p className="mt-1 text-xs text-muted-foreground">
-                {getRecordString(event, "channel", "system")} /{" "}
-                {formatDateTime(getRecordString(event, "createdAt"))}
-              </p>
-              {getRecordString(event, "waiterCallId") ? (
-                <p className="mt-2 text-xs text-muted-foreground">
-                  {t("waiter.callFallback", {
-                    callId: shortId(getRecordString(event, "waiterCallId")),
-                  })}
-                </p>
-              ) : null}
-              {getRecordString(event, "tableSessionId") ? (
-                <p className="mt-1 text-xs text-muted-foreground">
-                  {t("attention.sessionFallback", {
-                    sessionId: shortId(getRecordString(event, "tableSessionId")),
-                  })}
-                </p>
-              ) : null}
-            </div>
-          ))}
-        </CardContent>
-      </Card>
+      </>
+      ) : null}
     </div>
   );
 }

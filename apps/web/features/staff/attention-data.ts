@@ -107,8 +107,12 @@ export function getAttentionReasonLabel(reason: unknown, fallback = "attention")
   return humanizeStatus(getRecordString(getRecord(reason), "reason")) || fallback;
 }
 
-export function getAttentionActionLabel(action: unknown) {
+export function getAttentionActionKey(action: unknown) {
   return typeof action === "string"
-    ? humanizeStatus(action)
-    : humanizeStatus(getRecordString(getRecord(action), "action", "review"));
+    ? action.trim()
+    : getRecordString(getRecord(action), "action", "review").trim();
+}
+
+export function getAttentionActionLabel(action: unknown) {
+  return humanizeStatus(getAttentionActionKey(action));
 }

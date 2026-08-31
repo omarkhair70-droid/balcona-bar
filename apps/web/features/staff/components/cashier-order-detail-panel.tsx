@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { AlertTriangle, ClipboardList, Clock3, ListChecks, Printer } from "lucide-react";
+import { AlertTriangle, ClipboardList, ListChecks, Printer } from "lucide-react";
 import {
   Card,
   CardContent,
@@ -23,6 +23,7 @@ import {
   getOrderNextExpectedRole,
   getOrderNumber,
   getOrderProgressStep,
+  getOrderSource,
   getOrderStatus,
   getOrderSubmittedAt,
   getOrderTable,
@@ -52,7 +53,6 @@ import { formatErrorMessage } from "@/lib/api/error-message";
 import type { OrderDetailResult } from "@/lib/api/types";
 import { useTranslations } from "@/lib/i18n/i18n-provider";
 import { CashierActionBar } from "./cashier-action-bar";
-import { CashierOrderStatusPill } from "./cashier-order-status-pill";
 
 type CashierOrderDetailPanelProps = {
   order?: OrderDetailResult;
@@ -69,6 +69,22 @@ type CashierOrderDetailPanelProps = {
   onCancel: (reason: string) => void;
   onComplete: () => void;
 };
+
+function formatOrderAge(value: string) {
+  const parsed = Date.parse(value);
+
+  if (!Number.isFinite(parsed)) {
+    return "—";
+  }
+
+  const minutes = Math.max(0, Math.floor((Date.now() - parsed) / 60_000));
+
+  if (minutes < 60) {
+    return `${minutes}m`;
+  }
+
+  return `${Math.floor(minutes / 60)}h`;
+}
 
 type BadgeVariant = "default" | "muted" | "success" | "warning" | "danger";
 
@@ -164,6 +180,10 @@ export function CashierOrderDetailPanel({
   const canComplete = order ? orderAllowsAction(order, "complete") : false;
   const progressStep = order ? getOrderProgressStep(order) : "";
   const nextExpectedRole = order ? getOrderNextExpectedRole(order) : "";
+  const orderSource = order ? getOrderSource(order) : "";
+  const submittedAge = order
+    ? formatOrderAge(getOrderSubmittedAt(order))
+    : "—";
   const disabledReason = getCashierDisabledReason(
     status,
     progressStep,
@@ -172,17 +192,18 @@ export function CashierOrderDetailPanel({
   );
 
   return (
-    <Card variant="glass" padding="lg" className="min-w-0 xl:min-h-[34rem] border-[#3B3028] bg-[#1E1814] shadow-none">
-      <CardHeader>
-        <div className="flex flex-wrap items-start justify-between gap-3">
-          <div>
-            <CardTitle className="text-[#FFF5E8]">{t("orders.orderDetailTitle")}</CardTitle>
-            <CardDescription className="text-[#95887D]">{t("orders.orderDetailDescription")}</CardDescription>
+    <Card variant="glass" padding="none" className="min-w-0 min-h-[calc(100vh-8rem)] rounded-none border-0 bg-[#1E1814] shadow-none">
+      {!order ? (
+        <CardHeader className="border-b border-[#3A3028]">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <CardTitle className="text-[#FFF5E8]">{t("orders.orderDetailTitle")}</CardTitle>
+              <CardDescription className="text-[#95887D]">{t("orders.orderDetailDescription")}</CardDescription>
+            </div>
           </div>
-          {status ? <CashierOrderStatusPill status={status} /> : null}
-        </div>
-      </CardHeader>
-      <CardContent className="grid gap-4">
+        </CardHeader>
+      ) : null}
+      <CardContent className="mx-auto grid w-full max-w-3xl gap-4 p-4 lg:p-5">
         {!order && !isLoading && !error ? (
           <EmptyState
             title={t("orders.selectTitle")}
@@ -203,18 +224,22 @@ export function CashierOrderDetailPanel({
         ) : null}
         {order ? (
           <>
-            <div className="rounded-md border border-[#3C3129] bg-[#211A15] p-4">
+            <div className="border-b border-[#3A3028] pb-4">
               <div className="flex flex-wrap items-start justify-between gap-4">
                 <div>
-                  <p className="text-lg font-semibold text-[#FFF5E8]">
+                  <p className="text-[10px] font-semibold uppercase tracking-[0.13em] text-[#A68B70]">
+                    {t("orders.orderDetailTitle")}
+                  </p>
+                  <p className="mt-2 text-2xl font-semibold tracking-[-0.03em] text-[#FFF5E8]">
                     {getOrderNumber(order)}
                   </p>
                   <p className="mt-1 text-sm text-[#A99B8E]">
-                    {getTableLabel(getOrderTable(order), getOrderFloor(order))}
+                    {getTableLabel(getOrderTable(order), getOrderFloor(order))} ·{" "}
+                    {submittedAge}
                   </p>
                 </div>
                 <div className="text-end">
-                  <p className="text-lg font-semibold text-[#FFF5E8]">
+                  <p className="text-2xl font-semibold text-[#FFF5E8]">
                     {formatMoney(getMinorTotal(totals), getCurrency(totals))}
                   </p>
                   <p className="mt-1 text-xs text-[#91857A]">
@@ -225,118 +250,167 @@ export function CashierOrderDetailPanel({
                   </p>
                 </div>
               </div>
-              <p className="mt-4 inline-flex items-center gap-2 text-xs text-[#91857A]">
-                <Clock3 className="size-3.5" aria-hidden="true" />
-                {t("orders.submittedAt", {
-                  date: formatDateTime(getOrderSubmittedAt(order))
-                })}
-              </p>
               {getOrderCustomerNote(order) ? (
-                <div className="mt-4 rounded-md border border-[#71413A] bg-[#321F1C] p-3 text-sm text-[#E4A199]">
-                  {getOrderCustomerNote(order)}
-                </div>
-              ) : null}
-              {progressStep || nextExpectedRole ? (
-                <div className="mt-4 flex flex-wrap gap-2">
-                  {progressStep ? (
-                    <Badge variant="default">
-                      {humanizeStatus(progressStep)}
-                    </Badge>
-                  ) : null}
-                  {nextExpectedRole ? (
-                    <Badge variant="muted">
-                      {t("orders.nextRole", {
-                        role: humanizeStatus(nextExpectedRole)
-                      })}
-                    </Badge>
-                  ) : null}
+                <div className="mt-4 rounded-md border border-[#3A3028] bg-[#211A15] p-3">
+                  <p className="text-[10px] font-semibold uppercase tracking-[0.1em] text-[#8F8176]">
+                    {t("orders.customerNote")}
+                  </p>
+                  <p className="mt-1.5 text-sm text-[#D9CCC0]">
+                    {getOrderCustomerNote(order)}
+                  </p>
                 </div>
               ) : null}
             </div>
 
-            <section className="grid gap-3">
-              <h3 className="flex items-center gap-2 text-sm font-semibold text-[#F8EDDF]">
-                <ListChecks className="size-4 text-primary" aria-hidden="true" />
-                {t("orders.items")}
-              </h3>
+            <section className="overflow-hidden rounded-md border border-[#3C3129] bg-[#211A15]">
+              <div className="border-b border-[#3A3028] px-4 py-3">
+                <h3 className="flex items-center gap-2 text-sm font-semibold text-[#F8EDDF]">
+                  <ListChecks className="size-4 text-primary" aria-hidden="true" />
+                  {t("orders.items")}
+                </h3>
+              </div>
+
               {items.length === 0 ? (
-                <p className="rounded-md border border-dashed border-[#3A3028] bg-[#18130F] p-4 text-sm text-[#91857A]">
+                <p className="p-4 text-sm text-[#91857A]">
                   {t("orders.emptyItems")}
                 </p>
-              ) : null}
-              {items.map((item, index) => {
-                const modifiers = getRecordArray(item.modifierOptions);
-                const itemName =
-                  getRecordString(item, "itemNameSnapshot") ||
-                  t("orders.itemFallback", { index: index + 1 });
+              ) : (
+                <div className="divide-y divide-[#342B24]">
+                  {items.map((item, index) => {
+                    const modifiers = getRecordArray(item.modifierOptions);
+                    const itemName =
+                      getRecordString(item, "itemNameSnapshot") ||
+                      t("orders.itemFallback", { index: index + 1 });
 
-                return (
-                  <div
-                    key={getRecordString(item, "id") || itemName}
-                    className="rounded-md border border-[#3C3129] bg-[#211A15] p-4"
-                  >
-                    <div className="flex flex-wrap items-start justify-between gap-3">
-                      <div>
-                        <p className="text-sm font-semibold text-[#F8EDDF]">
-                          {itemName}
-                        </p>
-                        <p className="mt-1 text-xs text-[#91857A]">
-                          {t("orders.qty", {
-                            count: getRecordNumber(item, "quantity", 1)
-                          })}
-                        </p>
-                      </div>
-                      <p className="text-sm font-semibold text-[#F8EDDF]">
-                        {formatMoney(
-                          getMinorTotal(item),
-                          getCurrency(item)
-                        )}
-                      </p>
-                    </div>
-                    {getRecordString(item, "notes") ? (
-                      <p className="mt-3 text-xs text-warning">
-                        {getRecordString(item, "notes")}
-                      </p>
-                    ) : null}
-                    {modifiers.length > 0 ? (
-                      <div className="mt-3 flex flex-wrap gap-2">
-                        {modifiers.map((modifier, modifierIndex) => (
-                          <span
-                            key={
-                              getRecordString(modifier, "id") ||
-                              `${itemName}-${modifierIndex}`
-                            }
-                            className="rounded-button border bg-muted px-2.5 py-1 text-xs text-[#91857A]"
-                          >
-                            {getRecordString(
-                              modifier,
-                              "modifierOptionNameSnapshot",
-                              t("orders.modifierFallback")
+                    return (
+                      <div
+                        key={getRecordString(item, "id") || itemName}
+                        className="px-4 py-3"
+                      >
+                        <div className="flex flex-wrap items-start justify-between gap-3">
+                          <div>
+                            <p className="text-sm font-semibold text-[#F8EDDF]">
+                              {itemName}
+                            </p>
+                            <p className="mt-1 text-xs text-[#91857A]">
+                              {t("orders.qty", {
+                                count: getRecordNumber(item, "quantity", 1)
+                              })}
+                            </p>
+                          </div>
+                          <p className="text-sm font-semibold text-[#F8EDDF]">
+                            {formatMoney(
+                              getMinorTotal(item),
+                              getCurrency(item)
                             )}
-                            {getRecordNumber(
-                              modifier,
-                              "priceDeltaMinorSnapshot"
-                            ) > 0
-                              ? ` +${formatMoney(
-                                  getRecordNumber(
-                                    modifier,
-                                    "priceDeltaMinorSnapshot"
-                                  ),
-                                  getCurrency(item)
-                                )}`
-                              : ""}
-                          </span>
-                        ))}
+                          </p>
+                        </div>
+
+                        {getRecordString(item, "notes") ? (
+                          <p className="mt-2 text-xs text-warning">
+                            {getRecordString(item, "notes")}
+                          </p>
+                        ) : null}
+
+                        {modifiers.length > 0 ? (
+                          <div className="mt-2 flex flex-wrap gap-2">
+                            {modifiers.map((modifier, modifierIndex) => (
+                              <span
+                                key={
+                                  getRecordString(modifier, "id") ||
+                                  `${itemName}-${modifierIndex}`
+                                }
+                                className="rounded-button border border-[#3A3028] bg-[#18130F] px-2.5 py-1 text-xs text-[#91857A]"
+                              >
+                                {getRecordString(
+                                  modifier,
+                                  "modifierOptionNameSnapshot",
+                                  t("orders.modifierFallback")
+                                )}
+                                {getRecordNumber(
+                                  modifier,
+                                  "priceDeltaMinorSnapshot"
+                                ) > 0
+                                  ? ` +${formatMoney(
+                                      getRecordNumber(
+                                        modifier,
+                                        "priceDeltaMinorSnapshot"
+                                      ),
+                                      getCurrency(item)
+                                    )}`
+                                  : ""}
+                              </span>
+                            ))}
+                          </div>
+                        ) : null}
                       </div>
-                    ) : null}
-                  </div>
-                );
-              })}
+                    );
+                  })}
+                </div>
+              )}
             </section>
 
-            <section className="grid gap-3">
-              <h3 className="flex items-center gap-2 text-sm font-semibold text-[#F8EDDF]">
-                <ClipboardList className="size-4 text-primary" aria-hidden="true" />
+            <div className="grid gap-3 sm:grid-cols-3">
+              <div className="rounded-md border border-[#3A3028] bg-[#211A15] p-3">
+                <p className="text-[11px] text-[#91857A]">
+                  {t("orders.sourceLabel")}
+                </p>
+                <p className="mt-1 text-sm font-semibold text-[#F6EBDD]">
+                  {orderSource || "QR Session"}
+                </p>
+              </div>
+              <div className="rounded-md border border-[#3A3028] bg-[#211A15] p-3">
+                <p className="text-[11px] text-[#91857A]">
+                  {t("orders.preparationLabel")}
+                </p>
+                <p className="mt-1 text-sm font-semibold text-[#F6EBDD]">
+                  {progressStep
+                    ? humanizeStatus(progressStep)
+                    : t("orders.preparationUnknown")}
+                </p>
+              </div>
+              <div className="rounded-md border border-[#3A3028] bg-[#211A15] p-3">
+                <p className="text-[11px] text-[#91857A]">
+                  {t("orders.nextRoleLabel")}
+                </p>
+                <p className="mt-1 text-sm font-semibold text-[#F6EBDD]">
+                  {nextExpectedRole
+                    ? humanizeStatus(nextExpectedRole)
+                    : t("orders.nextRoleUnknown")}
+                </p>
+              </div>
+            </div>
+
+            <CashierActionBar
+              canAccept={canAccept}
+              canReject={canReject}
+              canCancel={canCancel}
+              canComplete={canComplete}
+              rejectReason={rejectReason}
+              cancelReason={cancelReason}
+              acceptPending={acceptPending}
+              rejectPending={rejectPending}
+              cancelPending={cancelPending}
+              completePending={completePending}
+              actionPending={actionPending || isRefreshing}
+              disabledReason={disabledReason}
+              onRejectReasonChange={setRejectReason}
+              onCancelReasonChange={setCancelReason}
+              onAccept={onAccept}
+              onReject={() => onReject(rejectReason.trim() || null)}
+              onCancel={() => onCancel(cancelReason.trim())}
+              onComplete={onComplete}
+            />
+
+
+            <details className="rounded-md border border-[#3A3028] bg-[#18130F]">
+              <summary className="cursor-pointer list-none px-3 py-3 text-xs font-semibold text-[#BDAEA1]">
+                {t("orders.operationalDetails")}
+              </summary>
+              <div className="grid gap-4 border-t border-[#342A23] p-3">
+                <section className="grid gap-3">
+                  <h3 className="flex items-center gap-2 text-sm font-semibold text-[#F8EDDF]">
+                    <ClipboardList className="size-4 text-primary" aria-hidden="true" />
                 {t("orders.kitchenTickets")}
               </h3>
               {needsKdsRoutingAttention ? (
@@ -404,26 +478,6 @@ export function CashierOrderDetailPanel({
               })}
             </section>
 
-            <CashierActionBar
-              canAccept={canAccept}
-              canReject={canReject}
-              canCancel={canCancel}
-              canComplete={canComplete}
-              rejectReason={rejectReason}
-              cancelReason={cancelReason}
-              acceptPending={acceptPending}
-              rejectPending={rejectPending}
-              cancelPending={cancelPending}
-              completePending={completePending}
-              actionPending={actionPending || isRefreshing}
-              disabledReason={disabledReason}
-              onRejectReasonChange={setRejectReason}
-              onCancelReasonChange={setCancelReason}
-              onAccept={onAccept}
-              onReject={() => onReject(rejectReason.trim() || null)}
-              onCancel={() => onCancel(cancelReason.trim())}
-              onComplete={onComplete}
-            />
 
             <section className="grid gap-3">
               <h3 className="flex items-center gap-2 text-sm font-semibold text-[#F8EDDF]">
@@ -459,7 +513,9 @@ export function CashierOrderDetailPanel({
                   </p>
                 </div>
               ))}
-            </section>
+                </section>
+              </div>
+            </details>
           </>
         ) : null}
       </CardContent>

@@ -1,30 +1,19 @@
 "use client";
 
-import { AlertTriangle, Clock3, Gauge } from "lucide-react";
-import { Badge } from "@/components/ui/badge";
 import {
-  getAttentionActionLabel,
+  getAttentionActionKey,
   getAttentionFloor,
   getAttentionLastEvaluatedAt,
   getAttentionPriority,
   getAttentionReasons,
   getAttentionRecommendedActions,
   getAttentionReasonMessage,
-  getAttentionScore,
   getAttentionSessionId,
   getAttentionStatus,
   getAttentionTable
 } from "@/features/staff/attention-data";
-import {
-  formatDateTime,
-  getTableLabel,
-  humanizeStatus,
-  shortId
-} from "@/features/staff/staff-format";
-import { useTranslations } from "@/lib/i18n/i18n-provider";
+import { getRecordString, humanizeStatus } from "@/features/staff/staff-format";
 import { cn } from "@/lib/utils/cn";
-import { AttentionPriorityPill } from "./attention-priority-pill";
-import { AttentionStatusPill } from "./attention-status-pill";
 
 type AttentionCardProps = {
   attention: Record<string, unknown>;
@@ -33,22 +22,68 @@ type AttentionCardProps = {
   onPrefetch?: (sessionId: string) => void;
 };
 
+function formatAge(value: string) {
+  const parsed = Date.parse(value);
+
+  if (!Number.isFinite(parsed)) {
+    return "—";
+  }
+
+  const minutes = Math.max(0, Math.floor((Date.now() - parsed) / 60_000));
+
+  if (minutes < 60) {
+    return `${minutes}m`;
+  }
+
+  const hours = Math.floor(minutes / 60);
+  return `${hours}h`;
+}
+
+function sourceForAttention(attention: Record<string, unknown>) {
+  const actionKeys = getAttentionRecommendedActions(attention).map(
+    getAttentionActionKey
+  );
+  const reason = getAttentionReasonMessage(getAttentionReasons(attention)[0])
+    .toLowerCase();
+
+  if (actionKeys.includes("acknowledge_waiter_call") || reason.includes("waiter")) {
+    return "waiter";
+  }
+
+  if (actionKeys.includes("serve_ready_order") || reason.includes("ready")) {
+    return "ready";
+  }
+
+  if (/\bai\b/.test(reason)) {
+    return "ai";
+  }
+
+  return "computed";
+}
+
 export function AttentionCard({
   attention,
   selected,
   onSelect,
   onPrefetch,
 }: AttentionCardProps) {
-  const t = useTranslations("staff");
   const sessionId = getAttentionSessionId(attention);
   const status = getAttentionStatus(attention);
   const priority = getAttentionPriority(attention);
-  const score = getAttentionScore(attention);
   const reasons = getAttentionReasons(attention);
-  const actions = getAttentionRecommendedActions(attention);
+  const table = getAttentionTable(attention);
+  const floor = getAttentionFloor(attention);
+  const tableCode =
+    getRecordString(table, "code") ||
+    getRecordString(table, "displayName") ||
+    "—";
   const isUrgent = status === "urgent" || priority === "urgent";
   const isDue =
-    !isUrgent && (priority === "high" || status === "needs_attention");
+    !isUrgent &&
+    (status === "needs_attention" ||
+      priority === "high" ||
+      priority === "medium");
+  const source = sourceForAttention(attention);
 
   return (
     <button
@@ -58,10 +93,8 @@ export function AttentionCard({
       onPointerEnter={() => sessionId && onPrefetch?.(sessionId)}
       onFocus={() => sessionId && onPrefetch?.(sessionId)}
       className={cn(
-        "relative w-full overflow-hidden rounded-md border p-3 text-start transition",
-        selected
-          ? "border-[#8A6239] bg-[#34271E]"
-          : "border-[#3B3028] bg-[#211A15] hover:border-[#554238] hover:bg-[#292019]"
+        "relative grid w-full gap-2 px-3 py-3 text-start transition md:grid-cols-[82px_80px_minmax(0,1fr)_82px] md:items-center md:gap-3",
+        selected ? "bg-[#34271E]" : "bg-[#211A15] hover:bg-[#292019]"
       )}
     >
       <span
@@ -76,71 +109,42 @@ export function AttentionCard({
         aria-hidden="true"
       />
 
-      <div className="flex items-start justify-between gap-3 ps-1">
-        <div className="min-w-0">
-          <div className="flex items-center gap-2">
-            <AlertTriangle
-              className={cn(
-                "size-4 shrink-0",
-                isUrgent
-                  ? "text-[#F09C94]"
-                  : isDue
-                    ? "text-[#F0C66E]"
-                    : "text-[#AFA195]"
-              )}
-              aria-hidden="true"
-            />
-            <p className="truncate text-sm font-semibold text-[#FFF4E6]">
-              {getTableLabel(
-                getAttentionTable(attention),
-                getAttentionFloor(attention)
-              )}
-            </p>
-          </div>
-          <p className="mt-1 text-[11px] text-[#91857A]">
-            {t("attention.cardSession", {
-              sessionId: shortId(sessionId),
-              status: humanizeStatus(status)
-            })}
-          </p>
-        </div>
-        <div className="flex shrink-0 flex-wrap justify-end gap-1.5">
-          <AttentionStatusPill status={status} />
-          <AttentionPriorityPill priority={priority} />
-        </div>
+      <div className="flex items-center justify-between gap-3 md:block">
+        <span className="text-xl font-bold text-[#FFF5E8]">
+          {tableCode}
+        </span>
+        <span
+          className={cn(
+            "rounded-full border px-2 py-1 text-[10px] font-semibold md:hidden",
+            isUrgent
+              ? "border-[#7A3F3A] bg-[#3A211F] text-[#F09C94]"
+              : isDue
+                ? "border-[#7D5D2C] bg-[#392B18] text-[#F0C66E]"
+                : "border-[#4D4036] bg-[#2B221C] text-[#D9CCC0]"
+          )}
+        >
+          {formatAge(getAttentionLastEvaluatedAt(attention))}
+        </span>
       </div>
 
-      {reasons[0] ? (
-        <p className="mt-3 line-clamp-2 ps-1 text-xs leading-5 text-[#D9CCC0]">
-          {getAttentionReasonMessage(reasons[0])}
+      <span className="hidden text-xs font-semibold text-[#C9BAAC] md:block">
+        {formatAge(getAttentionLastEvaluatedAt(attention))}
+      </span>
+
+      <div className="min-w-0">
+        <p className="text-sm font-semibold leading-5 text-[#F3E6D8]">
+          {reasons[0]
+            ? getAttentionReasonMessage(reasons[0])
+            : humanizeStatus(status)}
         </p>
-      ) : null}
-
-      <div className="mt-3 flex items-end justify-between gap-3 ps-1">
-        <div className="flex flex-wrap items-center gap-3 text-[11px] text-[#8F8176]">
-          <span className="inline-flex items-center gap-1.5">
-            <Gauge className="size-3.5" aria-hidden="true" />
-            {t("attention.score")} {score}
-          </span>
-          <span className="inline-flex items-center gap-1.5">
-            <Clock3 className="size-3.5" aria-hidden="true" />
-            {formatDateTime(getAttentionLastEvaluatedAt(attention))}
-          </span>
-        </div>
+        <p className="mt-1 text-[10px] text-[#82766C] md:hidden">
+          {getRecordString(floor, "name")} · {humanizeStatus(source)}
+        </p>
       </div>
 
-      {actions.length > 0 ? (
-        <div className="mt-3 flex flex-wrap gap-1.5 ps-1">
-          {actions.slice(0, 3).map((action, index) => (
-            <Badge
-              key={`${getAttentionActionLabel(action)}-${index}`}
-              variant="muted"
-            >
-              {getAttentionActionLabel(action)}
-            </Badge>
-          ))}
-        </div>
-      ) : null}
+      <span className="hidden text-[10px] font-semibold uppercase tracking-[0.08em] text-[#8E8176] md:block">
+        {humanizeStatus(source)}
+      </span>
     </button>
   );
 }

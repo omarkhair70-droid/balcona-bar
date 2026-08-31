@@ -194,20 +194,6 @@ export function BillRequestCard({
           : unknownOnlinePaymentCount > 0
             ? t("billRequests.onlineUnknown")
             : t("billRequests.manualOnly");
-  const acknowledgeDisabledReason = !billRequestId
-    ? t("billRequests.acknowledgeMissingId")
-    : requestStatus !== "open"
-      ? t("billRequests.acknowledgeStatus", {
-          status: humanizeStatus(requestStatus),
-        })
-      : "";
-  const presentDisabledReason = !billRequestId
-    ? t("billRequests.presentMissingId")
-    : requestStatus !== "open" && requestStatus !== "acknowledged"
-      ? t("billRequests.presentStatus", {
-          status: humanizeStatus(requestStatus),
-        })
-      : "";
   const paymentDisabledReason = !billId
     ? t("billRequests.paymentCreatedRequired")
     : paymentBlockedReason
@@ -225,12 +211,15 @@ export function BillRequestCard({
               : "";
 
   return (
-    <div className="rounded-md border border-[#3B3028] bg-[#211A15] p-4">
-      <div className="flex flex-wrap items-start justify-between gap-3">
+    <div className="min-w-0">
+      <div className="flex flex-wrap items-start justify-between gap-4 border-b border-[#3A3028] pb-4">
         <div>
-          <div className="flex flex-wrap items-center gap-2">
+          <p className="text-xs text-[#9B8E82]">
+            {getTableLabel(table, floor)}
+          </p>
+          <div className="mt-1 flex flex-wrap items-center gap-2">
             <ReceiptText className="size-4 text-primary" aria-hidden="true" />
-            <p className="text-sm font-semibold text-[#F8EDDF]">
+            <h2 className="text-2xl font-semibold tracking-[-0.03em] text-[#FFF5E8]">
               {billId
                 ? t("billRequests.billFallback", {
                     billNumber: getBillNumber(billRequest),
@@ -238,28 +227,27 @@ export function BillRequestCard({
                 : t("billRequests.requestFallback", {
                     requestId: shortId(billRequestId),
                   })}
-            </p>
+            </h2>
           </div>
-          <p className="mt-2 text-xs text-[#91857A]">
-            {getTableLabel(table, floor)}
-          </p>
         </div>
-        <Badge variant={statusVariant(displayStatus)}>
-          {humanizeStatus(displayStatus)}
-        </Badge>
+        <div className="text-end">
+          <p className="text-3xl font-semibold text-[#FFF5E8]">
+            {formatMoney(totalMinor, currency)}
+          </p>
+          <Badge
+            variant={statusVariant(displayStatus)}
+            className="mt-2"
+          >
+            {humanizeStatus(displayStatus)}
+          </Badge>
+        </div>
       </div>
 
-      <dl className="mt-4 grid grid-cols-2 gap-3 text-xs md:grid-cols-4">
+      <dl className="mt-4 grid grid-cols-3 gap-3 text-xs">
         <div>
           <dt className="text-[#91857A]">{t("billRequests.subtotal")}</dt>
           <dd className="mt-1 font-semibold text-[#F8EDDF]">
             {formatMoney(subtotalMinor, currency)}
-          </dd>
-        </div>
-        <div>
-          <dt className="text-[#91857A]">{t("billRequests.total")}</dt>
-          <dd className="mt-1 font-semibold text-[#F8EDDF]">
-            {formatMoney(totalMinor, currency)}
           </dd>
         </div>
         <div>
@@ -406,32 +394,31 @@ export function BillRequestCard({
         </div>
       ) : null}
 
-      <div className="mt-4 flex flex-wrap gap-2 border-t border-[#342A23] pt-3">
-        <Button
-          size="sm"
-          variant="secondary"
-          disabled={!canAcknowledge || isPending}
-          onClick={() => onAcknowledge(billRequestId)}
-        >
-          <CheckCircle2 className="size-4" aria-hidden="true" />
-          {t("actions.acknowledge")}
-        </Button>
-        <Button
-          size="sm"
-          variant="secondary"
-          disabled={!canPresent || isPending}
-          onClick={() => onPresent(billRequestId)}
-        >
-          <HandCoins className="size-4" aria-hidden="true" />
-          {t("actions.present")}
-        </Button>
-      </div>
-      {acknowledgeDisabledReason || presentDisabledReason ? (
-        <div className="mt-3 grid gap-1 text-xs text-[#91857A]">
-          {acknowledgeDisabledReason ? (
-            <p>{acknowledgeDisabledReason}</p>
+      {canAcknowledge || canPresent ? (
+        <div className="mt-4 grid gap-2 border-t border-[#342A23] pt-3 sm:grid-cols-2">
+          {canAcknowledge ? (
+            <Button
+              size="sm"
+              disabled={isPending}
+              onClick={() => onAcknowledge(billRequestId)}
+              className="min-h-11"
+            >
+              <CheckCircle2 className="size-4" aria-hidden="true" />
+              {t("actions.acknowledge")}
+            </Button>
           ) : null}
-          {presentDisabledReason ? <p>{presentDisabledReason}</p> : null}
+          {canPresent ? (
+            <Button
+              size="sm"
+              variant="secondary"
+              disabled={isPending}
+              onClick={() => onPresent(billRequestId)}
+              className="min-h-11"
+            >
+              <HandCoins className="size-4" aria-hidden="true" />
+              {t("actions.present")}
+            </Button>
+          ) : null}
         </div>
       ) : null}
       {paymentDisabledReason &&
@@ -441,7 +428,11 @@ export function BillRequestCard({
         </div>
       ) : null}
 
-      {billId && balanceDueMinor > 0 ? (
+      {billId &&
+      balanceDueMinor > 0 &&
+      (billStatus === "presented" || billStatus === "payment_pending") &&
+      !hasUnresolvedOnlinePayment &&
+      !paymentBlockedReason ? (
         <form
           className="mt-4 grid gap-3 rounded-md border border-[#47392E] bg-[#18130F] p-3"
           onSubmit={(event) => {
