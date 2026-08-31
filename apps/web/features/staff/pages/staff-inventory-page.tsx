@@ -468,14 +468,14 @@ function purchaseOrderLineRemaining(line: PurchaseOrderLine) {
 }
 
 function purchaseOrderEstimatedValue(order: PurchaseOrder) {
-  return order.lines.reduce(
+  return (order.lines ?? []).reduce(
     (total, line) => total + line.quantityOrdered * line.unitCostMinor,
     0
   );
 }
 
 function purchaseOrderReceivedValue(order: PurchaseOrder) {
-  return order.lines.reduce(
+  return (order.lines ?? []).reduce(
     (total, line) => total + line.quantityReceived * line.unitCostMinor,
     0
   );
@@ -483,20 +483,25 @@ function purchaseOrderReceivedValue(order: PurchaseOrder) {
 
 function getThreshold(level: InventoryLevel) {
   return (
-    level.lowStockThresholdQuantity ?? level.item.lowStockThresholdQuantity ?? null
+    level.lowStockThresholdQuantity ?? level.item?.lowStockThresholdQuantity ?? null
   );
 }
 
 function getParLevel(level: InventoryLevel) {
-  return level.item.parLevelQuantity ?? null;
+  return level.item?.parLevelQuantity ?? null;
 }
 
 function itemUnitLabel(item?: InventoryItem) {
   return item ? humanizeInventoryValue(item.unit) : "Unit";
 }
 
-function quantityWithUnit(quantity: number | null | undefined, unit: InventoryUnit) {
-  return `${quantity ?? 0} ${humanizeInventoryValue(unit)}`;
+function quantityWithUnit(
+  quantity: number | null | undefined,
+  unit?: InventoryUnit | null
+) {
+  return unit
+    ? `${quantity ?? 0} ${humanizeInventoryValue(unit)}`
+    : String(quantity ?? 0);
 }
 
 function stockStatusRank(status: InventoryStockStatus) {
@@ -776,7 +781,7 @@ function StaffInventoryContent() {
   const menuItems = useMemo(
     () =>
       getAllMenuItems(
-        menuOverviewQuery.data?.categories.flatMap((category) => category.items)
+        menuOverviewQuery.data?.categories?.flatMap((category) => category.items ?? [])
       ),
     [menuOverviewQuery.data?.categories]
   );
@@ -818,7 +823,9 @@ function StaffInventoryContent() {
     alertsQuery.data?.stockBlockedMenuItems ?? emptyMenuAvailabilityItems;
   const recentMovements =
     alertsQuery.data?.recentMovements ?? emptyInventoryMovements;
-  const branchInventoryItems = levels.map((level) => level.item);
+  const branchInventoryItems = levels
+    .map((level) => level.item)
+    .filter((item): item is InventoryItem => Boolean(item));
   const visibleInventoryItems = canReadCompanyInventory
     ? companyInventoryItems
     : branchInventoryItems;
@@ -1007,10 +1014,10 @@ function StaffInventoryContent() {
       setFormError(null);
       setSuccessMessage(
         `${humanizeInventoryValue(result.movement.type)} recorded for ${
-          result.level.item.name
+          result.level.item?.name ?? level.inventoryItemId
         }. Stock is now ${quantityWithUnit(
           result.level.quantityOnHand,
-          result.level.item.unit
+          result.level.item?.unit
         )}.`
       );
       await invalidateInventory();
@@ -1547,12 +1554,12 @@ function StaffInventoryContent() {
 
         const quantityReceived = inventoryInputToQuantity(
           quantityValue,
-          `${line.inventoryItem.name} received quantity`
+          `${line.inventoryItem?.name ?? line.inventoryItemId} received quantity`
         );
         const remaining = purchaseOrderLineRemaining(line);
 
         if (quantityReceived > remaining) {
-          throw new Error(`${line.inventoryItem.name} cannot be over-received.`);
+          throw new Error(`${line.inventoryItem?.name ?? line.inventoryItemId} cannot be over-received.`);
         }
 
         lines.push({
@@ -1560,7 +1567,7 @@ function StaffInventoryContent() {
           quantityReceived,
           unitCostMinor: optionalMoneyInputToMinor(
             receivingForm.unitCostByLineId[line.id] ?? "",
-            `${line.inventoryItem.name} unit cost`
+            `${line.inventoryItem?.name ?? line.inventoryItemId} unit cost`
           )
         });
       }
@@ -2016,17 +2023,17 @@ function InventoryOverview({
               className="rounded-card border bg-surface/70 p-3 text-sm"
             >
               <div className="flex flex-wrap items-center justify-between gap-3">
-                <p className="font-semibold">{level.item.name}</p>
+                <p className="font-semibold">{level.item?.name ?? level.inventoryItemId}</p>
                 <Badge variant={inventoryStatusBadgeVariant(level.stockStatus)}>
                   {humanizeInventoryValue(level.stockStatus)}
                 </Badge>
               </div>
               <p className="mt-1 text-muted-foreground">
-                {quantityWithUnit(level.quantityOnHand, level.item.unit)}
+                {quantityWithUnit(level.quantityOnHand, level.item?.unit)}
                 {restockSuggestion(level) !== null
                   ? ` · Restock suggestion ${quantityWithUnit(
                       restockSuggestion(level),
-                      level.item.unit
+                      level.item?.unit
                     )}`
                   : ""}
               </p>
@@ -2414,18 +2421,18 @@ function StockLevelsSection({
             >
               <div>
                 <div className="flex flex-wrap items-center gap-2">
-                  <p className="font-semibold text-foreground">{level.item.name}</p>
+                  <p className="font-semibold text-foreground">{level.item?.name ?? level.inventoryItemId}</p>
                   <Badge variant={inventoryStatusBadgeVariant(level.stockStatus)}>
                     {level.stockStatus === "in_stock"
                       ? "OK"
                       : humanizeInventoryValue(level.stockStatus)}
                   </Badge>
                   <Badge variant="muted">
-                    {humanizeInventoryValue(level.item.unit)}
+                    {humanizeInventoryValue(level.item?.unit)}
                   </Badge>
                 </div>
                 <p className="mt-1 text-sm text-muted-foreground">
-                  {level.item.sku ? `${level.item.sku} / ` : "No SKU / "}
+                  {level.item?.sku ? `${level.item?.sku} / ` : "No SKU / "}
                   Threshold {threshold ?? "not set"} / Par{" "}
                   {parLevel ?? "not set"}
                 </p>
@@ -2443,12 +2450,12 @@ function StockLevelsSection({
               <div className="grid gap-2 text-sm md:min-w-64">
                 <SummaryRow
                   label="On hand"
-                  value={quantityWithUnit(level.quantityOnHand, level.item.unit)}
+                  value={quantityWithUnit(level.quantityOnHand, level.item?.unit)}
                   tone={level.stockStatus === "in_stock" ? "success" : "warning"}
                 />
                 <SummaryRow
                   label="Reserved"
-                  value={quantityWithUnit(level.reservedQuantity, level.item.unit)}
+                  value={quantityWithUnit(level.reservedQuantity, level.item?.unit)}
                   tone="success"
                 />
                 <SummaryRow
@@ -2456,7 +2463,7 @@ function StockLevelsSection({
                   value={
                     restockSuggestion(level) === null
                       ? "None"
-                      : quantityWithUnit(restockSuggestion(level), level.item.unit)
+                      : quantityWithUnit(restockSuggestion(level), level.item?.unit)
                   }
                   tone={restockSuggestion(level) === null ? "success" : "warning"}
                 />
@@ -3123,7 +3130,7 @@ function PurchaseOrdersSection({
                   <div>
                     <div className="flex flex-wrap items-center gap-2">
                       <p className="font-semibold">
-                        {selectedPurchaseOrder.supplier.name}
+                        {selectedPurchaseOrder.supplier?.name ?? "Supplier not recorded"}
                       </p>
                       <Badge
                         variant={purchaseOrderStatusVariant(
@@ -3172,7 +3179,7 @@ function PurchaseOrdersSection({
                           type="button"
                           size="sm"
                           disabled={
-                            selectedPurchaseOrder.lines.length === 0 ||
+                            (selectedPurchaseOrder.lines ?? []).length === 0 ||
                             isTransitioning
                           }
                           onClick={() =>
@@ -3199,7 +3206,7 @@ function PurchaseOrdersSection({
                   </div>
                 </div>
 
-                {selectedPurchaseOrder.lines.map((line) => (
+                {(selectedPurchaseOrder.lines ?? []).map((line) => (
                   <div
                     key={line.id}
                     className="grid gap-3 rounded-card border bg-surface/70 p-4 md:grid-cols-[1fr_auto]"
@@ -3207,10 +3214,10 @@ function PurchaseOrdersSection({
                     <div>
                       <div className="flex flex-wrap items-center gap-2">
                         <p className="font-semibold text-foreground">
-                          {line.inventoryItem.name}
+                          {line.inventoryItem?.name ?? line.inventoryItemId}
                         </p>
                         <Badge variant="muted">
-                          {humanizeInventoryValue(line.inventoryItem.unit)}
+                          {line.inventoryItem?.unit ? humanizeInventoryValue(line.inventoryItem.unit) : "unit"}
                         </Badge>
                       </div>
                       <p className="mt-1 text-sm text-muted-foreground">
@@ -3253,7 +3260,7 @@ function PurchaseOrdersSection({
                     ) : null}
                   </div>
                 ))}
-                {selectedPurchaseOrder.lines.length === 0 ? (
+                {(selectedPurchaseOrder.lines ?? []).length === 0 ? (
                   <EmptyState
                     title="No PO lines"
                     description="Add at least one stock item before submitting."
@@ -3293,8 +3300,8 @@ function PurchaseOrdersSection({
                   </Badge>
                 </div>
                 <span className="text-sm text-muted-foreground">
-                  {order.supplier.name} / {order.lines.length} line
-                  {order.lines.length === 1 ? "" : "s"} /{" "}
+                  {order.supplier?.name ?? "Supplier not recorded"} / {(order.lines ?? []).length} line
+                  {(order.lines ?? []).length === 1 ? "" : "s"} /{" "}
                   {formatMinor(purchaseOrderEstimatedValue(order), order.currency)}
                 </span>
               </button>
@@ -3336,7 +3343,7 @@ function ReceivingSection({
   onSubmit: (event: FormEvent<HTMLFormElement>) => void;
 }) {
   const remainingLines =
-    selectedPurchaseOrder?.lines.filter(
+    selectedPurchaseOrder?.lines?.filter(
       (line) => purchaseOrderLineRemaining(line) > 0
     ) ?? [];
 
@@ -3364,7 +3371,7 @@ function ReceivingSection({
                   <option value="">Choose submitted or partial PO</option>
                   {purchaseOrders.map((order) => (
                     <option key={order.id} value={order.id}>
-                      {order.orderNumber} / {order.supplier.name} /{" "}
+                      {order.orderNumber} / {order.supplier?.name ?? "Supplier not recorded"} /{" "}
                       {humanizeInventoryValue(order.status)}
                     </option>
                   ))}
@@ -3407,13 +3414,13 @@ function ReceivingSection({
                   >
                     <div>
                       <p className="font-semibold text-foreground">
-                        {line.inventoryItem.name}
+                        {line.inventoryItem?.name ?? line.inventoryItemId}
                       </p>
                       <p className="mt-1 text-sm text-muted-foreground">
                         Ordered {line.quantityOrdered} / Received{" "}
                         {line.quantityReceived} / Remaining{" "}
                         {purchaseOrderLineRemaining(line)}{" "}
-                        {humanizeInventoryValue(line.inventoryItem.unit)}
+                        {line.inventoryItem?.unit ? humanizeInventoryValue(line.inventoryItem.unit) : "unit"}
                       </p>
                     </div>
                     <FieldLabel label="Receive">
@@ -3517,16 +3524,16 @@ function ReceivingSection({
               </div>
               <p className="mt-1 text-sm text-muted-foreground">
                 {receipt.supplier?.name ?? "Supplier not recorded"} /{" "}
-                {receipt.lines.length} line{receipt.lines.length === 1 ? "" : "s"}
+                {(receipt.lines ?? []).length} line{(receipt.lines ?? []).length === 1 ? "" : "s"}
               </p>
               <div className="mt-3 grid gap-2">
-                {receipt.lines.map((line) => (
+                {(receipt.lines ?? []).map((line) => (
                   <p
                     key={line.id}
                     className="rounded-button border bg-muted/40 px-3 py-2 text-sm text-muted-foreground"
                   >
-                    {line.inventoryItem.name}: {line.quantityReceived}{" "}
-                    {humanizeInventoryValue(line.inventoryItem.unit)}
+                    {line.inventoryItem?.name ?? line.inventoryItemId}: {line.quantityReceived}{" "}
+                    {line.inventoryItem?.unit ? humanizeInventoryValue(line.inventoryItem.unit) : "unit"}
                     {line.unitCostMinor !== null &&
                     line.unitCostMinor !== undefined
                       ? ` / ${formatMinor(line.unitCostMinor)}`
@@ -3575,13 +3582,13 @@ function MenuAvailabilityRow({
         <p className="mt-1 text-sm text-muted-foreground">
           Catalog state: {item.branchVisible ? "visible" : "hidden"} /{" "}
           {item.branchAvailable ? "available" : "unavailable"}
-          {item.reasons.length > 0
-            ? ` / ${item.reasons.map(humanizeInventoryValue).join(", ")}`
+          {(item.reasons ?? []).length > 0
+            ? ` / ${(item.reasons ?? []).map(humanizeInventoryValue).join(", ")}`
             : ""}
         </p>
-        {item.missingRequirements.length > 0 ? (
+        {(item.missingRequirements ?? []).length > 0 ? (
           <div className="mt-3 grid gap-2">
-            {item.missingRequirements.map((requirement) => (
+            {(item.missingRequirements ?? []).map((requirement) => (
               <p
                 key={requirement.inventoryItemId}
                 className="rounded-button border border-danger/40 bg-danger/10 px-3 py-2 text-sm text-foreground"
@@ -3603,9 +3610,9 @@ function MenuAvailabilityRow({
             ))}
           </div>
         ) : null}
-        {item.lowStockRequirements.length > 0 ? (
+        {(item.lowStockRequirements ?? []).length > 0 ? (
           <div className="mt-3 grid gap-2">
-            {item.lowStockRequirements.map((requirement) => (
+            {(item.lowStockRequirements ?? []).map((requirement) => (
               <p
                 key={requirement.inventoryItemId}
                 className="rounded-button border border-warning/40 bg-warning/10 px-3 py-2 text-sm text-foreground"
@@ -3650,9 +3657,9 @@ function InventoryAlertsSection({
             >
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <div>
-                  <p className="font-semibold">{level.item.name}</p>
+                  <p className="font-semibold">{level.item?.name ?? level.inventoryItemId}</p>
                   <p className="mt-1 text-sm text-muted-foreground">
-                    Current {quantityWithUnit(level.quantityOnHand, level.item.unit)} /
+                    Current {quantityWithUnit(level.quantityOnHand, level.item?.unit)} /
                     Threshold {getThreshold(level) ?? "not set"} / Par{" "}
                     {getParLevel(level) ?? "not set"}
                   </p>
@@ -3665,7 +3672,7 @@ function InventoryAlertsSection({
                 Restock suggestion:{" "}
                 {restockSuggestion(level) === null
                   ? "No par-based restock needed"
-                  : quantityWithUnit(restockSuggestion(level), level.item.unit)}
+                  : quantityWithUnit(restockSuggestion(level), level.item?.unit)}
               </p>
             </div>
           ))}
@@ -3869,7 +3876,7 @@ function RequirementsSection({
               <div>
                 <div className="flex flex-wrap items-center gap-2">
                   <p className="font-semibold text-foreground">
-                    {requirement.inventoryItem.name}
+                    {requirement.inventoryItem?.name ?? requirement.inventoryItemId}
                   </p>
                   <Badge variant={requirement.isRequired ? "warning" : "muted"}>
                     {requirement.isRequired ? "Required" : "Optional"}
