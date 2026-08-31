@@ -240,19 +240,11 @@ export function ServiceFloorBoard({
     groups.find((group) => group.id === selectedFloorId) ?? groups[0];
 
   const selectedTable =
+    activeFloor?.tables.find((table) => table.id === selectedTableId) ??
     activeFloor?.tables.find(
       (table) => table.activeSession?.id === selectedSessionId
     ) ??
-    activeFloor?.tables.find((table) => table.id === selectedTableId) ??
     getDefaultFloorTable(activeFloor?.tables ?? []);
-
-  const selectedTableSessionId = selectedTable?.activeSession?.id;
-
-  useEffect(() => {
-    if (selectedTableSessionId !== selectedSessionId) {
-      onSelectSession?.(selectedTableSessionId);
-    }
-  }, [onSelectSession, selectedSessionId, selectedTableSessionId]);
 
   const selectedTone = selectedTable ? getTableTone(selectedTable) : undefined;
   const selectedSession = selectedTable?.activeSession;
