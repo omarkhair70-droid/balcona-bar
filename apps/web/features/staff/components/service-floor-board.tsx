@@ -246,26 +246,13 @@ export function ServiceFloorBoard({
     activeFloor?.tables.find((table) => table.id === selectedTableId) ??
     getDefaultFloorTable(activeFloor?.tables ?? []);
 
+  const selectedTableSessionId = selectedTable?.activeSession?.id;
+
   useEffect(() => {
-    if (!selectedTable) {
-      return;
+    if (selectedTableSessionId !== selectedSessionId) {
+      onSelectSession?.(selectedTableSessionId);
     }
-
-    if (selectedTable.id !== selectedTableId) {
-      setSelectedTableId(selectedTable.id);
-    }
-
-    const nextSessionId = selectedTable.activeSession?.id;
-    if (nextSessionId !== selectedSessionId) {
-      onSelectSession?.(nextSessionId);
-    }
-  }, [
-    onSelectSession,
-    selectedSessionId,
-    selectedTable?.activeSession?.id,
-    selectedTable?.id,
-    selectedTableId
-  ]);
+  }, [onSelectSession, selectedSessionId, selectedTableSessionId]);
 
   const selectedTone = selectedTable ? getTableTone(selectedTable) : undefined;
   const selectedSession = selectedTable?.activeSession;
