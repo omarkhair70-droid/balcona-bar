@@ -870,6 +870,16 @@ async function capture(browser, {
   if (target) {
     const targetLocator = page.locator(target);
     await targetLocator.waitFor({ state: "visible", timeout: 15000 });
+
+    if (label.includes("waiter-floor")) {
+      await page
+        .getByText(locale === "ar" ? "جلسة نشطة" : "Active session", {
+          exact: true
+        })
+        .first()
+        .waitFor({ state: "visible", timeout: 15000 });
+    }
+
     await page.evaluate(() => window.scrollTo({ top: 0, left: 0 }));
     await page.waitForTimeout(500);
   } else {
