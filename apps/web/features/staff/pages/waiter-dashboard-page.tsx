@@ -41,6 +41,7 @@ import {
   staffLogout
 } from "@/lib/api/endpoints";
 import { staffQueryKeys } from "@/lib/api/query-keys";
+import type { BranchAdminTable } from "@/lib/api/types";
 import { useStaffAuthStore } from "@/lib/staff/staff-auth-store";
 import { AttentionQueue } from "../components/attention-queue";
 import { AttentionDetailPanel } from "../components/attention-detail-panel";
@@ -230,10 +231,10 @@ function WaiterDashboardContent() {
     () => readyOrdersQuery.data?.orders ?? emptyRecords,
     [readyOrdersQuery.data?.orders]
   );
-  const floorTables = useMemo(
+  const floorTables = useMemo<BranchAdminTable[]>(
     () =>
       floorOverviewQuery.data?.tablesByFloor.flatMap((group) => group.tables) ??
-      emptyRecords,
+      [],
     [floorOverviewQuery.data?.tablesByFloor]
   );
   const defaultFloorSessionId = useMemo(() => {
