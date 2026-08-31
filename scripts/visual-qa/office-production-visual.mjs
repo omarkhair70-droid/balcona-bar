@@ -1020,6 +1020,25 @@ async function capture(browser, {
 
   await page.waitForTimeout(700);
 
+  const blockingLoader = await page.locator("body").evaluate((body) => {
+    const labels = [
+      "Loading branch menu admin…",
+      "Loading money operations…",
+      "Loading inventory…",
+      "Loading branch and table admin…",
+      "Loading branch settings…",
+      "Loading people and access scopes…",
+      "Loading experience configuration…"
+    ];
+    return labels.find((entry) => body.innerText.includes(entry)) ?? null;
+  });
+
+  if (blockingLoader) {
+    throw new Error(
+      `${label}: visual capture stopped on blocking loader "${blockingLoader}"`
+    );
+  }
+
   if (activeLabel) {
     const expectedCurrent = page
       .locator('a[aria-current="page"]')

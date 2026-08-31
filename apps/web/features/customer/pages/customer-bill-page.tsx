@@ -257,7 +257,7 @@ export function CustomerBillPage({ sessionId }: CustomerBillPageProps) {
     (!latestIntent ||
       ["failed", "cancelled", "canceled", "expired"].includes(intentStatus));
   const isBillPreparing = Boolean(bill) && !isPresented && !isPaid;
-  const isRequested = Boolean(billRequest) && !bill;
+  const isRequested = (Boolean(billRequest) || requestMutation.isSuccess) && !bill;
   const hasNoBillableOrders = billQuery.isSuccess && orderCount === 0 && !bill;
   const canRequest =
     billQuery.isSuccess &&
@@ -330,6 +330,7 @@ export function CustomerBillPage({ sessionId }: CustomerBillPageProps) {
               <Button
                 onClick={() => requestMutation.mutate()}
                 disabled={requestMutation.isPending}
+                aria-busy={requestMutation.isPending}
                 className="mt-5 min-h-12 w-full rounded-2xl"
               >
                 {requestMutation.isPending
@@ -340,7 +341,11 @@ export function CustomerBillPage({ sessionId }: CustomerBillPageProps) {
           ) : null}
 
           {isRequested ? (
-            <div className="rounded-[26px] border border-warning/35 bg-muted p-5">
+            <div
+              role="status"
+              aria-live="polite"
+              className="rounded-[26px] border border-warning/35 bg-muted p-5"
+            >
               <Clock3 className="size-6 text-warning" aria-hidden="true" />
               <h2 className="mt-4 text-lg font-black text-foreground">
                 {t("bill.billRequested")}
@@ -447,7 +452,11 @@ export function CustomerBillPage({ sessionId }: CustomerBillPageProps) {
               ) : null}
 
               {isPaid ? (
-                <div className="mt-5 rounded-2xl bg-success/10 p-4 text-center">
+                <div
+                  role="status"
+                  aria-live="polite"
+                  className="mt-5 rounded-2xl bg-success/10 p-4 text-center"
+                >
                   <span className="mx-auto flex size-10 items-center justify-center rounded-full bg-success text-white">
                     <Check className="size-5" aria-hidden="true" />
                   </span>
@@ -474,6 +483,10 @@ export function CustomerBillPage({ sessionId }: CustomerBillPageProps) {
                     paymentCapabilitiesQuery.isPending ||
                     paymentCapabilitiesQuery.isError ||
                     !billId
+                  }
+                  aria-busy={
+                    paymentMutation.isPending ||
+                    paymentCapabilitiesQuery.isPending
                   }
                   className="mt-5 min-h-14 w-full rounded-2xl"
                 >
@@ -629,6 +642,7 @@ export function CustomerBillPage({ sessionId }: CustomerBillPageProps) {
                     <Button
                       type="submit"
                       disabled={paymentMutation.isPending}
+                      aria-busy={paymentMutation.isPending}
                       className="flex-1"
                     >
                       {paymentMutation.isPending
@@ -640,7 +654,11 @@ export function CustomerBillPage({ sessionId }: CustomerBillPageProps) {
               ) : null}
 
               {isPaymentPending && !isUnknown && !isPaid ? (
-                <div className="mt-5 rounded-2xl bg-muted p-4 text-center">
+                <div
+                  role="status"
+                  aria-live="polite"
+                  className="mt-5 rounded-2xl bg-muted p-4 text-center"
+                >
                   <Clock3 className="mx-auto size-5 text-primary" aria-hidden="true" />
                   <p className="mt-2 text-sm font-black text-foreground">
                     {t("bill.paymentPending")}
@@ -667,10 +685,14 @@ export function CustomerBillPage({ sessionId }: CustomerBillPageProps) {
                       <Button
                         variant="secondary"
                         onClick={() => void intentQuery.refetch()}
+                        disabled={intentQuery.isFetching}
+                        aria-busy={intentQuery.isFetching}
                         className="mt-3 w-full"
                       >
                         <RefreshCw className="size-4" aria-hidden="true" />
-                        {t("bill.checkPayment")}
+                        {intentQuery.isFetching
+                          ? t("bill.checkingPayment")
+                          : t("bill.checkPayment")}
                       </Button>
                     </div>
                   ) : paymentReference ? (
@@ -687,10 +709,14 @@ export function CustomerBillPage({ sessionId }: CustomerBillPageProps) {
                       <Button
                         variant="secondary"
                         onClick={() => void intentQuery.refetch()}
+                        disabled={intentQuery.isFetching}
+                        aria-busy={intentQuery.isFetching}
                         className="mt-3 w-full"
                       >
                         <RefreshCw className="size-4" aria-hidden="true" />
-                        {t("bill.checkPayment")}
+                        {intentQuery.isFetching
+                          ? t("bill.checkingPayment")
+                          : t("bill.checkPayment")}
                       </Button>
                     </div>
                   ) : isHostedCheckout ? (
@@ -704,10 +730,14 @@ export function CustomerBillPage({ sessionId }: CustomerBillPageProps) {
                     <Button
                       variant="secondary"
                       onClick={() => void intentQuery.refetch()}
+                      disabled={intentQuery.isFetching}
+                      aria-busy={intentQuery.isFetching}
                       className="mt-3 w-full"
                     >
                       <RefreshCw className="size-4" aria-hidden="true" />
-                      {t("bill.checkPayment")}
+                      {intentQuery.isFetching
+                        ? t("bill.checkingPayment")
+                        : t("bill.checkPayment")}
                     </Button>
                   )}
                 </div>

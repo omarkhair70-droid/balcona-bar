@@ -392,6 +392,10 @@ function MoneyContent() {
     secretReference: "",
   });
   const [issueNote, setIssueNote] = useState("");
+  const [actionNotice, setActionNotice] = useState("");
+  const [pendingIssueActions, setPendingIssueActions] = useState<
+    Record<string, "acknowledge" | "resolve">
+  >({});
 
   const canManage = canAccessStaffRoute({
     access: effectiveAccess,
@@ -531,9 +535,15 @@ function MoneyContent() {
 
       return recoverOfficePayment(intentId, accessToken ?? "");
     },
-    onSuccess: () => {
+    onMutate: () => setActionNotice(""),
+    onSuccess: (_result, action) => {
       void invalidateMoney();
       setReason("");
+      setActionNotice(
+        action === "recover"
+          ? "Provider inquiry completed. Payment state was refreshed from the server."
+          : `${action[0]?.toUpperCase()}${action.slice(1)} completed and confirmed by the server.`,
+      );
     },
   });
 
@@ -549,7 +559,13 @@ function MoneyContent() {
         },
         accessToken ?? "",
       ),
-    onSuccess: () => void invalidateMoney(),
+    onMutate: () => setActionNotice(""),
+    onSuccess: () => {
+      void invalidateMoney();
+      setActionNotice(
+        "Provider reconciliation completed. Results were refreshed from the server.",
+      );
+    },
   });
 
   const settlementMutation = useMutation({
@@ -626,8 +642,12 @@ function MoneyContent() {
         accessToken ?? "",
       );
     },
+    onMutate: () => setActionNotice(""),
     onSuccess: () => {
       void invalidateMoney();
+      setActionNotice(
+        "Settlement statement imported and reconciliation results refreshed.",
+      );
       setSettlementDraft((current) => ({
         ...current,
         externalReference: "",
@@ -684,7 +704,15 @@ function MoneyContent() {
         accessToken,
       );
     },
-    onSuccess: () => void invalidateMoney(),
+    onMutate: () => setActionNotice(""),
+    onSuccess: (_result, status) => {
+      void invalidateMoney();
+      setActionNotice(
+        status === "ready"
+          ? "Merchant integration validated and activated."
+          : "Merchant integration setup state saved.",
+      );
+    },
   });
 
   const terminalMutation = useMutation({
@@ -713,8 +741,10 @@ function MoneyContent() {
         },
         accessToken,
       ),
+    onMutate: () => setActionNotice(""),
     onSuccess: () => {
       void invalidateMoney();
+      setActionNotice("Terminal readiness metadata saved.");
       setTerminalDraft((current) => ({
         ...current,
         displayName: "",
@@ -745,28 +775,36 @@ function MoneyContent() {
             issueNote,
             accessToken ?? "",
           ),
-    onSuccess: () => {
+    onMutate: (variables) => {
+      setActionNotice("");
+      setPendingIssueActions((current) => ({
+        ...current,
+        [variables.issueId]: variables.action,
+      }));
+    },
+    onSuccess: (_result, variables) => {
       void invalidateMoney();
       setIssueNote("");
+      setActionNotice(
+        variables.action === "acknowledge"
+          ? "Reconciliation issue acknowledged."
+          : "Reconciliation issue resolved.",
+      );
+    },
+    onSettled: (_result, _error, variables) => {
+      setPendingIssueActions((current) => {
+        const next = { ...current };
+        delete next[variables.issueId];
+        return next;
+      });
     },
   });
 
-  if (
-    billsQuery.isPending ||
-    paymentsQuery.isPending ||
-    runsQuery.isPending ||
-    issuesQuery.isPending ||
-    integrationsQuery.isPending
-  ) {
+  if (billsQuery.isPending && paymentsQuery.isPending) {
     return <LoadingState label="Loading money operations…" />;
   }
 
-  const firstError =
-    billsQuery.error ??
-    paymentsQuery.error ??
-    runsQuery.error ??
-    issuesQuery.error ??
-    integrationsQuery.error;
+  const firstError = billsQuery.error ?? paymentsQuery.error;
 
   if (firstError) {
     return (
@@ -848,6 +886,24 @@ function MoneyContent() {
           limits live under Account.
         </OfficeInlineNotice>
       </div>
+
+      {actionNotice ? (
+        <div role="status" aria-live="polite">
+          <OfficeInlineNotice title="Completed">
+            {actionNotice}
+          </OfficeInlineNotice>
+        </div>
+      ) : null}
+
+      {runsQuery.error || issuesQuery.error || integrationsQuery.error ? (
+        <div role="alert">
+          <OfficeInlineNotice title="Some money data is unavailable">
+            {formatErrorMessage(
+              runsQuery.error ?? issuesQuery.error ?? integrationsQuery.error,
+            )}
+          </OfficeInlineNotice>
+        </div>
+      ) : null}
 
       <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
         <OfficeFact label="Bills" value={bills.length} />
@@ -995,6 +1051,10 @@ function MoneyContent() {
                     size="sm"
                     variant="secondary"
                     disabled={operationMutation.isPending}
+                    aria-busy={
+                      operationMutation.isPending &&
+                      operationMutation.variables === "refund"
+                    }
                     onClick={() => {
                       if (
                         window.confirm(
@@ -1005,7 +1065,10 @@ function MoneyContent() {
                       }
                     }}
                   >
-                    Refund
+                    {operationMutation.isPending &&
+                    operationMutation.variables === "refund"
+                      ? "Refunding…"
+                      : "Refund"}
                   </Button>
                 ) : null}
                 {canVoidOrCapture ? (
@@ -1014,6 +1077,10 @@ function MoneyContent() {
                       size="sm"
                       variant="secondary"
                       disabled={operationMutation.isPending}
+                      aria-busy={
+                        operationMutation.isPending &&
+                        operationMutation.variables === "void"
+                      }
                       onClick={() => {
                         if (
                           window.confirm(
@@ -1024,12 +1091,19 @@ function MoneyContent() {
                         }
                       }}
                     >
-                      Void
+                      {operationMutation.isPending &&
+                      operationMutation.variables === "void"
+                        ? "Voiding…"
+                        : "Void"}
                     </Button>
                     <Button
                       size="sm"
                       variant="secondary"
                       disabled={operationMutation.isPending}
+                      aria-busy={
+                        operationMutation.isPending &&
+                        operationMutation.variables === "capture"
+                      }
                       onClick={() => {
                         if (
                           window.confirm(
@@ -1040,7 +1114,10 @@ function MoneyContent() {
                         }
                       }}
                     >
-                      Capture
+                      {operationMutation.isPending &&
+                      operationMutation.variables === "capture"
+                        ? "Capturing…"
+                        : "Capture"}
                     </Button>
                   </>
                 ) : null}
@@ -1048,10 +1125,17 @@ function MoneyContent() {
                   size="sm"
                   variant="secondary"
                   disabled={operationMutation.isPending}
+                  aria-busy={
+                    operationMutation.isPending &&
+                    operationMutation.variables === "recover"
+                  }
                   onClick={() => operationMutation.mutate("recover")}
                 >
                   <RotateCcw className="size-3.5" aria-hidden="true" />
-                  Recover / inquire
+                  {operationMutation.isPending &&
+                  operationMutation.variables === "recover"
+                    ? "Checking provider…"
+                    : "Recover / inquire"}
                 </Button>
               </div>
               {operationMutation.isError ? (
@@ -1126,7 +1210,11 @@ function MoneyContent() {
                 "Payments fail closed until a merchant integration is ready."
               }
             />
-            {integrations.length === 0 ? (
+            {integrationsQuery.isPending ? (
+              <p role="status" className="text-xs text-[#777770]">
+                Checking merchant readiness…
+              </p>
+            ) : integrations.length === 0 ? (
               <OfficeInlineNotice title="Merchant setup required">
                 No company or branch merchant integration is recorded. Real
                 online checkout remains unavailable for this venue.
@@ -1444,9 +1532,16 @@ function MoneyContent() {
                   size="sm"
                   variant="secondary"
                   disabled={integrationMutation.isPending}
+                  aria-busy={
+                    integrationMutation.isPending &&
+                    integrationMutation.variables === "needs_setup"
+                  }
                   onClick={() => integrationMutation.mutate("needs_setup")}
                 >
-                  Save setup state
+                  {integrationMutation.isPending &&
+                  integrationMutation.variables === "needs_setup"
+                    ? "Saving setup…"
+                    : "Save setup state"}
                 </Button>
                 <Button
                   size="sm"
@@ -1454,9 +1549,16 @@ function MoneyContent() {
                     integrationMutation.isPending ||
                     integrationDraft.provider === "maestr"
                   }
+                  aria-busy={
+                    integrationMutation.isPending &&
+                    integrationMutation.variables === "ready"
+                  }
                   onClick={() => integrationMutation.mutate("ready")}
                 >
-                  Validate & activate
+                  {integrationMutation.isPending &&
+                  integrationMutation.variables === "ready"
+                    ? "Validating…"
+                    : "Validate & activate"}
                 </Button>
               </div>
               {integrationMutation.isError ? (
@@ -1645,9 +1747,12 @@ function MoneyContent() {
                   terminalMutation.isPending ||
                   !terminalDraft.displayName.trim()
                 }
+                aria-busy={terminalMutation.isPending}
                 onClick={() => terminalMutation.mutate()}
               >
-                Save blocked terminal readiness
+                {terminalMutation.isPending
+                  ? "Saving terminal readiness…"
+                  : "Save blocked terminal readiness"}
               </Button>
               {terminalMutation.isError ? (
                 <div className="mt-3">
@@ -1674,7 +1779,11 @@ function MoneyContent() {
           }
         >
           <div className="space-y-3">
-            {runs.length === 0 ? (
+            {runsQuery.isPending ? (
+              <p role="status" className="text-xs text-[#777770]">
+                Loading reconciliation runs…
+              </p>
+            ) : runs.length === 0 ? (
               <OfficeInlineNotice title="No reconciliation runs">
                 No provider or settlement reconciliation run has been recorded.
               </OfficeInlineNotice>
@@ -1738,6 +1847,7 @@ function MoneyContent() {
                     !settlementDraft.periodEnd ||
                     settlementMutation.isPending
                   }
+                  aria-busy={settlementMutation.isPending}
                   onClick={() => {
                     if (
                       window.confirm(
@@ -1749,7 +1859,9 @@ function MoneyContent() {
                   }}
                 >
                   <FileCheck2 className="size-3.5" aria-hidden="true" />
-                  Import & reconcile
+                  {settlementMutation.isPending
+                    ? "Importing & reconciling…"
+                    : "Import & reconcile"}
                 </Button>
                 {settlementMutation.isError ? (
                   <div className="mt-2">
@@ -1808,9 +1920,12 @@ function MoneyContent() {
                     !currency.trim() ||
                     reconciliationMutation.isPending
                   }
+                  aria-busy={reconciliationMutation.isPending}
                   onClick={() => reconciliationMutation.mutate()}
                 >
-                  Run provider reconciliation
+                  {reconciliationMutation.isPending
+                    ? "Reconciling with provider…"
+                    : "Run provider reconciliation"}
                 </Button>
               </div>
             </div>
@@ -1841,7 +1956,11 @@ function MoneyContent() {
           ) : null
         }
       >
-        {issues.length === 0 ? (
+        {issuesQuery.isPending ? (
+          <p role="status" className="text-xs text-[#777770]">
+            Loading reconciliation issues…
+          </p>
+        ) : issues.length === 0 ? (
           <EmptyState
             title="No reconciliation issues"
             description="The API returned no reconciliation exception for this branch."
@@ -1856,6 +1975,7 @@ function MoneyContent() {
             {issues.map((issue) => {
               const issueId = textValue(issue.id, "");
               const status = textValue(issue.status).toLowerCase();
+              const pendingIssueAction = pendingIssueActions[issueId];
 
               return (
                 <div
@@ -1882,7 +2002,8 @@ function MoneyContent() {
                         <Button
                           size="sm"
                           variant="secondary"
-                          disabled={issueMutation.isPending}
+                          disabled={Boolean(pendingIssueAction)}
+                          aria-busy={pendingIssueAction === "acknowledge"}
                           onClick={() =>
                             issueMutation.mutate({
                               issueId,
@@ -1890,13 +2011,16 @@ function MoneyContent() {
                             })
                           }
                         >
-                          Acknowledge
+                          {pendingIssueAction === "acknowledge"
+                            ? "Acknowledging…"
+                            : "Acknowledge"}
                         </Button>
                       ) : null}
                       <Button
                         size="sm"
                         variant="secondary"
-                        disabled={issueMutation.isPending}
+                        disabled={Boolean(pendingIssueAction)}
+                        aria-busy={pendingIssueAction === "resolve"}
                         onClick={() => {
                           if (
                             window.confirm(
@@ -1910,7 +2034,9 @@ function MoneyContent() {
                           }
                         }}
                       >
-                        Resolve
+                        {pendingIssueAction === "resolve"
+                          ? "Resolving…"
+                          : "Resolve"}
                       </Button>
                     </div>
                   ) : null}

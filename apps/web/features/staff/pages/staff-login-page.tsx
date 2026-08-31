@@ -80,13 +80,11 @@ export function StaffLoginPage() {
   const setFromLogin = useStaffAuthStore((state) => state.setFromLogin);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [branchId, setBranchId] = useState("");
   const loginMutation = useMutation({
     mutationFn: () =>
       staffLogin({
         email: email.trim(),
-        password,
-        branchId: branchId.trim() || undefined
+        password
       }),
     onSuccess: (result) => {
       setFromLogin(result);
@@ -230,16 +228,6 @@ export function StaffLoginPage() {
                 />
               </label>
 
-              <label className="grid gap-2 text-xs font-semibold text-[#DCCFC3]">
-                {t("auth.branchIdLabel")}
-                <Input
-                  value={branchId}
-                  onChange={(event) => setBranchId(event.target.value)}
-                  placeholder={t("auth.branchIdPlaceholder")}
-                  className="border-[#44372E] bg-[#17120F] text-[#FFF5E8] placeholder:text-[#75695F]"
-                />
-              </label>
-
               {loginMutation.isError ? (
                 <div
                   role="alert"
@@ -255,6 +243,7 @@ export function StaffLoginPage() {
               <Button
                 type="submit"
                 disabled={loginMutation.isPending}
+                aria-busy={loginMutation.isPending}
                 className="mt-1 min-h-12 w-full bg-[#C68A4A] text-[#1B120C] hover:bg-[#D39A57]"
               >
                 <LogIn className="size-4" aria-hidden="true" />

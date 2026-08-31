@@ -314,13 +314,36 @@ function MutationMessage({ error }: { error: unknown }) {
   }
 
   return (
-    <div className="flex items-start gap-3 rounded-card border border-danger/40 bg-danger/10 p-4 text-sm text-foreground">
+    <div
+      role="alert"
+      className="flex items-start gap-3 rounded-card border border-danger/40 bg-danger/10 p-4 text-sm text-foreground"
+    >
       <AlertTriangle className="mt-0.5 size-4 text-danger" aria-hidden="true" />
       <div>
         <p className="font-semibold">Update did not save</p>
         <p className="text-muted-foreground">
           {getBranchAdminErrorMessage(error)}
         </p>
+      </div>
+    </div>
+  );
+}
+
+function SuccessMessage({ message }: { message: string | null }) {
+  if (!message) {
+    return null;
+  }
+
+  return (
+    <div
+      role="status"
+      aria-live="polite"
+      className="flex items-start gap-3 rounded-card border border-success/35 bg-success/10 p-4 text-sm text-foreground"
+    >
+      <CheckCircle2 className="mt-0.5 size-4 text-success" aria-hidden="true" />
+      <div>
+        <p className="font-semibold">Saved</p>
+        <p className="text-muted-foreground">{message}</p>
       </div>
     </div>
   );
@@ -335,7 +358,11 @@ function QrActionMessage({ result }: { result: QrActionResult | null }) {
     result.action === "regenerated" ? "QR token regenerated" : "QR token ready";
 
   return (
-    <div className="grid gap-3 rounded-card border border-success/35 bg-success/10 p-4 text-sm">
+    <div
+      role="status"
+      aria-live="polite"
+      className="grid gap-3 rounded-card border border-success/35 bg-success/10 p-4 text-sm"
+    >
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <p className="flex items-center gap-2 font-semibold text-foreground">
@@ -1282,6 +1309,7 @@ function BranchTableAdminContent() {
   const [floorForm, setFloorForm] = useState<FloorFormState>(emptyFloorForm);
   const [tableForm, setTableForm] = useState<TableFormState>(emptyTableForm);
   const [lastQrAction, setLastQrAction] = useState<QrActionResult | null>(null);
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [pendingBranchIds, setPendingBranchIds] = useState<Set<string>>(
     () => new Set(),
   );
@@ -1384,6 +1412,7 @@ function BranchTableAdminContent() {
     onSuccess: (result) => {
       setBranchForm(emptyBranchForm);
       setSelectedBranchId(result.branch.id);
+      setSuccessMessage(`${result.branch.name} was created.`);
       refreshBranchAdmin();
     }
   });
@@ -1395,8 +1424,9 @@ function BranchTableAdminContent() {
       branchId: string;
       payload: UpdateBranchPayload;
     }) => updateBranch(branchId, payload, accessToken),
-    onSuccess: () => {
+    onSuccess: (result) => {
       setBranchForm(emptyBranchForm);
+      setSuccessMessage(`${result.branch.name} was saved.`);
       refreshBranchAdmin();
     }
   });
@@ -1408,7 +1438,12 @@ function BranchTableAdminContent() {
     onMutate: (branch) => {
       setPendingBranchIds((current) => new Set(current).add(branch.id));
     },
-    onSuccess: refreshBranchAdmin,
+    onSuccess: (_result, branch) => {
+      setSuccessMessage(
+        `${branch.name} was ${branch.status === "active" ? "deactivated" : "activated"}.`,
+      );
+      refreshBranchAdmin();
+    },
     onSettled: (_result, _error, branch) => {
       setPendingBranchIds((current) => {
         const next = new Set(current);
@@ -1423,8 +1458,9 @@ function BranchTableAdminContent() {
 
       return createFloor(branchId, payload, token);
     },
-    onSuccess: () => {
+    onSuccess: (result) => {
       setFloorForm(emptyFloorForm);
+      setSuccessMessage(`${result.floor.name} was created.`);
       refreshBranchAdmin();
     }
   });
@@ -1440,8 +1476,9 @@ function BranchTableAdminContent() {
 
       return updateFloor(branchId, floorId, payload, token);
     },
-    onSuccess: () => {
+    onSuccess: (result) => {
       setFloorForm(emptyFloorForm);
+      setSuccessMessage(`${result.floor.name} was saved.`);
       refreshBranchAdmin();
     }
   });
@@ -1451,8 +1488,9 @@ function BranchTableAdminContent() {
 
       return createTable(branchId, payload, token);
     },
-    onSuccess: () => {
+    onSuccess: (result) => {
       setTableForm(emptyTableForm);
+      setSuccessMessage(`${result.table.displayName} was created.`);
       refreshBranchAdmin();
     }
   });
@@ -1468,8 +1506,9 @@ function BranchTableAdminContent() {
 
       return updateTable(branchId, tableId, payload, token);
     },
-    onSuccess: () => {
+    onSuccess: (result) => {
       setTableForm(emptyTableForm);
+      setSuccessMessage(`${result.table.displayName} was saved.`);
       refreshBranchAdmin();
     }
   });
@@ -1482,7 +1521,10 @@ function BranchTableAdminContent() {
     onMutate: (table) => {
       setPendingTableIds((current) => new Set(current).add(table.id));
     },
-    onSuccess: refreshBranchAdmin,
+    onSuccess: (_result, table) => {
+      setSuccessMessage(`${table.displayName} was activated.`);
+      refreshBranchAdmin();
+    },
     onSettled: (_result, _error, table) => {
       setPendingTableIds((current) => {
         const next = new Set(current);
@@ -1500,7 +1542,10 @@ function BranchTableAdminContent() {
     onMutate: (table) => {
       setPendingTableIds((current) => new Set(current).add(table.id));
     },
-    onSuccess: refreshBranchAdmin,
+    onSuccess: (_result, table) => {
+      setSuccessMessage(`${table.displayName} was deactivated.`);
+      refreshBranchAdmin();
+    },
     onSettled: (_result, _error, table) => {
       setPendingTableIds((current) => {
         const next = new Set(current);
@@ -1683,6 +1728,7 @@ function BranchTableAdminContent() {
 
       <BranchTableMetrics overview={overview} />
       <MutationMessage error={mutationError} />
+      {mutationError ? null : <SuccessMessage message={successMessage} />}
       <QrActionMessage result={lastQrAction} />
 
       <div className="flex flex-wrap gap-2 rounded-card border bg-surface/70 p-2">
