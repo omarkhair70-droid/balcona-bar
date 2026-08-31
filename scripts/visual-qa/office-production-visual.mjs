@@ -633,45 +633,228 @@ const onboarding = {
   }
 };
 
+const menuCategorySummary = {
+  id: "category-office-visual",
+  name: "Coffee",
+  slug: "coffee",
+  description: "Coffee menu",
+  sortOrder: 1,
+  status: "active"
+};
+
+const modifierOption = {
+  id: "modifier-option-office-visual",
+  groupId: "modifier-group-office-visual",
+  name: "Oat milk",
+  slug: "oat-milk",
+  priceDeltaMinor: 1500,
+  status: "active",
+  sortOrder: 1
+};
+
+const modifierGroup = {
+  id: "modifier-group-office-visual",
+  companyId: COMPANY_ID,
+  name: "Milk",
+  slug: "milk",
+  description: "Milk choice",
+  selectionType: "single",
+  isRequired: false,
+  minSelections: 0,
+  maxSelections: 1,
+  sortOrder: 1,
+  status: "active",
+  options: [modifierOption],
+  itemCount: 1
+};
+
+const branchOverride = {
+  id: "branch-override-office-visual",
+  branchId: BRANCH_ID,
+  menuItemId: "menu-item-office-visual",
+  priceOverrideMinor: null,
+  effectivePriceMinor: 9500,
+  isAvailable: true,
+  isVisible: true,
+  sortOrder: 1
+};
+
+const catalogItem = {
+  id: "menu-item-office-visual",
+  companyId: COMPANY_ID,
+  categoryId: menuCategorySummary.id,
+  name: "Spanish Latte",
+  slug: "spanish-latte",
+  description: "Espresso with milk",
+  imageUrl: null,
+  basePriceMinor: 9500,
+  effectivePriceMinor: 9500,
+  currency: "EGP",
+  station: "barista",
+  status: "active",
+  isFeatured: true,
+  sortOrder: 1,
+  category: menuCategorySummary,
+  modifierGroups: [
+    {
+      id: "item-modifier-link-office-visual",
+      menuItemId: "menu-item-office-visual",
+      modifierGroupId: modifierGroup.id,
+      sortOrder: 1,
+      modifierGroup
+    }
+  ],
+  branchOverride,
+  hasBranchOverride: true,
+  isAvailable: true,
+  isVisible: true,
+  customerVisible: true
+};
+
 const menuAdminOverview = {
   company,
   branch,
   stats: {
-    categories: 0,
-    items: 0,
-    visibleItems: 0,
+    categories: 1,
+    items: 1,
+    visibleItems: 1,
     unavailableItems: 0,
     hiddenItems: 0,
-    modifierGroups: 0,
+    modifierGroups: 1,
     setupWarnings: 0
   },
-  categories: [],
-  modifierGroups: [],
+  categories: [
+    {
+      ...menuCategorySummary,
+      companyId: COMPANY_ID,
+      itemCount: 1,
+      visibleItemCount: 1,
+      items: [catalogItem]
+    }
+  ],
+  modifierGroups: [modifierGroup],
   setupIssues: []
 };
 
-const inventoryItems = { company, items: [] };
+const inventoryItem = {
+  id: "inventory-item-office-visual",
+  companyId: COMPANY_ID,
+  name: "Coffee beans",
+  sku: "BEANS-001",
+  unit: "gram",
+  status: "active",
+  parLevelQuantity: 20,
+  lowStockThresholdQuantity: 10
+};
+
+const inventoryLevel = {
+  id: "inventory-level-office-visual",
+  branchId: BRANCH_ID,
+  inventoryItemId: inventoryItem.id,
+  item: inventoryItem,
+  quantityOnHand: 8,
+  reservedQuantity: 0,
+  lowStockThresholdQuantity: 10,
+  stockStatus: "low_stock"
+};
+
+const supplier = {
+  id: "supplier-office-visual",
+  companyId: COMPANY_ID,
+  name: "Roastery Supply",
+  contact: "Supply desk",
+  phone: "+201000000000",
+  email: "supply@example.com",
+  status: "active"
+};
+
+const purchaseOrderLine = {
+  id: "po-line-office-visual",
+  purchaseOrderId: "po-office-visual",
+  inventoryItemId: inventoryItem.id,
+  quantityOrdered: 10,
+  quantityReceived: 4,
+  unitCostMinor: 1200,
+  notes: null,
+  inventoryItem
+};
+
+const purchaseOrder = {
+  id: "po-office-visual",
+  companyId: COMPANY_ID,
+  branchId: BRANCH_ID,
+  supplierId: supplier.id,
+  orderNumber: "PO-0001",
+  status: "partially_received",
+  expectedAt: "2026-08-31T00:00:00.000Z",
+  notes: "Visual QA purchase order",
+  currency: "EGP",
+  supplier,
+  lines: [purchaseOrderLine]
+};
+
+const inventoryReceipt = {
+  id: "receipt-office-visual",
+  companyId: COMPANY_ID,
+  branchId: BRANCH_ID,
+  supplierId: supplier.id,
+  purchaseOrderId: purchaseOrder.id,
+  receiptNumber: "RCPT-0001",
+  receivedAt: "2026-08-31T09:00:00.000Z",
+  notes: "Partial delivery",
+  supplier,
+  lines: [
+    {
+      id: "receipt-line-office-visual",
+      receiptId: "receipt-office-visual",
+      purchaseOrderLineId: purchaseOrderLine.id,
+      inventoryItemId: inventoryItem.id,
+      quantityReceived: 4,
+      unitCostMinor: 1200,
+      inventoryItem
+    }
+  ]
+};
+
+const inventoryItems = { company, items: [inventoryItem] };
 const inventoryLevels = {
   company,
   branch,
-  levels: [],
+  levels: [inventoryLevel],
   summary: {
-    totalInventoryItemCount: 0,
-    trackedLevelCount: 0,
-    lowStockCount: 0,
+    totalInventoryItemCount: 1,
+    trackedLevelCount: 1,
+    lowStockCount: 1,
     outOfStockCount: 0
   },
-  lastMovementAt: null
+  lastMovementAt: "2026-08-31T09:00:00.000Z"
 };
 const inventoryAlerts = {
   company,
   branch,
-  lowStockLevels: [],
+  lowStockLevels: [inventoryLevel],
   outOfStockLevels: [],
   stockBlockedMenuItems: [],
-  recentMovements: [],
+  recentMovements: [
+    {
+      id: "movement-office-visual",
+      companyId: COMPANY_ID,
+      branchId: BRANCH_ID,
+      inventoryItemId: inventoryItem.id,
+      staffUserId: "staff-office-visual",
+      type: "stock_in",
+      quantityDelta: 4,
+      quantityAfter: 8,
+      unit: "gram",
+      sourceType: "receipt",
+      sourceId: inventoryReceipt.id,
+      note: "Partial delivery",
+      createdAt: "2026-08-31T09:00:00.000Z",
+      inventoryItem
+    }
+  ],
   summary: {
-    lowStockCount: 0,
+    lowStockCount: 1,
     outOfStockCount: 0,
     stockBlockedMenuItemCount: 0
   }
@@ -679,18 +862,57 @@ const inventoryAlerts = {
 const inventoryMenuAvailability = {
   company,
   branch,
-  items: [],
+  items: [
+    {
+      menuItemId: catalogItem.id,
+      name: catalogItem.name,
+      slug: catalogItem.slug,
+      category: menuCategorySummary,
+      branchVisible: true,
+      branchAvailable: true,
+      stockStatus: "low_stock",
+      missingRequirements: [],
+      lowStockRequirements: [
+        {
+          inventoryItemId: inventoryItem.id,
+          name: inventoryItem.name,
+          unit: inventoryItem.unit,
+          quantityRequired: 2,
+          quantityOnHand: 8,
+          quantityAfter: 6,
+          threshold: 10
+        }
+      ],
+      canOrder: true,
+      reasons: []
+    }
+  ],
   summary: {
-    itemCount: 0,
-    canOrderCount: 0,
-    lowStockCount: 0,
+    itemCount: 1,
+    canOrderCount: 1,
+    lowStockCount: 1,
     outOfStockCount: 0,
     stockBlockedCount: 0
   }
 };
-const suppliers = { company, branch, suppliers: [] };
-const purchaseOrders = { company, branch, purchaseOrders: [] };
-const inventoryReceipts = { company, branch, receipts: [] };
+const suppliers = { company, branch, suppliers: [supplier] };
+const purchaseOrders = { company, branch, purchaseOrders: [purchaseOrder] };
+const inventoryReceipts = { company, branch, receipts: [inventoryReceipt] };
+const inventoryRequirements = {
+  item: catalogItem,
+  requirements: [
+    {
+      id: "requirement-office-visual",
+      companyId: COMPANY_ID,
+      menuItemId: catalogItem.id,
+      inventoryItemId: inventoryItem.id,
+      quantityRequired: 2,
+      unit: inventoryItem.unit,
+      isRequired: true,
+      inventoryItem
+    }
+  ]
+};
 
 const branchAdminBranch = {
   ...branch,
@@ -872,6 +1094,13 @@ async function installApiMocks(page, accessValue = access) {
       `/api/v1/branches/${BRANCH_ID}/inventory/menu-availability`
     ) {
       return route.fulfill(json(inventoryMenuAvailability));
+    }
+
+    if (
+      pathname ===
+      `/api/v1/menu-items/${catalogItem.id}/inventory-requirements`
+    ) {
+      return route.fulfill(json(inventoryRequirements));
     }
 
     if (pathname === `/api/v1/branches/${BRANCH_ID}/suppliers`) {
@@ -1131,11 +1360,116 @@ async function capture(browser, {
   return result;
 }
 
+async function assertOfficeInternalTabs(browser) {
+  const surfaces = [
+    {
+      label: "catalog",
+      routePath: "/office/catalog",
+      tabs: [
+        "Menus",
+        "Categories",
+        "Items",
+        "Modifiers",
+        "Availability",
+        "Branch overrides",
+        "Preview"
+      ]
+    },
+    {
+      label: "inventory",
+      routePath: "/office/inventory",
+      tabs: [
+        "Overview",
+        "Stock",
+        "Alerts",
+        "Movements",
+        "Requirements / Recipes",
+        "Suppliers",
+        "Purchase orders",
+        "Receiving"
+      ]
+    }
+  ];
+  const visited = [];
+
+  for (const surface of surfaces) {
+    const context = await newContext(
+      browser,
+      "en",
+      { width: 1440, height: 1000 },
+      access
+    );
+    const page = await context.newPage();
+    const consoleErrors = [];
+    const pageErrors = [];
+
+    page.on("console", (message) => {
+      if (message.type() === "error") {
+        consoleErrors.push(message.text());
+      }
+    });
+    page.on("pageerror", (error) => {
+      pageErrors.push(error.message);
+    });
+
+    await installApiMocks(page, access);
+    await page.goto(`${BASE_URL}${surface.routePath}`, {
+      waitUntil: "domcontentloaded",
+      timeout: 30000
+    });
+    await page.getByText("Balcona Office", { exact: true }).first().waitFor({
+      state: "visible",
+      timeout: 15000
+    });
+    await page.waitForTimeout(700);
+
+    for (const tab of surface.tabs) {
+      const button = page.getByRole("button", { name: tab, exact: true }).first();
+      await button.waitFor({ state: "visible", timeout: 15000 });
+      await button.click();
+      await page.waitForTimeout(250);
+
+      const bodyText = (await page.locator("body").innerText()).toLowerCase();
+      if (
+        bodyText.includes("this page couldn’t load") ||
+        bodyText.includes("this page couldn't load") ||
+        bodyText.includes("something went wrong")
+      ) {
+        throw new Error(
+          `office-internal-tabs: ${surface.label}/${tab} rendered an error boundary`
+        );
+      }
+
+      if (pageErrors.length > 0) {
+        throw new Error(
+          `office-internal-tabs: ${surface.label}/${tab} page errors: ${pageErrors.join(" | ")}`
+        );
+      }
+
+      visited.push({ surface: surface.label, tab });
+    }
+
+    if (consoleErrors.length > 0) {
+      throw new Error(
+        `office-internal-tabs: ${surface.label} console errors: ${consoleErrors.join(" | ")}`
+      );
+    }
+
+    await context.close();
+  }
+
+  return {
+    label: "20-office-internal-tabs-non-empty-smoke",
+    visited
+  };
+}
+
 await mkdir(OUTPUT_DIR, { recursive: true });
 const browser = await chromium.launch({ headless: true });
 const results = [];
 
 try {
+  results.push(await assertOfficeInternalTabs(browser));
   results.push(
     await capture(browser, {
       label: "01-office-home-1440",
