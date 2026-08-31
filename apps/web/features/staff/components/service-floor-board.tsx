@@ -85,6 +85,15 @@ function slotForTable(index: number) {
   };
 }
 
+function getDefaultFloorTable(tables: BranchAdminTable[]) {
+  return (
+    tables.find((table) => getTableTone(table) === "urgent") ??
+    tables.find((table) => getTableTone(table) === "attention") ??
+    tables.find((table) => table.activeSession) ??
+    tables[0]
+  );
+}
+
 function getTableTone(table: BranchAdminTable): TableTone {
   const attention = table.activeSession?.tableAttentionSnapshot;
   const attentionStatus = attention?.status;
@@ -235,16 +244,28 @@ export function ServiceFloorBoard({
       (table) => table.activeSession?.id === selectedSessionId
     ) ??
     activeFloor?.tables.find((table) => table.id === selectedTableId) ??
-    activeFloor?.tables.find((table) => table.activeSession) ??
-    activeFloor?.tables[0];
+    getDefaultFloorTable(activeFloor?.tables ?? []);
 
   useEffect(() => {
-    const nextSessionId = selectedTable?.activeSession?.id;
+    if (!selectedTable) {
+      return;
+    }
 
+    if (selectedTable.id !== selectedTableId) {
+      setSelectedTableId(selectedTable.id);
+    }
+
+    const nextSessionId = selectedTable.activeSession?.id;
     if (nextSessionId !== selectedSessionId) {
       onSelectSession?.(nextSessionId);
     }
-  }, [onSelectSession, selectedSessionId, selectedTable?.activeSession?.id]);
+  }, [
+    onSelectSession,
+    selectedSessionId,
+    selectedTable?.activeSession?.id,
+    selectedTable?.id,
+    selectedTableId
+  ]);
 
   const selectedTone = selectedTable ? getTableTone(selectedTable) : undefined;
   const selectedSession = selectedTable?.activeSession;
@@ -280,8 +301,7 @@ export function ServiceFloorBoard({
   const canvasHeight = 540 + (canvasCycles - 1) * 470;
 
   const selectFloor = (group: FloorGroup) => {
-    const nextTable =
-      group.tables.find((table) => table.activeSession) ?? group.tables[0];
+    const nextTable = getDefaultFloorTable(group.tables);
 
     setSelectedFloorId(group.id);
     setSelectedTableId(nextTable?.id);
