@@ -78,6 +78,7 @@ function TeamContent() {
   const [inviteEmail, setInviteEmail] = useState("");
   const [inviteRole, setInviteRole] =
     useState<InviteOnboardingStaffPayload["role"]>("cashier");
+  const [copyNotice, setCopyNotice] = useState("");
 
   const canManage = canAccessStaffRoute({
     access: effectiveAccess,
@@ -406,12 +407,18 @@ function TeamContent() {
                 </select>
               </label>
               {inviteMutation.isError ? (
-                <OfficeInlineNotice title="Invite failed">
-                  {formatErrorMessage(inviteMutation.error)}
-                </OfficeInlineNotice>
+                <div role="alert">
+                  <OfficeInlineNotice title="Invite failed">
+                    {formatErrorMessage(inviteMutation.error)}
+                  </OfficeInlineNotice>
+                </div>
               ) : null}
               {inviteMutation.data ? (
-                <div className="rounded-md border border-[#D9E3D7] bg-[#F7FAF6] p-3">
+                <div
+                  role="status"
+                  aria-live="polite"
+                  className="rounded-md border border-[#D9E3D7] bg-[#F7FAF6] p-3"
+                >
                   <p className="text-xs font-semibold">Invite created</p>
                   <p className="mt-1 break-all text-xs text-[#62625C]">
                     {inviteMutation.data.invitePath}
@@ -427,13 +434,23 @@ function TeamContent() {
                           ? inviteMutation.data?.invitePath
                           : `${window.location.origin}${inviteMutation.data?.invitePath}`;
                       if (full) {
-                        void navigator.clipboard.writeText(full);
+                        setCopyNotice("");
+                        void navigator.clipboard.writeText(full).then(
+                          () => setCopyNotice("Invite link copied."),
+                          () =>
+                            setCopyNotice(
+                              "Copy failed. Select the invite link above and copy it manually.",
+                            ),
+                        );
                       }
                     }}
                   >
                     <Copy className="size-3.5" aria-hidden="true" />
                     Copy invite link
                   </Button>
+                  {copyNotice ? (
+                    <p className="mt-2 text-xs text-[#62625C]">{copyNotice}</p>
+                  ) : null}
                 </div>
               ) : null}
               <Button
@@ -444,6 +461,7 @@ function TeamContent() {
                   !inviteEmail.trim() ||
                   inviteMutation.isPending
                 }
+                aria-busy={inviteMutation.isPending}
               >
                 <UserPlus className="size-4" aria-hidden="true" />
                 {inviteMutation.isPending ? "Creating…" : "Create invite"}
@@ -481,6 +499,7 @@ function TeamContent() {
             <Button
               variant="danger"
               disabled={logoutMutation.isPending}
+              aria-busy={logoutMutation.isPending}
               onClick={() => {
                 if (
                   window.confirm(
@@ -492,7 +511,9 @@ function TeamContent() {
               }}
             >
               <KeyRound className="size-4" aria-hidden="true" />
-              Revoke current session
+              {logoutMutation.isPending
+                ? "Revoking session…"
+                : "Revoke current session"}
             </Button>
             <span className="inline-flex items-center gap-1 text-xs text-[#777770]">
               <MapPin className="size-3.5" aria-hidden="true" />

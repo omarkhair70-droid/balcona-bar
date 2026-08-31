@@ -670,7 +670,10 @@ function MutationMessage({ error }: { error: unknown }) {
   }
 
   return (
-    <div className="flex items-start gap-3 rounded-card border border-danger/40 bg-danger/10 p-4 text-sm text-foreground">
+    <div
+      role="alert"
+      className="flex items-start gap-3 rounded-card border border-danger/40 bg-danger/10 p-4 text-sm text-foreground"
+    >
       <AlertTriangle className="mt-0.5 size-4 text-danger" aria-hidden="true" />
       <div>
         <p className="font-semibold">Update did not save</p>
@@ -688,7 +691,11 @@ function SuccessMessage({ message }: { message: string | null }) {
   }
 
   return (
-    <div className="flex items-start gap-3 rounded-card border border-success/40 bg-success/10 p-4 text-sm text-foreground">
+    <div
+      role="status"
+      aria-live="polite"
+      className="flex items-start gap-3 rounded-card border border-success/40 bg-success/10 p-4 text-sm text-foreground"
+    >
       <CheckCircle2 className="mt-0.5 size-4 text-success" aria-hidden="true" />
       <div>
         <p className="font-semibold">Saved</p>

@@ -62,6 +62,7 @@ function SettingsContent() {
   const [pendingFlagKeys, setPendingFlagKeys] = useState<Set<string>>(
     () => new Set(),
   );
+  const [actionNotice, setActionNotice] = useState<string | null>(null);
   const selectedBranchId = useStaffAuthStore((state) => state.selectedBranchId);
   const setSelectedBranchId = useStaffAuthStore(
     (state) => state.setSelectedBranchId,
@@ -141,7 +142,11 @@ function SettingsContent() {
         payload,
         accessToken ?? "",
       ),
-    onSuccess: () => void invalidate(),
+    onMutate: () => setActionNotice(null),
+    onSuccess: () => {
+      setActionNotice("Branch operating settings saved.");
+      void invalidate();
+    },
   });
 
   const flagMutation = useMutation({
@@ -159,9 +164,15 @@ function SettingsContent() {
         accessToken ?? "",
       ),
     onMutate: ({ key }) => {
+      setActionNotice(null);
       setPendingFlagKeys((current) => new Set(current).add(key));
     },
-    onSuccess: () => void invalidate(),
+    onSuccess: (_result, variables) => {
+      setActionNotice(
+        `${variables.key.replaceAll("_", " ")} ${variables.enabled ? "enabled" : "disabled"}.`,
+      );
+      void invalidate();
+    },
     onSettled: (_result, _error, variables) => {
       setPendingFlagKeys((current) => {
         const next = new Set(current);
@@ -184,7 +195,11 @@ function SettingsContent() {
         { name, slug },
         accessToken,
       ),
-    onSuccess: () => void invalidate(),
+    onMutate: () => setActionNotice(null),
+    onSuccess: () => {
+      setActionNotice("Company identity saved.");
+      void invalidate();
+    },
   });
 
   if (operatingQuery.isPending) {
@@ -227,6 +242,20 @@ function SettingsContent() {
           the API and recorded by backend audit services where supported.
         </OfficeInlineNotice>
       </div>
+
+      {actionNotice ? (
+        <div role="status" aria-live="polite">
+          <OfficeInlineNotice title="Saved">{actionNotice}</OfficeInlineNotice>
+        </div>
+      ) : null}
+
+      {operatingMutation.isPending ||
+      businessMutation.isPending ||
+      pendingFlagKeys.size > 0 ? (
+        <p role="status" aria-live="polite" className="text-xs text-[#707069]">
+          Saving the selected setting… Other settings remain available.
+        </p>
+      ) : null}
 
       <div className="grid gap-4 xl:grid-cols-2">
         <OfficeControlSection
@@ -275,8 +304,11 @@ function SettingsContent() {
                   size="sm"
                   type="submit"
                   disabled={businessMutation.isPending}
+                  aria-busy={businessMutation.isPending}
                 >
-                  Save company identity
+                  {businessMutation.isPending
+                    ? "Saving company identity…"
+                    : "Save company identity"}
                 </Button>
               </div>
             </form>
@@ -421,6 +453,7 @@ function SettingsContent() {
                       size="sm"
                       variant="secondary"
                       disabled={pendingFlagKeys.has(key)}
+                      aria-busy={pendingFlagKeys.has(key)}
                       onClick={() => {
                         if (
                           window.confirm(
@@ -431,7 +464,11 @@ function SettingsContent() {
                         }
                       }}
                     >
-                      {enabled ? "Disable" : "Enable"}
+                      {pendingFlagKeys.has(key)
+                        ? "Saving…"
+                        : enabled
+                          ? "Disable"
+                          : "Enable"}
                     </Button>
                   ) : null}
                 </div>

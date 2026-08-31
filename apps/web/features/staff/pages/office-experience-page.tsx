@@ -77,6 +77,7 @@ function ExperienceContent() {
   const [pendingMediaIds, setPendingMediaIds] = useState<Set<string>>(
     () => new Set(),
   );
+  const [actionNotice, setActionNotice] = useState("");
 
   const branchAccess = effectiveAccess?.branches.find(
     (entry) => entry.branch.id === selectedBranchId,
@@ -232,9 +233,17 @@ function ExperienceContent() {
           ? archiveOfficeExperienceProfile(id, accessToken ?? "")
           : setDefaultOfficeExperienceProfile(id, accessToken ?? ""),
     onMutate: ({ id }) => {
+      setActionNotice("");
       setPendingProfileIds((current) => new Set(current).add(id));
     },
-    onSuccess: () => void invalidate(),
+    onSuccess: (_result, variables) => {
+      void invalidate();
+      setActionNotice(
+        variables.action === "default"
+          ? "Experience profile set as the default."
+          : `Experience profile ${variables.action === "activate" ? "activated" : "archived"}.`,
+      );
+    },
     onSettled: (_result, _error, variables) => {
       setPendingProfileIds((current) => {
         const next = new Set(current);
@@ -256,9 +265,15 @@ function ExperienceContent() {
         ? activateOfficeContentBlock(id, accessToken ?? "")
         : deactivateOfficeContentBlock(id, accessToken ?? ""),
     onMutate: ({ id }) => {
+      setActionNotice("");
       setPendingContentIds((current) => new Set(current).add(id));
     },
-    onSuccess: () => void invalidate(),
+    onSuccess: (_result, variables) => {
+      void invalidate();
+      setActionNotice(
+        `Content block ${variables.active ? "activated" : "deactivated"}.`,
+      );
+    },
     onSettled: (_result, _error, variables) => {
       setPendingContentIds((current) => {
         const next = new Set(current);
@@ -280,9 +295,15 @@ function ExperienceContent() {
         ? activateOfficeNotificationTemplate(id, accessToken ?? "")
         : deactivateOfficeNotificationTemplate(id, accessToken ?? ""),
     onMutate: ({ id }) => {
+      setActionNotice("");
       setPendingTemplateIds((current) => new Set(current).add(id));
     },
-    onSuccess: () => void invalidate(),
+    onSuccess: (_result, variables) => {
+      void invalidate();
+      setActionNotice(
+        `Notification template ${variables.active ? "activated" : "deactivated"}.`,
+      );
+    },
     onSettled: (_result, _error, variables) => {
       setPendingTemplateIds((current) => {
         const next = new Set(current);
@@ -304,9 +325,15 @@ function ExperienceContent() {
         ? restoreOfficeMediaAsset(id, accessToken ?? "")
         : archiveOfficeMediaAsset(id, accessToken ?? ""),
     onMutate: ({ id }) => {
+      setActionNotice("");
       setPendingMediaIds((current) => new Set(current).add(id));
     },
-    onSuccess: () => void invalidate(),
+    onSuccess: (_result, variables) => {
+      void invalidate();
+      setActionNotice(
+        `Media asset ${variables.restore ? "restored" : "archived"}.`,
+      );
+    },
     onSettled: (_result, _error, variables) => {
       setPendingMediaIds((current) => {
         const next = new Set(current);
@@ -319,7 +346,11 @@ function ExperienceContent() {
   const packMutation = useMutation({
     mutationFn: () =>
       applyOfficeBalkonaPack(selectedBranchId ?? "", accessToken ?? ""),
-    onSuccess: () => void invalidate(),
+    onMutate: () => setActionNotice(""),
+    onSuccess: () => {
+      void invalidate();
+      setActionNotice("Balcona experience pack applied.");
+    },
   });
 
   const aiWaiterMutation = useMutation({
@@ -329,7 +360,11 @@ function ExperienceContent() {
         { aiWaiterEnabled: enabled },
         accessToken ?? "",
       ),
-    onSuccess: () => void invalidate(),
+    onMutate: () => setActionNotice(""),
+    onSuccess: (_result, enabled) => {
+      void invalidate();
+      setActionNotice(`AI waiter ${enabled ? "enabled" : "disabled"}.`);
+    },
   });
 
   const packPreviewQuery = useQuery({
@@ -340,8 +375,7 @@ function ExperienceContent() {
     retry: false,
   });
 
-  const pending =
-    branchProfilesQuery.isLoading ||
+  const additionalLoading =
     companyProfilesQuery.isLoading ||
     contentQuery.isLoading ||
     templatesQuery.isLoading ||
@@ -351,12 +385,11 @@ function ExperienceContent() {
     notificationsQuery.isLoading ||
     operatingQuery.isLoading;
 
-  if (pending) {
+  if (branchProfilesQuery.isLoading) {
     return <LoadingState label="Loading experience configuration…" />;
   }
 
-  const firstError =
-    branchProfilesQuery.error ??
+  const additionalError =
     companyProfilesQuery.error ??
     contentQuery.error ??
     templatesQuery.error ??
@@ -366,11 +399,11 @@ function ExperienceContent() {
     notificationsQuery.error ??
     operatingQuery.error;
 
-  if (firstError) {
+  if (branchProfilesQuery.error) {
     return (
       <EmptyState
         title="Experience data could not be loaded"
-        description={formatErrorMessage(firstError)}
+        description={formatErrorMessage(branchProfilesQuery.error)}
         action={
           <Button
             variant="secondary"
@@ -422,6 +455,31 @@ function ExperienceContent() {
           them as effective. This surface keeps the two scopes explicit.
         </OfficeInlineNotice>
       </div>
+
+      {actionNotice ? (
+        <div role="status" aria-live="polite">
+          <OfficeInlineNotice title="Completed">
+            {actionNotice}
+          </OfficeInlineNotice>
+        </div>
+      ) : null}
+
+      {additionalLoading ? (
+        <div role="status" aria-live="polite">
+          <OfficeInlineNotice title="Loading the remaining experience modules">
+            Available configuration stays interactive while the other sections
+            finish loading.
+          </OfficeInlineNotice>
+        </div>
+      ) : null}
+
+      {additionalError ? (
+        <div role="alert">
+          <OfficeInlineNotice title="Some experience data is unavailable">
+            {formatErrorMessage(additionalError)}
+          </OfficeInlineNotice>
+        </div>
+      ) : null}
 
       <OfficeControlSection
         title="Experience profiles"
@@ -486,11 +544,18 @@ function ExperienceContent() {
                           size="sm"
                           variant="secondary"
                           disabled={pendingProfileIds.has(id)}
+                          aria-busy={
+                            pendingProfileIds.has(id) &&
+                            profileMutation.variables?.action === "activate"
+                          }
                           onClick={() =>
                             profileMutation.mutate({ id, action: "activate" })
                           }
                         >
-                          Activate
+                          {pendingProfileIds.has(id) &&
+                          profileMutation.variables?.action === "activate"
+                            ? "Activating…"
+                            : "Activate"}
                         </Button>
                       ) : null}
                       {!isDefault && status !== "archived" ? (
@@ -498,11 +563,18 @@ function ExperienceContent() {
                           size="sm"
                           variant="secondary"
                           disabled={pendingProfileIds.has(id)}
+                          aria-busy={
+                            pendingProfileIds.has(id) &&
+                            profileMutation.variables?.action === "default"
+                          }
                           onClick={() =>
                             profileMutation.mutate({ id, action: "default" })
                           }
                         >
-                          Set default
+                          {pendingProfileIds.has(id) &&
+                          profileMutation.variables?.action === "default"
+                            ? "Setting default…"
+                            : "Set default"}
                         </Button>
                       ) : null}
                       {status !== "archived" ? (
@@ -510,6 +582,10 @@ function ExperienceContent() {
                           size="sm"
                           variant="secondary"
                           disabled={pendingProfileIds.has(id)}
+                          aria-busy={
+                            pendingProfileIds.has(id) &&
+                            profileMutation.variables?.action === "archive"
+                          }
                           onClick={() => {
                             if (
                               window.confirm(
@@ -520,7 +596,10 @@ function ExperienceContent() {
                             }
                           }}
                         >
-                          Archive
+                          {pendingProfileIds.has(id) &&
+                          profileMutation.variables?.action === "archive"
+                            ? "Archiving…"
+                            : "Archive"}
                         </Button>
                       ) : null}
                     </div>
@@ -550,14 +629,16 @@ function ExperienceContent() {
               size="sm"
               variant="secondary"
               disabled={packPreviewQuery.isFetching}
+              aria-busy={packPreviewQuery.isFetching}
               onClick={() => void packPreviewQuery.refetch()}
             >
-              Preview pack
+              {packPreviewQuery.isFetching ? "Preparing preview…" : "Preview pack"}
             </Button>
             {canExperienceManage ? (
               <Button
                 size="sm"
                 disabled={packMutation.isPending}
+                aria-busy={packMutation.isPending}
                 onClick={() => {
                   if (
                     window.confirm(
@@ -568,7 +649,7 @@ function ExperienceContent() {
                   }
                 }}
               >
-                Apply pack
+                {packMutation.isPending ? "Applying pack…" : "Apply pack"}
               </Button>
             ) : null}
           </div>
@@ -627,6 +708,7 @@ function ExperienceContent() {
               size="sm"
               variant="secondary"
               disabled={aiWaiterMutation.isPending}
+              aria-busy={aiWaiterMutation.isPending}
               onClick={() => {
                 if (
                   window.confirm(
@@ -637,7 +719,13 @@ function ExperienceContent() {
                 }
               }}
             >
-              {aiWaiterEnabled ? "Disable AI waiter" : "Enable AI waiter"}
+              {aiWaiterMutation.isPending
+                ? aiWaiterMutation.variables
+                  ? "Enabling AI waiter…"
+                  : "Disabling AI waiter…"
+                : aiWaiterEnabled
+                  ? "Disable AI waiter"
+                  : "Enable AI waiter"}
             </Button>
           ) : (
             <div className="mt-3">
@@ -685,11 +773,18 @@ function ExperienceContent() {
                           size="sm"
                           variant="secondary"
                           disabled={pendingContentIds.has(id)}
+                          aria-busy={pendingContentIds.has(id)}
                           onClick={() =>
                             contentMutation.mutate({ id, active: !active })
                           }
                         >
-                          {active ? "Deactivate" : "Activate"}
+                          {pendingContentIds.has(id)
+                            ? active
+                              ? "Deactivating…"
+                              : "Activating…"
+                            : active
+                              ? "Deactivate"
+                              : "Activate"}
                         </Button>
                       ) : null}
                     </div>
@@ -737,11 +832,18 @@ function ExperienceContent() {
                           size="sm"
                           variant="secondary"
                           disabled={pendingTemplateIds.has(id)}
+                          aria-busy={pendingTemplateIds.has(id)}
                           onClick={() =>
                             templateMutation.mutate({ id, active: !active })
                           }
                         >
-                          {active ? "Deactivate" : "Activate"}
+                          {pendingTemplateIds.has(id)
+                            ? active
+                              ? "Deactivating…"
+                              : "Activating…"
+                            : active
+                              ? "Deactivate"
+                              : "Activate"}
                         </Button>
                       ) : null}
                     </div>
@@ -800,6 +902,7 @@ function ExperienceContent() {
                       size="sm"
                       variant="secondary"
                       disabled={pendingMediaIds.has(id)}
+                      aria-busy={pendingMediaIds.has(id)}
                       onClick={() => {
                         if (status === "archived") {
                           mediaMutation.mutate({ id, restore: true });
@@ -812,7 +915,13 @@ function ExperienceContent() {
                         }
                       }}
                     >
-                      {status === "archived" ? "Restore" : "Archive"}
+                      {pendingMediaIds.has(id)
+                        ? status === "archived"
+                          ? "Restoring…"
+                          : "Archiving…"
+                        : status === "archived"
+                          ? "Restore"
+                          : "Archive"}
                     </Button>
                   ) : null}
                 </div>
