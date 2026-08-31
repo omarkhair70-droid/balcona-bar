@@ -70,6 +70,41 @@ describe("smoke core", () => {
     assert.equal(safePublicConfig(config).runId, config.runId);
   });
 
+  it("supports an explicit AI skip for bounded operational demo runs", () => {
+    const config = readSmokeConfig({
+      env: {
+        SMOKE_WEB_BASE_URL: "https://web.example.com",
+        SMOKE_API_BASE_URL: "https://api.example.com/api/v1",
+        SMOKE_SKIP_AI: "true"
+      },
+      argv: ["--mode", "full"],
+      envFile: "missing-smoke-env-file"
+    });
+
+    assert.equal(config.skipAi, true);
+    assert.equal(safePublicConfig(config).skipAi, true);
+  });
+
+  it("keeps customer cart submission outside the optional AI flow", async () => {
+    const source = await readFile(
+      new URL("./staging-smoke.mjs", import.meta.url),
+      "utf8"
+    );
+    const mainStart = source.indexOf("async function main()");
+    const mainEnd = source.indexOf("async function runSystemSmoke");
+    const aiStart = source.indexOf("async function runAiWaiterSmoke");
+    const aiEnd = source.indexOf("async function sendAiMessage");
+
+    assert.match(
+      source.slice(mainStart, mainEnd),
+      /await runCustomerCartAndOrderSmoke\(run\)/
+    );
+    assert.doesNotMatch(
+      source.slice(aiStart, aiEnd),
+      /runCustomerCartAndOrderSmoke/
+    );
+  });
+
   it("sanitizes tokens, cookies, passwords, and bearer credentials", () => {
     const sanitized = sanitizeValue({
       password: "pw",
@@ -374,6 +409,28 @@ describe("smoke core", () => {
     assert.ok(readyBlock);
     assert.doesNotMatch(startBlock[0], /\bnote\b/);
     assert.doesNotMatch(readyBlock[0], /\bnote\b/);
+  });
+
+  it("uses current step entity ids when a seeded session contains older records", async () => {
+    const source = await readFile(
+      new URL("./staging-smoke.mjs", import.meta.url),
+      "utf8"
+    );
+
+    assert.match(
+      source,
+      /const taskId = preparationLookupStep\.entityIds\?\.preparationTaskId/
+    );
+    assert.match(
+      source,
+      /const waiterCallId = waiterCallCreateStep\.entityIds\?\.waiterCallId/
+    );
+    assert.match(
+      source,
+      /const billRequestId = billRequestCreateStep\.entityIds\?\.billRequestId/
+    );
+    assert.doesNotMatch(source, /const taskId = run\.entityIds\.preparationTaskId/);
+    assert.doesNotMatch(source, /const billRequestId = run\.entityIds\.billRequestId/);
   });
 
   it("extracts the current submit cart order from the submit response", () => {

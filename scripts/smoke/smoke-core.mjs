@@ -156,6 +156,7 @@ export function readSmokeConfig({
     menuItemName: merged.SMOKE_MENU_ITEM_NAME ?? "Spanish Latte",
     timeoutMs: Number.isFinite(timeoutMs) ? timeoutMs : DEFAULT_TIMEOUT_MS,
     retryTransient: String(merged.SMOKE_RETRY_TRANSIENT ?? "true") === "true",
+    skipAi: String(merged.SMOKE_SKIP_AI ?? "false") === "true",
     gitSha:
       merged.GIT_SHA ??
       merged.VERCEL_GIT_COMMIT_SHA ??
@@ -254,6 +255,7 @@ export function safePublicConfig(config) {
     webBaseUrl: config.webBaseUrl,
     apiBaseUrl: config.apiBaseUrl,
     branchSlug: config.branchSlug,
+    skipAi: config.skipAi,
     tableQrTokenPresent: Boolean(config.tableQrToken),
     table2QrTokenPresent: Boolean(config.table2QrToken),
     roles: Object.fromEntries(

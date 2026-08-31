@@ -53,12 +53,19 @@ async function main() {
 
     if (config.mode === "full") {
       await runCustomerSmoke(run);
-      await runAiWaiterSmoke(run, { phase: "pre_order" });
+      if (config.skipAi) {
+        markAiSkipped(run, "SMOKE_SKIP_AI=true for the operational demo run");
+      } else {
+        await runAiWaiterSmoke(run, { phase: "pre_order" });
+      }
+      await runCustomerCartAndOrderSmoke(run);
       await runCashierSmoke(run);
       await runKitchenSmoke(run);
       await runWaiterSmoke(run);
       await runBillSmoke(run);
-      await runAiWaiterSmoke(run, { phase: "post_accept" });
+      if (!config.skipAi) {
+        await runAiWaiterSmoke(run, { phase: "post_accept" });
+      }
     }
 
     await runOwnerSmoke(run);
@@ -890,7 +897,6 @@ async function runAiWaiterSmoke(run, { phase }) {
     notes: "No provider failure toggle exists in the smoke runner."
   });
 
-  await runCustomerCartAndOrderSmoke(run);
 }
 
 async function sendAiMessage(run, options) {
@@ -1151,7 +1157,7 @@ async function runKitchenSmoke(run) {
     }
   );
 
-  await run.step(
+  const preparationLookupStep = await run.step(
     {
       stepName: "preparation task lookup",
       role,
@@ -1204,7 +1210,10 @@ async function runKitchenSmoke(run) {
     }
   );
 
-  const taskId = run.entityIds.preparationTaskId;
+  // The table session may already contain older orders and preparation tasks.
+  // Use the ID returned by this lookup instead of the first same-named entity
+  // collected earlier in the smoke run.
+  const taskId = preparationLookupStep.entityIds?.preparationTaskId;
 
   await run.step(
     {
@@ -1269,7 +1278,7 @@ async function runWaiterSmoke(run) {
   const customerToken = run.tokens.customer;
   const missingCustomerToken = getMissingCustomerTokenReason(run);
 
-  await run.step(
+  const waiterCallCreateStep = await run.step(
     {
       stepName: "customer call waiter",
       role: "customer",
@@ -1300,7 +1309,7 @@ async function runWaiterSmoke(run) {
     })
   );
 
-  const waiterCallId = run.entityIds.waiterCallId;
+  const waiterCallId = waiterCallCreateStep.entityIds?.waiterCallId;
 
   await run.step(
     {
@@ -1410,7 +1419,7 @@ async function runBillSmoke(run) {
   const customerToken = run.tokens.customer;
   const missingCustomerToken = getMissingCustomerTokenReason(run);
 
-  await run.step(
+  const billRequestCreateStep = await run.step(
     {
       stepName: "customer request bill",
       role: "customer",
@@ -1437,7 +1446,7 @@ async function runBillSmoke(run) {
     })
   );
 
-  const billRequestId = run.entityIds.billRequestId;
+  const billRequestId = billRequestCreateStep.entityIds?.billRequestId;
 
   await run.step(
     {
