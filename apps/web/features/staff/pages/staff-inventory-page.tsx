@@ -1014,7 +1014,7 @@ function StaffInventoryContent() {
       setFormError(null);
       setSuccessMessage(
         `${humanizeInventoryValue(result.movement.type)} recorded for ${
-          result.level.item?.name ?? level.inventoryItemId
+          result.level.item?.name ?? result.level.inventoryItemId
         }. Stock is now ${quantityWithUnit(
           result.level.quantityOnHand,
           result.level.item?.unit
@@ -2428,7 +2428,7 @@ function StockLevelsSection({
                       : humanizeInventoryValue(level.stockStatus)}
                   </Badge>
                   <Badge variant="muted">
-                    {humanizeInventoryValue(level.item?.unit)}
+                    {level.item?.unit ? humanizeInventoryValue(level.item.unit) : "Unit"}
                   </Badge>
                 </div>
                 <p className="mt-1 text-sm text-muted-foreground">
