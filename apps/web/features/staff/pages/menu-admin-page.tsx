@@ -438,13 +438,13 @@ type MenuAdminDerivedStats = {
 function getMenuAdminDerivedStats(
   overview: MenuAdminOverviewResult
 ): MenuAdminDerivedStats {
-  const items = overview.categories.flatMap((category) => category.items);
+  const items = (overview.categories ?? []).flatMap((category) => category.items ?? []);
 
   return {
-    activeCategories: overview.categories.filter(
+    activeCategories: (overview.categories ?? []).filter(
       (category) => category.status === "active"
     ).length,
-    inactiveCategories: overview.categories.filter(
+    inactiveCategories: (overview.categories ?? []).filter(
       (category) => category.status !== "active"
     ).length,
     activeItems: items.filter((item) => item.status === "active").length,
@@ -454,19 +454,19 @@ function getMenuAdminDerivedStats(
     missingImageItems: items.filter((item) => !item.imageUrl?.trim()).length,
     missingPriceItems: items.filter((item) => item.basePriceMinor <= 0).length,
     branchOverrides: items.filter((item) => item.hasBranchOverride).length,
-    activeModifierGroups: overview.modifierGroups.filter(
+    activeModifierGroups: (overview.modifierGroups ?? []).filter(
       (group) => group.status === "active"
     ).length,
-    inactiveModifierGroups: overview.modifierGroups.filter(
+    inactiveModifierGroups: (overview.modifierGroups ?? []).filter(
       (group) => group.status !== "active"
     ).length,
-    modifierOptions: overview.modifierGroups.reduce(
-      (count, group) => count + group.options.length,
+    modifierOptions: (overview.modifierGroups ?? []).reduce(
+      (count, group) => count + (group.options ?? []).length,
       0
     ),
-    activeModifierOptions: overview.modifierGroups.reduce(
+    activeModifierOptions: (overview.modifierGroups ?? []).reduce(
       (count, group) =>
-        count + group.options.filter((option) => option.status === "active").length,
+        count + (group.options ?? []).filter((option) => option.status === "active").length,
       0
     )
   };
@@ -503,14 +503,14 @@ function OverviewMetric({
 
 function OverviewSection({ overview }: { overview: MenuAdminOverviewResult }) {
   const stats = getMenuAdminDerivedStats(overview);
-  const issuePreview = overview.setupIssues.slice(0, 5);
+  const issuePreview = (overview.setupIssues ?? []).slice(0, 5);
 
   return (
     <section className="grid gap-4">
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
         <OverviewMetric
           label="Categories"
-          value={`${stats.activeCategories}/${overview.categories.length}`}
+          value={`${stats.activeCategories}/${(overview.categories ?? []).length}`}
           detail={`${stats.inactiveCategories} inactive categories`}
           tone={stats.activeCategories > 0 ? "success" : "warning"}
         />
@@ -596,24 +596,24 @@ function OverviewSection({ overview }: { overview: MenuAdminOverviewResult }) {
             <div className="flex flex-wrap items-center justify-between gap-3 rounded-card border bg-surface/70 p-3">
               <span>Setup warnings</span>
               <Badge
-                variant={overview.setupIssues.length > 0 ? "warning" : "success"}
+                variant={(overview.setupIssues ?? []).length > 0 ? "warning" : "success"}
               >
-                {overview.setupIssues.length}
+                {(overview.setupIssues ?? []).length}
               </Badge>
             </div>
           </CardContent>
         </Card>
       </div>
 
-      <Card variant={overview.setupIssues.length > 0 ? "accent" : "quiet"}>
+      <Card variant={(overview.setupIssues ?? []).length > 0 ? "accent" : "quiet"}>
         <CardHeader>
           <Badge
-            variant={overview.setupIssues.length > 0 ? "warning" : "success"}
+            variant={(overview.setupIssues ?? []).length > 0 ? "warning" : "success"}
           >
             Readiness check
           </Badge>
           <CardTitle>
-            {overview.setupIssues.length > 0
+            {(overview.setupIssues ?? []).length > 0
               ? "Setup warnings need review"
               : "Menu is customer-ready"}
           </CardTitle>
@@ -638,13 +638,13 @@ function OverviewSection({ overview }: { overview: MenuAdminOverviewResult }) {
               <p className="mt-2 text-foreground">{issue.message}</p>
             </div>
           ))}
-          {overview.setupIssues.length > issuePreview.length ? (
+          {(overview.setupIssues ?? []).length > issuePreview.length ? (
             <p className="text-sm text-muted-foreground">
-              {overview.setupIssues.length - issuePreview.length} more warnings
+              {(overview.setupIssues ?? []).length - issuePreview.length} more warnings
               are listed in Preview Issues.
             </p>
           ) : null}
-          {overview.setupIssues.length === 0 ? (
+          {(overview.setupIssues ?? []).length === 0 ? (
             <div className="flex items-start gap-3 rounded-card border border-success/40 bg-success/10 p-4">
               <CheckCircle2
                 className="mt-0.5 size-4 text-success"
@@ -1229,11 +1229,11 @@ function ItemSection({
                       </Badge>
                     </div>
                     <p className="mt-1 text-sm text-muted-foreground">
-                      {item.category.name} /{" "}
+                      {item.category?.name ?? "Catalog item"} /{" "}
                       {formatMenuMoney(item.basePriceMinor, item.currency)}
                     </p>
                     <p className="mt-1 text-xs text-muted-foreground">
-                      {item.modifierGroups.length} modifier groups /{" "}
+                      {(item.modifierGroups ?? []).length} modifier groups /{" "}
                       {item.customerVisible
                         ? "visible to customer"
                         : "not visible to customer"}
@@ -1586,7 +1586,7 @@ function ModifierSection({
   onDetachLink: (itemId: string, linkId: string) => void;
 }) {
   const attachedLinks = items.flatMap((item) =>
-    item.modifierGroups.map((link) => ({
+    (item.modifierGroups ?? []).map((link) => ({
       item,
       link
     }))
@@ -1790,7 +1790,7 @@ function ModifierSection({
                       ) : null}
                     </div>
                     <p className="mt-1 text-sm text-muted-foreground">
-                      {group.selectionType} / {group.options.length} options /{" "}
+                      {group.selectionType} / {(group.options ?? []).length} options /{" "}
                       {group.itemCount ?? 0} items
                     </p>
                   </button>
@@ -1935,7 +1935,7 @@ function ModifierSection({
                 </form>
 
                 <div className="grid gap-2">
-                  {selectedGroup.options.map((option) => (
+                  {(selectedGroup.options ?? []).map((option) => (
                     <div
                       key={option.id}
                       className="flex flex-wrap items-center justify-between gap-3 rounded-card border bg-surface/70 p-3"
@@ -1980,7 +1980,7 @@ function ModifierSection({
                       </div>
                     </div>
                   ))}
-                  {selectedGroup.options.length === 0 ? (
+                  {(selectedGroup.options ?? []).length === 0 ? (
                     <p className="rounded-card border bg-surface/70 p-3 text-sm text-muted-foreground">
                       This group has no options yet.
                     </p>
@@ -2120,8 +2120,8 @@ function PreviewIssuesSection({
           </CardDescription>
         </CardHeader>
         <CardContent className="grid gap-4">
-          {overview.categories.map((category) => {
-            const categoryVisibleItems = category.items.filter(
+          {(overview.categories ?? []).map((category) => {
+            const categoryVisibleItems = (category.items ?? []).filter(
               (item) => item.customerVisible
             );
 
@@ -2177,7 +2177,7 @@ function PreviewIssuesSection({
           </CardDescription>
         </CardHeader>
         <CardContent className="grid gap-3">
-          {overview.setupIssues.map((issue) => (
+          {(overview.setupIssues ?? []).map((issue) => (
             <div
               key={`${issue.code}-${issue.itemId ?? issue.categoryId ?? issue.modifierGroupId ?? issue.scope}`}
               className="rounded-card border bg-surface/70 p-4"
@@ -2194,7 +2194,7 @@ function PreviewIssuesSection({
               <p className="mt-1 text-xs text-muted-foreground">{issue.code}</p>
             </div>
           ))}
-          {overview.setupIssues.length === 0 ? (
+          {(overview.setupIssues ?? []).length === 0 ? (
             <div className="flex items-start gap-3 rounded-card border border-success/40 bg-success/10 p-4">
               <CheckCircle2
                 className="mt-0.5 size-4 text-success"
@@ -2265,7 +2265,7 @@ function MenuAdminContent() {
   });
   const overview = overviewQuery.data;
   const allItems = useMemo(
-    () => overview?.categories?.flatMap((category) => category.items) ?? [],
+    () => overview?.categories?.flatMap((category) => category.items ?? []) ?? [],
     [overview]
   );
   const visibleItems = useMemo(
@@ -2900,7 +2900,7 @@ function MenuAdminContent() {
 
       {activeVisibleTab === "categories" ? (
         <CategorySection
-          categories={overview.categories}
+          categories={overview.categories ?? []}
           form={categoryForm}
           isSaving={categoryFormSaving}
           pendingCategoryIds={pendingCategoryIds}
@@ -2914,7 +2914,7 @@ function MenuAdminContent() {
 
       {activeVisibleTab === "items" ? (
         <ItemSection
-          categories={overview.categories}
+          categories={overview.categories ?? []}
           items={allItems}
           form={itemForm}
           isSaving={itemFormSaving}
@@ -2925,7 +2925,7 @@ function MenuAdminContent() {
           onReset={() =>
             setItemForm({
               ...emptyItemForm,
-              categoryId: overview.categories[0]?.id ?? ""
+              categoryId: overview.categories?.[0]?.id ?? ""
             })
           }
           onActivate={(item) => activateItemMutation.mutate(item)}
@@ -2962,7 +2962,7 @@ function MenuAdminContent() {
       {activeVisibleTab === "modifiers" ? (
         <ModifierSection
           items={allItems}
-          groups={overview.modifierGroups}
+          groups={overview.modifierGroups ?? []}
           selectedGroup={selectedModifierGroup}
           groupForm={modifierGroupForm}
           optionForm={modifierOptionForm}
