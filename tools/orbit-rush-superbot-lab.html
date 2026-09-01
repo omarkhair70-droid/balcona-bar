@@ -1,0 +1,613 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Orbit Rush Superbot Lab — Offline</title>
+<style>
+  :root{color-scheme:dark;font-family:Inter,system-ui,Arial,sans-serif}
+  *{box-sizing:border-box}
+  body{margin:0;background:#020811;color:#eef7ff}
+  .app{min-height:100vh;display:grid;grid-template-columns:minmax(320px,560px) minmax(280px,420px);gap:18px;padding:18px;justify-content:center}
+  canvas{width:100%;aspect-ratio:520/760;border:1px solid #17466a;border-radius:18px;background:#020811;display:block}
+  .panel{background:#07111d;border:1px solid #173650;border-radius:18px;padding:18px;height:max-content;position:sticky;top:18px}
+  h1{font-size:22px;margin:0 0 8px}.muted{color:#8fb0ca;font-size:13px;line-height:1.5}
+  .grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:16px 0}
+  .stat{background:#0a1b2b;border:1px solid #173650;border-radius:12px;padding:12px}.stat b{display:block;font-size:22px;margin-top:4px}
+  button,select,input{background:#0b2134;color:#eef7ff;border:1px solid #28506e;border-radius:10px;padding:10px 12px;font:inherit}
+  button{cursor:pointer;font-weight:800}.row{display:flex;gap:8px;flex-wrap:wrap;margin:10px 0}
+  .good{color:#5af1aa}.warn{color:#ffb25c}.bad{color:#ff7690}
+  code{background:#0b2134;padding:2px 5px;border-radius:5px}
+  @media(max-width:850px){.app{grid-template-columns:1fr}.panel{position:static}}
+</style>
+</head>
+<body>
+<div class="app">
+  <canvas id="game" width="520" height="760"></canvas>
+  <aside class="panel">
+    <h1>Orbit Rush Superbot Lab</h1>
+    <div class="muted">Offline simulator. No network calls, no leaderboard, no real competition API.</div>
+
+    <div class="grid">
+      <div class="stat">Score<b id="score">0</b></div>
+      <div class="stat">Time<b id="time">0.0s</b></div>
+      <div class="stat">Level<b id="level">WARM UP</b></div>
+      <div class="stat">Mode<b id="mode">NORMAL</b></div>
+      <div class="stat">Target<b id="target">25,000</b></div>
+      <div class="stat">Runs<b id="runs">1</b></div>
+    </div>
+
+    <div class="row">
+      <button id="restart">Restart</button>
+      <button id="pause">Pause</button>
+      <button id="newSeed">New seed</button>
+    </div>
+
+    <div class="row">
+      <label>Speed
+        <select id="speed">
+          <option value="1">1×</option>
+          <option value="2">2×</option>
+          <option value="5" selected>5×</option>
+          <option value="10">10×</option>
+          <option value="20">20×</option>
+        </select>
+      </label>
+      <label>Seed
+        <input id="seed" type="number" value="20260902" style="width:130px">
+      </label>
+    </div>
+
+    <div id="status" class="muted">Superbot planning…</div>
+    <div class="muted" style="margin-top:14px">
+      Planner: exact-state space-time search over future hazard positions, reachable car lanes, collision envelopes, and power-up rewards.
+      The score formula and level thresholds mirror the supplied front-end logic.
+    </div>
+  </aside>
+</div>
+
+<script>
+(() => {
+'use strict';
+
+/*
+  OFFLINE-ONLY SUPERBOT LAB
+  -------------------------
+  No fetch(), XHR, WebSocket, beacon, or external endpoint exists in this file.
+
+  Mirrored source mechanics:
+  verifiedScore(ms)
+  levelFor(ms)
+  hazard spawn frequency / size / velocity
+  ticket / power spawn timing
+  shield and HYPE behavior
+  desktop collision envelope
+*/
+
+const cv = document.querySelector('#game');
+const ctx = cv.getContext('2d');
+const W = cv.width, H = cv.height;
+
+const scoreEl = document.querySelector('#score');
+const timeEl = document.querySelector('#time');
+const levelEl = document.querySelector('#level');
+const modeEl = document.querySelector('#mode');
+const targetEl = document.querySelector('#target');
+const runsEl = document.querySelector('#runs');
+const statusEl = document.querySelector('#status');
+const seedEl = document.querySelector('#seed');
+const speedEl = document.querySelector('#speed');
+
+const TARGET_SCORE = 25000;
+targetEl.textContent = TARGET_SCORE.toLocaleString();
+
+const PLAYER_Y = H * 0.86;
+const PLAYER_R = 15;
+const PLAYER_HW = 24;
+const PLAYER_HH = 18;
+
+function verifiedScore(ms){
+  return Math.floor(ms/100)
+    +(ms>20000?Math.floor((ms-20000)/250):0)
+    +(ms>45000?Math.floor((ms-45000)/150):0);
+}
+
+function levelFor(ms){
+  return ms<12000?['WARM UP',1]:
+         ms<25000?['PULSE',2]:
+         ms<42000?['RUSH',3]:
+         ms<62000?['OVERDRIVE',4]:
+                    ['REDLINE',5];
+}
+
+class RNG {
+  constructor(seed){ this.x=(seed>>>0)||0x12345678; }
+  next(){
+    let x=this.x;
+    x ^= (x << 13); x ^= (x >>> 17); x ^= (x << 5);
+    this.x=x>>>0;
+    return this.x/4294967296;
+  }
+}
+
+let rng, sim, paused=false, runCount=1;
+
+function fresh(seed){
+  rng = new RNG(seed);
+  sim = {
+    ms:0,
+    player:{x:W/2,y:PLAYER_Y},
+    targetX:W/2,
+    hazards:[],
+    tickets:[],
+    powers:[],
+    ticketsCaught:0,
+    nextHaz:0,
+    nextTicket:700,
+    nextPower:6000,
+    shield:0,
+    hypeUntil:0,
+    dead:false,
+    won:false,
+    plan:null,
+    planAt:-1,
+    planCursor:0
+  };
+  paused=false;
+  document.querySelector('#pause').textContent='Pause';
+  statusEl.textContent='Superbot planning…';
+  statusEl.className='muted';
+}
+
+function spawnHaz(ms){
+  const L=levelFor(ms)[1];
+  const size=23+rng.next()*(12+L*2);
+  const margin=Math.max(size+4,W*.07);
+  sim.hazards.push({
+    x:margin+rng.next()*Math.max(1,W-margin*2),
+    y:-size*2,
+    size,
+    vy:120+L*56+rng.next()*(75+L*24),
+    vx:(rng.next()-.5)*(L>=3?110:38)
+  });
+}
+
+function spawnTicket(ms){
+  const L=levelFor(ms)[1];
+  sim.tickets.push({
+    x:55+rng.next()*(W-110),
+    y:-55,w:72,h:40,
+    vy:135+L*22+rng.next()*45,
+    rot:(rng.next()-.5)*.2,
+    kind:rng.next()<.5?'orange':'blue'
+  });
+}
+
+function spawnPower(){
+  sim.powers.push({
+    kind:rng.next()<.5?'shehab':'aby',
+    x:40+rng.next()*(W-80),
+    y:-55,r:28,
+    vy:135+rng.next()*35
+  });
+}
+
+function circleHit(a,b,extra=0){
+  const dx=a.x-b.x,dy=a.y-b.y;
+  const rr=(a.r||a.size||16)+(b.r||Math.max(b.w||0,b.h||0)*.35||16)+extra;
+  return dx*dx+dy*dy<rr*rr;
+}
+
+function hazardHitsCar(z){
+  const rr=z.size*.76;
+  const cx=Math.max(sim.player.x-PLAYER_HW,Math.min(z.x,sim.player.x+PLAYER_HW));
+  const cy=Math.max(sim.player.y-PLAYER_HH,Math.min(z.y,sim.player.y+PLAYER_HH));
+  const dx=z.x-cx,dy=z.y-cy;
+  return dx*dx+dy*dy<=rr*rr;
+}
+
+function reflectX(x,vx,t,size){
+  const lo=size, hi=W-size, span=hi-lo;
+  if(span<=0)return x;
+  let q=(x-lo+vx*t)%(2*span);
+  if(q<0)q+=2*span;
+  if(q>span)q=2*span-q;
+  return lo+q;
+}
+
+/*
+  Space-time dynamic planner
+  --------------------------
+  Unlike V1/V2, this does not choose one static destination.
+  It searches a trajectory across a future time grid.
+
+  Each state = a possible player lane at a future time.
+  Edges are limited by realistic steering reachability.
+  Hazard occupancy is predicted at every future slice.
+  Collision states are removed.
+  Power-up interceptions receive a reward only when the route is already safe.
+*/
+const PLAN = {
+  lanes: 71,
+  dt: 0.075,
+  horizon: 3.60,
+  replanEveryMs: 45,
+  followRate: 12.5,
+  margin: 8,
+  maxLaneJump: 7,
+  centerBias: 0.0006,
+  moveCost: 0.012,
+  edgeCost: 0.08,
+  powerRewardAby: 12,
+  powerRewardShehab: 8
+};
+
+function predictedHazard(z,t,hype){
+  return {
+    x:reflectX(z.x,z.vx,t,z.size),
+    y:z.y+z.vy*t*(hype?.74:1),
+    size:z.size
+  };
+}
+
+function stateCollision(px,hy){
+  const rr=hy.size*.76+PLAN.margin;
+  const cx=Math.max(px-PLAYER_HW,Math.min(hy.x,px+PLAYER_HW));
+  const cy=Math.max(PLAYER_Y-PLAYER_HH,Math.min(hy.y,PLAYER_Y+PLAYER_HH));
+  const dx=hy.x-cx,dy=hy.y-cy;
+  return dx*dx+dy*dy<=rr*rr;
+}
+
+function powerReward(px,t){
+  let reward=0;
+  for(const p of sim.powers){
+    const py=p.y+p.vy*t;
+    if(Math.abs(py-PLAYER_Y)>35)continue;
+    if(Math.abs(px-p.x)>38)continue;
+    if(p.kind==='aby'){
+      if(!sim.shield) reward+=PLAN.powerRewardAby;
+    }else{
+      reward+=PLAN.powerRewardShehab;
+    }
+  }
+  return reward;
+}
+
+function buildPlan(){
+  const N=PLAN.lanes;
+  const steps=Math.ceil(PLAN.horizon/PLAN.dt);
+  const minX=31,maxX=W-31;
+  const lanes=Array.from({length:N},(_,i)=>minX+(maxX-minX)*i/(N-1));
+  const hype=sim.ms<sim.hypeUntil;
+
+  let prevCost=new Float64Array(N);
+  let nextCost=new Float64Array(N);
+  prevCost.fill(Infinity);
+
+  let startI=0,startDist=Infinity;
+  for(let i=0;i<N;i++){
+    const d=Math.abs(lanes[i]-sim.player.x);
+    if(d<startDist){startDist=d;startI=i;}
+  }
+  prevCost[startI]=0;
+
+  const parents=Array.from({length:steps},()=>new Int16Array(N).fill(-1));
+
+  for(let s=0;s<steps;s++){
+    const t=(s+1)*PLAN.dt;
+    nextCost.fill(Infinity);
+
+    const hz=sim.hazards.map(z=>predictedHazard(z,t,hype));
+
+    for(let j=0;j<N;j++){
+      const x=lanes[j];
+
+      let blocked=false;
+      for(const z of hz){
+        if(z.y<PLAYER_Y-110||z.y>PLAYER_Y+70)continue;
+        if(stateCollision(x,z)){blocked=true;break;}
+      }
+      if(blocked)continue;
+
+      const reward=powerReward(x,t);
+      const edge=Math.min(x,W-x);
+
+      const lo=Math.max(0,j-PLAN.maxLaneJump);
+      const hi=Math.min(N-1,j+PLAN.maxLaneJump);
+
+      for(let i=lo;i<=hi;i++){
+        if(!Number.isFinite(prevCost[i]))continue;
+
+        const dx=Math.abs(lanes[j]-lanes[i]);
+        const cost=
+          prevCost[i]
+          +dx*PLAN.moveCost
+          +PLAN.centerBias*Math.abs(x-W/2)
+          +PLAN.edgeCost/Math.max(10,edge)
+          -reward;
+
+        if(cost<nextCost[j]){
+          nextCost[j]=cost;
+          parents[s][j]=i;
+        }
+      }
+    }
+
+    const tmp=prevCost; prevCost=nextCost; nextCost=tmp;
+  }
+
+  let endI=-1,best=Infinity;
+  for(let i=0;i<N;i++){
+    if(prevCost[i]<best){best=prevCost[i];endI=i;}
+  }
+
+  if(endI<0){
+    // Emergency: maximize immediate clearance instead of freezing.
+    let safest=sim.player.x, safestGap=-Infinity;
+    for(const x of lanes){
+      let gap=Infinity;
+      for(const z of sim.hazards){
+        const dx=Math.abs(z.x-x)-(PLAYER_HW+z.size*.76);
+        const dy=Math.abs(z.y-PLAYER_Y);
+        if(dy<170)gap=Math.min(gap,dx+dy*.25);
+      }
+      if(gap>safestGap){safestGap=gap;safest=x;}
+    }
+    return {xs:[safest], impossible:true, cost:Infinity};
+  }
+
+  const idx=new Int16Array(steps);
+  let cur=endI;
+  for(let s=steps-1;s>=0;s--){
+    idx[s]=cur;
+    cur=parents[s][cur];
+    if(cur<0)cur=startI;
+  }
+
+  return {
+    xs:Array.from(idx,i=>lanes[i]),
+    impossible:false,
+    cost:best
+  };
+}
+
+function steer(){
+  if(sim.dead||sim.won)return;
+
+  if(!sim.plan || sim.ms-sim.planAt>=PLAN.replanEveryMs){
+    sim.plan=buildPlan();
+    sim.planAt=sim.ms;
+    sim.planCursor=0;
+  }
+
+  // Execute only the first short slice; MPC replans continuously.
+  const desired=sim.plan.xs[Math.min(1,sim.plan.xs.length-1)] ?? sim.player.x;
+  sim.targetX=desired;
+}
+
+function update(dt){
+  if(sim.dead||sim.won)return;
+
+  sim.ms+=dt*1000;
+  const ms=sim.ms;
+  const [label,L]=levelFor(ms);
+  const hype=ms<sim.hypeUntil;
+
+  const hazEvery=Math.max(180,865-ms*.0094);
+  if(ms>=sim.nextHaz){
+    spawnHaz(ms);
+    sim.nextHaz=ms+hazEvery*(.76+rng.next()*.48);
+  }
+  if(ms>=sim.nextTicket){
+    spawnTicket(ms);
+    sim.nextTicket=ms+1400+rng.next()*900;
+  }
+  if(ms>=sim.nextPower){
+    spawnPower();
+    sim.nextPower=ms+9000+rng.next()*6500;
+  }
+
+  steer();
+
+  sim.player.x+=(sim.targetX-sim.player.x)*Math.min(1,dt*12.5);
+  sim.player.x=Math.max(31,Math.min(W-31,sim.player.x));
+
+  for(let i=sim.hazards.length-1;i>=0;i--){
+    const z=sim.hazards[i];
+    z.y+=z.vy*dt*(hype?.74:1);
+    z.x+=z.vx*dt;
+
+    if(z.x<z.size||z.x>W-z.size)z.vx*=-1;
+
+    if(hazardHitsCar(z)){
+      sim.hazards.splice(i,1);
+      if(sim.shield){
+        sim.shield=0;
+      }else{
+        sim.dead=true;
+        statusEl.textContent='Run ended at '+verifiedScore(ms).toLocaleString()+' points';
+        statusEl.className='bad';
+        return;
+      }
+    }else if(z.y-z.size>H){
+      sim.hazards.splice(i,1);
+    }
+  }
+
+  for(let i=sim.tickets.length-1;i>=0;i--){
+    const t=sim.tickets[i];
+    t.y+=t.vy*dt;
+    t.rot+=dt*.08;
+
+    if(circleHit({x:sim.player.x,y:sim.player.y,r:PLAYER_R},t,-7)){
+      sim.tickets.splice(i,1);
+      sim.ticketsCaught++;
+    }else if(t.y>H+60){
+      sim.tickets.splice(i,1);
+    }
+  }
+
+  for(let i=sim.powers.length-1;i>=0;i--){
+    const p=sim.powers[i];
+    p.y+=p.vy*dt;
+
+    if(circleHit({x:sim.player.x,y:sim.player.y,r:PLAYER_R},p,-5)){
+      sim.powers.splice(i,1);
+
+      if(p.kind==='aby'){
+        sim.shield=1;
+      }else{
+        sim.hypeUntil=ms+6000;
+        for(const z of sim.hazards)z.vy*=.58;
+      }
+    }else if(p.y>H+60){
+      sim.powers.splice(i,1);
+    }
+  }
+
+  if(verifiedScore(ms)>=TARGET_SCORE){
+    sim.won=true;
+    statusEl.textContent='TARGET HIT — '+verifiedScore(ms).toLocaleString()+' points';
+    statusEl.className='good';
+  }
+
+  scoreEl.textContent=verifiedScore(ms).toLocaleString();
+  timeEl.textContent=(ms/1000).toFixed(1)+'s';
+  levelEl.textContent=label;
+  modeEl.textContent=sim.shield?'SHIELD':hype?'HYPE':'NORMAL';
+}
+
+function draw(){
+  ctx.fillStyle='#020811';
+  ctx.fillRect(0,0,W,H);
+
+  const left=W*.06,right=W*.94,roadW=right-left;
+  ctx.fillStyle='#081a29';
+  ctx.fillRect(left,0,roadW,H);
+
+  ctx.strokeStyle='#2b6d91';
+  ctx.lineWidth=2;
+  ctx.strokeRect(left,0,roadW,H);
+
+  ctx.strokeStyle='rgba(76,184,224,.3)';
+  ctx.lineWidth=1.5;
+  ctx.setLineDash([55,42]);
+  for(const x of [left+roadW/3,left+roadW*2/3]){
+    ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,H);ctx.stroke();
+  }
+  ctx.setLineDash([]);
+
+  for(const t of sim.tickets){
+    ctx.save();ctx.translate(t.x,t.y);ctx.rotate(t.rot);
+    ctx.fillStyle='#0b2033';ctx.strokeStyle=t.kind==='orange'?'#ff7622':'#58cfff';ctx.lineWidth=2;
+    ctx.fillRect(-36,-20,72,40);ctx.strokeRect(-36,-20,72,40);
+    ctx.restore();
+  }
+
+  for(const p of sim.powers){
+    ctx.beginPath();ctx.arc(p.x,p.y,p.r+4,0,Math.PI*2);
+    ctx.fillStyle='#102a20';ctx.fill();
+    ctx.strokeStyle='#5af1aa';ctx.lineWidth=3;ctx.stroke();
+    ctx.fillStyle='#bfffdc';ctx.font='bold 12px system-ui';ctx.textAlign='center';
+    ctx.fillText(p.kind==='aby'?'A':'S',p.x,p.y+4);
+  }
+
+  for(const z of sim.hazards){
+    ctx.save();ctx.translate(z.x,z.y);
+    ctx.strokeStyle='#ff476d';ctx.lineWidth=7;ctx.lineCap='round';
+    ctx.beginPath();
+    ctx.moveTo(-z.size*.58,-z.size*.58);ctx.lineTo(z.size*.58,z.size*.58);
+    ctx.moveTo(z.size*.58,-z.size*.58);ctx.lineTo(-z.size*.58,z.size*.58);
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  // Planned path preview.
+  if(sim.plan?.xs?.length){
+    ctx.save();
+    ctx.strokeStyle='rgba(90,241,170,.28)';
+    ctx.lineWidth=2;
+    ctx.beginPath();
+    ctx.moveTo(sim.player.x,PLAYER_Y);
+    const n=Math.min(sim.plan.xs.length,24);
+    for(let i=0;i<n;i++){
+      const y=PLAYER_Y-i*10;
+      ctx.lineTo(sim.plan.xs[i],y);
+    }
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  ctx.save();
+  ctx.translate(sim.player.x,sim.player.y);
+  ctx.fillStyle='#0d3852';
+  ctx.strokeStyle=sim.shield?'#5af1aa':'#7adfff';
+  ctx.lineWidth=2.4;
+  ctx.beginPath();ctx.roundRect(-34,-24,68,49,15);ctx.fill();ctx.stroke();
+  ctx.fillStyle='#ff6a19';ctx.fillRect(-27,8,54,13);
+  if(sim.shield){
+    ctx.beginPath();ctx.arc(0,0,41,0,Math.PI*2);
+    ctx.strokeStyle='#5af1aa';ctx.lineWidth=3;ctx.stroke();
+  }
+  ctx.restore();
+
+  if(sim.dead||sim.won){
+    ctx.fillStyle='rgba(0,0,0,.55)';ctx.fillRect(0,0,W,H);
+    ctx.fillStyle='#fff';ctx.textAlign='center';ctx.font='900 34px system-ui';
+    ctx.fillText(sim.won?'25K TARGET HIT':'RUN ENDED',W/2,H/2-10);
+    ctx.font='700 18px system-ui';
+    ctx.fillText(verifiedScore(sim.ms).toLocaleString()+' points',W/2,H/2+30);
+  }
+
+  runsEl.textContent=String(runCount);
+}
+
+let last=performance.now();
+let accumulator=0;
+const FIXED=1/120;
+
+function frame(now){
+  const realDt=Math.min(.05,(now-last)/1000);
+  last=now;
+
+  if(!paused && !sim.dead && !sim.won){
+    const speed=Number(speedEl.value)||1;
+    accumulator+=realDt*speed;
+
+    // Safety cap keeps the tab responsive at high turbo.
+    let steps=0;
+    while(accumulator>=FIXED && steps<420){
+      update(FIXED);
+      accumulator-=FIXED;
+      steps++;
+      if(sim.dead||sim.won)break;
+    }
+  }
+
+  draw();
+  requestAnimationFrame(frame);
+}
+
+document.querySelector('#restart').onclick=()=>{
+  runCount++;
+  fresh(Number(seedEl.value)||1);
+};
+
+document.querySelector('#newSeed').onclick=()=>{
+  runCount++;
+  seedEl.value=String((Date.now()>>>0)||1);
+  fresh(Number(seedEl.value));
+};
+
+document.querySelector('#pause').onclick=()=>{
+  paused=!paused;
+  document.querySelector('#pause').textContent=paused?'Resume':'Pause';
+};
+
+fresh(Number(seedEl.value));
+requestAnimationFrame(frame);
+
+})();
+</script>
+</body>
+</html>
